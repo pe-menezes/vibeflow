@@ -26,6 +26,21 @@ discover → analyze → gen-spec → prompt-pack → implement → audit
 
 Nem sempre você precisa do pipeline completo. Veja os atalhos abaixo.
 
+## Instalação
+
+Vibeflow está disponível para 3 agentes. Escolha o seu:
+
+| Edição | Comando de instalação |
+|--------|----------------------|
+| **GitHub Copilot** | `npx setup-vibeflow@latest --copilot` |
+| **Cursor** | `npx setup-vibeflow@latest --cursor` |
+| **Claude Code** | `/install-plugin pe-menezes/vibeflow` |
+
+Ou copie os arquivos manualmente — veja o README de cada edição:
+[`copilot/`](copilot/), [`cursor/`](cursor/), [`claude-code/`](claude-code/).
+
+A flag `--copilot` ou `--cursor` é **obrigatória** — o instalador não tem default para evitar instalar na edição errada.
+
 ## Comandos
 
 ### `vibeflow-analyze`

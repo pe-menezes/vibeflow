@@ -1,0 +1,96 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div class="footer-left">
+      <a href={`/${lang}/`} class="footer-logo">
+        <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="32" height="32" rx="8" fill="#6366f1"/>
+          <path d="M8 16L13 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Vibeflow</span>
+      </a>
+      <p class="footer-tagline">
+        {t.footerBuiltWith} spec-driven development {t.footerBy}{' '}
+        <a href="https://github.com/pe-menezes" target="_blank" rel="noopener">pe-menezes</a>
+      </p>
+    </div>
+    <div class="footer-right">
+      <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener" class="footer-link">
+        GitHub
+      </a>
+      <span class="footer-sep">|</span>
+      <span class="footer-license">{t.footerLicense}</span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 0;
+  }
+
+  .footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+  .footer-logo:hover {
+    color: var(--text-primary);
+  }
+
+  .footer-tagline {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .footer-link {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+
+  .footer-sep {
+    color: var(--border);
+  }
+
+  .footer-license {
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 768px) {
+    .footer-inner {
+      flex-direction: column;
+      gap: 16px;
+      text-align: center;
+    }
+  }
+</style>

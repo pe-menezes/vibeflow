@@ -1,0 +1,93 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const steps = [
+  { title: t.qsStep1Title, desc: t.qsStep1Desc, command: null },
+  { title: t.qsStep2Title, desc: t.qsStep2Desc, command: t.qsStep2Command },
+  { title: t.qsStep3Title, desc: t.qsStep3Desc, command: t.qsStep3Command },
+];
+---
+
+<section class="section quickstart">
+  <div class="container">
+    <h2 class="section-title fade-in">{t.qsTitle}</h2>
+
+    <div class="steps">
+      {steps.map((step, i) => (
+        <div class={`qs-step fade-in delay-${i + 1}`}>
+          <div class="qs-step-inner">
+            <h3 class="qs-title">{step.title}</h3>
+            <p class="qs-desc">{step.desc}</p>
+            {step.command && (
+              <code class="qs-cmd">{step.command}</code>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .quickstart {
+    border-top: 1px solid var(--border);
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .qs-step {
+    padding: 32px 28px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+  }
+  .qs-step:hover {
+    border-color: var(--border-light);
+  }
+
+  .qs-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-family: var(--font-mono);
+    color: var(--accent-light);
+  }
+
+  .qs-desc {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+
+  .qs-cmd {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    padding: 6px 12px;
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+  }
+
+  @media (max-width: 768px) {
+    .steps {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+</style>

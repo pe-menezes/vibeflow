@@ -1,0 +1,110 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const cases = [
+  { title: t.uc1Title, role: t.uc1Role, desc: t.uc1Desc, flow: t.uc1Flow },
+  { title: t.uc2Title, role: t.uc2Role, desc: t.uc2Desc, flow: t.uc2Flow },
+  { title: t.uc3Title, role: t.uc3Role, desc: t.uc3Desc, flow: t.uc3Flow },
+  { title: t.uc4Title, role: t.uc4Role, desc: t.uc4Desc, flow: t.uc4Flow },
+];
+---
+
+<section class="section use-cases" id="use-cases">
+  <div class="container">
+    <h2 class="section-title fade-in">{t.useCasesTitle}</h2>
+    <p class="section-subtitle fade-in delay-1">{t.useCasesSubtitle}</p>
+
+    <div class="cases-grid">
+      {cases.map((uc, i) => (
+        <div class={`case-card fade-in delay-${i + 1}`}>
+          <div class="case-role">{uc.role}</div>
+          <h3 class="case-title">{uc.title}</h3>
+          <p class="case-desc">{uc.desc}</p>
+          <code class="case-flow">{uc.flow}</code>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .use-cases {
+    border-top: 1px solid var(--border);
+  }
+
+  .cases-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+
+  .case-card {
+    padding: 28px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+  }
+  .case-card:hover {
+    border-color: var(--border-light);
+  }
+
+  .case-role {
+    display: inline-block;
+    width: fit-content;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+    background: var(--accent-glow);
+    color: var(--accent-light);
+    font-family: var(--font-mono);
+  }
+
+  .case-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .case-desc {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    flex: 1;
+  }
+
+  .case-flow {
+    display: block;
+    margin-top: 16px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow-x: auto;
+  }
+
+  @media (max-width: 768px) {
+    .cases-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+</style>

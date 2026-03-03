@@ -1,6 +1,6 @@
 {
   "name": "setup-vibeflow",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Install Vibeflow (spec-driven development) in your project",
   "bin": {
     "setup-vibeflow": "./index.js"
@@ -13,9 +13,12 @@
     "vibeflow",
     "copilot",
     "github-copilot",
+    "cursor",
+    "cursor-ide",
     "spec-driven",
     "prompts",
-    "agents"
+    "agents",
+    "skills"
   ],
   "author": "pe-menezes",
   "license": "MIT",

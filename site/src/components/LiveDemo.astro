@@ -1,0 +1,378 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="section demo">
+  <div class="container">
+    <h2 class="section-title fade-in">{t.demoTitle}</h2>
+    <p class="section-subtitle fade-in delay-1">{t.demoSubtitle}</p>
+
+    <div class="terminal fade-in delay-2">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <span class="dot dot-red"></span>
+          <span class="dot dot-yellow"></span>
+          <span class="dot dot-green"></span>
+        </div>
+        <span class="terminal-title">vibeflow session</span>
+      </div>
+
+      <div class="terminal-body">
+        <!-- Step 1: User describes idea -->
+        <div class="demo-step">
+          <div class="demo-line">
+            <span class="tag tag-you">{t.demoYou}</span>
+            <span class="line-text line-italic">{t.demoLine1}</span>
+          </div>
+        </div>
+
+        <!-- Step 2: Vibeflow challenges -->
+        <div class="demo-step">
+          <div class="step-label">
+            <span class="step-label-icon">01</span>
+            <code>discover</code>
+          </div>
+          <div class="demo-line">
+            <span class="tag tag-vf">{t.demoVibeflow}</span>
+            <span class="line-text">{t.demoLine2ask1}</span>
+          </div>
+          <div class="demo-line">
+            <span class="tag tag-vf">{t.demoVibeflow}</span>
+            <span class="line-text">{t.demoLine2ask2}</span>
+          </div>
+          <div class="demo-line">
+            <span class="tag tag-vf">{t.demoVibeflow}</span>
+            <span class="line-text">{t.demoLine2ask3}</span>
+          </div>
+          <div class="demo-line">
+            <span class="tag tag-you">{t.demoYou}</span>
+            <span class="line-text line-italic">{t.demoLine2answer}</span>
+          </div>
+          <div class="demo-output">
+            <span class="output-badge output-badge-purple">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+              {t.demoLine3label}
+            </span>
+            <div class="output-content">
+              <span class="output-line">{t.demoLine3scope}</span>
+              <span class="output-line output-danger">{t.demoLine3antiscope}</span>
+              <span class="output-line">{t.demoLine3criteria}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: gen-spec -->
+        <div class="demo-step">
+          <div class="step-label">
+            <span class="step-label-icon">03</span>
+            <code>gen-spec</code>
+          </div>
+          <div class="demo-output">
+            <span class="output-badge output-badge-purple">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              {t.demoLine4label}
+            </span>
+            <div class="output-content dod-list">
+              <span class="output-line">{t.demoLine4dod1}</span>
+              <span class="output-line">{t.demoLine4dod2}</span>
+              <span class="output-line">{t.demoLine4dod3}</span>
+              <span class="output-line output-muted">{t.demoLine4budget}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: implement -->
+        <div class="demo-step">
+          <div class="step-label">
+            <span class="step-label-icon">05</span>
+            <code>implement</code>
+          </div>
+          <div class="demo-output">
+            <span class="output-badge output-badge-green">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+              {t.demoLine5label}
+            </span>
+            <div class="output-content file-list">
+              <span class="output-line file-line">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                {t.demoLine5file1}
+              </span>
+              <span class="output-line file-line">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                {t.demoLine5file2}
+              </span>
+              <span class="output-line file-line">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                {t.demoLine5file3}
+              </span>
+              <span class="output-line output-muted">{t.demoLine5files}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 5: audit -->
+        <div class="demo-step demo-step-final">
+          <div class="step-label">
+            <span class="step-label-icon">06</span>
+            <code>audit</code>
+          </div>
+          <div class="demo-output demo-output-final">
+            <span class="output-badge output-badge-amber">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M9 12l2 2 4-4"/></svg>
+              {t.demoLine6label}
+            </span>
+            <div class="output-content audit-list">
+              <span class="output-line audit-pass">{t.demoLine6check1}</span>
+              <span class="output-line audit-pass">{t.demoLine6check2}</span>
+              <span class="output-line audit-pass">{t.demoLine6check3}</span>
+            </div>
+            <div class="audit-result">
+              {t.demoLine6result}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .demo {
+    border-top: 1px solid var(--border);
+  }
+
+  .terminal {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--bg-code);
+  }
+
+  .terminal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .terminal-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .dot-red { background: #ef4444; opacity: 0.7; }
+  .dot-yellow { background: #eab308; opacity: 0.7; }
+  .dot-green { background: #22c55e; opacity: 0.7; }
+
+  .terminal-title {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .terminal-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Demo Steps */
+  .demo-step {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .demo-step + .demo-step {
+    padding-top: 20px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .step-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+
+  .step-label-icon {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: var(--accent-light);
+    opacity: 0.5;
+  }
+
+  .step-label code {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-light);
+    background: var(--accent-glow);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Lines */
+  .demo-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.5;
+  }
+
+  .tag {
+    flex-shrink: 0;
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+  }
+
+  .tag-you {
+    background: var(--accent-glow);
+    color: var(--accent-light);
+  }
+
+  .tag-vf {
+    background: rgba(168, 85, 247, 0.12);
+    color: #a855f7;
+  }
+
+  .line-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+
+  .line-italic {
+    color: var(--text-primary);
+    font-style: italic;
+  }
+
+  /* Outputs */
+  .demo-output {
+    margin-top: 4px;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .output-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+  }
+
+  .output-badge-purple { color: #a78bfa; }
+  .output-badge-green { color: #4ade80; }
+  .output-badge-amber { color: #fbbf24; }
+
+  .output-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .output-line {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  .output-danger {
+    color: #f87171;
+  }
+
+  .output-muted {
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 4px;
+  }
+
+  .file-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #4ade80;
+  }
+  .file-line svg {
+    opacity: 0.5;
+  }
+
+  /* Audit result */
+  .audit-pass {
+    color: #4ade80;
+  }
+
+  .audit-result {
+    margin-top: 12px;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #4ade80;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+
+  .demo-output-final {
+    border-color: rgba(34, 197, 94, 0.15);
+    background: rgba(34, 197, 94, 0.03);
+  }
+
+  @media (max-width: 768px) {
+    .terminal-body {
+      padding: 16px;
+    }
+
+    .demo-line {
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .tag {
+      width: fit-content;
+    }
+
+    .line-text {
+      font-size: 0.8rem;
+    }
+
+    .output-line {
+      font-size: 0.72rem;
+    }
+  }
+</style>

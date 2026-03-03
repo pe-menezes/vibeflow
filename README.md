@@ -15,6 +15,7 @@ discover → analyze → gen-spec → prompt-pack → implement → audit
 | Edição | Pasta | Status |
 |--------|-------|--------|
 | **GitHub Copilot** | [`copilot/`](copilot/) | Disponível |
+| **Cursor** | [`cursor/`](cursor/) | Disponível |
 | **Claude Code** | [`claude-code/`](claude-code/) | Disponível |
 
 Cada edição adapta os mesmos prompts e metodologia ao formato do agente.
@@ -34,13 +35,26 @@ Instale via Claude Code:
 
 O source of truth dos arquivos Claude Code está em `claude-code/` neste repo.
 
+### Cursor
+
+Veja [`cursor/README.md`](cursor/README.md) para instruções de instalação.
+
+Ou, se preferir, use o instalador automático (experimental):
+```bash
+npx setup-vibeflow@latest --cursor
+```
+
+Usa **Rules** (`.cursor/rules/*.mdc`) para guardrails always-on e persona do Architect,
+e **Skills** (`.cursor/skills/*/SKILL.md`) para cada comando do pipeline — invocáveis
+via `/skill-name` no Agent chat ou automaticamente por contexto.
+
 ### GitHub Copilot
 
 Veja [`copilot/README.md`](copilot/README.md) para instruções de instalação.
 
 Ou, se preferir, use o instalador automático (experimental):
 ```bash
-npx setup-vibeflow@latest
+npx setup-vibeflow@latest --copilot
 ```
 
 ## Manual

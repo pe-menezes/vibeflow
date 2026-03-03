@@ -1,0 +1,97 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const features = [
+  { title: t.feat1Title, desc: t.feat1Desc, forLabel: t.feat1For },
+  { title: t.feat2Title, desc: t.feat2Desc, forLabel: t.feat2For },
+  { title: t.feat3Title, desc: t.feat3Desc, forLabel: t.feat3For },
+  { title: t.feat4Title, desc: t.feat4Desc, forLabel: t.feat4For },
+  { title: t.feat5Title, desc: t.feat5Desc, forLabel: t.feat5For },
+  { title: t.feat6Title, desc: t.feat6Desc, forLabel: t.feat6For },
+];
+---
+
+<section class="section features">
+  <div class="container">
+    <h2 class="section-title fade-in">{t.featuresTitle}</h2>
+    <p class="section-subtitle fade-in delay-1">{t.featuresSubtitle}</p>
+
+    <div class="features-grid">
+      {features.map((feat, i) => (
+        <div class={`feature-card fade-in delay-${Math.min(i + 1, 6)}`}>
+          <code class="feature-name">{feat.title}</code>
+          <p class="feature-desc">{feat.desc}</p>
+          <span class="feature-for">{feat.forLabel}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .features {
+    border-top: 1px solid var(--border);
+  }
+
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .feature-card {
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+  }
+  .feature-card:hover {
+    border-color: var(--border-light);
+  }
+
+  .feature-name {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent-light);
+    margin-bottom: 10px;
+  }
+
+  .feature-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    flex: 1;
+  }
+
+  .feature-for {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    width: fit-content;
+    font-family: var(--font-mono);
+  }
+
+  @media (max-width: 768px) {
+    .features-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+</style>

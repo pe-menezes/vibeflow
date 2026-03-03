@@ -1,0 +1,145 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+---
+
+<section class="section before-after">
+  <div class="container">
+    <h2 class="section-title fade-in">{t.baTitle}</h2>
+
+    <div class="comparison fade-in delay-1">
+      <div class="panel panel-before">
+        <div class="panel-header">
+          <span class="panel-dot dot-red"></span>
+          <span class="panel-label">{t.baBefore}</span>
+        </div>
+        <ul class="panel-list">
+          {t.baBeforeItems.map((item: string) => (
+            <li class="panel-item item-bad">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div class="panel panel-after">
+        <div class="panel-header">
+          <span class="panel-dot dot-green"></span>
+          <span class="panel-label">{t.baAfter}</span>
+        </div>
+        <ul class="panel-list">
+          {t.baAfterItems.map((item: string) => (
+            <li class="panel-item item-good">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M20 6L9 17l-5-5"/></svg>
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .before-after {
+    border-top: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .panel {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .panel-before {
+    background: var(--bg-primary);
+  }
+  .panel-after {
+    background: var(--bg-primary);
+    border-color: rgba(99, 102, 241, 0.3);
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+  }
+
+  .panel-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .dot-red { background: var(--danger); }
+  .dot-green { background: var(--success); }
+
+  .panel-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+  }
+
+  .panel-list {
+    padding: 20px 24px;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .panel-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .panel-item svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .item-bad {
+    color: var(--text-secondary);
+  }
+  .item-bad svg {
+    color: var(--danger);
+    opacity: 0.7;
+  }
+
+  .item-good {
+    color: var(--text-secondary);
+  }
+  .item-good svg {
+    color: var(--success);
+    opacity: 0.8;
+  }
+
+  @media (max-width: 768px) {
+    .comparison {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+</style>

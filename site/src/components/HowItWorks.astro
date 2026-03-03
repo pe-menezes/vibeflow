@@ -1,0 +1,294 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const steps = [
+  { title: t.step1Title, desc: t.step1Desc, output: t.step1Output, color: '#a78bfa', phase: 'define' },
+  { title: t.step2Title, desc: t.step2Desc, output: t.step2Output, color: '#a78bfa', phase: 'define' },
+  { title: t.step3Title, desc: t.step3Desc, output: t.step3Output, color: '#a78bfa', phase: 'define' },
+  { title: t.step4Title, desc: t.step4Desc, output: t.step4Output, color: '#22c55e', phase: 'build' },
+  { title: t.step5Title, desc: t.step5Desc, output: t.step5Output, color: '#22c55e', phase: 'build' },
+  { title: t.step6Title, desc: t.step6Desc, output: t.step6Output, color: '#f59e0b', phase: 'verify' },
+];
+---
+
+<section class="section how" id="how">
+  <div class="container">
+    <h2 class="section-title fade-in">{t.howTitle}</h2>
+    <p class="section-subtitle fade-in delay-1">{t.howSubtitle}</p>
+
+    <!-- Visual Pipeline Diagram -->
+    <div class="pipeline-wrapper fade-in delay-2">
+      <div class="pipeline-phases">
+        <div class="phase-group phase-define">
+          <span class="phase-tag" style="color: #a78bfa; border-color: rgba(167,139,250,0.3)">{t.howPhaseDefine}</span>
+        </div>
+        <div class="phase-group phase-build">
+          <span class="phase-tag" style="color: #22c55e; border-color: rgba(34,197,94,0.3)">{t.howPhaseBuild}</span>
+        </div>
+        <div class="phase-group phase-verify">
+          <span class="phase-tag" style="color: #f59e0b; border-color: rgba(245,158,11,0.3)">{t.howPhaseVerify}</span>
+        </div>
+      </div>
+      <div class="pipeline-nodes">
+        {steps.map((step, i) => (
+          <div class="pipeline-item" style={`--sc: ${step.color}`}>
+            <div class="pipeline-node">
+              <span class="node-num">{String(i + 1).padStart(2, '0')}</span>
+              <span class="node-name">{step.title}</span>
+            </div>
+            {i < steps.length - 1 && (
+              <svg class="node-arrow" width="20" height="12" viewBox="0 0 20 12" fill="none" aria-hidden="true">
+                <path d="M0 6h16M12 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+
+    <!-- Compact Step Cards -->
+    <div class="steps-grid">
+      {steps.map((step, i) => (
+        <div class={`step-card fade-in delay-${Math.min(i + 2, 6)}`} style={`--sc: ${step.color}`}>
+          <div class="step-card-header">
+            <span class="step-num">{String(i + 1).padStart(2, '0')}</span>
+            <code class="step-name">{step.title}</code>
+          </div>
+          <p class="step-desc">{step.desc}</p>
+          <div class="step-output">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <span>{step.output}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .how {
+    border-top: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+
+  /* Pipeline Wrapper */
+  .pipeline-wrapper {
+    margin-bottom: 48px;
+    padding: 28px 24px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow-x: auto;
+  }
+
+  /* Phase Labels Row */
+  .pipeline-phases {
+    display: flex;
+    margin-bottom: 16px;
+    gap: 0;
+  }
+
+  .phase-group {
+    display: flex;
+    justify-content: center;
+  }
+  .phase-define { flex: 3; }
+  .phase-build { flex: 2; }
+  .phase-verify { flex: 1; }
+
+  .phase-tag {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 3px 12px;
+    border-radius: 999px;
+    border: 1px solid;
+    opacity: 0.8;
+  }
+
+  /* Nodes Row */
+  .pipeline-nodes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .pipeline-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pipeline-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    background: rgba(99, 102, 241, 0.04);
+    transition: all 0.2s;
+    min-width: 85px;
+  }
+  .pipeline-node:hover {
+    border-color: rgba(99, 102, 241, 0.4);
+    background: rgba(99, 102, 241, 0.08);
+  }
+
+  .node-num {
+    font-family: var(--font-mono);
+    font-size: 0.55rem;
+    font-weight: 700;
+    color: var(--sc);
+    opacity: 0.5;
+  }
+
+  .node-name {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .node-arrow {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    opacity: 0.3;
+  }
+
+  /* Step Cards Grid */
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .step-card {
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+    display: flex;
+    flex-direction: column;
+  }
+  .step-card:hover {
+    border-color: var(--border-light);
+  }
+
+  .step-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--sc);
+    opacity: 0.7;
+  }
+
+  .step-name {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--accent-glow);
+    padding: 2px 10px;
+    border-radius: var(--radius-sm);
+  }
+
+  .step-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    flex: 1;
+    margin-bottom: 14px;
+  }
+
+  .step-output {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.78rem;
+    color: var(--sc);
+    font-family: var(--font-mono);
+    line-height: 1.4;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .step-output svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--sc);
+    opacity: 0.6;
+  }
+
+  @media (max-width: 768px) {
+    .pipeline-wrapper {
+      padding: 16px 12px;
+    }
+
+    .pipeline-phases {
+      display: none !important;
+    }
+
+    .pipeline-nodes {
+      display: flex !important;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .pipeline-item {
+      gap: 4px;
+    }
+
+    .pipeline-node {
+      min-width: unset;
+      padding: 6px 10px;
+      flex-direction: row;
+      gap: 6px;
+    }
+
+    .node-num {
+      display: none;
+    }
+
+    .node-name {
+      font-size: 0.65rem;
+    }
+
+    .node-arrow {
+      width: 12px;
+      height: 8px;
+    }
+
+    .steps-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+
+  @media (min-width: 769px) and (max-width: 1024px) {
+    .steps-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+</style>
