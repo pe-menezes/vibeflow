@@ -256,8 +256,8 @@ const t = useTranslations(lang);
   }
 
   .tag-vf {
-    background: rgba(168, 85, 247, 0.12);
-    color: #a855f7;
+    background: var(--purple-glow);
+    color: var(--purple);
   }
 
   .line-text {
@@ -276,8 +276,8 @@ const t = useTranslations(lang);
     margin-top: 4px;
     padding: 14px 16px;
     border-radius: var(--radius-md);
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.05);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-inset);
   }
 
   .output-badge {
@@ -292,9 +292,9 @@ const t = useTranslations(lang);
     margin-bottom: 10px;
   }
 
-  .output-badge-purple { color: #a78bfa; }
-  .output-badge-green { color: #4ade80; }
-  .output-badge-amber { color: #fbbf24; }
+  .output-badge-purple { color: var(--purple); }
+  .output-badge-green { color: var(--success-light); }
+  .output-badge-amber { color: var(--warning-light); }
 
   .output-content {
     display: flex;
@@ -310,7 +310,7 @@ const t = useTranslations(lang);
   }
 
   .output-danger {
-    color: #f87171;
+    color: var(--danger-light);
   }
 
   .output-muted {
@@ -323,7 +323,7 @@ const t = useTranslations(lang);
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #4ade80;
+    color: var(--success-light);
   }
   .file-line svg {
     opacity: 0.5;
@@ -331,26 +331,26 @@ const t = useTranslations(lang);
 
   /* Audit result */
   .audit-pass {
-    color: #4ade80;
+    color: var(--success-light);
   }
 
   .audit-result {
     margin-top: 12px;
     padding: 10px 16px;
     border-radius: var(--radius-sm);
-    background: rgba(34, 197, 94, 0.1);
-    border: 1px solid rgba(34, 197, 94, 0.2);
+    background: var(--success-glow);
+    border: 1px solid var(--success-border);
     font-family: var(--font-mono);
     font-size: 0.85rem;
     font-weight: 700;
-    color: #4ade80;
+    color: var(--success-light);
     text-align: center;
     letter-spacing: 0.02em;
   }
 
   .demo-output-final {
-    border-color: rgba(34, 197, 94, 0.15);
-    background: rgba(34, 197, 94, 0.03);
+    border-color: var(--success-border);
+    background: var(--success-glow);
   }
 
   @media (max-width: 768px) {

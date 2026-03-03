@@ -10,12 +10,12 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 
 const steps = [
-  { title: t.step1Title, desc: t.step1Desc, output: t.step1Output, color: '#a78bfa', phase: 'define' },
-  { title: t.step2Title, desc: t.step2Desc, output: t.step2Output, color: '#a78bfa', phase: 'define' },
-  { title: t.step3Title, desc: t.step3Desc, output: t.step3Output, color: '#a78bfa', phase: 'define' },
-  { title: t.step4Title, desc: t.step4Desc, output: t.step4Output, color: '#22c55e', phase: 'build' },
-  { title: t.step5Title, desc: t.step5Desc, output: t.step5Output, color: '#22c55e', phase: 'build' },
-  { title: t.step6Title, desc: t.step6Desc, output: t.step6Output, color: '#f59e0b', phase: 'verify' },
+  { title: t.step1Title, desc: t.step1Desc, output: t.step1Output, color: 'var(--purple)', phase: 'define' },
+  { title: t.step2Title, desc: t.step2Desc, output: t.step2Output, color: 'var(--purple)', phase: 'define' },
+  { title: t.step3Title, desc: t.step3Desc, output: t.step3Output, color: 'var(--purple)', phase: 'define' },
+  { title: t.step4Title, desc: t.step4Desc, output: t.step4Output, color: 'var(--success-light)', phase: 'build' },
+  { title: t.step5Title, desc: t.step5Desc, output: t.step5Output, color: 'var(--success-light)', phase: 'build' },
+  { title: t.step6Title, desc: t.step6Desc, output: t.step6Output, color: 'var(--warning-light)', phase: 'verify' },
 ];
 ---
 
@@ -28,13 +28,13 @@ const steps = [
     <div class="pipeline-wrapper fade-in delay-2">
       <div class="pipeline-phases">
         <div class="phase-group phase-define">
-          <span class="phase-tag" style="color: #a78bfa; border-color: rgba(167,139,250,0.3)">{t.howPhaseDefine}</span>
+          <span class="phase-tag">{t.howPhaseDefine}</span>
         </div>
         <div class="phase-group phase-build">
-          <span class="phase-tag" style="color: #22c55e; border-color: rgba(34,197,94,0.3)">{t.howPhaseBuild}</span>
+          <span class="phase-tag">{t.howPhaseBuild}</span>
         </div>
         <div class="phase-group phase-verify">
-          <span class="phase-tag" style="color: #f59e0b; border-color: rgba(245,158,11,0.3)">{t.howPhaseVerify}</span>
+          <span class="phase-tag">{t.howPhaseVerify}</span>
         </div>
       </div>
       <div class="pipeline-nodes">
@@ -116,6 +116,19 @@ const steps = [
     opacity: 0.8;
   }
 
+  .phase-define .phase-tag {
+    color: var(--purple);
+    border-color: var(--purple-glow);
+  }
+  .phase-build .phase-tag {
+    color: var(--success-light);
+    border-color: var(--success-border);
+  }
+  .phase-verify .phase-tag {
+    color: var(--warning-light);
+    border-color: var(--warning-border);
+  }
+
   /* Nodes Row */
   .pipeline-nodes {
     display: flex;
@@ -137,14 +150,14 @@ const steps = [
     gap: 3px;
     padding: 10px 14px;
     border-radius: var(--radius-md);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    background: rgba(99, 102, 241, 0.04);
+    border: 1px solid var(--accent-glow-strong);
+    background: var(--accent-glow);
     transition: all 0.2s;
     min-width: 85px;
   }
   .pipeline-node:hover {
-    border-color: rgba(99, 102, 241, 0.4);
-    background: rgba(99, 102, 241, 0.08);
+    border-color: var(--accent-light);
+    background: var(--accent-glow-strong);
   }
 
   .node-num {

@@ -31,14 +31,22 @@ html {
 
   --success: #16a34a;
   --success-light: #22c55e;
+  --success-glow: rgba(22, 163, 74, 0.08);
+  --success-border: rgba(22, 163, 74, 0.2);
   --danger: #dc2626;
   --danger-light: #ef4444;
   --warning: #ca8a04;
   --warning-light: #eab308;
+  --warning-border: rgba(202, 138, 4, 0.3);
+  --purple: #7c3aed;
+  --purple-light: #8b5cf6;
+  --purple-glow: rgba(124, 58, 237, 0.1);
 
   --border: #e4e4e7;
   --border-light: #d4d4d8;
   --border-subtle: rgba(0, 0, 0, 0.05);
+  --bg-inset: rgba(0, 0, 0, 0.02);
+  --border-inset: rgba(0, 0, 0, 0.06);
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -72,14 +80,22 @@ html {
 
   --success: #22c55e;
   --success-light: #4ade80;
+  --success-glow: rgba(34, 197, 94, 0.08);
+  --success-border: rgba(34, 197, 94, 0.2);
   --danger: #ef4444;
   --danger-light: #f87171;
   --warning: #eab308;
   --warning-light: #fbbf24;
+  --warning-border: rgba(245, 158, 11, 0.3);
+  --purple: #a78bfa;
+  --purple-light: #c4b5fd;
+  --purple-glow: rgba(168, 85, 247, 0.12);
 
   --border: #27272a;
   --border-light: #3f3f46;
   --border-subtle: rgba(255, 255, 255, 0.04);
+  --bg-inset: rgba(255, 255, 255, 0.02);
+  --border-inset: rgba(255, 255, 255, 0.06);
 }
 
 body {
