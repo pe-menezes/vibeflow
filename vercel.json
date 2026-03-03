@@ -1,4 +1,7 @@
 {
   "buildCommand": "cd site && npm run build",
-  "outputDirectory": "site/dist"
+  "outputDirectory": "site/dist",
+  "redirects": [
+    { "source": "/", "destination": "/en/", "permanent": false }
+  ]
 }
