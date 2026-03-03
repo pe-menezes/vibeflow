@@ -54,7 +54,7 @@ any spec, prompt pack, or audit:
 
 ## Methodology: Spec-Driven Development
 
-Follow the spec-driven-dev methodology (see `.github/skills/spec-driven-dev/SKILL.md`).
+Follow the spec-driven-dev methodology (see `.github/skills/vibeflow/spec-driven-dev/SKILL.md`).
 
 Key rules:
 - Never recommend coding without a clear Definition of Done
@@ -74,7 +74,7 @@ Key rules:
 ## Available Prompts
 
 When a task requires a specific workflow step, reference the appropriate
-prompt file from `.github/prompts/`:
+prompt file from `.github/prompts/vibeflow/`:
 
 | Prompt | When to use |
 |--------|-------------|

@@ -21,7 +21,7 @@ discover → analyze → gen-spec → prompt-pack → implement → audit
 - Challenges vague requirements — forces clarity
 - Cuts scope aggressively
 - Maintains `.vibeflow/` project knowledge
-- See: `.github/agents/architect.agent.md`
+- See: `.github/agents/vibeflow/architect.agent.md`
 
 ### Coding Agent (implements, follows prompt packs)
 - Receives self-contained prompt packs
@@ -62,7 +62,7 @@ All project knowledge lives in `.vibeflow/`:
 
 ## Prompt Files
 
-Available in `.github/prompts/`:
+Available in `.github/prompts/vibeflow/`:
 
 | Prompt | Purpose |
 |--------|---------|

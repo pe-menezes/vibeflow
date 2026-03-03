@@ -11,22 +11,28 @@ AGENTS.md                                        → raiz do repo (append se já
 github/
 ├── copilot-instructions.md                       → snippet de append (NÃO é o arquivo final)
 ├── instructions/
-│   └── vibeflow.instructions.md                  → .github/instructions/ (arquivo completo)
+│   └── vibeflow/
+│       └── vibeflow.instructions.md              → .github/instructions/vibeflow/
 ├── agents/
-│   └── architect.agent.md                        → .github/agents/
+│   └── vibeflow/
+│       └── architect.agent.md                    → .github/agents/vibeflow/
 ├── prompts/
-│   ├── vibeflow-analyze.prompt.md                → .github/prompts/
-│   ├── vibeflow-audit.prompt.md
-│   ├── vibeflow-discover.prompt.md
-│   ├── vibeflow-gen-spec.prompt.md
-│   ├── vibeflow-prompt-pack.prompt.md
-│   ├── vibeflow-quick.prompt.md
-│   ├── vibeflow-stats.prompt.md
-│   └── vibeflow-teach.prompt.md
+│   └── vibeflow/
+│       ├── vibeflow-analyze.prompt.md            → .github/prompts/vibeflow/
+│       ├── vibeflow-audit.prompt.md
+│       ├── vibeflow-discover.prompt.md
+│       ├── vibeflow-gen-spec.prompt.md
+│       ├── vibeflow-prompt-pack.prompt.md
+│       ├── vibeflow-quick.prompt.md
+│       ├── vibeflow-stats.prompt.md
+│       └── vibeflow-teach.prompt.md
 └── skills/
-    └── spec-driven-dev/
-        └── SKILL.md                              → .github/skills/
+    └── vibeflow/
+        └── spec-driven-dev/
+            └── SKILL.md                          → .github/skills/vibeflow/
 ```
+
+Tudo fica namespaced dentro de `vibeflow/` — não bagunça pastas existentes do projeto.
 
 ## Instalação
 
@@ -49,15 +55,13 @@ A estratégia: **copiar as pastas novas + append mínimo nos arquivos existentes
 #### Passo 1 — Copie as pastas (seguro, não sobrescreve nada)
 
 ```bash
-mkdir -p .github/instructions .github/agents .github/prompts .github/skills
-
-cp -r github/instructions/* .github/instructions/
-cp -r github/agents/*       .github/agents/
-cp -r github/prompts/*      .github/prompts/
-cp -r github/skills/*       .github/skills/
+cp -r github/instructions/ .github/instructions/
+cp -r github/agents/       .github/agents/
+cp -r github/prompts/      .github/prompts/
+cp -r github/skills/       .github/skills/
 ```
 
-Isso adiciona tudo sem tocar em nenhum arquivo existente.
+Como tudo está dentro de subpastas `vibeflow/`, isso não sobrescreve nenhum arquivo existente do projeto.
 
 #### Passo 2 — copilot-instructions.md
 
@@ -69,7 +73,7 @@ Se quiser ser explícito, adicione este bloco ao seu `.github/copilot-instructio
 ```markdown
 ## Vibeflow (Spec-Driven Development)
 
-This repo uses Vibeflow. See `.github/instructions/vibeflow.instructions.md`
+This repo uses Vibeflow. See `.github/instructions/vibeflow/vibeflow.instructions.md`
 for the full methodology, guardrails, and available prompts.
 
 Before any non-trivial task, follow:
@@ -79,7 +83,7 @@ Before any task, read `.vibeflow/index.md` and `.vibeflow/conventions.md` (if th
 ```
 
 > **Se o repo NÃO tem `copilot-instructions.md`:** não precisa criar um.
-> O arquivo em `.github/instructions/` já cobre tudo.
+> O arquivo em `.github/instructions/vibeflow/` já cobre tudo.
 
 #### Passo 3 — AGENTS.md
 
@@ -91,10 +95,10 @@ Se não existe, copie o arquivo (removendo a nota de instrução do topo).
 
 | Arquivo / Pasta | Pode conflitar? | O que fazer |
 |-----------------|----------------|-------------|
-| `.github/instructions/` | Não | Copia direto |
-| `.github/agents/` | Não | Copia direto |
-| `.github/prompts/` | Não | Copia direto |
-| `.github/skills/` | Não | Copia direto |
+| `.github/instructions/vibeflow/` | Não | Copia direto |
+| `.github/agents/vibeflow/` | Não | Copia direto |
+| `.github/prompts/vibeflow/` | Não | Copia direto |
+| `.github/skills/vibeflow/` | Não | Copia direto |
 | `.github/copilot-instructions.md` | Talvez | Append opcional (instructions/ já cobre) |
 | `AGENTS.md` | **Sim** | Append ao existente |
 
