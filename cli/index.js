@@ -78,9 +78,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Check if already installed
-  const markerFile = join(cwd, '.github/prompts/vibeflow-analyze.prompt.md');
-  if (existsSync(markerFile) && !force) {
+  // Check if already installed (flat structure or legacy subdirectory structure)
+  const markerFlat = join(cwd, '.github/prompts/vibeflow-analyze.prompt.md');
+  const markerLegacy = join(cwd, '.github/prompts/vibeflow/vibeflow-analyze.prompt.md');
+  if ((existsSync(markerFlat) || existsSync(markerLegacy)) && !force) {
     log(pc.yellow('!'), 'Vibeflow already installed. Use --force to reinstall.');
     console.log('');
     process.exit(0);
