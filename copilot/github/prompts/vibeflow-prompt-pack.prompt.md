@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-prompt-pack'
+description: 'Generate a self-contained prompt pack from a spec'
+agent: 'vibeflow-architect'
+---
+
 # Vibeflow: Prompt Pack
 
 > format-agnostic, repo-local prompt asset

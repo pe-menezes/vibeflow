@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-quick'
+description: 'Fast-track for small tasks — ephemeral spec + prompt pack'
+agent: 'agent'
+---
+
 # Vibeflow: Quick
 
 > format-agnostic, repo-local prompt asset

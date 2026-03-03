@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-analyze'
+description: 'Deep-analyze codebase and build .vibeflow/ knowledge'
+agent: 'vibeflow-architect'
+---
+
 # Vibeflow: Analyze
 
 > format-agnostic, repo-local prompt asset

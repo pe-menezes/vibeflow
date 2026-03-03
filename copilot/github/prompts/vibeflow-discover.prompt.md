@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-discover'
+description: 'Interactive discovery to turn a vague idea into a PRD'
+agent: 'vibeflow-architect'
+---
+
 # Vibeflow: Discover
 
 > format-agnostic, repo-local prompt asset

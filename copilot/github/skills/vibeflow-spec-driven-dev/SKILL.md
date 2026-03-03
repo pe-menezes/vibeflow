@@ -1,3 +1,8 @@
+---
+name: 'vibeflow-spec-driven-dev'
+description: 'Spec-driven development methodology for planning, speccing, and auditing features.'
+---
+
 # Skill: Spec-Driven Development
 
 > format-agnostic, repo-local skill reference

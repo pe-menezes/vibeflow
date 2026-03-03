@@ -21,9 +21,9 @@ Fast-track for small tasks (≤4 files): use the `vibeflow-quick` prompt.
 | `.vibeflow/specs/` | Specs from gen-spec |
 | `.vibeflow/prompt-packs/` | Prompt packs (self-contained, agent-agnostic) |
 | `.vibeflow/audits/` | Audit reports |
-| `.github/prompts/vibeflow/` | Reusable prompt files (the "commands") |
-| `.github/agents/vibeflow/` | Agent personas (architect) |
-| `.github/skills/vibeflow/` | Methodology reference (spec-driven-dev) |
+| `.github/prompts/vibeflow-*.prompt.md` | Reusable prompt files (the "commands") |
+| `.github/agents/vibeflow-architect.agent.md` | Agent persona (architect) |
+| `.github/skills/vibeflow-spec-driven-dev/` | Methodology reference (spec-driven-dev) |
 
 ## Before Any Task
 
@@ -50,7 +50,7 @@ Technical terms in English are acceptable (endpoint, middleware, deploy, etc.).
 
 ## Available Prompts
 
-See `.github/prompts/vibeflow/` for the full set of Vibeflow prompts:
+See `.github/prompts/` for the full set of Vibeflow prompts:
 - `vibeflow-discover` — Turn a vague idea into a PRD
 - `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/`
 - `vibeflow-gen-spec` — Generate grounded spec with DoD

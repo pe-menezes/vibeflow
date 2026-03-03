@@ -11,9 +11,9 @@ copilot/
 └── github/                                       → mapeia para .github/ no repo destino
     ├── instructions/vibeflow/
     │   └── vibeflow.instructions.md              → instruções completas
-    ├── agents/vibeflow/
-    │   └── architect.agent.md                    → persona do Architect
-    ├── prompts/vibeflow/
+    ├── agents/
+    │   └── vibeflow-architect.agent.md           → persona do Architect
+    ├── prompts/
     │   ├── vibeflow-analyze.prompt.md
     │   ├── vibeflow-audit.prompt.md
     │   ├── vibeflow-discover.prompt.md
@@ -22,12 +22,13 @@ copilot/
     │   ├── vibeflow-quick.prompt.md
     │   ├── vibeflow-stats.prompt.md
     │   └── vibeflow-teach.prompt.md
-    └── skills/vibeflow/
-        └── spec-driven-dev/
+    └── skills/
+        └── vibeflow-spec-driven-dev/
             └── SKILL.md
 ```
 
-Tudo fica namespaced dentro de `vibeflow/` — não bagunça pastas existentes do projeto.
+Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos do projeto.
+Instructions ficam em subpasta `vibeflow/` (subdirectories suportados pelo Copilot).
 
 ## Instalação
 
@@ -43,16 +44,16 @@ Remova a nota de instrução do topo do `AGENTS.md` (o bloco entre `>` e `---`).
 
 ### Repo que JÁ tem AGENTS.md e/ou copilot-instructions.md
 
-#### Passo 1 — Copie as pastas (seguro, não sobrescreve nada)
+#### Passo 1 — Copie os arquivos (seguro, não sobrescreve nada)
 
 ```bash
 cp -r copilot/github/instructions/ .github/instructions/
-cp -r copilot/github/agents/       .github/agents/
-cp -r copilot/github/prompts/      .github/prompts/
-cp -r copilot/github/skills/       .github/skills/
+cp copilot/github/agents/vibeflow-architect.agent.md .github/agents/
+cp copilot/github/prompts/vibeflow-*.prompt.md .github/prompts/
+cp -r copilot/github/skills/vibeflow-spec-driven-dev/ .github/skills/
 ```
 
-Como tudo está dentro de subpastas `vibeflow/`, não sobrescreve nenhum arquivo existente.
+Os arquivos Vibeflow usam prefixo `vibeflow-` nos nomes, então não conflitam com arquivos existentes.
 
 #### Passo 2 — copilot-instructions.md (opcional)
 
@@ -70,10 +71,10 @@ Se não existe, copie direto (removendo a nota do topo).
 
 | Arquivo / Pasta | Pode conflitar? | O que fazer |
 |-----------------|----------------|-------------|
-| `.github/instructions/vibeflow/` | Não | Copia direto |
-| `.github/agents/vibeflow/` | Não | Copia direto |
-| `.github/prompts/vibeflow/` | Não | Copia direto |
-| `.github/skills/vibeflow/` | Não | Copia direto |
+| `.github/instructions/vibeflow/` | Não | Copia direto (subpasta dedicada) |
+| `.github/agents/vibeflow-architect.agent.md` | Não | Copia direto (nome único) |
+| `.github/prompts/vibeflow-*.prompt.md` | Não | Copia direto (prefixo único) |
+| `.github/skills/vibeflow-spec-driven-dev/` | Não | Copia direto (diretório dedicado) |
 | `.github/copilot-instructions.md` | Talvez | Append opcional |
 | `AGENTS.md` | **Sim** | Append ao existente |
 

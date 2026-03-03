@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-gen-spec'
+description: 'Generate a grounded spec with DoD from a feature or PRD'
+agent: 'vibeflow-architect'
+---
+
 # Vibeflow: Gen-Spec
 
 > format-agnostic, repo-local prompt asset

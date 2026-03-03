@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-stats'
+description: 'Show audit statistics and trends'
+agent: 'vibeflow-architect'
+---
+
 # Vibeflow: Stats
 
 > format-agnostic, repo-local prompt asset

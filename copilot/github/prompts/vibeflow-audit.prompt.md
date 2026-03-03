@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-audit'
+description: 'Audit work against its Definition of Done and project patterns'
+agent: 'vibeflow-architect'
+---
+
 # Vibeflow: Audit
 
 > format-agnostic, repo-local prompt asset

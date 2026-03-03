@@ -1,3 +1,9 @@
+---
+name: 'vibeflow-teach'
+description: 'Teach .vibeflow/ knowledge base with feedback'
+agent: 'vibeflow-architect'
+---
+
 # Vibeflow: Teach
 
 > format-agnostic, repo-local prompt asset
