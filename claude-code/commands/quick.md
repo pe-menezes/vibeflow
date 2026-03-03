@@ -58,8 +58,8 @@ Using `.vibeflow/` (if available) or Phase 1 context, generate a spec
 - **Scope** — What's in. Keep it tight.
 - **Anti-scope** — What's explicitly OUT. Be aggressive.
 - **Budget** — ≤ 4 files (tighter than standard ≤6). If the task clearly
-  needs more than 4, warn: "Essa task pode ser grande demais para quick.
-  Considere usar `/vibeflow:gen-spec`."
+  needs more than 4, warn (in the user's detected language): "This task
+  may be too large for quick. Consider using `/vibeflow:gen-spec`."
 - **Applicable Patterns** — Which patterns from `.vibeflow/patterns/`
   apply (if `.vibeflow/` exists).
 

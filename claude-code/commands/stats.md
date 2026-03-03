@@ -58,7 +58,7 @@ Compile and report statistics from audit reports.
   3. <pattern name> — N violations
 
 ### Convention Violations
-- Total: N violations em N audits
+- Total: N violations across N audits
 - Most common: <list top 3 if available>
 
 ### Trend

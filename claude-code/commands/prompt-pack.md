@@ -104,6 +104,9 @@ If you cannot verify a file path exists, flag it with:
 Save the prompt pack to: `.vibeflow/prompt-packs/<feature-slug>.md`
 Create the `.vibeflow/prompt-packs/` directory if it doesn't exist.
 
+After saving, suggest: "Prompt pack saved. Hand it off to the coding agent.
+After implementation, run `/vibeflow:audit` with the spec to verify."
+
 ---
 
 ## Maintenance

@@ -101,6 +101,11 @@ Create the `.vibeflow/audits/` directory if it doesn't exist.
 After auditing, update `.vibeflow/decisions.md` if any architectural
 decisions were made or if new pitfalls were discovered.
 
+After saving, report the verdict and suggest next steps:
+- **PASS:** "Ready to ship."
+- **PARTIAL/FAIL:** "See the incremental prompt pack in the audit report.
+  Fix the gaps and run `/vibeflow:audit` again."
+
 ---
 
 ## Maintenance
