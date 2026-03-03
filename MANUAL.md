@@ -41,6 +41,8 @@ Ou copie os arquivos manualmente — veja o README de cada edição:
 
 A flag `--copilot` ou `--cursor` é **obrigatória** — o instalador não tem default para evitar instalar na edição errada.
 
+**Git:** Por padrão, o instalador adiciona ao `.gitignore` os arquivos que instala e a pasta `.vibeflow/` (gerada pelo analyze). Eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
+
 ## Comandos
 
 ### `vibeflow-analyze`

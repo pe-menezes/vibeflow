@@ -168,6 +168,7 @@ export default {
   claudeTitle: 'Claude Code',
   claudeDesc: 'Plugin with slash commands for Claude Code CLI.',
   claudeInstall: '/install-plugin pe-menezes/vibeflow',
+  editionsGitDisclaimer: 'By default the installer adds installed files and the .vibeflow/ folder to .gitignore so they are not committed. Remove the "Vibeflow" block from .gitignore if you want to track them in git.',
   copied: 'Copied!',
   copyLabel: 'Copy',
 

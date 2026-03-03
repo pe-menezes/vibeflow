@@ -62,6 +62,26 @@ const EDITIONS = {
 
 const DUPLICATE_MARKER = 'vibeflow-architect';
 
+const GITIGNORE_MARKER = '# Vibeflow — installed + generated (remove to track in git)';
+
+const GITIGNORE_BLOCKS = {
+  copilot: `
+# Vibeflow — installed + generated (remove to track in git)
+.vibeflow/
+.github/prompts/vibeflow-*.prompt.md
+.github/agents/vibeflow-architect.agent.md
+.github/skills/vibeflow-spec-driven-dev/
+.github/instructions/vibeflow/
+`,
+  cursor: `
+# Vibeflow — installed + generated (remove to track in git)
+.vibeflow/
+.cursor/rules/vibeflow.mdc
+.cursor/rules/vibeflow-architect.mdc
+.cursor/skills/vibeflow-*/
+`,
+};
+
 // --- Helpers ---
 
 function log(icon, msg) {
@@ -237,6 +257,27 @@ async function main() {
     } catch (err) {
       log(pc.red('x'), `.github/copilot-instructions.md — ${err.message}`);
     }
+  }
+
+  // Append Vibeflow paths to .gitignore (default: do not track; user can remove to track)
+  const gitignorePath = join(cwd, '.gitignore');
+  try {
+    const block = GITIGNORE_BLOCKS[editionKey];
+    if (block) {
+      let content = '';
+      if (existsSync(gitignorePath)) {
+        content = readFileSync(gitignorePath, 'utf-8');
+      }
+      if (!content.includes(GITIGNORE_MARKER)) {
+        const updated = (content.trimEnd() ? content.trimEnd() + '\n' : '') + block.trim() + '\n';
+        writeFileSync(gitignorePath, updated, 'utf-8');
+        log(pc.green('+'), `.gitignore ${pc.dim('(Vibeflow paths added — remove that block to track in git)')}`);
+      } else {
+        log(pc.dim('-'), `${pc.dim('.gitignore')} ${pc.dim('(Vibeflow block already present)')}`);
+      }
+    }
+  } catch (err) {
+    log(pc.red('x'), `.gitignore — ${err.message}`);
   }
 
   // Summary

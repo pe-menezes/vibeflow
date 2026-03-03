@@ -71,6 +71,7 @@ const t = useTranslations(lang);
         </div>
       </div>
     </div>
+    <p class="editions-disclaimer fade-in delay-3">{t.editionsGitDisclaimer}</p>
   </div>
 </section>
 
@@ -107,6 +108,14 @@ const t = useTranslations(lang);
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 24px;
+  }
+
+  .editions-disclaimer {
+    margin-top: 24px;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 640px;
   }
 
   .edition-card {

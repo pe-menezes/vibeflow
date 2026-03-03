@@ -21,6 +21,8 @@ discover → analyze → gen-spec → prompt-pack → implement → audit
 Cada edição adapta os mesmos prompts e metodologia ao formato do agente.
 O conteúdo da metodologia é o mesmo — o que muda é a estrutura de arquivos.
 
+O instalador (Copilot e Cursor) adiciona por padrão os arquivos instalados e a pasta `.vibeflow/` ao `.gitignore`; remova esse bloco se quiser versioná-los no git.
+
 ### Claude Code
 
 O Claude Code usa um sistema de plugins baseado em git. O repo de distribuição
