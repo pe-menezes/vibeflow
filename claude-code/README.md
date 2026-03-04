@@ -16,15 +16,15 @@ project's real patterns.
 In Claude (Add marketplace from GitHub), use:
 
 ```text
-pe-menezes/vibeflow
+pe-menezes/vibeflow-claude
 ```
 
-Important: this field expects `owner/repo` (or a GitHub repo URL), not the raw `marketplace.json` URL.
+Important: the marketplace repo is **vibeflow-claude** (synced from this repo). Use `owner/repo` or the full GitHub URL, not the raw `marketplace.json` URL.
 
 In Claude Code CLI:
 
 ```bash
-/plugin marketplace add pe-menezes/vibeflow
+/plugin marketplace add pe-menezes/vibeflow-claude
 /plugin install vibeflow@vibeflow-marketplace
 ```
 
@@ -49,8 +49,8 @@ cat > .claude-plugin/marketplace.json << 'EOF'
 }
 EOF
 
-# 3. Clone the plugin
-git clone https://github.com/pe-menezes/vibeflow.git vibeflow-plugin
+# 3. Clone the plugin (marketplace repo)
+git clone https://github.com/pe-menezes/vibeflow-claude.git vibeflow-plugin
 
 # 4. In Claude Code
 /plugin marketplace add /path/to/vibeflow-marketplace
@@ -166,7 +166,7 @@ Veja o [MANUAL.md](../MANUAL.md) para a documentação completa de todos os coma
 ## Distribuição
 
 O Claude Code exige um repo git dedicado para o marketplace.
-O repo de distribuição é [pe-menezes/vibeflow](https://github.com/pe-menezes/vibeflow).
+O repo de distribuição (marketplace) é [pe-menezes/vibeflow-claude](https://github.com/pe-menezes/vibeflow-claude).
 O source of truth dos arquivos está nesta pasta (`claude-code/`).
 
 ## License

@@ -5,7 +5,7 @@
   "author": {
     "name": "Pedro Menezes"
   },
-  "repository": "https://github.com/pe-menezes/vibeflow",
+  "repository": "https://github.com/pe-menezes/vibeflow-claude",
   "license": "MIT",
   "keywords": ["spec-driven", "architecture", "prompt-pack", "audit", "vibe-coding"]
 }

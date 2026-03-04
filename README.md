@@ -28,12 +28,13 @@ O instalador (Copilot e Cursor) adiciona por padrão os arquivos instalados e a 
 O Claude Code usa um sistema de plugins baseado em git. O repo de distribuição
 (marketplace) é mantido separado:
 
-**Repo de distribuição:** [pe-menezes/vibeflow](https://github.com/pe-menezes/vibeflow)
+**Repo de distribuição (marketplace):** [pe-menezes/vibeflow-claude](https://github.com/pe-menezes/vibeflow-claude) — sincronizado automaticamente a partir de `claude-code/` neste repo.
 
-Instale via Claude Code:
+Instale via Claude Code (Add marketplace / CLI):
 ```
-/install-plugin pe-menezes/vibeflow
+pe-menezes/vibeflow-claude
 ```
+Ou: `/install-plugin pe-menezes/vibeflow-claude`
 
 O source of truth dos arquivos Claude Code está em `claude-code/` neste repo.
 
