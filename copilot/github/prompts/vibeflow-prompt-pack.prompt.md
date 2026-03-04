@@ -29,6 +29,15 @@ the detected language. Code, paths and technical names remain in English.
 
 ## Steps:
 
+0. **Validate spec size.** Read the spec and check:
+   - If it has **>7 DoD checks**, OR
+   - If it exceeds the **budget** (from `.vibeflow/index.md` or default ≤ 6 files)
+
+   If EITHER condition is true, **stop**. Do NOT generate the prompt pack.
+   Instead, inform the user: "This spec exceeds limits (N DoD checks / N files).
+   Run vibeflow-gen-spec again to split it into smaller specs before generating
+   a prompt pack."
+
 1. If the input is a file path, read that spec file.
 2. If it's a feature description, look for a matching spec in `.vibeflow/specs/`.
 3. If no spec exists, generate one first (following gen-spec format), save it,

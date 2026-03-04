@@ -54,9 +54,33 @@ Technical terms in English are acceptable regardless of the detected language.
 - **Applicable Patterns** — List which patterns from `.vibeflow/patterns/`
   must be followed. If the feature introduces a NEW pattern, note it.
 - **Risks** — Premortem: what can go wrong + mitigation.
+- **Dependencies** (optional) — List of specs that must be implemented
+  before this one. Use when this spec is part of a multi-part split.
+  Format: `- .vibeflow/specs/<feature>-part-N.md`
 
 Be opinionated. Cut scope aggressively. Challenge vague requirements.
 If something is unclear, state your assumption and flag it with a TODO.
+
+## Spec Splitting
+
+After drafting the spec, check if it exceeds limits:
+
+- **>7 DoD checks**, OR
+- **> budget of files** (from `.vibeflow/index.md` or default ≤ 6)
+
+If EITHER condition is true, **do not save the spec**. Instead:
+
+1. Inform the user: "This spec exceeds limits (N DoD checks / N files).
+   I will split it into smaller specs."
+2. Break it into N self-contained specs, each with:
+   - Its own Objective, DoD (3-7 checks), Scope, and Anti-scope
+   - A `Dependencies` field listing which specs must come before it
+3. Use the naming convention: `<feature>-part-1.md`, `<feature>-part-2.md`, etc.
+4. Each part must be independently implementable and auditable.
+5. Save all parts and present a summary with the execution order.
+
+Do NOT produce a single large spec and leave splitting to someone else.
+The architect owns the split decision.
 
 Save the spec to: `.vibeflow/specs/<feature-slug>.md`
 Create the `.vibeflow/specs/` directory if it doesn't exist.

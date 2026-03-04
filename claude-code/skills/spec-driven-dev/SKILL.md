@@ -78,6 +78,10 @@ If PARTIAL or FAIL, generate an incremental prompt pack covering only the gaps.
 - Default budget: ≤ 6 files changed per task (or the value from
   `.vibeflow/index.md` `Suggested budget` line, if available).
 - If exceeding budget: justify.
+- Spec too large? Split it. If a spec has >7 DoD checks or exceeds the
+  file budget, break it into N smaller specs (`<feature>-part-1.md`,
+  `<feature>-part-2.md`, etc.), each self-contained with its own DoD,
+  scope, and anti-scope. Use the `Dependencies` field to declare order.
 
 ## When to request more context (before generating a prompt pack)
 
