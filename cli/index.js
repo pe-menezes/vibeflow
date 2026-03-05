@@ -128,7 +128,7 @@ function printUsage() {
   console.log('');
   console.log(`  ${pc.bold(pc.cyan('Vibeflow'))} ${pc.dim('— Setup')}`);
   console.log('');
-  console.log(`  ${pc.bold('Usage:')} npx setup-vibeflow@latest ${pc.cyan('<edition>')}`);
+  console.log(`  ${pc.bold('Usage:')} npx @pe-menezes/setup-vibeflow@latest ${pc.cyan('<edition>')}`);
   console.log('');
   console.log(`  ${pc.bold('Editions:')}`);
   console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions)')}`);
@@ -138,9 +138,9 @@ function printUsage() {
   console.log(`    ${pc.cyan('--force')}     Overwrite existing files`);
   console.log('');
   console.log(`  ${pc.bold('Examples:')}`);
-  console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --copilot`);
-  console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor`);
-  console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor --force`);
+  console.log(`    ${pc.dim('$')} npx @pe-menezes/setup-vibeflow@latest --copilot`);
+  console.log(`    ${pc.dim('$')} npx @pe-menezes/setup-vibeflow@latest --cursor`);
+  console.log(`    ${pc.dim('$')} npx @pe-menezes/setup-vibeflow@latest --cursor --force`);
   console.log('');
 }
 

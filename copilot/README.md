@@ -31,7 +31,7 @@ copilot/
 Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos do projeto.
 Instructions ficam em subpasta `vibeflow/` (subdirectories suportados pelo Copilot).
 
-**Git:** Por padrão, o instalador (`npx setup-vibeflow@latest --copilot`) adiciona ao `.gitignore` os arquivos instalados e a pasta `.vibeflow/` (gerada pelo analyze). Assim eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
+**Git:** Por padrão, o instalador (`npx @pe-menezes/setup-vibeflow@latest --copilot`) adiciona ao `.gitignore` os arquivos instalados e a pasta `.vibeflow/` (gerada pelo analyze). Assim eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
 
 ## Instalação
 
@@ -87,7 +87,7 @@ Se preferir, use o instalador automático. Ele copia os arquivos, cria
 diretórios, e faz append no AGENTS.md e copilot-instructions.md automaticamente:
 
 ```bash
-npx setup-vibeflow@latest --copilot
+npx @pe-menezes/setup-vibeflow@latest --copilot
 ```
 
 ## Após a instalação
