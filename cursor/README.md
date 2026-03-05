@@ -25,7 +25,7 @@ cursor/
 
 Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos do projeto.
 
-**Git:** Por padrão, o instalador (`npx @pe-menezes/setup-vibeflow@latest --cursor`) adiciona ao `.gitignore` os arquivos instalados e a pasta `.vibeflow/` (gerada pelo analyze). Assim eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
+**Git:** Por padrão, o instalador (`npx setup-vibeflow@latest --cursor`) adiciona ao `.gitignore` os arquivos instalados e a pasta `.vibeflow/` (gerada pelo analyze). Assim eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
 
 ## Instalação
 
@@ -97,7 +97,7 @@ As rules são aplicadas automaticamente:
 Se preferir, use o instalador automático:
 
 ```bash
-npx @pe-menezes/setup-vibeflow@latest --cursor
+npx setup-vibeflow@latest --cursor
 ```
 
 ## Após a instalação

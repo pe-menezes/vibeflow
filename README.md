@@ -44,7 +44,7 @@ Veja [`cursor/README.md`](cursor/README.md) para instruções de instalação.
 
 Ou, se preferir, use o instalador automático (experimental):
 ```bash
-npx @pe-menezes/setup-vibeflow@latest --cursor
+npx setup-vibeflow@latest --cursor
 ```
 
 Usa **Rules** (`.cursor/rules/*.mdc`) para guardrails always-on e persona do Architect,
@@ -57,7 +57,7 @@ Veja [`copilot/README.md`](copilot/README.md) para instruções de instalação.
 
 Ou, se preferir, use o instalador automático (experimental):
 ```bash
-npx @pe-menezes/setup-vibeflow@latest --copilot
+npx setup-vibeflow@latest --copilot
 ```
 
 ## Manual

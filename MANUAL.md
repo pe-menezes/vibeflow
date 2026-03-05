@@ -32,8 +32,8 @@ Vibeflow está disponível para 3 agentes. Escolha o seu:
 
 | Edição | Comando de instalação |
 |--------|----------------------|
-| **GitHub Copilot** | `npx @pe-menezes/setup-vibeflow@latest --copilot` |
-| **Cursor** | `npx @pe-menezes/setup-vibeflow@latest --cursor` |
+| **GitHub Copilot** | `npx setup-vibeflow@latest --copilot` |
+| **Cursor** | `npx setup-vibeflow@latest --cursor` |
 | **Claude Code** | Add marketplace `pe-menezes/vibeflow-claude` (ou `/install-plugin pe-menezes/vibeflow-claude`) |
 
 Ou copie os arquivos manualmente — veja o README de cada edição:
