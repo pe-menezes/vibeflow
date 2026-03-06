@@ -1,5 +1,12 @@
 # Changelog
 
+### v1.5.0 (2026-03-06)
+
+- **Contextual Pattern Resolution** — Two-part feature that makes pattern loading intelligent across the entire pipeline.
+  - **Part 1 (Analyze — producer):** `analyze` now generates YAML frontmatter (`tags`, `modules`, `applies_to`) on each pattern doc and a consolidated **Pattern Registry** YAML block in `index.md` (between `<!-- vibeflow:patterns:start/end -->` markers). Incremental mode preserves frontmatter outside auto markers. Scoped mode updates frontmatter on enrichment and regenerates the registry.
+  - **Part 2 (Consumer commands):** `gen-spec`, `implement`, `prompt-pack`, and `audit` now resolve patterns automatically via the Pattern Registry — cross-referencing tags/modules against the spec's scope to load the top 3-5 relevant patterns. Manual override in spec's "Applicable Patterns" always wins. Backward compatible: falls back to previous behavior if no registry exists.
+- All 3 editions (Claude Code, Cursor, Copilot) updated in sync (except `implement` which is Claude Code only).
+
 ### v1.4.0 (2026-03-06)
 
 - **New command: `/vibeflow:implement`** — Claude Code only. Reads a spec from `.vibeflow/specs/`, loads applicable patterns and conventions, and implements the feature following all spec guardrails (budget, anti-scope, DoD). Runs tests automatically, self-verifies each DoD check with evidence, and suggests `/vibeflow:audit` as the next step. The agent acts as a **Coding Agent** — it follows the spec, it does NOT make architectural decisions. Budget enforced at 2 checkpoints (planning + during implementation). Anti-scope violations = hard stop. Test fix attempts capped at 2 to avoid infinite loops.

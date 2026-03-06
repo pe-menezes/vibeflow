@@ -30,8 +30,12 @@ Audit the implementation for: $ARGUMENTS
 2. Extract the Definition of Done from the spec.
 3. Read `.vibeflow/` docs:
    - `.vibeflow/conventions.md`
-   - Pattern docs referenced in the spec's "Applicable Patterns" section
-   - If spec doesn't list patterns, infer which ones are relevant
+   - Pattern docs referenced in the spec's "Applicable Patterns" section (manual override)
+   - If spec doesn't list patterns: **use Pattern Resolution.** Read the
+     `## Pattern Registry` YAML block from `index.md` (between
+     `<!-- vibeflow:patterns:start/end -->` markers). Cross-reference the
+     registry's tags and modules against the spec's scope. Load the top 3-5
+     matching patterns. If no registry exists, infer which ones are relevant.
 4. Read the codebase files that were supposed to change.
 5. **MANDATORY: Detect and run tests.**
    - Read `.vibeflow/index.md` to identify the project stack.

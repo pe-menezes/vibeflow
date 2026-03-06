@@ -44,8 +44,12 @@ the detected language. Code, paths and technical names remain in English.
    then continue.
 4. Read `.vibeflow/` docs:
    - `.vibeflow/conventions.md` (always)
-   - Pattern docs listed in the spec's "Applicable Patterns" section
-   - If the spec doesn't list patterns, infer which ones are relevant
+   - Pattern docs listed in the spec's "Applicable Patterns" section (manual override)
+   - If the spec doesn't list patterns: **use Pattern Resolution.** Read the
+     `## Pattern Registry` YAML block from `index.md` (between
+     `<!-- vibeflow:patterns:start/end -->` markers). Cross-reference the
+     registry's tags and modules against the spec's scope. Load the top 3-5
+     matching patterns. If no registry exists, infer which ones are relevant.
 5. Read the actual codebase files relevant to this task.
 6. Generate the prompt pack.
 

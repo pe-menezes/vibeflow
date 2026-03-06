@@ -120,9 +120,13 @@ Extract the list of patterns the spec references. You will load these next.
    you must follow.
 
 3. **Read applicable pattern docs** from `.vibeflow/patterns/`.
-   - If the spec lists patterns in "Applicable Patterns": read ONLY those.
-   - If the spec doesn't list patterns: infer which are relevant based on
-     the scope description. Read at most 3 pattern docs.
+   - If the spec lists patterns in "Applicable Patterns": read ONLY those (manual override).
+   - If the spec doesn't list patterns: **use Pattern Resolution.** Read the
+     `## Pattern Registry` YAML block from `index.md` (between
+     `<!-- vibeflow:patterns:start/end -->` markers). Cross-reference the
+     registry's tags and modules against the spec's scope and target file paths.
+     Load the top 3-5 matching patterns. If no registry exists, infer based
+     on scope description (max 3 pattern docs).
    - For each pattern doc, internalize:
      - The real code examples (this is how you must write code)
      - The rules (naming, structure, error handling)

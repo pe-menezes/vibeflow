@@ -36,8 +36,12 @@ Generate a complete spec for: $ARGUMENTS
    - Check for `Suggested budget: ≤ N` line in index.md — use that as the
      budget for this spec. If not present, default to ≤ 6 files.
    - Read `.vibeflow/conventions.md` for coding standards
-   - Read the pattern docs from `.vibeflow/patterns/` that are relevant
-     to this feature
+   - **Pattern Resolution:** Read the `## Pattern Registry` YAML block from
+     `index.md` (between `<!-- vibeflow:patterns:start/end -->` markers).
+     Cross-reference the registry's tags and modules against the feature
+     description/scope to identify relevant patterns. Load only the top 3-5
+     matching pattern docs from `.vibeflow/patterns/`. If no Pattern Registry
+     exists in index.md, fall back to reading all pattern docs.
 2. If `.vibeflow/` does NOT exist:
    - Warn the user: "No project analysis found. Run /vibeflow:analyze
      first for better results. Proceeding with direct code reading."
