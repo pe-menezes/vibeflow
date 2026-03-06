@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.3.0 (2026-03-06)
+
+- **gen-spec: smart next-step suggestion** — In Claude Code, gen-spec now suggests implementing directly from the spec (since the agent has filesystem access to `.vibeflow/`), with prompt-pack as an optional fallback for separate sessions. Cursor and Copilot editions unchanged (still suggest prompt-pack by default).
+
 ### v1.2.0 (2026-03-03)
 
 - **Analyze: `--scope <path>` flag** — Deep-dive into a specific module/directory. Requires a prior general analysis (`.vibeflow/` must exist). Inherits global context (stack, domain, conventions) and samples the target module densely (all files if ≤30, ≥80% if larger). Enriches existing global pattern docs with examples from the scoped module. Creates new pattern docs only for module-specific patterns not covered globally. Registers scoped analyses in `index.md`.

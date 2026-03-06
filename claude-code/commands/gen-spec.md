@@ -87,9 +87,10 @@ The architect owns the split decision.
 Save the spec to: `.vibeflow/specs/<feature-slug>.md`
 Create the `.vibeflow/specs/` directory if it doesn't exist.
 
-After saving, suggest: "Spec saved. When ready, run
-`/vibeflow:prompt-pack .vibeflow/specs/<feature-slug>.md` to generate a
-self-contained prompt pack for the coding agent."
+After saving, suggest: "Spec saved to `.vibeflow/specs/<feature-slug>.md`.
+You can implement directly from this spec — I have access to `.vibeflow/` patterns.
+Or run `/vibeflow:prompt-pack .vibeflow/specs/<feature-slug>.md` if you want a
+self-contained prompt for a separate session/agent."
 
 ---
 

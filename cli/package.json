@@ -1,6 +1,6 @@
 {
   "name": "setup-vibeflow",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Install Vibeflow (spec-driven development) in your project",
   "bin": {
     "setup-vibeflow": "./index.js"
