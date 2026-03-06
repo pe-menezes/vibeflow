@@ -1,5 +1,10 @@
 # Changelog
 
+### v1.4.0 (2026-03-06)
+
+- **New command: `/vibeflow:implement`** — Claude Code only. Reads a spec from `.vibeflow/specs/`, loads applicable patterns and conventions, and implements the feature following all spec guardrails (budget, anti-scope, DoD). Runs tests automatically, self-verifies each DoD check with evidence, and suggests `/vibeflow:audit` as the next step. The agent acts as a **Coding Agent** — it follows the spec, it does NOT make architectural decisions. Budget enforced at 2 checkpoints (planning + during implementation). Anti-scope violations = hard stop. Test fix attempts capped at 2 to avoid infinite loops.
+- **gen-spec updated** — After saving a spec, gen-spec now suggests `/vibeflow:implement` as the primary next step (with prompt-pack as fallback for separate sessions).
+
 ### v1.3.0 (2026-03-06)
 
 - **gen-spec: smart next-step suggestion** — In Claude Code, gen-spec now suggests implementing directly from the spec (since the agent has filesystem access to `.vibeflow/`), with prompt-pack as an optional fallback for separate sessions. Cursor and Copilot editions unchanged (still suggest prompt-pack by default).

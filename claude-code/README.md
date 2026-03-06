@@ -75,6 +75,7 @@ In the Cowork desktop app:
 | `/vibeflow:quick <description>` | Fast-track: generates prompt pack directly for small tasks (≤4 files) |
 | `/vibeflow:gen-spec <feature>` | Generate a spec with DoD, scope, anti-scope, applicable patterns |
 | `/vibeflow:prompt-pack <spec>` | Generate a self-contained prompt pack with embedded patterns |
+| `/vibeflow:implement <spec>` | Implement a feature from its spec with guardrails (budget, DoD, patterns) |
 | `/vibeflow:audit <spec>` | Audit implementation against DoD + patterns + tests |
 | `/vibeflow:teach <feedback>` | Update `.vibeflow/` with corrections, conventions, or decisions |
 | `/vibeflow:stats` | Show audit statistics: pass rates, common violations, trends |
@@ -88,9 +89,8 @@ In the Cowork desktop app:
         ↓
 /vibeflow:gen-spec → spec with DoD and patterns (accepts PRD as input)
         ↓
-/vibeflow:prompt-pack → self-contained prompt with real code
-        ↓
-    Coding agent implements
+/vibeflow:implement → implements from spec with guardrails (Claude Code)
+   or /vibeflow:prompt-pack → self-contained prompt for other agents
         ↓
 /vibeflow:audit → verifies DoD + pattern compliance
         ↓
