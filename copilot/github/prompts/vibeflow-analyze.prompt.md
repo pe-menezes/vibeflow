@@ -169,7 +169,7 @@ Look for REPEATED patterns, not one-off occurrences.
 
 ## Phase 3: Pattern Deep Dive
 
-**Incremental mode:** Only re-analyze patterns for affected modules. For pattern docs being updated, preserve content outside `<!-- vibeflow:auto:start/end -->` markers. For existing pattern docs without markers (legacy), rewrite them entirely with markers added. For new patterns, create with markers. In fresh mode, proceed as described below.
+**Incremental mode:** Only re-analyze patterns for affected modules. For pattern docs being updated, preserve content outside `<!-- vibeflow:auto:start/end -->` markers — this includes the YAML frontmatter block at the top. **Frontmatter preservation rule:** If the pattern doc already has a `---` frontmatter block AND the content within `<!-- vibeflow:auto -->` markers did NOT change, keep the existing frontmatter untouched (the dev may have manually edited tags via `/vibeflow:teach`). If the auto content DID change, regenerate the frontmatter to reflect the updated content. For existing pattern docs without markers (legacy), rewrite them entirely with markers and frontmatter added. For new patterns, create with frontmatter and markers. In fresh mode, proceed as described below.
 
 This is the most important phase. For each significant pattern you discover:
 - Read 3-5 examples of the pattern being used in the codebase
@@ -202,9 +202,14 @@ Create ONE markdown file per pattern in `.vibeflow/patterns/`.
 Name files descriptively: `api-routes.md`, `component-architecture.md`,
 `data-access.md`, `auth-flow.md`, `cli-commands.md`, etc.
 
-Each pattern doc must follow this structure with markers to delimit auto-generated content:
+Each pattern doc must follow this structure with YAML frontmatter and markers to delimit auto-generated content:
 
 ```markdown
+---
+tags: [tag1, tag2, tag3]
+modules: [src/path1/, src/path2/]
+applies_to: [artifact-type1, artifact-type2]
+---
 # Pattern: <Name>
 
 <!-- vibeflow:auto:start -->
@@ -236,7 +241,13 @@ Things that exist in the codebase that BREAK this pattern.
 Mark them so future work doesn't replicate mistakes.
 ```
 
-**Marker placement rule:** Wrap sections `## What`, `## Where`, `## The Pattern`, `## Rules`, and `## Examples from this codebase` with `<!-- vibeflow:auto:start/end -->` markers. The `## Anti-patterns` section should NOT be wrapped — it's a natural place for manual additions and evolution.
+**YAML frontmatter rules:**
+- The frontmatter block (`---` delimiters) goes at the VERY TOP of the file, BEFORE the `# Pattern:` heading and OUTSIDE the `<!-- vibeflow:auto -->` markers.
+- **`tags`**: 3-7 lowercase strings describing the domain/concepts this pattern covers. Derive from the pattern name, the "What" section content, and key concepts in "The Pattern" section. Avoid generic tags like `code`, `file`, `pattern`. Use specific domain tags like `auth`, `middleware`, `api-routes`, `state-management`, `navigation`, `design-system`, etc.
+- **`modules`**: List of directory paths (relative to repo root, ending in `/`) where this pattern manifests. Derive from the "Where" section and the file paths in "Examples from this codebase".
+- **`applies_to`**: List of artifact types this pattern governs. Use generic type names: `components`, `routes`, `handlers`, `middleware`, `hooks`, `models`, `services`, `screens`, `tests`, `configs`, `migrations`, `commands`, `interceptors`, `guards`, `resolvers`, `controllers`, etc.
+
+**Marker placement rule:** Wrap sections `## What`, `## Where`, `## The Pattern`, `## Rules`, and `## Examples from this codebase` with `<!-- vibeflow:auto:start/end -->` markers. The `## Anti-patterns` section should NOT be wrapped — it's a natural place for manual additions and evolution. The YAML frontmatter is also NOT wrapped — it lives outside markers so manual edits to tags (via `/vibeflow:teach`) survive incremental updates.
 
 CRITICAL: Include REAL code snippets from REAL files. Not pseudocode.
 Not "something like this". The actual code. This is what makes the
@@ -279,6 +290,18 @@ In fresh mode, proceed as described below.
 <list the major units — modules, packages, routes, features, etc.>
 <1-line description each>
 
+## Pattern Registry
+
+<!-- vibeflow:patterns:start -->
+patterns:
+  - file: patterns/<name>.md
+    tags: [tag1, tag2, tag3]
+    modules: [src/path1/, src/path2/]
+  - file: patterns/<name>.md
+    tags: [tag4, tag5]
+    modules: [src/path3/]
+<!-- vibeflow:patterns:end -->
+
 ## Pattern Docs Available
 <list each .vibeflow/patterns/*.md with 1-line description>
 
@@ -291,6 +314,13 @@ In fresh mode, proceed as described below.
 ## Known Issues / Tech Debt
 <bullet list if anything was found>
 ```
+
+**Pattern Registry generation:** After creating/updating all pattern docs, build the Pattern Registry block in `index.md`. For each pattern doc in `.vibeflow/patterns/`:
+1. Read its YAML frontmatter (`tags` and `modules` fields)
+2. Add an entry to the registry YAML block between `<!-- vibeflow:patterns:start/end -->` markers
+3. Also keep the human-readable "Pattern Docs Available" section below with markdown links and 1-line descriptions
+
+The registry is ALWAYS regenerated from the pattern doc frontmatters — it is never manually edited. This ensures it stays in sync.
 
 **Budget calculation:** Count the total number of source files sampled/detected
 in Phase 2. Suggest a budget of ~2-3% of total source files, clamped between
@@ -378,13 +408,15 @@ For each pattern discovered in the scoped module:
 
 **If a matching global pattern doc already exists** (e.g., `patterns/screen-composition.md`):
 - Add examples from this module to the existing doc, within the `<!-- vibeflow:auto:start/end -->` markers
-- Preserve all existing content outside markers
+- Preserve all existing content outside markers (including YAML frontmatter)
 - In the `## Where` section, add the scoped module as a location
 - In `## Examples from this codebase`, add 1-2 examples from the scoped module
+- **Update frontmatter:** If the scoped module path is not already in the `modules` field of the frontmatter, add it. Preserve existing tags and applies_to.
 
 **If the pattern is specific to this module and no global doc covers it:**
-- Create a new pattern doc in `patterns/` following the standard structure with markers
+- Create a new pattern doc in `patterns/` following the standard structure with frontmatter and markers
 - Name it descriptively, optionally prefixed with the module name if it's truly module-specific (e.g., `payments-reconciliation.md`)
+- Generate frontmatter with tags, modules, and applies_to as described in Phase 3
 
 **For conventions.md:**
 - If the module follows conventions that extend or specialize the global ones, add them within markers with attribution: "(via --scope `<path>`)"
@@ -399,7 +431,7 @@ Add or update a `## Scoped Analyses` section in `index.md`:
 - `<path>` — analyzed on <date>, N files sampled, M patterns enriched/created
 ```
 
-Also update the `## Pattern Docs Available` section if new pattern docs were created.
+Also regenerate the `## Pattern Registry` YAML block (read frontmatters from all pattern docs) and update the `## Pattern Docs Available` section if new pattern docs were created.
 
 ### After Scoped Analysis, Report to the User:
 
