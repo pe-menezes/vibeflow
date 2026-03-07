@@ -67,8 +67,7 @@ Available in `.github/prompts/`:
 | Prompt | Purpose |
 |--------|---------|
 | `vibeflow-discover` | Turn vague idea into PRD |
-| `vibeflow-analyze` | Deep-analyze codebase, build `.vibeflow/` |
-| `vibeflow-analyze-satellite` | Analyze satellite repo (e.g. design system), merge used patterns into `.vibeflow/patterns/satellite-<name>/` with provenance |
+| `vibeflow-analyze` | Deep-analyze codebase, build `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`) |
 | `vibeflow-gen-spec` | Generate grounded spec with DoD |
 | `vibeflow-prompt-pack` | Self-contained prompt for coding agent |
 | `vibeflow-audit` | Verify DoD + pattern + test compliance |

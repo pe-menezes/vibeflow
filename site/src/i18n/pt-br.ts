@@ -155,7 +155,7 @@ export default {
   feat6Title: 'quick',
   feat6Desc: 'Fast-track para tasks pequenas. Pula discovery, gera prompt pack direto. Para bug fixes e tasks de até 4 arquivos.',
   feat6For: 'Para tasks pequenas',
-  feat7Title: 'analyze-satellite',
+  feat7Title: 'analyze --satellite',
   feat7Desc: 'Analisa um repo dependência (ex.: design system) sob a ótica do repo principal. Clona, analisa, mantém só os patterns que o principal usa, faz merge em .vibeflow/ com provenance e remove o clone.',
   feat7For: 'Para enriquecer patterns de um repo dependência',
 

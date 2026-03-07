@@ -65,20 +65,31 @@ In the Cowork desktop app:
 2. Select the `vibeflow` folder (this repo)
 3. The plugin loads automatically
 
-## Commands
+## Quick Start (3 commands)
+
+```
+/vibeflow:analyze              → scans your codebase, builds .vibeflow/ knowledge
+/vibeflow:gen-spec "feature"   → generates spec with DoD, scope, patterns
+/vibeflow:implement <spec>     → implements with guardrails (budget, DoD, tests)
+```
+
+That's it. Run `analyze` once, then `gen-spec` → `implement` for each feature.
+
+## All Commands
 
 | Command | Description |
 |---------|-------------|
-| `/vibeflow:analyze [--fresh] [--scope <path>]` | Deep-analyze the codebase, build pattern docs in `.vibeflow/` |
-| `/vibeflow:analyze-satellite <url>` | Analyze a satellite repo (e.g. design system), filter by main repo usage, merge into `.vibeflow/patterns/satellite-<name>/` with provenance |
-| `/vibeflow:discover <idea>` | Interactive dialogue to turn a vague idea into a PRD |
-| `/vibeflow:quick <description>` | Fast-track: generates prompt pack directly for small tasks (≤4 files) |
+| `/vibeflow:analyze` | Deep-analyze the codebase, build pattern docs in `.vibeflow/` |
 | `/vibeflow:gen-spec <feature>` | Generate a spec with DoD, scope, anti-scope, applicable patterns |
-| `/vibeflow:prompt-pack <spec>` | Generate a self-contained prompt pack with embedded patterns |
 | `/vibeflow:implement <spec>` | Implement a feature from its spec with guardrails (budget, DoD, patterns) |
 | `/vibeflow:audit <spec>` | Audit implementation against DoD + patterns + tests |
+| `/vibeflow:discover <idea>` | Interactive dialogue to turn a vague idea into a PRD |
+| `/vibeflow:prompt-pack <spec>` | Generate a self-contained prompt pack with embedded patterns |
+| `/vibeflow:quick <description>` | Fast-track: generates prompt pack directly for small tasks (≤4 files) |
 | `/vibeflow:teach <feedback>` | Update `.vibeflow/` with corrections, conventions, or decisions |
 | `/vibeflow:stats` | Show audit statistics: pass rates, common violations, trends |
+
+`analyze` also supports `--fresh`, `--scope <path>`, `--interactive`, and `--satellite <url>` flags.
 
 ## How It Works
 
@@ -97,7 +108,9 @@ In the Cowork desktop app:
     PASS? Ship. PARTIAL/FAIL? Incremental prompt → repeat
 ```
 
-**Fast-track:** `/vibeflow:quick "description"` → prompt pack directly (skips discover/spec)
+**Shortcuts:**
+- `/vibeflow:quick "description"` → prompt pack directly (skips discover/spec)
+- `/vibeflow:analyze --satellite <url>` → analyze a dependency repo (e.g. design system)
 
 ## Project Knowledge (.vibeflow/)
 

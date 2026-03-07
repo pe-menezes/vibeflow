@@ -15,7 +15,6 @@ copilot/
     │   └── vibeflow-architect.agent.md           → persona do Architect
     ├── prompts/
     │   ├── vibeflow-analyze.prompt.md
-    │   ├── vibeflow-analyze-satellite.prompt.md
     │   ├── vibeflow-audit.prompt.md
     │   ├── vibeflow-discover.prompt.md
     │   ├── vibeflow-gen-spec.prompt.md

@@ -11,7 +11,7 @@ documentation in `.vibeflow/` that persists and can be committed to git.
 Supports incremental analysis: if `.vibeflow/` already exists, detects
 changes via git and updates only affected modules.
 
-**Usage:** Invoke this skill from the project root. Pass `--fresh` as input to force a complete rebuild. Pass `--scope <path>` to deep-dive into a specific module/directory. Pass `--interactive` to validate and enrich patterns with human feedback before saving.
+**Usage:** Invoke this skill from the project root. Pass `--fresh` as input to force a complete rebuild. Pass `--scope <path>` to deep-dive into a specific module/directory. Pass `--interactive` to validate and enrich patterns with human feedback before saving. Pass `--satellite <url>` to analyze a dependency repo and merge only used patterns.
 
 ---
 
@@ -36,11 +36,15 @@ Check the current state to decide which mode to run:
 - Did the user request `--fresh`?
 - Did the user request `--scope <path>`?
 - Did the user request `--interactive`?
+- Did the user request `--satellite <url>`?
 - Is git available in this directory?
 
 **`--interactive` flag:** If present, activates Phase 3.5 (Review & Enrich) after Phase 3. Composes with all modes: fresh, incremental, and scoped. Does NOT change which phases run — it adds a review step before saving.
 
 **Decision tree:**
+- If `--satellite <url>` requested:
+  - If `.vibeflow/index.md` DOES NOT exist → STOP with: "Run `analyze` first to establish project context, then use `--satellite` to analyze a dependency repo."
+  - If `.vibeflow/index.md` EXISTS → enter **satellite mode** (see "Satellite Analysis Mode" section below). Skip Phases 1-5 entirely.
 - If `--scope <path>` requested:
   - If `.vibeflow/index.md` DOES NOT exist → STOP with: "Run `analyze` first to establish project context, then use `--scope` to deep-dive into specific modules."
   - If `.vibeflow/index.md` EXISTS → enter **scoped mode** (see "Scoped Analysis Mode" section below). Skip Phases 1-5 entirely.
@@ -486,6 +490,53 @@ Also regenerate the `## Pattern Registry` YAML block (read frontmatters from all
 - Module-specific conventions found (if any)
 - Divergences from global conventions (if any)
 - Suggest: "Run `gen-spec` or `prompt-pack` — the enriched patterns from `<path>` are now available."
+
+---
+
+## Satellite Analysis Mode (`--satellite <url>`)
+
+This mode runs when the user passes `--satellite <url>`. It analyzes a **dependency repository** (e.g. design system, shared lib) from the perspective of the current (main) repo. It clones the satellite, runs the analyze pipeline on it, detects what the main repo actually uses, and merges only those patterns into `.vibeflow/`. Requires `.vibeflow/index.md` to already exist.
+
+### Step 1: Parse and Clone
+
+1. **Derive satellite name.** From the URL, take the last path segment (e.g. `design-system` from `github.com/org/design-system`), remove `.git` if present, sanitize to alphanumeric and hyphen. Use as `<satellite-name>`.
+
+2. **Create temp directory.** Use a unique path under system temp (e.g. `$TMPDIR/vibeflow-satellite-<timestamp>`). Do not use the main repo.
+
+3. **Clone.** Run `git clone --depth 1 <URL> <temp_dir>/satellite`. If clone fails, report the error clearly, remove temp dir if partially created, then stop.
+
+### Step 2: Analyze the Clone
+
+With the **clone directory** as the effective codebase root, perform the same phases as a fresh analysis (Discovery, Rules integration, Convention mining, Pattern deep dive, Compile). Write output **inside the clone**: `<temp_dir>/satellite/.vibeflow/`. Do not modify the main repo's `.vibeflow/` in this step.
+
+If any step fails after the clone, still remove the temp directory before exiting.
+
+### Step 3: Detect Usage in the Main Repo
+
+In the **main repo** (current working directory), collect what references the satellite:
+- **Declared dependencies:** Read `package.json`, `build.gradle`, `Cargo.toml`, `pyproject.toml`, or equivalent.
+- **Imports / requires:** Search source files for imports of the satellite. Cover at least JS/TS and the main repo's primary language.
+- **Build a "usage" set:** Module names, package names, or symbols the main repo uses. Use this to filter which satellite pattern docs are relevant.
+
+### Step 4: Filter and Merge with Provenance
+
+1. **Filter.** From `<temp_dir>/satellite/.vibeflow/patterns/*.md`, keep only docs corresponding to the usage set. When in doubt for a direct dependency, include.
+
+2. **Target:** `.vibeflow/patterns/satellite-<satellite-name>/` in the main repo. Create if needed. Overwrite as needed.
+
+3. **Provenance.** Prepend at the top of each merged file: `> Patterns from satellite repo: <satellite-name> (ingested on YYYY-MM-DD for use by the main repo).`
+
+4. Write only filtered pattern docs. Do not copy the satellite's `index.md` or `conventions.md`.
+
+### Step 5: Cleanup and Report
+
+1. **Remove temp directory.** Always do this, whether merge succeeded or failed.
+
+2. **Report:** Satellite URL and name, that clone was removed, how many pattern docs were merged, remind about provenance.
+
+3. **Suggest:** "Run `gen-spec` or `prompt-pack` — patterns from `<satellite-name>` are now available under `.vibeflow/patterns/satellite-<satellite-name>/`."
+
+**Rules:** One repo per invocation. Clone is always ephemeral. Provenance is mandatory. Filter by use only.
 
 ---
 

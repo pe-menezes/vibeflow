@@ -9,10 +9,20 @@ A ideia central: **separe quem pensa de quem implementa**.
 - O **Architect** (você + IA) define specs, toma decisões, corta escopo
 - O **Coding Agent** (IA) recebe um prompt pack fechado e implementa
 
-## O pipeline
+## Quick start (3 comandos)
 
 ```
-analyze → discover → gen-spec → prompt-pack → implement → audit
+1. vibeflow-analyze              → escaneia seu codebase, gera .vibeflow/
+2. vibeflow-gen-spec "feature"   → gera spec com DoD, escopo, padrões
+3. vibeflow-implement <spec>     → implementa com guardrails (budget, DoD, testes)
+```
+
+É isso. Rode `analyze` uma vez, depois `gen-spec` → `implement` para cada feature.
+
+## O pipeline completo
+
+```
+analyze → discover → gen-spec → (prompt-pack | implement) → audit
 ```
 
 | Etapa | O que faz | Quando usar |
@@ -20,8 +30,8 @@ analyze → discover → gen-spec → prompt-pack → implement → audit
 | **analyze** | Analisa o codebase, gera `.vibeflow/` | Setup inicial ou quando o código mudou muito |
 | **discover** | Transforma ideia vaga em PRD | A ideia ainda não está clara |
 | **gen-spec** | Gera spec técnica com DoD | Ideia clara, pronto pra especificar |
-| **prompt-pack** | Gera prompt auto-contido para o coding agent | Spec aprovada, precisa delegar para outro agente/sessão |
 | **implement** | Implementa a spec com guardrails (budget, DoD, padrões) | Spec aprovada, Claude Code (agente com acesso ao filesystem) |
+| **prompt-pack** | Gera prompt auto-contido para o coding agent | Spec aprovada, precisa delegar para outro agente/sessão |
 | **audit** | Verifica DoD + padrões + testes | Implementação feita, hora de validar |
 
 Nem sempre você precisa do pipeline completo. Veja os atalhos abaixo.
@@ -54,6 +64,8 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 - Depois de mudanças grandes no código
 - Com `--fresh` para reconstruir do zero
 - Com `--scope <path>` para deep-dive num módulo/diretório específico
+- Com `--interactive` para validar padrões com feedback humano antes de salvar
+- Com `--satellite <url>` para analisar um repo de dependência (ex.: design system)
 
 **O que gera:**
 ```
@@ -68,17 +80,9 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 
 **Modo scoped (`--scope`):** Deep-dive num módulo específico. Requer que o analyze geral já tenha rodado. Samplea densamente o módulo (80%+ dos arquivos) e enriquece os pattern docs globais com exemplos daquele módulo. Ideal para repos grandes onde o analyze geral é shallow em módulos individuais.
 
----
+**Modo interactive (`--interactive`):** Adiciona um checkpoint de review entre a descoberta de padrões e o salvamento. Apresenta os padrões encontrados, pergunta sobre falsos positivos, padrões faltantes e rationale ("por quê?"). Feedback incorporado antes de salvar. Compõe com todos os modos.
 
-### `vibeflow-analyze-satellite`
-
-Analisa um **repositório satélite** (ex.: design system, lib compartilhada) sob a ótica do repo principal. Clona o repo em um diretório temporário, roda o mesmo pipeline de analyze no clone, detecta o que o repo principal **realmente usa** (imports e dependências declaradas), incorpora só esses patterns em `.vibeflow/` e remove o clone ao final.
-
-**Uso:** Um argumento obrigatório: URL do repo satélite (SSH ou HTTPS). Ex.: `vibeflow-analyze-satellite https://github.com/org/design-system`
-
-**Requisito:** O repo principal já deve ter `.vibeflow/` (rode `vibeflow-analyze` antes).
-
-**Provenance:** Todo conteúdo incorporado vai para `.vibeflow/patterns/satellite-<nome-repo>/`. Cada arquivo de pattern tem no topo uma nota em blockquote com o nome do satélite e a data de ingestão, para não confundir com patterns nativos do projeto.
+**Modo satellite (`--satellite <url>`):** Analisa um repo de dependência (ex.: design system, lib compartilhada) sob a ótica do repo principal. Clona o repo, roda analyze no clone, detecta o que o repo principal realmente usa, e incorpora só esses patterns em `.vibeflow/patterns/satellite-<nome>/` com provenance.
 
 ---
 

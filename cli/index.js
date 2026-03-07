@@ -11,7 +11,6 @@ const BRANCH = 'main';
 
 const COPILOT_FILES = [
   { src: 'github/prompts/vibeflow-analyze.prompt.md', dest: '.github/prompts/vibeflow-analyze.prompt.md' },
-  { src: 'github/prompts/vibeflow-analyze-satellite.prompt.md', dest: '.github/prompts/vibeflow-analyze-satellite.prompt.md' },
   { src: 'github/prompts/vibeflow-audit.prompt.md', dest: '.github/prompts/vibeflow-audit.prompt.md' },
   { src: 'github/prompts/vibeflow-discover.prompt.md', dest: '.github/prompts/vibeflow-discover.prompt.md' },
   { src: 'github/prompts/vibeflow-gen-spec.prompt.md', dest: '.github/prompts/vibeflow-gen-spec.prompt.md' },
@@ -28,7 +27,6 @@ const CURSOR_FILES = [
   { src: 'rules/vibeflow.mdc', dest: '.cursor/rules/vibeflow.mdc' },
   { src: 'rules/vibeflow-architect.mdc', dest: '.cursor/rules/vibeflow-architect.mdc' },
   { src: 'skills/vibeflow-analyze/SKILL.md', dest: '.cursor/skills/vibeflow-analyze/SKILL.md' },
-  { src: 'skills/vibeflow-analyze-satellite/SKILL.md', dest: '.cursor/skills/vibeflow-analyze-satellite/SKILL.md' },
   { src: 'skills/vibeflow-audit/SKILL.md', dest: '.cursor/skills/vibeflow-audit/SKILL.md' },
   { src: 'skills/vibeflow-discover/SKILL.md', dest: '.cursor/skills/vibeflow-discover/SKILL.md' },
   { src: 'skills/vibeflow-gen-spec/SKILL.md', dest: '.cursor/skills/vibeflow-gen-spec/SKILL.md' },

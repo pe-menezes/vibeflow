@@ -12,7 +12,6 @@ cursor/
 │   └── vibeflow-architect.mdc                    → .cursor/rules/ (agent-decided — persona)
 └── skills/
     ├── vibeflow-analyze/SKILL.md                 → .cursor/skills/ (deep-analyze codebase)
-    ├── vibeflow-analyze-satellite/SKILL.md       → .cursor/skills/ (analyze dependency repo, merge patterns with provenance)
     ├── vibeflow-discover/SKILL.md                → .cursor/skills/ (idea → PRD)
     ├── vibeflow-gen-spec/SKILL.md                → .cursor/skills/ (PRD/feature → spec)
     ├── vibeflow-prompt-pack/SKILL.md             → .cursor/skills/ (spec → prompt pack)
@@ -76,8 +75,7 @@ O Cursor detecta automaticamente qual skill é relevante baseado no contexto da 
 ### Invocação manual (slash commands)
 Digite `/` no Agent chat e busque pelo nome do skill:
 
-- `/vibeflow-analyze` — analisa o codebase e gera `.vibeflow/`
-- `/vibeflow-analyze-satellite` — analisa repo satélite (ex.: design system), filtra por uso e merge em `.vibeflow/patterns/satellite-<nome>/`
+- `/vibeflow-analyze` — analisa o codebase e gera `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
 - `/vibeflow-discover` — transforma ideia em PRD
 - `/vibeflow-gen-spec` — gera spec com DoD
 - `/vibeflow-prompt-pack` — gera prompt pack para coding agent

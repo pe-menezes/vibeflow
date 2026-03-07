@@ -1,5 +1,11 @@
 # Changelog
 
+### v1.7.0 (2026-03-07)
+
+- **`analyze-satellite` merged into `analyze --satellite <url>`** — The standalone `analyze-satellite` command is now a flag on the `analyze` command. Same functionality (clone, analyze, filter by usage, merge with provenance), fewer commands to learn. All 3 editions updated.
+- **DX: Quick Start + tiered command presentation** — README and MANUAL now lead with a 3-command quick start (`analyze` → `gen-spec` → `implement`) instead of listing all commands flat. Commands table reordered: core pipeline first, optional/utility commands after. Reduces cognitive load for new users without removing any functionality.
+- All 3 editions (Claude Code, Cursor, Copilot) updated in sync.
+
 ### v1.6.0 (2026-03-06)
 
 - **Interactive Analyze (`--interactive`)** — New flag for the analyze command that adds a review checkpoint (Phase 3.5) between pattern discovery and saving. Presents patterns found in a compact summary and asks 3 questions: false positives, missing patterns, and rationale ("why"). User feedback is incorporated into pattern docs before saving: false positives are removed, missing patterns are created with `source: team-reported`, and rationale is saved as a `## Rationale` section (outside auto markers, survives incremental updates). Pattern docs gain a `confidence` frontmatter field: `inferred` (default) or `validated` (human-confirmed). Incremental + interactive only asks about new/changed patterns. Composes with all modes: `--fresh`, `--scope`, incremental.

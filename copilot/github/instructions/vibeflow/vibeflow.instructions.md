@@ -52,8 +52,7 @@ Technical terms in English are acceptable (endpoint, middleware, deploy, etc.).
 
 See `.github/prompts/` for the full set of Vibeflow prompts:
 - `vibeflow-discover` — Turn a vague idea into a PRD
-- `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/`
-- `vibeflow-analyze-satellite` — Analyze a dependency repo from the main repo's perspective; clone, analyze, filter by usage, merge with provenance
+- `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
 - `vibeflow-gen-spec` — Generate grounded spec with DoD
 - `vibeflow-prompt-pack` — Self-contained prompt for any coding agent
 - `vibeflow-audit` — Verify DoD + pattern + test compliance
