@@ -1,6 +1,6 @@
 ---
 name: vibeflow-analyze
-description: "Deep-analyze codebase and build .vibeflow/ knowledge base. Use when setting up Vibeflow for the first time, refreshing project knowledge, or when the codebase changed significantly. Triggers on mentions of analyze, codebase analysis, project setup, or .vibeflow/ generation."
+description: "Deep-analyzes the codebase to discover stack, architecture, patterns, conventions, and pitfalls. Creates .vibeflow/ knowledge base. Use when setting up a project, after significant changes, or to deep-dive into a specific module."
 ---
 
 # Vibeflow: Analyze

@@ -1,11 +1,13 @@
 ---
+name: analyze
 description: >
-  Deep-analyze the current codebase. Discovers stack, architecture,
-  patterns, conventions, key components, and pitfalls. Creates curated
-  documentation in .vibeflow/ that persists and can be committed to git.
-  Supports incremental analysis: if .vibeflow/ already exists, detects
-  changes via git and updates only affected modules.
-  Usage: /vibeflow:analyze [--fresh] [--scope <path>] [--interactive] [--satellite <url>]
+  Deep-analyzes the current codebase to discover stack, architecture, patterns,
+  conventions, and pitfalls. Creates curated documentation in .vibeflow/ that
+  persists and can be committed to git. Supports incremental updates, scoped
+  deep-dives, interactive review, and satellite repo analysis. Use when setting
+  up a project, after significant changes, or to deep-dive into a specific module.
+argument-hint: "[--fresh] [--scope path] [--interactive] [--satellite url]"
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 ## Description and examples

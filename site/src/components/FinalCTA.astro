@@ -44,6 +44,8 @@ const t = useTranslations(lang);
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </a>
     </div>
+
+    <p class="cta-creator fade-in delay-4">{t.ctaCreator}</p>
   </div>
 </section>
 
@@ -158,6 +160,12 @@ const t = useTranslations(lang);
     border-color: var(--accent);
     color: var(--accent-light);
     transform: translateY(-1px);
+  }
+
+  .cta-creator {
+    margin-top: 32px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
   }
 
   @media (max-width: 768px) {

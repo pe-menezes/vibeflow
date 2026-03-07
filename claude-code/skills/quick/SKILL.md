@@ -1,8 +1,11 @@
 ---
+name: quick
 description: >
-  Fast-track: generate a prompt pack for small tasks in one command.
-  Skips discover, generates ephemeral spec, outputs ready-to-use prompt pack.
-  Usage: /vibeflow:quick <task description>
+  Fast-tracks small tasks into a ready-to-use prompt pack in one command. Skips
+  discover, generates an ephemeral spec in memory, and outputs a prompt pack with
+  embedded patterns. Use for well-defined tasks that fit in ≤4 files.
+argument-hint: "<task description>"
+allowed-tools: Read, Grep, Glob
 ---
 
 ## Description and examples

@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-teach'
-description: 'Teach .vibeflow/ knowledge base with feedback'
+description: 'Updates .vibeflow/ with corrections, new conventions, decisions, or patterns from natural language feedback.'
 agent: 'vibeflow-architect'
 ---
 

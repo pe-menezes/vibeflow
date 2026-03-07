@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-discover'
-description: 'Interactive discovery to turn a vague idea into a PRD'
+description: 'Runs an interactive discovery dialogue (1-5 rounds) to turn a vague idea into a clear, actionable PRD.'
 agent: 'vibeflow-architect'
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-prompt-pack'
-description: 'Generate a self-contained prompt pack from a spec'
+description: 'Generates a self-contained prompt pack from a spec with embedded patterns for any coding agent.'
 agent: 'vibeflow-architect'
 ---
 

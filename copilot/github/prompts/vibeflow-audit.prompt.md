@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-audit'
-description: 'Audit work against its Definition of Done and project patterns'
+description: 'Audits implementation against its DoD and project patterns. Runs tests and reports PASS / PARTIAL / FAIL.'
 agent: 'vibeflow-architect'
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: vibeflow-gen-spec
-description: "Generate a grounded technical spec with Definition of Done from a feature description or PRD. Use when the user wants to create a spec, define a DoD, or translate a PRD into technical requirements."
+description: "Generates a technical spec with DoD (3-7 binary checks), scope, anti-scope, and applicable patterns. Grounded in .vibeflow/. Auto-splits specs that exceed budget or DoD limits. Use when requirements are clear and you're ready to define the implementation contract."
 ---
 
 # Vibeflow: Gen-Spec

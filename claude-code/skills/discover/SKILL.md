@@ -1,9 +1,12 @@
 ---
+name: discover
 description: >
-  Interactive discovery dialogue to turn a vague idea into a clear,
-  actionable PRD (Product Requirements Document). Use before gen-spec
-  when the idea is not yet well defined.
-  Usage: /vibeflow:discover <idea or area>
+  Runs an interactive discovery dialogue (1–5 rounds) to turn a vague idea into
+  a clear, actionable PRD. Challenges assumptions, cuts scope, and forces decisions.
+  Saves the PRD to .vibeflow/prds/. Use before gen-spec when the idea is not yet
+  well-defined or requirements are unclear.
+argument-hint: "<idea or area>"
+allowed-tools: Read, Grep, Glob
 ---
 
 ## Description and examples

@@ -1,8 +1,12 @@
 ---
+name: stats
 description: >
-  Show statistics from audit reports. Reads all audits and compiles
-  pass/fail rates, most violated patterns, and common DoD gaps.
-  Usage: /vibeflow:stats
+  Compiles statistics from audit reports: PASS/PARTIAL/FAIL rates, most violated
+  patterns, most failing DoD checks, and quality trends over time. Output is
+  chat-only (no file created). Use after running several audits to spot quality
+  patterns and improvement areas.
+allowed-tools: Read, Grep, Glob
+---
 ---
 
 ## Description and examples

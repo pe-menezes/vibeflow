@@ -1,6 +1,6 @@
 ---
 name: vibeflow-stats
-description: "Show audit statistics and trends from .vibeflow/audits/. Use when the user wants to see pass/fail rates, most violated patterns, common DoD gaps, or quality trends."
+description: "Compiles statistics from audit reports: PASS/PARTIAL/FAIL rates, most violated patterns, most failing DoD checks, and quality trends. Use after running several audits to spot improvement areas."
 ---
 
 # Vibeflow: Stats

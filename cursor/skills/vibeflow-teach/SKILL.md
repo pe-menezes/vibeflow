@@ -1,6 +1,6 @@
 ---
 name: vibeflow-teach
-description: "Teach the .vibeflow/ knowledge base with feedback — corrections, new conventions, decisions, or patterns. Use when the user wants to update project knowledge, add a convention, record an architectural decision, or correct an existing pattern."
+description: "Updates .vibeflow/ with corrections, new conventions, architectural decisions, or new patterns from natural language feedback. Edits are placed outside auto-generated markers to survive incremental runs. Use to keep .vibeflow/ accurate as the project evolves."
 ---
 
 # Vibeflow: Teach

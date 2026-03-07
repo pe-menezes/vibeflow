@@ -13,9 +13,36 @@ const t = useTranslations(lang);
 <section class="hero">
   <div class="container hero-inner">
     <div class="hero-badge fade-in">vibeflow</div>
-    <h1 class="hero-title fade-in delay-1">{t.heroTitle}</h1>
+    <h1 class="hero-title fade-in delay-1" set:html={t.heroTitle.replace('\n', '<br />')} />
     <p class="hero-subtitle fade-in delay-2">{t.heroSubtitle}</p>
     <p class="hero-desc fade-in delay-3">{t.heroDescription}</p>
+
+    <div class="hero-quickstart fade-in delay-3">
+      <div class="qs-header">
+        <span class="qs-dot red"></span>
+        <span class="qs-dot yellow"></span>
+        <span class="qs-dot green"></span>
+        <span class="qs-title">{t.heroQuickStartTitle}</span>
+      </div>
+      <div class="qs-body">
+        <div class="qs-line">
+          <span class="qs-cmd">{t.heroQuickStart1Cmd}</span>
+          <span class="qs-arrow">&rarr;</span>
+          <span class="qs-desc">{t.heroQuickStart1Desc}</span>
+        </div>
+        <div class="qs-line">
+          <span class="qs-cmd">{t.heroQuickStart2Cmd}</span>
+          <span class="qs-arrow">&rarr;</span>
+          <span class="qs-desc">{t.heroQuickStart2Desc}</span>
+        </div>
+        <div class="qs-line">
+          <span class="qs-cmd">{t.heroQuickStart3Cmd}</span>
+          <span class="qs-arrow">&rarr;</span>
+          <span class="qs-desc">{t.heroQuickStart3Desc}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="hero-actions fade-in delay-4">
       <a href="#how" class="btn btn-primary">{t.heroCta}</a>
       <a href="#editions" class="btn btn-secondary">{t.heroInstall}</a>
@@ -77,10 +104,78 @@ const t = useTranslations(lang);
 
   .hero-desc {
     max-width: 580px;
-    margin: 0 auto 40px;
+    margin: 0 auto 32px;
     color: var(--text-muted);
     font-size: 1rem;
     line-height: 1.7;
+  }
+
+  /* Quick Start terminal block */
+  .hero-quickstart {
+    max-width: 580px;
+    margin: 0 auto 40px;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    text-align: left;
+    overflow: hidden;
+  }
+
+  .qs-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-inset);
+  }
+
+  .qs-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .qs-dot.red { background: #ef4444; }
+  .qs-dot.yellow { background: #eab308; }
+  .qs-dot.green { background: #22c55e; }
+
+  .qs-title {
+    margin-left: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .qs-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .qs-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+
+  .qs-cmd {
+    color: var(--accent-light);
+    font-weight: 600;
+    white-space: nowrap;
+    min-width: 160px;
+  }
+
+  .qs-arrow {
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .qs-desc {
+    color: var(--text-secondary);
   }
 
   .hero-actions {
@@ -148,6 +243,20 @@ const t = useTranslations(lang);
     }
     .hero-desc {
       font-size: 0.95rem;
+    }
+    .qs-line {
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .qs-cmd {
+      min-width: auto;
+    }
+    .qs-arrow {
+      display: none;
+    }
+    .qs-desc {
+      font-size: 0.8rem;
+      padding-left: 0;
     }
   }
 </style>

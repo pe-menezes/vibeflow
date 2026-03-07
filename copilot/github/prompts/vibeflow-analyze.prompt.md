@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-analyze'
-description: 'Deep-analyze codebase and build .vibeflow/ knowledge'
+description: 'Deep-analyzes the codebase to discover patterns, conventions, and architecture. Builds .vibeflow/ knowledge base.'
 agent: 'vibeflow-architect'
 ---
 

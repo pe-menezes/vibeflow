@@ -9,14 +9,17 @@ interface Props {
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
-const features = [
-  { title: t.feat1Title, desc: t.feat1Desc, forLabel: t.feat1For },
-  { title: t.feat2Title, desc: t.feat2Desc, forLabel: t.feat2For },
-  { title: t.feat3Title, desc: t.feat3Desc, forLabel: t.feat3For },
-  { title: t.feat4Title, desc: t.feat4Desc, forLabel: t.feat4For },
-  { title: t.feat5Title, desc: t.feat5Desc, forLabel: t.feat5For },
-  { title: t.feat6Title, desc: t.feat6Desc, forLabel: t.feat6For },
-  { title: t.feat7Title, desc: t.feat7Desc, forLabel: t.feat7For },
+const coreFeatures = [
+  { title: t.feat1Title, desc: t.feat1Desc, forLabel: t.feat1For, highlights: t.feat1Highlights, anchor: 'analyze' },
+  { title: t.feat2Title, desc: t.feat2Desc, forLabel: t.feat2For, highlights: t.feat2Highlights, anchor: 'gen-spec' },
+  { title: t.feat3Title, desc: t.feat3Desc, forLabel: t.feat3For, highlights: t.feat3Highlights, anchor: 'implement' },
+];
+
+const moreFeatures = [
+  { title: t.feat4Title, desc: t.feat4Desc, forLabel: t.feat4For, highlights: t.feat4Highlights, anchor: 'audit' },
+  { title: t.feat5Title, desc: t.feat5Desc, forLabel: t.feat5For, highlights: t.feat5Highlights, anchor: 'discover' },
+  { title: t.feat6Title, desc: t.feat6Desc, forLabel: t.feat6For, highlights: t.feat6Highlights, anchor: 'prompt-pack' },
+  { title: t.feat7Title, desc: t.feat7Desc, forLabel: t.feat7For, highlights: t.feat7Highlights, anchor: 'quick' },
 ];
 ---
 
@@ -25,14 +28,40 @@ const features = [
     <h2 class="section-title fade-in">{t.featuresTitle}</h2>
     <p class="section-subtitle fade-in delay-1">{t.featuresSubtitle}</p>
 
-    <div class="features-grid">
-      {features.map((feat, i) => (
-        <div class={`feature-card fade-in delay-${Math.min(i + 1, 6)}`}>
-          <code class="feature-name">{feat.title}</code>
+    <!-- Core commands — large cards -->
+    <div class="core-grid">
+      {coreFeatures.map((feat, i) => (
+        <a href={`/${lang}/commands#${feat.anchor}`} class={`core-card fade-in delay-${i + 1}`}>
+          <code class="feature-name core-name">{feat.title}</code>
           <p class="feature-desc">{feat.desc}</p>
+          <div class="feature-tags">
+            {feat.highlights.map((tag: string) => (
+              <code class="feature-tag">{tag}</code>
+            ))}
+          </div>
           <span class="feature-for">{feat.forLabel}</span>
-        </div>
+        </a>
       ))}
+    </div>
+
+    <!-- Secondary commands — compact cards -->
+    <div class="more-grid">
+      {moreFeatures.map((feat, i) => (
+        <a href={`/${lang}/commands#${feat.anchor}`} class={`more-card fade-in delay-${Math.min(i + 4, 6)}`}>
+          <code class="feature-name">{feat.title}</code>
+          <p class="feature-desc-compact">{feat.desc}</p>
+          <div class="feature-tags">
+            {feat.highlights.map((tag: string) => (
+              <code class="feature-tag feature-tag-sm">{tag}</code>
+            ))}
+          </div>
+          <span class="feature-for">{feat.forLabel}</span>
+        </a>
+      ))}
+    </div>
+
+    <div class="see-all fade-in delay-6">
+      <a href={`/${lang}/commands`} class="see-all-link">{t.featSeeAll}</a>
     </div>
   </div>
 </section>
@@ -42,28 +71,59 @@ const features = [
     border-top: 1px solid var(--border);
   }
 
-  .features-grid {
+  /* Core commands — 3 large cards */
+  .core-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
+    margin-bottom: 16px;
   }
 
-  .feature-card {
-    padding: 24px;
+  .core-card {
+    padding: 28px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: 1px solid var(--accent-glow-strong);
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+    text-decoration: none;
+    color: inherit;
+  }
+  .core-card:hover {
+    border-color: var(--accent-light);
+  }
+
+  .core-name {
+    font-size: 1.1rem;
+  }
+
+  /* Secondary commands — 4 compact cards */
+  .more-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .more-card {
+    padding: 20px;
     border-radius: var(--radius-lg);
     background: var(--bg-secondary);
     border: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     transition: border-color 0.2s;
+    text-decoration: none;
+    color: inherit;
   }
-  .feature-card:hover {
+  .more-card:hover {
     border-color: var(--border-light);
   }
 
+  /* Shared styles */
   .feature-name {
     font-family: var(--font-mono);
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 600;
     color: var(--accent-light);
     margin-bottom: 10px;
@@ -74,6 +134,38 @@ const features = [
     color: var(--text-secondary);
     line-height: 1.6;
     flex: 1;
+  }
+
+  .feature-desc-compact {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    flex: 1;
+  }
+
+  /* Highlight tags */
+  .feature-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+  }
+
+  .feature-tag {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  .feature-tag-sm {
+    font-size: 0.6rem;
+    padding: 1px 6px;
   }
 
   .feature-for {
@@ -89,10 +181,37 @@ const features = [
     font-family: var(--font-mono);
   }
 
+  /* See all link */
+  .see-all {
+    text-align: center;
+    margin-top: 32px;
+  }
+
+  .see-all-link {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--accent-light);
+    transition: color 0.2s;
+  }
+  .see-all-link:hover {
+    color: var(--accent);
+  }
+
   @media (max-width: 768px) {
-    .features-grid {
+    .core-grid {
       grid-template-columns: 1fr;
       gap: 12px;
+    }
+    .more-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .more-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>

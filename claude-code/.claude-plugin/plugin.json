@@ -1,7 +1,7 @@
 {
   "name": "vibeflow",
-  "version": "1.7.0",
-  "description": "Spec-driven development: from discovery to shipping. Analyze codebases, generate grounded specs, create self-contained prompt packs, and audit implementations.",
+  "version": "1.8.0",
+  "description": "Spec-driven development for AI agents. Define what to build, let the agent build it right. Vibeflow separates thinking from coding with specs, guardrails, and audits — grounded in your project's real patterns.",
   "author": {
     "name": "Pedro Menezes"
   },

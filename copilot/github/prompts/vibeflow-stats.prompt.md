@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-stats'
-description: 'Show audit statistics and trends'
+description: 'Compiles audit statistics: pass/fail rates, most violated patterns, and quality trends.'
 agent: 'vibeflow-architect'
 ---
 

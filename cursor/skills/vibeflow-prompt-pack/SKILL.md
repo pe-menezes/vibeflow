@@ -1,6 +1,6 @@
 ---
 name: vibeflow-prompt-pack
-description: "Generate a self-contained prompt pack from a spec for any coding agent. Use when the user has an approved spec and wants to hand off implementation to a coding agent, or mentions prompt pack generation."
+description: "Generates a self-contained prompt pack from a spec. Embeds real code patterns from .vibeflow/ so any coding agent follows the project's conventions. Use when handing off implementation to a separate session or agent."
 ---
 
 # Vibeflow: Prompt Pack

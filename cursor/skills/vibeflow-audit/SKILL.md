@@ -1,6 +1,6 @@
 ---
 name: vibeflow-audit
-description: "Audit implementation against its Definition of Done and project patterns. Use when the user wants to verify work, check DoD compliance, validate pattern adherence, or after an implementation is complete."
+description: "Audits implementation against its DoD and project patterns. Runs the test suite, compares code against the spec, and reports PASS / PARTIAL / FAIL. Use after implementation to verify quality before shipping."
 ---
 
 # Vibeflow: Audit

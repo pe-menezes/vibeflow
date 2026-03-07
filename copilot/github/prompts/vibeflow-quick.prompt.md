@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-quick'
-description: 'Fast-track for small tasks — ephemeral spec + prompt pack'
+description: 'Fast-tracks small tasks (≤4 files) into a prompt pack in one command. Skips discover, generates ephemeral spec.'
 agent: 'agent'
 ---
 

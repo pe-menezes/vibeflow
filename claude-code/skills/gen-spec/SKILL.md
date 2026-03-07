@@ -1,9 +1,14 @@
 ---
+name: gen-spec
 description: >
-  Generate a spec for a feature or task. Includes objective, DoD,
-  scope, anti-scope, technical decisions, and risks. Grounded in
-  the project's real patterns from .vibeflow/.
-  Usage: /vibeflow:gen-spec <feature description or PRD path>
+  Generates a technical spec with objective, Definition of Done (3–7 binary checks),
+  scope, anti-scope, technical decisions, and applicable patterns. Grounded in the
+  project's real patterns from .vibeflow/. Auto-splits specs that exceed budget or
+  DoD limits. Use when requirements are clear and you're ready to define the
+  implementation contract.
+argument-hint: "<feature description or PRD path>"
+allowed-tools: Read, Grep, Glob
+---
 ---
 
 ## Description and examples

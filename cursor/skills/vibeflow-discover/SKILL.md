@@ -1,6 +1,6 @@
 ---
 name: vibeflow-discover
-description: "Interactive discovery to turn a vague idea into a PRD. Use when the user has a feature idea that needs clarification, scoping, or when they mention discovery, PRD, brainstorming a feature, or defining requirements before coding."
+description: "Runs an interactive discovery dialogue (1-5 rounds) to turn a vague idea into a clear, actionable PRD. Challenges assumptions, cuts scope, and forces decisions. Use before gen-spec when the idea is not yet well-defined."
 ---
 
 # Vibeflow: Discover

@@ -74,7 +74,7 @@ node index.js --cursor    # test cursor install
 These are Markdown files. Edit directly and test in the respective agent:
 - **Copilot**: `copilot/github/prompts/*.prompt.md`
 - **Cursor**: `cursor/skills/*/SKILL.md`
-- **Claude Code**: `claude-code/commands/*.md`
+- **Claude Code**: `claude-code/skills/*/SKILL.md`
 
 ## Code style
 

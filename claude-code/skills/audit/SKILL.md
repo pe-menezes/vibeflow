@@ -1,9 +1,13 @@
 ---
+name: audit
 description: >
-  Audit recent work against its Definition of Done AND project patterns.
-  Compares the current state of the code against the spec/DoD and verifies
-  the implementation follows conventions from .vibeflow/.
-  Usage: /vibeflow:audit <spec file or feature>
+  Audits recent work against its Definition of Done and project patterns. Runs
+  the test suite, compares code against the spec, and reports PASS / PARTIAL / FAIL.
+  Generates an incremental prompt pack for any gaps found. Use after implementation
+  to verify quality before shipping.
+argument-hint: "<spec file or feature>"
+allowed-tools: Read, Grep, Glob, Bash
+---
 ---
 
 ## Description and examples

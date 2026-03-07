@@ -1,9 +1,13 @@
 ---
+name: teach
 description: >
-  Teach the project knowledge base. Update .vibeflow/ docs with
-  corrections, new conventions, decisions, or patterns based on
-  natural language feedback.
-  Usage: /vibeflow:teach <feedback>
+  Updates the project knowledge base (.vibeflow/) with corrections, new conventions,
+  architectural decisions, or new patterns based on natural language feedback. Edits
+  are placed outside auto-generated markers to survive incremental analyze runs. Use
+  to keep .vibeflow/ accurate as the project evolves.
+argument-hint: "<feedback>"
+allowed-tools: Read, Grep, Glob
+---
 ---
 
 ## Description and examples

@@ -1,10 +1,13 @@
 ---
+name: prompt-pack
 description: >
-  Generate a self-contained prompt pack from a spec. The prompt pack
-  is designed for a coding agent (Claude Code, Cursor, Copilot) that
-  has NO context beyond the prompt itself. Embeds real patterns from
-  .vibeflow/ so the agent follows the project's conventions.
-  Usage: /vibeflow:prompt-pack <spec file or feature>
+  Generates a self-contained prompt pack from a spec. Embeds real code patterns
+  from .vibeflow/ so any coding agent (Claude Code, Cursor, Copilot) follows the
+  project's conventions without needing repo context. Use when handing off
+  implementation to a separate session or agent.
+argument-hint: "<spec file or feature>"
+allowed-tools: Read, Grep, Glob
+---
 ---
 
 ## Description and examples

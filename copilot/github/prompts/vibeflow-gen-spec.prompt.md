@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-gen-spec'
-description: 'Generate a grounded spec with DoD from a feature or PRD'
+description: 'Generates a technical spec with DoD, scope, anti-scope, and applicable patterns from .vibeflow/.'
 agent: 'vibeflow-architect'
 ---
 

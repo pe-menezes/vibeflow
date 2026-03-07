@@ -1,5 +1,16 @@
 # Changelog
 
+### v1.8.0 (2026-03-07)
+
+- **Claude Code: commands/ → skills/ migration** — All 9 commands migrated from legacy `commands/*.md` format to the recommended `skills/*/SKILL.md` format. Each skill now has proper frontmatter: `argument-hint` for autocomplete hints, `allowed-tools` for permission-free tool usage, and descriptions in 3rd person with "Use when..." context. Legacy `commands/` directory removed.
+- **Cross-edition description sync** — All command/skill/prompt descriptions aligned across Claude Code, Copilot, and Cursor editions. Descriptions now consistently use 3rd person voice and include when-to-use context.
+- **`plugin.json` updated** — Description aligned with site messaging: "Spec-driven development for AI agents. Define what to build, let the agent build it right."
+- **`CLAUDE.md` added** — Project-level instructions file with cross-edition sync rules, file mapping table, and documentation checklist. Auto-loaded by Claude Code to prevent sync drift.
+- **Site: `/commands` subpage** — New dedicated page documenting all 9 commands with flags, modes, and output details. Landing page Features cards now show mini-tags (flags/highlights) and link to `/commands#anchor`.
+- **Site: Contact form** — New contact section with Formspree integration for direct email from the site.
+- **Site: Header nav updated** — Added "Commands" link in desktop navigation.
+- All 3 editions (Claude Code, Cursor, Copilot) updated in sync.
+
 ### v1.7.0 (2026-03-07)
 
 - **`analyze-satellite` merged into `analyze --satellite <url>`** — The standalone `analyze-satellite` command is now a flag on the `analyze` command. Same functionality (clone, analyze, filter by usage, merge with provenance), fewer commands to learn. All 3 editions updated.

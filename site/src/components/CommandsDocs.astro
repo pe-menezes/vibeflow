@@ -1,0 +1,426 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const commands = [
+  {
+    id: 'analyze',
+    name: 'analyze',
+    tagline: t.feat1For,
+    desc: t.cmdAnalyzeDesc,
+    usage: t.cmdAnalyzeUsage,
+    flags: [
+      { label: lang === 'en' ? '(no flags)' : '(sem flags)', desc: t.cmdAnalyzeFlagDefault },
+      { label: '--fresh', desc: t.cmdAnalyzeFlagFresh },
+      { label: '--scope <path>', desc: t.cmdAnalyzeFlagScope },
+      { label: '--interactive', desc: t.cmdAnalyzeFlagInteractive },
+      { label: '--satellite <url>', desc: t.cmdAnalyzeFlagSatellite },
+    ],
+    output: t.cmdAnalyzeOutput,
+  },
+  {
+    id: 'discover',
+    name: 'discover',
+    tagline: t.feat5For,
+    desc: t.cmdDiscoverDesc,
+    usage: t.cmdDiscoverUsage,
+    flags: [
+      { label: lang === 'en' ? 'Quick round' : 'Round rápido', desc: t.cmdDiscoverModeQuick },
+      { label: lang === 'en' ? 'Complete flow' : 'Fluxo completo', desc: t.cmdDiscoverModeComplete },
+    ],
+    output: t.cmdDiscoverOutput,
+  },
+  {
+    id: 'gen-spec',
+    name: 'gen-spec',
+    tagline: t.feat2For,
+    desc: t.cmdGenSpecDesc,
+    usage: t.cmdGenSpecUsage,
+    flags: [
+      { label: lang === 'en' ? 'From PRD' : 'A partir de PRD', desc: t.cmdGenSpecInputPrd },
+      { label: lang === 'en' ? 'From description' : 'A partir de descrição', desc: t.cmdGenSpecInputDirect },
+      { label: 'Auto-split', desc: t.cmdGenSpecAutoSplit },
+    ],
+    output: t.cmdGenSpecOutput,
+  },
+  {
+    id: 'implement',
+    name: 'implement',
+    tagline: t.feat3For,
+    desc: t.cmdImplementDesc,
+    usage: t.cmdImplementUsage,
+    flags: [
+      { label: lang === 'en' ? 'Phase 1' : 'Fase 1', desc: t.cmdImplementPhase1 },
+      { label: lang === 'en' ? 'Phase 2' : 'Fase 2', desc: t.cmdImplementPhase2 },
+      { label: lang === 'en' ? 'Phase 3' : 'Fase 3', desc: t.cmdImplementPhase3 },
+      { label: lang === 'en' ? 'Phase 4' : 'Fase 4', desc: t.cmdImplementPhase4 },
+      { label: lang === 'en' ? 'Phase 5' : 'Fase 5', desc: t.cmdImplementPhase5 },
+      { label: lang === 'en' ? 'Phase 6' : 'Fase 6', desc: t.cmdImplementPhase6 },
+      { label: lang === 'en' ? 'Phase 7' : 'Fase 7', desc: t.cmdImplementPhase7 },
+    ],
+    output: t.cmdImplementOutput,
+    note: t.cmdImplementNote,
+  },
+  {
+    id: 'prompt-pack',
+    name: 'prompt-pack',
+    tagline: t.feat6For,
+    desc: t.cmdPromptPackDesc,
+    usage: t.cmdPromptPackUsage,
+    flags: [
+      { label: 'Agent-agnostic', desc: t.cmdPromptPackAgnostic },
+      { label: lang === 'en' ? 'Embedded patterns' : 'Padrões embutidos', desc: t.cmdPromptPackEmbedded },
+      { label: lang === 'en' ? 'Validation' : 'Validação', desc: t.cmdPromptPackValidation },
+    ],
+    output: t.cmdPromptPackOutput,
+  },
+  {
+    id: 'audit',
+    name: 'audit',
+    tagline: t.feat4For,
+    desc: t.cmdAuditDesc,
+    usage: t.cmdAuditUsage,
+    flags: [
+      { label: 'PASS', desc: t.cmdAuditVerdictPass },
+      { label: 'PARTIAL', desc: t.cmdAuditVerdictPartial },
+      { label: 'FAIL', desc: t.cmdAuditVerdictFail },
+      { label: lang === 'en' ? 'Incremental fix' : 'Fix incremental', desc: t.cmdAuditIncremental },
+    ],
+    output: t.cmdAuditOutput,
+  },
+  {
+    id: 'quick',
+    name: 'quick',
+    tagline: t.feat7For,
+    desc: t.cmdQuickDesc,
+    usage: t.cmdQuickUsage,
+    flags: [
+      { label: lang === 'en' ? 'Budget ≤4 files' : 'Budget ≤4 arquivos', desc: t.cmdQuickBudget },
+      { label: lang === 'en' ? 'Ephemeral spec' : 'Spec efêmera', desc: t.cmdQuickEphemeral },
+      { label: lang === 'en' ? 'When to use' : 'Quando usar', desc: t.cmdQuickWhen },
+    ],
+    output: t.cmdQuickOutput,
+  },
+  {
+    id: 'teach',
+    name: 'teach',
+    tagline: lang === 'en' ? 'Teach your project' : 'Ensine seu projeto',
+    desc: t.cmdTeachDesc,
+    usage: t.cmdTeachUsage,
+    flags: [
+      { label: lang === 'en' ? 'Pattern correction' : 'Correção de padrão', desc: t.cmdTeachCat1 },
+      { label: lang === 'en' ? 'New convention' : 'Nova convenção', desc: t.cmdTeachCat2 },
+      { label: lang === 'en' ? 'Architecture decision' : 'Decisão arquitetural', desc: t.cmdTeachCat3 },
+      { label: lang === 'en' ? 'New pattern' : 'Padrão novo', desc: t.cmdTeachCat4 },
+    ],
+    output: t.cmdTeachOutput,
+  },
+  {
+    id: 'stats',
+    name: 'stats',
+    tagline: lang === 'en' ? 'Track quality' : 'Acompanhe qualidade',
+    desc: t.cmdStatsDesc,
+    usage: t.cmdStatsUsage,
+    flags: [
+      { label: lang === 'en' ? 'Metrics' : 'Métricas', desc: t.cmdStatsMetrics },
+      { label: lang === 'en' ? 'Trend' : 'Tendência', desc: t.cmdStatsTrend },
+    ],
+    output: t.cmdStatsOutput,
+  },
+];
+---
+
+<section class="section commands-docs">
+  <div class="container">
+    <a href={`/${lang}/`} class="back-link fade-in">{t.cmdBackToHome}</a>
+    <h1 class="page-title fade-in">{t.cmdPageTitle}</h1>
+    <p class="page-subtitle fade-in delay-1">{t.cmdPageSubtitle}</p>
+
+    <nav class="cmd-nav fade-in delay-2">
+      {commands.map((cmd) => (
+        <a href={`#${cmd.id}`} class="cmd-nav-link">{cmd.name}</a>
+      ))}
+    </nav>
+
+    <div class="cmd-list">
+      {commands.map((cmd, i) => (
+        <article id={cmd.id} class={`cmd-section fade-in delay-${Math.min(i + 2, 6)}`}>
+          <div class="cmd-header">
+            <code class="cmd-name">{cmd.name}</code>
+            <span class="cmd-tagline">{cmd.tagline}</span>
+          </div>
+
+          <p class="cmd-desc">{cmd.desc}</p>
+
+          <div class="cmd-usage-block">
+            <span class="cmd-label">{t.cmdUsage}</span>
+            <code class="cmd-usage">{cmd.usage}</code>
+          </div>
+
+          <div class="cmd-flags-block">
+            <span class="cmd-label">{cmd.id === 'implement' ? t.cmdPipeline : t.cmdFlags}</span>
+            <div class="cmd-flags">
+              {cmd.flags.map((flag) => (
+                <div class="cmd-flag">
+                  <code class="cmd-flag-label">{flag.label}</code>
+                  <p class="cmd-flag-desc">{flag.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div class="cmd-output-block">
+            <span class="cmd-label">{t.cmdOutput}</span>
+            <code class="cmd-output">{cmd.output}</code>
+          </div>
+
+          {cmd.note && (
+            <div class="cmd-note">
+              {cmd.note}
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .commands-docs {
+    padding-top: 100px;
+  }
+
+  .back-link {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 24px;
+    transition: color 0.2s;
+  }
+  .back-link:hover {
+    color: var(--accent-light);
+  }
+
+  .page-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+  }
+
+  .page-subtitle {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin-bottom: 40px;
+    max-width: 600px;
+  }
+
+  /* Quick nav */
+  .cmd-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 48px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cmd-nav-link {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+  .cmd-nav-link:hover {
+    color: var(--accent-light);
+    border-color: var(--accent-light);
+    background: var(--accent-glow);
+  }
+
+  /* Command sections */
+  .cmd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 48px;
+  }
+
+  .cmd-section {
+    padding-bottom: 48px;
+    border-bottom: 1px solid var(--border);
+  }
+  .cmd-section:last-child {
+    border-bottom: none;
+  }
+
+  .cmd-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .cmd-name {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-light);
+    background: var(--accent-glow);
+    padding: 4px 16px;
+    border-radius: var(--radius-sm);
+  }
+
+  .cmd-tagline {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .cmd-desc {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin-bottom: 24px;
+    max-width: 700px;
+  }
+
+  /* Labels */
+  .cmd-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  /* Usage block */
+  .cmd-usage-block {
+    margin-bottom: 24px;
+  }
+
+  .cmd-usage {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    overflow-x: auto;
+  }
+
+  /* Flags block */
+  .cmd-flags-block {
+    margin-bottom: 24px;
+  }
+
+  .cmd-flags {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+  }
+
+  .cmd-flag {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    align-items: baseline;
+  }
+  .cmd-flag + .cmd-flag {
+    border-top: 1px solid var(--border);
+  }
+
+  .cmd-flag-label {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--accent-light);
+    white-space: nowrap;
+    min-width: 140px;
+    flex-shrink: 0;
+  }
+
+  .cmd-flag-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* Output block */
+  .cmd-output-block {
+    margin-bottom: 16px;
+  }
+
+  .cmd-output {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+  }
+
+  /* Note */
+  .cmd-note {
+    margin-top: 12px;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-glow-strong);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    color: var(--accent-light);
+    font-weight: 500;
+  }
+
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: 1.8rem;
+    }
+
+    .cmd-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .cmd-name {
+      font-size: 1.2rem;
+    }
+
+    .cmd-flag {
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cmd-flag-label {
+      min-width: auto;
+    }
+
+    .cmd-nav {
+      gap: 6px;
+    }
+
+    .cmd-nav-link {
+      font-size: 0.7rem;
+      padding: 3px 10px;
+    }
+  }
+</style>

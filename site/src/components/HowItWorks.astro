@@ -10,12 +10,9 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 
 const steps = [
-  { title: t.step1Title, desc: t.step1Desc, output: t.step1Output, color: 'var(--purple)', phase: 'define' },
-  { title: t.step2Title, desc: t.step2Desc, output: t.step2Output, color: 'var(--purple)', phase: 'define' },
-  { title: t.step3Title, desc: t.step3Desc, output: t.step3Output, color: 'var(--purple)', phase: 'define' },
-  { title: t.step4Title, desc: t.step4Desc, output: t.step4Output, color: 'var(--success-light)', phase: 'build' },
-  { title: t.step5Title, desc: t.step5Desc, output: t.step5Output, color: 'var(--success-light)', phase: 'build' },
-  { title: t.step6Title, desc: t.step6Desc, output: t.step6Output, color: 'var(--warning-light)', phase: 'verify' },
+  { title: t.step1Title, desc: t.step1Desc, output: t.step1Output, color: 'var(--purple)' },
+  { title: t.step2Title, desc: t.step2Desc, output: t.step2Output, color: 'var(--accent-light)' },
+  { title: t.step3Title, desc: t.step3Desc, output: t.step3Output, color: 'var(--success-light)' },
 ];
 ---
 
@@ -26,17 +23,6 @@ const steps = [
 
     <!-- Visual Pipeline Diagram -->
     <div class="pipeline-wrapper fade-in delay-2">
-      <div class="pipeline-phases">
-        <div class="phase-group phase-define">
-          <span class="phase-tag">{t.howPhaseDefine}</span>
-        </div>
-        <div class="phase-group phase-build">
-          <span class="phase-tag">{t.howPhaseBuild}</span>
-        </div>
-        <div class="phase-group phase-verify">
-          <span class="phase-tag">{t.howPhaseVerify}</span>
-        </div>
-      </div>
       <div class="pipeline-nodes">
         {steps.map((step, i) => (
           <div class="pipeline-item" style={`--sc: ${step.color}`}>
@@ -54,10 +40,10 @@ const steps = [
       </div>
     </div>
 
-    <!-- Compact Step Cards -->
+    <!-- Step Cards -->
     <div class="steps-grid">
       {steps.map((step, i) => (
-        <div class={`step-card fade-in delay-${Math.min(i + 2, 6)}`} style={`--sc: ${step.color}`}>
+        <div class={`step-card fade-in delay-${i + 2}`} style={`--sc: ${step.color}`}>
           <div class="step-card-header">
             <span class="step-num">{String(i + 1).padStart(2, '0')}</span>
             <code class="step-name">{step.title}</code>
@@ -70,6 +56,8 @@ const steps = [
         </div>
       ))}
     </div>
+
+    <p class="how-footnote fade-in delay-5">{t.howFootnote}</p>
   </div>
 </section>
 
@@ -89,46 +77,6 @@ const steps = [
     overflow-x: auto;
   }
 
-  /* Phase Labels Row */
-  .pipeline-phases {
-    display: flex;
-    margin-bottom: 16px;
-    gap: 0;
-  }
-
-  .phase-group {
-    display: flex;
-    justify-content: center;
-  }
-  .phase-define { flex: 3; }
-  .phase-build { flex: 2; }
-  .phase-verify { flex: 1; }
-
-  .phase-tag {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 3px 12px;
-    border-radius: 999px;
-    border: 1px solid;
-    opacity: 0.8;
-  }
-
-  .phase-define .phase-tag {
-    color: var(--purple);
-    border-color: var(--purple-glow);
-  }
-  .phase-build .phase-tag {
-    color: var(--success-light);
-    border-color: var(--success-border);
-  }
-  .phase-verify .phase-tag {
-    color: var(--warning-light);
-    border-color: var(--warning-border);
-  }
-
   /* Nodes Row */
   .pipeline-nodes {
     display: flex;
@@ -140,7 +88,7 @@ const steps = [
   .pipeline-item {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
   }
 
   .pipeline-node {
@@ -148,12 +96,12 @@ const steps = [
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    padding: 10px 14px;
+    padding: 14px 24px;
     border-radius: var(--radius-md);
     border: 1px solid var(--accent-glow-strong);
     background: var(--accent-glow);
     transition: all 0.2s;
-    min-width: 85px;
+    min-width: 110px;
   }
   .pipeline-node:hover {
     border-color: var(--accent-light);
@@ -162,7 +110,7 @@ const steps = [
 
   .node-num {
     font-family: var(--font-mono);
-    font-size: 0.55rem;
+    font-size: 0.6rem;
     font-weight: 700;
     color: var(--sc);
     opacity: 0.5;
@@ -170,7 +118,7 @@ const steps = [
 
   .node-name {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
@@ -190,7 +138,7 @@ const steps = [
   }
 
   .step-card {
-    padding: 24px;
+    padding: 28px;
     border-radius: var(--radius-lg);
     background: var(--bg-primary);
     border: 1px solid var(--border);
@@ -206,7 +154,7 @@ const steps = [
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 10px;
+    margin-bottom: 12px;
   }
 
   .step-num {
@@ -219,7 +167,7 @@ const steps = [
 
   .step-name {
     font-family: var(--font-mono);
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-weight: 600;
     color: var(--text-primary);
     background: var(--accent-glow);
@@ -228,22 +176,22 @@ const steps = [
   }
 
   .step-desc {
-    font-size: 0.85rem;
+    font-size: 0.9rem;
     color: var(--text-secondary);
-    line-height: 1.5;
+    line-height: 1.6;
     flex: 1;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
 
   .step-output {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     color: var(--sc);
     font-family: var(--font-mono);
     line-height: 1.4;
-    padding-top: 12px;
+    padding-top: 14px;
     border-top: 1px solid var(--border);
   }
   .step-output svg {
@@ -253,13 +201,17 @@ const steps = [
     opacity: 0.6;
   }
 
+  .how-footnote {
+    text-align: center;
+    margin-top: 32px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
   @media (max-width: 768px) {
     .pipeline-wrapper {
       padding: 16px 12px;
-    }
-
-    .pipeline-phases {
-      display: none !important;
     }
 
     .pipeline-nodes {
@@ -270,12 +222,12 @@ const steps = [
     }
 
     .pipeline-item {
-      gap: 4px;
+      gap: 6px;
     }
 
     .pipeline-node {
       min-width: unset;
-      padding: 6px 10px;
+      padding: 8px 14px;
       flex-direction: row;
       gap: 6px;
     }
@@ -285,23 +237,17 @@ const steps = [
     }
 
     .node-name {
-      font-size: 0.65rem;
+      font-size: 0.72rem;
     }
 
     .node-arrow {
-      width: 12px;
-      height: 8px;
+      width: 14px;
+      height: 9px;
     }
 
     .steps-grid {
       grid-template-columns: 1fr;
       gap: 12px;
-    }
-  }
-
-  @media (min-width: 769px) and (max-width: 1024px) {
-    .steps-grid {
-      grid-template-columns: repeat(2, 1fr);
     }
   }
 </style>

@@ -1,6 +1,6 @@
 ---
 name: vibeflow-quick
-description: "Fast-track for small tasks — generates ephemeral spec and prompt pack in one step. Use when the task is small (≤4 files), requirements are clear, and the user wants a prompt pack quickly without the full pipeline."
+description: "Fast-tracks small tasks into a prompt pack in one command. Skips discover, generates an ephemeral spec in memory. Use for well-defined tasks that fit in ≤4 files."
 ---
 
 # Vibeflow: Quick
