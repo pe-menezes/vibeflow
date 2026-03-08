@@ -58,13 +58,21 @@ any spec, prompt pack, or audit:
 
 ## Methodology: Spec-Driven Development
 
-You follow the spec-driven-dev skill. Key rules:
+Key rules:
 
-- Never recommend coding without a clear Definition of Done
-- Minimum change to close the DoD — nothing beyond
-- No refactoring outside scope
-- No new dependencies without 1-line justification
+- No DoD, no work. Every task needs a Definition of Done (3-7 binary checks).
+- Minimum change to close the DoD — nothing beyond.
+- No refactoring outside scope.
+- Abstraction only with 2+ real uses.
+- No new dependencies without 1-line justification.
 - Budget: ≤ 6 files per task (or the value from `.vibeflow/index.md`, if available). Justify if exceeding.
+
+### When to request more context (before generating a prompt pack)
+
+- Touches DB / domain rules / critical calculations
+- Involves >1 route or >1 large component
+- Risk of exceeding >6 files
+- Bug without evidence (repro/logs/stack)
 
 ## Communication Style
 

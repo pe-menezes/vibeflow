@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.8.1 (2026-03-08)
+
+- **Removed `spec-driven-dev` skill** — Legacy methodology skill that was redundant with the individual skills (gen-spec, audit, prompt-pack, etc.) and the architect agent. It appeared as a command but had no actionable use. Removed from all 3 editions, CLI installer, and docs.
+
 ### v1.8.0 (2026-03-07)
 
 - **Claude Code: commands/ → skills/ migration** — All 9 commands migrated from legacy `commands/*.md` format to the recommended `skills/*/SKILL.md` format. Each skill now has proper frontmatter: `argument-hint` for autocomplete hints, `allowed-tools` for permission-free tool usage, and descriptions in 3rd person with "Use when..." context. Legacy `commands/` directory removed.
@@ -111,5 +115,4 @@
 - `/vibeflow:prompt-pack` — self-contained prompt pack with real pattern code embedded, 8-section structure
 - `/vibeflow:audit` — DoD + pattern compliance audit, incremental prompt pack on gaps, updates `decisions.md`
 - **Architect agent** — `memory: project`, 2-layer knowledge system (MEMORY.md + `.vibeflow/`), maintains project knowledge across sessions
-- **Skill: spec-driven-dev** — auto-loaded in planning contexts, enforces guardrails and methodology
 - **`.vibeflow/`** — adaptive knowledge system committed to git, adaptive to any project type

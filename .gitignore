@@ -6,5 +6,4 @@ node_modules/
 .vibeflow/
 .github/prompts/vibeflow-*.prompt.md
 .github/agents/vibeflow-architect.agent.md
-.github/skills/vibeflow-spec-driven-dev/
 .github/instructions/vibeflow/

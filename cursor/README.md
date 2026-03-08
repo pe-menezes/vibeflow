@@ -18,8 +18,7 @@ cursor/
     ├── vibeflow-discover/SKILL.md                → .cursor/skills/ (idea → PRD)
     ├── vibeflow-quick/SKILL.md                   → .cursor/skills/ (fast-track ≤4 files)
     ├── vibeflow-teach/SKILL.md                   → .cursor/skills/ (update .vibeflow/ knowledge)
-    ├── vibeflow-stats/SKILL.md                   → .cursor/skills/ (audit statistics)
-    └── vibeflow-spec-driven-dev/SKILL.md         → .cursor/skills/ (methodology, auto-loaded)
+    └── vibeflow-stats/SKILL.md                   → .cursor/skills/ (audit statistics)
 ```
 
 Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos do projeto.

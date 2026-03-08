@@ -22,9 +22,7 @@ copilot/
     │   ├── vibeflow-quick.prompt.md          (utility: fast-track ≤4 files)
     │   ├── vibeflow-teach.prompt.md          (utility: update .vibeflow/)
     │   └── vibeflow-stats.prompt.md          (utility: audit statistics)
-    └── skills/
-        └── vibeflow-spec-driven-dev/
-            └── SKILL.md
+    └── skills/                                       → (reserved for future use)
 ```
 
 Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos do projeto.
@@ -52,7 +50,6 @@ Remova a nota de instrução do topo do `AGENTS.md` (o bloco entre `>` e `---`).
 cp -r copilot/github/instructions/ .github/instructions/
 cp copilot/github/agents/vibeflow-architect.agent.md .github/agents/
 cp copilot/github/prompts/vibeflow-*.prompt.md .github/prompts/
-cp -r copilot/github/skills/vibeflow-spec-driven-dev/ .github/skills/
 ```
 
 Os arquivos Vibeflow usam prefixo `vibeflow-` nos nomes, então não conflitam com arquivos existentes.
@@ -76,7 +73,6 @@ Se não existe, copie direto (removendo a nota do topo).
 | `.github/instructions/vibeflow/` | Não | Copia direto (subpasta dedicada) |
 | `.github/agents/vibeflow-architect.agent.md` | Não | Copia direto (nome único) |
 | `.github/prompts/vibeflow-*.prompt.md` | Não | Copia direto (prefixo único) |
-| `.github/skills/vibeflow-spec-driven-dev/` | Não | Copia direto (diretório dedicado) |
 | `.github/copilot-instructions.md` | Talvez | Append opcional |
 | `AGENTS.md` | **Sim** | Append ao existente |
 

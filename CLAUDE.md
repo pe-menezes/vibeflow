@@ -29,7 +29,6 @@ corresponding files in `copilot/` and `cursor/`.
 | `skills/quick/SKILL.md` | `github/prompts/vibeflow-quick.prompt.md` | `skills/vibeflow-quick/SKILL.md` |
 | `skills/teach/SKILL.md` | `github/prompts/vibeflow-teach.prompt.md` | `skills/vibeflow-teach/SKILL.md` |
 | `skills/stats/SKILL.md` | `github/prompts/vibeflow-stats.prompt.md` | `skills/vibeflow-stats/SKILL.md` |
-| `skills/spec-driven-dev/SKILL.md` | `github/skills/vibeflow-spec-driven-dev/SKILL.md` | `skills/vibeflow-spec-driven-dev/SKILL.md` |
 | `agents/architect.md` | `github/agents/vibeflow-architect.agent.md` | `rules/vibeflow-architect.mdc` |
 
 ### What to sync

@@ -174,8 +174,7 @@ vibeflow/
 │   ├── prompt-pack/SKILL.md # Spec → self-contained prompt
 │   ├── quick/SKILL.md      # Fast-track for small tasks
 │   ├── teach/SKILL.md      # Update .vibeflow/ knowledge
-│   ├── stats/SKILL.md      # Audit statistics
-│   └── spec-driven-dev/SKILL.md  # Methodology (auto-loaded)
+│   └── stats/SKILL.md      # Audit statistics
 └── agents/
     └── architect.md        # Senior architect sub-agent
 ```
@@ -187,12 +186,6 @@ It has persistent memory (`memory: project`) and reads `.vibeflow/` docs
 before every task. Claude delegates to it for planning and architecture decisions.
 
 It never writes implementation code — only specs, prompt packs, and audits.
-
-## Skill: spec-driven-dev
-
-The **spec-driven-dev** skill loads automatically when Claude detects
-planning, architecture, or review context. It teaches Claude the full
-methodology without you needing to invoke a command.
 
 ## Philosophy
 

@@ -19,7 +19,6 @@ const COPILOT_FILES = [
   { src: 'github/prompts/vibeflow-stats.prompt.md', dest: '.github/prompts/vibeflow-stats.prompt.md' },
   { src: 'github/prompts/vibeflow-teach.prompt.md', dest: '.github/prompts/vibeflow-teach.prompt.md' },
   { src: 'github/agents/vibeflow-architect.agent.md', dest: '.github/agents/vibeflow-architect.agent.md' },
-  { src: 'github/skills/vibeflow-spec-driven-dev/SKILL.md', dest: '.github/skills/vibeflow-spec-driven-dev/SKILL.md' },
   { src: 'github/instructions/vibeflow/vibeflow.instructions.md', dest: '.github/instructions/vibeflow/vibeflow.instructions.md' },
 ];
 
@@ -34,7 +33,6 @@ const CURSOR_FILES = [
   { src: 'skills/vibeflow-quick/SKILL.md', dest: '.cursor/skills/vibeflow-quick/SKILL.md' },
   { src: 'skills/vibeflow-teach/SKILL.md', dest: '.cursor/skills/vibeflow-teach/SKILL.md' },
   { src: 'skills/vibeflow-stats/SKILL.md', dest: '.cursor/skills/vibeflow-stats/SKILL.md' },
-  { src: 'skills/vibeflow-spec-driven-dev/SKILL.md', dest: '.cursor/skills/vibeflow-spec-driven-dev/SKILL.md' },
 ];
 
 const EDITIONS = {
@@ -70,7 +68,6 @@ const GITIGNORE_BLOCKS = {
 .vibeflow/
 .github/prompts/vibeflow-*.prompt.md
 .github/agents/vibeflow-architect.agent.md
-.github/skills/vibeflow-spec-driven-dev/
 .github/instructions/vibeflow/
 `,
   cursor: `

@@ -23,7 +23,6 @@ Fast-track for small tasks (≤4 files): use the `vibeflow-quick` prompt.
 | `.vibeflow/audits/` | Audit reports |
 | `.github/prompts/vibeflow-*.prompt.md` | Reusable prompt files (the "commands") |
 | `.github/agents/vibeflow-architect.agent.md` | Agent persona (architect) |
-| `.github/skills/vibeflow-spec-driven-dev/` | Methodology reference (spec-driven-dev) |
 
 ## Before Any Task
 
