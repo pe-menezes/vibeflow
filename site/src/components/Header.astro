@@ -13,11 +13,8 @@ const t = useTranslations(lang);
 <header class="header">
   <div class="container header-inner">
     <a href={`/${lang}/`} class="logo">
-      <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="32" height="32" rx="8" fill="var(--accent)"/>
-        <path d="M8 16L13 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      <span>Vibeflow</span>
+      <img src="/vibeflow-mark.png" alt="" class="logo-mark" width="28" height="28" />
+      <span class="logo-text">Vibeflow</span>
     </a>
 
     <nav class="header-nav desktop-nav">
@@ -94,13 +91,23 @@ const t = useTranslations(lang);
   .logo {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    text-decoration: none;
+  }
+  .logo:hover {
+    opacity: 0.85;
+  }
+  .logo-mark {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    flex-shrink: 0;
+  }
+  .logo-text {
     font-weight: 700;
     font-size: 1.125rem;
     color: var(--text-primary);
-  }
-  .logo:hover {
-    color: var(--text-primary);
+    letter-spacing: -0.01em;
   }
 
   .header-nav {
