@@ -198,9 +198,10 @@ It never writes implementation code — only specs, prompt packs, and audits.
 - **Knowledge compounds.** The more you use Vibeflow, the better it understands
   your project.
 
-## Manual
+## Documentation
 
-See the [MANUAL.md](../MANUAL.md) for the full documentation of all commands and flows.
+- [vibeflow.run](https://vibeflow.run) — Website with command reference, examples, and plugin docs
+- [MANUAL.md](../MANUAL.md) — Full documentation of all commands and flows (PT-BR)
 
 ## Distribution
 

@@ -78,9 +78,9 @@ npx setup-vibeflow@latest --copilot
 
 ## Documentation
 
+- [vibeflow.run](https://vibeflow.run) — Website with command reference, examples, and plugin docs
 - [MANUAL.md](MANUAL.md) — Full documentation of all commands, flows, and methodology (PT-BR)
 - [CHANGELOG.md](CHANGELOG.md) — Version history
-- [Website](https://vibeflow-copilot.vercel.app/en/) — Landing page with interactive examples
 
 ## License
 

@@ -108,4 +108,4 @@ npx setup-vibeflow@latest --cursor
 2. Adicione `.vibeflow/` ao git.
 3. Para features novas, comece pelo `vibeflow-discover`.
 
-Veja o [MANUAL.md](../MANUAL.md) para a documentação completa.
+Veja o [MANUAL.md](../MANUAL.md) para a documentação completa, ou acesse [vibeflow.run](https://vibeflow.run) para documentação dos comandos e sobre o plugin.

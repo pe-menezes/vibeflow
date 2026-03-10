@@ -1,5 +1,7 @@
 # Manual do Vibeflow
 
+> 🌐 **Website:** [vibeflow.run](https://vibeflow.run) — documentação dos comandos, exemplos e sobre o plugin.
+
 ## O que é
 
 Vibeflow é uma metodologia de **spec-driven development** — você define o que quer construir *antes* de codar. O agente de IA recebe um prompt pack auto-contido e implementa seguindo os padrões reais do seu projeto.
