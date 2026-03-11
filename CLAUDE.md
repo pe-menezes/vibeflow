@@ -23,7 +23,7 @@ corresponding files in `copilot/` and `cursor/`.
 | `skills/analyze/SKILL.md` | `github/prompts/vibeflow-analyze.prompt.md` | `skills/vibeflow-analyze/SKILL.md` |
 | `skills/discover/SKILL.md` | `github/prompts/vibeflow-discover.prompt.md` | `skills/vibeflow-discover/SKILL.md` |
 | `skills/gen-spec/SKILL.md` | `github/prompts/vibeflow-gen-spec.prompt.md` | `skills/vibeflow-gen-spec/SKILL.md` |
-| `skills/implement/SKILL.md` | — (Claude Code only) | — (Claude Code only) |
+| `skills/implement/SKILL.md` | `github/prompts/vibeflow-implement.prompt.md` | `skills/vibeflow-implement/SKILL.md` |
 | `skills/audit/SKILL.md` | `github/prompts/vibeflow-audit.prompt.md` | `skills/vibeflow-audit/SKILL.md` |
 | `skills/prompt-pack/SKILL.md` | `github/prompts/vibeflow-prompt-pack.prompt.md` | `skills/vibeflow-prompt-pack/SKILL.md` |
 | `skills/quick/SKILL.md` | `github/prompts/vibeflow-quick.prompt.md` | `skills/vibeflow-quick/SKILL.md` |
@@ -67,4 +67,4 @@ sync or CHANGELOG entries.
 - **Copilot** — Uses `.prompt.md` files with `description` + `agent` in YAML frontmatter. Descriptions are short (1 line).
 - **Cursor** — Uses `SKILL.md` files with `description` in YAML frontmatter. Descriptions include "Use when..." trigger hints for auto-invocation.
 - **Claude Code** — Uses `SKILL.md` files with `name`, `description`, `argument-hint`, `allowed-tools` in YAML frontmatter. Descriptions in 3rd person with "Use when..." context.
-- **`implement` is Claude Code only** — The other editions don't have filesystem write access, so they use `prompt-pack` to delegate implementation to a separate coding agent.
+- **`implement`** is available in all 3 editions. Agents in Copilot and Cursor have filesystem access and can execute specs directly. `prompt-pack` remains available as an alternative for delegating to a separate session/agent.

@@ -1,33 +1,25 @@
 ---
-name: implement
-description: >
-  Implements a feature from its spec following all guardrails: budget, DoD,
-  anti-scope, and pattern compliance. Runs a 7-phase pipeline (find spec →
-  extract guardrails → load patterns → plan → implement → test → self-verify DoD).
-  Use after gen-spec when you're ready to code. The agent
-  has filesystem access and acts as Coding Agent.
-argument-hint: "<spec file or feature name>"
-allowed-tools: Read, Grep, Glob, Bash, Edit, Write
+name: vibeflow-implement
+description: "Implements a feature from its spec with guardrails: budget, DoD, anti-scope, and pattern compliance. Runs a 7-phase pipeline (find spec → extract guardrails → load patterns → plan → implement → test → self-verify DoD). Use after gen-spec when ready to implement."
 ---
 
-## Description and examples
+# Vibeflow: Implement
 
-**What it does:** Reads a spec from `.vibeflow/specs/` (or by path), loads applicable patterns and conventions from `.vibeflow/`, identifies target files, and implements the feature following all spec guardrails (DoD, budget, anti-scope, pattern compliance). Runs tests and self-verifies each DoD check before finishing. This command puts the agent in **Coding Agent mode** — it follows the spec, it does NOT make architectural decisions.
+Reads a spec from `.vibeflow/specs/`, loads applicable patterns and conventions
+from `.vibeflow/`, and implements the feature following all spec guardrails
+(DoD, budget, anti-scope, pattern compliance). Runs tests and self-verifies
+each DoD check before finishing. This puts the agent in **Coding Agent mode**
+— it follows the spec, it does NOT make architectural decisions.
 
-**Examples:**
-- `/vibeflow:implement .vibeflow/specs/auto-install.md` — Implement from spec file path.
-- `/vibeflow:implement auto-install` — Same; agent finds the spec by feature name in `.vibeflow/specs/`.
-- `/vibeflow:implement .vibeflow/specs/auth-part-2.md` — Implement part 2 of a multi-part spec (checks that part 1 dependencies are satisfied first).
+**Usage:** Provide the spec file path or feature name as input.
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's input.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
-
-Implement from spec: $ARGUMENTS
 
 ---
 
@@ -48,14 +40,14 @@ making assumptions. The architect owns decisions; you own execution.
 ## Phase 0: Find and validate the spec
 
 1. **Locate the spec.**
-   - If $ARGUMENTS is a file path (contains `/` or ends in `.md`), read that file.
-   - If $ARGUMENTS is a feature name, search for a matching file in `.vibeflow/specs/`:
-     - Try exact match: `.vibeflow/specs/$ARGUMENTS.md`
-     - Try partial match: files containing $ARGUMENTS in the filename
+   - If the input is a file path (contains `/` or ends in `.md`), read that file.
+   - If the input is a feature name, search for a matching file in `.vibeflow/specs/`:
+     - Try exact match: `.vibeflow/specs/<name>.md`
+     - Try partial match: files containing the name in the filename
      - If multiple matches: list them and ask the user to choose
-   - If NO spec is found: STOP with: "No spec found for '$ARGUMENTS'.
+   - If NO spec is found: STOP with: "No spec found for the given input.
      Available specs in `.vibeflow/specs/`:" followed by the listing.
-     Suggest: "Run `/vibeflow:gen-spec` to create one."
+     Suggest: "Run the vibeflow-gen-spec skill to create one."
 
 2. **Validate the spec has required sections.**
    The spec MUST contain at minimum:
@@ -64,7 +56,7 @@ making assumptions. The architect owns decisions; you own execution.
    - **Anti-scope** (or "Anti-escopo")
 
    If any required section is missing: STOP with: "Spec is incomplete —
-   missing: [list]. Run `/vibeflow:gen-spec` to produce a complete spec."
+   missing: [list]. Run the vibeflow-gen-spec skill to produce a complete spec."
 
 3. **Check for multi-part dependencies.**
    If the spec has a **Dependencies** section listing other specs:
@@ -116,8 +108,8 @@ Extract the list of patterns the spec references. You will load these next.
 
 1. **Check `.vibeflow/` exists.**
    - If it does NOT exist: warn "No `.vibeflow/` found. Implementation will
-     proceed without pattern guidance. For better results, run `/vibeflow:analyze`
-     first." Then skip to Phase 3.
+     proceed without pattern guidance. For better results, run the
+     vibeflow-analyze skill first." Then skip to Phase 3.
 
 2. **Read `.vibeflow/conventions.md`** — always. These are the coding standards
    you must follow.
@@ -332,7 +324,7 @@ After self-verification, report the final status to the user:
 "Implementation complete. All N DoD checks verified.
 Budget: M/N files. Tests: PASS.
 
-Run `/vibeflow:audit <spec>` to get the formal verification."
+Run the vibeflow-audit skill to get the formal verification."
 
 ### If there are gaps (some DoD checks FAIL or tests FAIL):
 
@@ -342,7 +334,7 @@ Run `/vibeflow:audit <spec>` to get the formal verification."
 - Gaps: [list specific gaps]
 
 The audit will likely return PARTIAL or FAIL. Consider fixing the gaps
-above, then run `/vibeflow:audit <spec>`."
+above, then run the vibeflow-audit skill."
 
 ### Always suggest audit as the next step.
 
@@ -371,8 +363,8 @@ These rules are ALWAYS active during implementation:
 
 | Situation | Action |
 |-----------|--------|
-| No spec found | STOP. List available specs. Suggest gen-spec. |
-| Spec missing required sections | STOP. List what's missing. Suggest gen-spec. |
+| No spec found | STOP. List available specs. Suggest vibeflow-gen-spec. |
+| Spec missing required sections | STOP. List what's missing. Suggest vibeflow-gen-spec. |
 | Dependencies not audited | STOP. List what needs to be done first. |
 | `.vibeflow/` missing | Warn. Proceed without pattern guidance. |
 | Budget exceeded during planning | STOP. Report count. Ask user to adjust. |
@@ -381,9 +373,3 @@ These rules are ALWAYS active during implementation:
 | Architectural decision needed | STOP. Ask the user or suggest gen-spec update. |
 | Tests fail after 2 fix attempts | Report failures. Continue to self-verify. |
 | Ambiguous spec | STOP. Ask ONE clarifying question. |
-
----
-
-## Maintenance
-
-If this command is modified, update `MANUAL.md` to reflect the changes.

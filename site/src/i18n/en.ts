@@ -218,7 +218,7 @@ export default {
   cmdImplementPhase6: 'Run tests: auto-detects test runner (npm test, pytest, cargo test, etc.). Max 2 fix attempts.',
   cmdImplementPhase7: 'Self-verify DoD: checks each DoD item with evidence. Reports overall status.',
   cmdImplementOutput: 'Code changes within scope and budget, with DoD verification report.',
-  cmdImplementNote: 'Claude Code only. Budget is a hard limit. Anti-scope is sacred.',
+  cmdImplementNote: 'Budget is a hard limit. Anti-scope is sacred.',
 
   // prompt-pack
   cmdPromptPackDesc: 'Generates a self-contained prompt for a coding agent in a separate session. The agent receives everything it needs: patterns, conventions, file paths, test commands. Zero external context.',

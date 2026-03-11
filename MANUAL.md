@@ -32,7 +32,7 @@ analyze → discover → gen-spec → (prompt-pack | implement) → audit
 | **analyze** | Analisa o codebase, gera `.vibeflow/` | Setup inicial ou quando o código mudou muito |
 | **discover** | Transforma ideia vaga em PRD | A ideia ainda não está clara |
 | **gen-spec** | Gera spec técnica com DoD | Ideia clara, pronto pra especificar |
-| **implement** | Implementa a spec com guardrails (budget, DoD, padrões) | Spec aprovada, Claude Code (agente com acesso ao filesystem) |
+| **implement** | Implementa a spec com guardrails (budget, DoD, padrões) | Spec aprovada, agente com acesso ao filesystem |
 | **prompt-pack** | Gera prompt auto-contido para o coding agent | Spec aprovada, precisa delegar para outro agente/sessão |
 | **audit** | Verifica DoD + padrões + testes | Implementação feita, hora de validar |
 
@@ -151,15 +151,14 @@ O prompt pack é **agent-agnostic** — funciona no Copilot, Cursor, Claude Code
 
 ### `vibeflow-implement`
 
-Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec, carrega padrões e convenções de `.vibeflow/`, e implementa seguindo budget, anti-escopo e DoD. **Claude Code only** — o agente precisa de acesso ao filesystem.
+Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec, carrega padrões e convenções de `.vibeflow/`, e implementa seguindo budget, anti-escopo e DoD. Disponível em todas as edições (Claude Code, Copilot e Cursor).
 
 **Quando usar:**
 - Spec aprovada, quer implementar com guardrails automáticos
-- Está no Claude Code (que tem acesso ao `.vibeflow/`)
+- O agente tem acesso ao filesystem (todas as edições suportam)
 
 **Quando NÃO usar:**
 - Precisa delegar para outro agente/sessão → use `prompt-pack`
-- Não está no Claude Code → use `prompt-pack`
 
 **Fluxo (7 fases):**
 1. **Encontra e valida** a spec (resolve caminho ou nome, valida seções obrigatórias)
@@ -257,7 +256,7 @@ Mostra estatísticas dos audits: taxa de pass/fail, padrões mais violados, gaps
 ```
 1. vibeflow-discover         # Ideia → PRD
 2. vibeflow-gen-spec         # PRD → Spec com DoD
-3. vibeflow-implement        # Implementa com guardrails (Claude Code)
+3. vibeflow-implement        # Implementa com guardrails
    ou vibeflow-prompt-pack   # Gera prompt para outro agente/sessão
 4. vibeflow-audit            # Valida contra DoD + padrões
 ```
@@ -266,7 +265,7 @@ Mostra estatísticas dos audits: taxa de pass/fail, padrões mais violados, gaps
 
 ```
 1. vibeflow-gen-spec         # Direto para spec
-2. vibeflow-implement        # Implementa com guardrails (Claude Code)
+2. vibeflow-implement        # Implementa com guardrails
    ou vibeflow-prompt-pack   # Gera prompt para outro agente/sessão
 3. vibeflow-audit
 ```

@@ -1,5 +1,9 @@
 # Changelog
 
+### v0.11.0 (2026-03-11)
+
+- **`implement` ported to Copilot and Cursor editions** — Previously exclusive to Claude Code based on a false assumption that other editions lacked filesystem access. All 3 agents (Claude Code, Copilot, Cursor) have full filesystem access. `implement` is now available in all editions. CLI updated to install the new files. `prompt-pack` remains available as an alternative for delegating to a separate session/agent.
+
 ### v1.8.1 (2026-03-08)
 
 - **Removed `spec-driven-dev` skill** — Legacy methodology skill that was redundant with the individual skills (gen-spec, audit, prompt-pack, etc.) and the architect agent. It appeared as a command but had no actionable use. Removed from all 3 editions, CLI installer, and docs.
@@ -31,7 +35,7 @@
 - **Contextual Pattern Resolution** — Two-part feature that makes pattern loading intelligent across the entire pipeline.
   - **Part 1 (Analyze — producer):** `analyze` now generates YAML frontmatter (`tags`, `modules`, `applies_to`) on each pattern doc and a consolidated **Pattern Registry** YAML block in `index.md` (between `<!-- vibeflow:patterns:start/end -->` markers). Incremental mode preserves frontmatter outside auto markers. Scoped mode updates frontmatter on enrichment and regenerates the registry.
   - **Part 2 (Consumer commands):** `gen-spec`, `implement`, `prompt-pack`, and `audit` now resolve patterns automatically via the Pattern Registry — cross-referencing tags/modules against the spec's scope to load the top 3-5 relevant patterns. Manual override in spec's "Applicable Patterns" always wins. Backward compatible: falls back to previous behavior if no registry exists.
-- All 3 editions (Claude Code, Cursor, Copilot) updated in sync (except `implement` which is Claude Code only).
+- All 3 editions (Claude Code, Cursor, Copilot) updated in sync.
 
 ### v1.4.0 (2026-03-06)
 

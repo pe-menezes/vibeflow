@@ -218,7 +218,7 @@ export default {
   cmdImplementPhase6: 'Rodar testes: detecta test runner automaticamente (npm test, pytest, cargo test, etc.). Máx 2 tentativas de fix.',
   cmdImplementPhase7: 'Auto-verificar DoD: checa cada item do DoD com evidência. Reporta status geral.',
   cmdImplementOutput: 'Alterações de código dentro do escopo e budget, com relatório de verificação do DoD.',
-  cmdImplementNote: 'Apenas Claude Code. Budget é limite rígido. Anti-escopo é sagrado.',
+  cmdImplementNote: 'Budget é limite rígido. Anti-escopo é sagrado.',
 
   // prompt-pack
   cmdPromptPackDesc: 'Gera um prompt auto-contido para um coding agent em sessão separada. O agent recebe tudo que precisa: padrões, convenções, caminhos de arquivos, comandos de teste. Zero contexto externo.',

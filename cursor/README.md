@@ -77,6 +77,7 @@ Digite `/` no Agent chat e busque pelo nome do skill:
 **Core:**
 - `/vibeflow-analyze` — analisa o codebase, gera `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
 - `/vibeflow-gen-spec` — gera spec com DoD, scope, anti-scope e patterns aplicáveis
+- `/vibeflow-implement` — implementa a spec com guardrails (budget, DoD, padrões)
 - `/vibeflow-prompt-pack` — gera prompt pack autocontido com patterns embarcados
 
 **Secundários:**

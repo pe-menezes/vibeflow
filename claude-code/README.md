@@ -111,7 +111,7 @@ That's it. Run `analyze` once, then `gen-spec` → `implement` for each feature.
         ↓
 /vibeflow:gen-spec → spec with DoD and patterns (accepts PRD as input)
         ↓
-/vibeflow:implement → implements from spec with guardrails (Claude Code)
+/vibeflow:implement → implements from spec with guardrails
    or /vibeflow:prompt-pack → self-contained prompt for other agents
         ↓
 /vibeflow:audit → verifies DoD + pattern compliance
