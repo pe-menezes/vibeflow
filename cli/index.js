@@ -60,7 +60,8 @@ const EDITIONS = {
   },
 };
 
-const DUPLICATE_MARKER = 'vibeflow-architect';
+const VIBEFLOW_START = '<!-- vibeflow:start -->';
+const VIBEFLOW_END = '<!-- vibeflow:end -->';
 
 const GITIGNORE_MARKER = '# Vibeflow — installed + generated (remove to track in git)';
 
@@ -112,6 +113,32 @@ function extractCopilotInstructionsSnippet(fullContent) {
   const match = fullContent.match(/```markdown\n([\s\S]*?)```/);
   if (!match) return null;
   return match[1].trim();
+}
+
+function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
+  const delimited = `${VIBEFLOW_START}\n${newBlock.trim()}\n${VIBEFLOW_END}`;
+
+  if (!existing) {
+    return { content: delimited + '\n', action: 'created' };
+  }
+
+  const startIdx = existing.indexOf(VIBEFLOW_START);
+  const endIdx = existing.indexOf(VIBEFLOW_END);
+
+  if (startIdx !== -1 && endIdx !== -1) {
+    const before = existing.slice(0, startIdx);
+    const after = existing.slice(endIdx + VIBEFLOW_END.length);
+    const content = before + delimited + after;
+    return { content, action: 'replaced' };
+  }
+
+  if (legacyMarker && existing.includes(legacyMarker)) {
+    const content = existing.trimEnd() + '\n\n' + delimited + '\n';
+    return { content, action: 'legacy-append', warning: true };
+  }
+
+  const content = existing.trimEnd() + '\n\n' + delimited + '\n';
+  return { content, action: 'appended' };
 }
 
 function detectEdition() {
@@ -215,19 +242,18 @@ async function main() {
   try {
     const agentsSource = await downloadFile(edition.baseUrl, edition.agentsSrc);
     const appendContent = extractAgentsAppendContent(agentsSource);
+    const existing = existsSync(agentsPath) ? readFileSync(agentsPath, 'utf-8') : null;
+    const result = upsertDelimitedBlock(existing, appendContent, '## Vibeflow Methodology');
+    writeFileSync(agentsPath, result.content, 'utf-8');
 
-    if (existsSync(agentsPath)) {
-      const existing = readFileSync(agentsPath, 'utf-8');
-      if (existing.includes(DUPLICATE_MARKER) && !force) {
-        log(pc.dim('-'), `${pc.dim('AGENTS.md')} ${pc.dim('(vibeflow block exists, skipped)')}`);
-      } else {
-        const updated = existing.trimEnd() + '\n\n' + appendContent;
-        writeFileSync(agentsPath, updated, 'utf-8');
-        log(pc.green('+'), `AGENTS.md ${pc.dim('(appended vibeflow block)')}`);
-      }
-    } else {
-      writeFileSync(agentsPath, appendContent, 'utf-8');
+    if (result.action === 'created') {
       log(pc.green('+'), `AGENTS.md ${pc.dim('(created)')}`);
+    } else if (result.action === 'replaced') {
+      log(pc.green('+'), `AGENTS.md ${pc.dim('(vibeflow block updated)')}`);
+    } else if (result.action === 'appended') {
+      log(pc.green('+'), `AGENTS.md ${pc.dim('(appended vibeflow block)')}`);
+    } else if (result.warning) {
+      log(pc.yellow('!'), `AGENTS.md ${pc.dim('(new delimited block appended — please remove the old vibeflow block manually)')}`);
     }
   } catch (err) {
     log(pc.red('x'), `AGENTS.md — ${err.message}`);
@@ -239,15 +265,18 @@ async function main() {
     try {
       if (existsSync(copilotInstrPath)) {
         const existing = readFileSync(copilotInstrPath, 'utf-8');
-        if (existing.includes('vibeflow') && !force) {
-          log(pc.dim('-'), `${pc.dim('.github/copilot-instructions.md')} ${pc.dim('(vibeflow snippet exists, skipped)')}`);
-        } else {
-          const snippetSource = await downloadFile(edition.baseUrl, 'copilot-instructions.md');
-          const snippet = extractCopilotInstructionsSnippet(snippetSource);
-          if (snippet) {
-            const updated = existing.trimEnd() + '\n\n' + snippet + '\n';
-            writeFileSync(copilotInstrPath, updated, 'utf-8');
+        const snippetSource = await downloadFile(edition.baseUrl, 'copilot-instructions.md');
+        const snippet = extractCopilotInstructionsSnippet(snippetSource);
+        if (snippet) {
+          const result = upsertDelimitedBlock(existing, snippet, '## Vibeflow');
+          writeFileSync(copilotInstrPath, result.content, 'utf-8');
+
+          if (result.action === 'replaced') {
+            log(pc.green('+'), `.github/copilot-instructions.md ${pc.dim('(vibeflow snippet updated)')}`);
+          } else if (result.action === 'appended') {
             log(pc.green('+'), `.github/copilot-instructions.md ${pc.dim('(appended vibeflow snippet)')}`);
+          } else if (result.warning) {
+            log(pc.yellow('!'), `.github/copilot-instructions.md ${pc.dim('(new delimited snippet appended — please remove the old vibeflow block manually)')}`);
           }
         }
       } else {

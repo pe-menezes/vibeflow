@@ -5,6 +5,7 @@
 
 ---
 
+<!-- vibeflow:start -->
 ## Vibeflow Methodology
 
 This repository uses **Vibeflow** (spec-driven development).
@@ -79,3 +80,4 @@ Available in `.github/prompts/`:
 
 Respond in the same language as the user's input.
 Technical terms in English are acceptable.
+<!-- vibeflow:end -->

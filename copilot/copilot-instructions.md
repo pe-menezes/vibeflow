@@ -10,6 +10,7 @@
 **Append the block below** to your existing `.github/copilot-instructions.md`:
 
 ```markdown
+<!-- vibeflow:start -->
 ## Vibeflow (Spec-Driven Development)
 
 This repo uses Vibeflow. See `.github/instructions/vibeflow/vibeflow.instructions.md` for the full methodology, guardrails, and available prompts.
@@ -17,4 +18,5 @@ This repo uses Vibeflow. See `.github/instructions/vibeflow/vibeflow.instruction
 Before any non-trivial task, follow: `discover → analyze → gen-spec → prompt-pack → implement → audit`.
 
 Before any task, read `.vibeflow/index.md` and `.vibeflow/conventions.md` (if they exist).
+<!-- vibeflow:end -->
 ```
