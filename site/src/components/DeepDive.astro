@@ -1,0 +1,518 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const coreFlow = [
+  { name: 'discover', color: 'var(--purple)' },
+  { name: 'analyze', color: 'var(--purple-light)' },
+  { name: 'gen-spec', color: 'var(--accent)' },
+  { name: 'implement', color: 'var(--accent-light)' },
+  { name: 'audit', color: 'var(--success)' },
+];
+
+const commands = [
+  { name: t.deepCmd1Name, desc: t.deepCmd1Desc, output: t.deepCmd1Output, color: 'var(--purple)' },
+  { name: t.deepCmd2Name, desc: t.deepCmd2Desc, output: t.deepCmd2Output, color: 'var(--purple-light)' },
+  { name: t.deepCmd3Name, desc: t.deepCmd3Desc, output: t.deepCmd3Output, color: 'var(--accent)' },
+  { name: t.deepCmd4Name, desc: t.deepCmd4Desc, output: t.deepCmd4Output, color: 'var(--accent-light)' },
+  { name: t.deepCmd5Name, desc: t.deepCmd5Desc, output: t.deepCmd5Output, color: 'var(--success)' },
+  { name: t.deepCmd6Name, desc: t.deepCmd6Desc, output: t.deepCmd6Output, color: 'var(--warning)' },
+  { name: t.deepCmd7Name, desc: t.deepCmd7Desc, output: t.deepCmd7Output, color: 'var(--danger)' },
+  { name: t.deepCmd8Name, desc: t.deepCmd8Desc, output: t.deepCmd8Output, color: 'var(--success-light)' },
+  { name: t.deepCmd9Name, desc: t.deepCmd9Desc, output: t.deepCmd9Output, color: 'var(--text-muted)' },
+];
+
+const knowledgeFiles = [
+  { label: t.deepKnowledgeIndex },
+  { label: t.deepKnowledgeConventions },
+  { label: t.deepKnowledgePatterns },
+  { label: t.deepKnowledgeDecisions },
+  { label: t.deepKnowledgePrds },
+  { label: t.deepKnowledgeSpecs },
+  { label: t.deepKnowledgeAudits },
+];
+
+const knowledgeFlow = [
+  { icon: '📥', text: t.deepKnowledgeHowAnalyze },
+  { icon: '📋', text: t.deepKnowledgeHowSpec },
+  { icon: '🔨', text: t.deepKnowledgeHowImpl },
+  { icon: '✅', text: t.deepKnowledgeHowAudit },
+  { icon: '🎓', text: t.deepKnowledgeHowTeach },
+];
+
+const guardrails = [
+  { title: t.deepGr1Title, desc: t.deepGr1Desc, icon: '☐' },
+  { title: t.deepGr2Title, desc: t.deepGr2Desc, icon: '✂' },
+  { title: t.deepGr3Title, desc: t.deepGr3Desc, icon: '🚫' },
+  { title: t.deepGr4Title, desc: t.deepGr4Desc, icon: '📁' },
+  { title: t.deepGr5Title, desc: t.deepGr5Desc, icon: '📦' },
+  { title: t.deepGr6Title, desc: t.deepGr6Desc, icon: '🧩' },
+  { title: t.deepGr7Title, desc: t.deepGr7Desc, icon: '⛔' },
+  { title: t.deepGr8Title, desc: t.deepGr8Desc, icon: '🧪' },
+];
+---
+
+<div class="deep-dive">
+  <div class="container">
+    <a href={`/${lang}/`} class="back-link">{t.deepBackHome}</a>
+
+    <h1 class="page-title fade-in">{t.deepTitle}</h1>
+    <p class="page-subtitle fade-in delay-1">{t.deepSubtitle}</p>
+
+    <!-- ═══ Section 1: Pipeline ═══ -->
+    <section class="dd-section" id="pipeline">
+      <h2 class="dd-section-title fade-in">{t.deepPipelineTitle}</h2>
+      <p class="dd-section-desc fade-in delay-1">{t.deepPipelineDesc}</p>
+
+      <!-- Core flow diagram -->
+      <div class="flow-wrapper fade-in delay-2">
+        <span class="flow-label">{t.deepPipelineFlowLabel}</span>
+        <div class="flow-nodes">
+          {coreFlow.map((step, i) => (
+            <div class="flow-item">
+              <div class="flow-node" style={`--sc: ${step.color}`}>
+                <span class="flow-name">{step.name}</span>
+              </div>
+              {i < coreFlow.length - 1 && (
+                <svg class="flow-arrow" width="20" height="12" viewBox="0 0 20 12" fill="none" aria-hidden="true">
+                  <path d="M0 6h16M12 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- All 9 commands grid -->
+      <div class="cmd-grid">
+        {commands.map((cmd, i) => (
+          <div class={`cmd-card fade-in delay-${Math.min(i + 1, 6)}`} style={`--sc: ${cmd.color}`}>
+            <code class="cmd-name">{cmd.name}</code>
+            <p class="cmd-desc">{cmd.desc}</p>
+            <div class="cmd-output">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              <span>{cmd.output}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- ═══ Section 2: Knowledge System ═══ -->
+    <section class="dd-section" id="knowledge">
+      <h2 class="dd-section-title fade-in">{t.deepKnowledgeTitle}</h2>
+      <p class="dd-section-desc fade-in delay-1">{t.deepKnowledgeDesc}</p>
+
+      <div class="knowledge-layout">
+        <!-- File structure -->
+        <div class="knowledge-structure fade-in delay-2">
+          <h3 class="knowledge-heading">{t.deepKnowledgeStructure}</h3>
+          <div class="file-tree">
+            <div class="file-tree-root"><code>.vibeflow/</code></div>
+            {knowledgeFiles.map((f) => (
+              <div class="file-tree-item">
+                <span class="file-tree-branch">├─</span>
+                <span class="file-tree-label">{f.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <!-- How it feeds the pipeline -->
+        <div class="knowledge-flow fade-in delay-3">
+          <h3 class="knowledge-heading">{t.deepKnowledgeHowTitle}</h3>
+          <div class="flow-steps">
+            {knowledgeFlow.map((step) => (
+              <div class="flow-step">
+                <span class="flow-step-icon">{step.icon}</span>
+                <span class="flow-step-text">{step.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Section 3: Guardrails ═══ -->
+    <section class="dd-section" id="guardrails">
+      <h2 class="dd-section-title fade-in">{t.deepGuardrailsTitle}</h2>
+      <p class="dd-section-desc fade-in delay-1">{t.deepGuardrailsDesc}</p>
+
+      <div class="guardrails-grid">
+        {guardrails.map((gr, i) => (
+          <div class={`gr-card fade-in delay-${Math.min(i + 1, 6)}`}>
+            <div class="gr-header">
+              <span class="gr-icon">{gr.icon}</span>
+              <h3 class="gr-title">{gr.title}</h3>
+            </div>
+            <p class="gr-desc">{gr.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+  .deep-dive {
+    padding: 48px 0 var(--section-gap);
+  }
+
+  .back-link {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    transition: color 0.2s;
+  }
+  .back-link:hover {
+    color: var(--accent-light);
+  }
+
+  .page-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+  }
+
+  .page-subtitle {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    margin-bottom: 64px;
+    max-width: 640px;
+  }
+
+  /* ═══ Section shared ═══ */
+  .dd-section {
+    margin-bottom: 96px;
+  }
+  .dd-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .dd-section-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+
+  .dd-section-desc {
+    font-size: 1rem;
+    color: var(--text-secondary);
+    margin-bottom: 40px;
+    max-width: 600px;
+  }
+
+  /* ═══ Pipeline: Flow diagram ═══ */
+  .flow-wrapper {
+    margin-bottom: 40px;
+    padding: 24px 20px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow-x: auto;
+  }
+
+  .flow-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 16px;
+  }
+
+  .flow-nodes {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+  }
+
+  .flow-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .flow-node {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 22px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--accent-glow-strong);
+    background: var(--accent-glow);
+    transition: all 0.2s;
+    min-width: 100px;
+  }
+  .flow-node:hover {
+    border-color: var(--accent-light);
+    background: var(--accent-glow-strong);
+  }
+
+  .flow-name {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .flow-arrow {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    opacity: 0.3;
+  }
+
+  /* ═══ Pipeline: Command cards ═══ */
+  .cmd-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+
+  .cmd-card {
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+  }
+  .cmd-card:hover {
+    border-color: var(--border-light);
+  }
+
+  .cmd-name {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--sc);
+    margin-bottom: 10px;
+  }
+
+  .cmd-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    flex: 1;
+    margin-bottom: 14px;
+  }
+
+  .cmd-output {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    line-height: 1.4;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .cmd-output svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--sc);
+    opacity: 0.5;
+  }
+
+  /* ═══ Knowledge System ═══ */
+  .knowledge-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .knowledge-heading {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 20px;
+  }
+
+  /* File tree */
+  .knowledge-structure {
+    padding: 28px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  .file-tree {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 2;
+  }
+
+  .file-tree-root {
+    font-weight: 700;
+    color: var(--accent-light);
+    margin-bottom: 4px;
+  }
+
+  .file-tree-item {
+    display: flex;
+    gap: 8px;
+  }
+
+  .file-tree-branch {
+    color: var(--text-muted);
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+
+  .file-tree-label {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+  }
+
+  /* Knowledge flow */
+  .knowledge-flow {
+    padding: 28px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  .flow-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .flow-step-icon {
+    flex-shrink: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .flow-step-text {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ═══ Guardrails ═══ */
+  .guardrails-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+  }
+
+  .gr-card {
+    padding: 24px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+  }
+  .gr-card:hover {
+    border-color: var(--border-light);
+  }
+
+  .gr-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .gr-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .gr-title {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .gr-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+
+  /* ═══ Responsive ═══ */
+  @media (max-width: 768px) {
+    .page-title {
+      font-size: 1.75rem;
+    }
+
+    .page-subtitle {
+      margin-bottom: 48px;
+    }
+
+    .dd-section {
+      margin-bottom: 64px;
+    }
+
+    .flow-wrapper {
+      padding: 16px 12px;
+    }
+
+    .flow-nodes {
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .flow-item {
+      gap: 6px;
+    }
+
+    .flow-node {
+      min-width: unset;
+      padding: 8px 14px;
+    }
+
+    .flow-name {
+      font-size: 0.72rem;
+    }
+
+    .flow-arrow {
+      width: 14px;
+      height: 9px;
+    }
+
+    .cmd-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .knowledge-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .guardrails-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+</style>

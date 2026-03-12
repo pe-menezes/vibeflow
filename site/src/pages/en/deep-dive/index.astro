@@ -1,0 +1,21 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import Header from '../../../components/Header.astro';
+import DeepDive from '../../../components/DeepDive.astro';
+import Footer from '../../../components/Footer.astro';
+
+import { useTranslations } from '../../../i18n/utils';
+const t = useTranslations('en');
+---
+
+<Layout
+  title={`Vibeflow | ${t.deepPageTitle}`}
+  description={t.deepPageDesc}
+  lang="en"
+>
+  <Header lang="en" />
+  <main>
+    <DeepDive lang="en" />
+  </main>
+  <Footer lang="en" />
+</Layout>

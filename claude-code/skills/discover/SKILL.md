@@ -6,7 +6,7 @@ description: >
   Saves the PRD to .vibeflow/prds/. Use before gen-spec when the idea is not yet
   well-defined or requirements are unclear.
 argument-hint: "<idea or area>"
-allowed-tools: Read, Grep, Glob
+allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 
 ## Description and examples
@@ -24,6 +24,14 @@ allowed-tools: Read, Grep, Glob
 Detect the language of the user's input ($ARGUMENTS or conversation).
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
+
+## Web Search Policy
+
+Use WebSearch and WebFetch only when local context (`.vibeflow/`, codebase
+files, git history) is insufficient. Prefer local knowledge first:
+patterns, conventions, and existing code. Typical valid uses: researching
+unknown frameworks/libraries found in the codebase, checking official docs
+for unfamiliar APIs.
 
 ## Your Role
 

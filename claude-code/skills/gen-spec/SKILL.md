@@ -7,8 +7,7 @@ description: >
   DoD limits. Use when requirements are clear and you're ready to define the
   implementation contract.
 argument-hint: "<feature description or PRD path>"
-allowed-tools: Read, Grep, Glob
----
+allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 
 ## Description and examples
@@ -26,6 +25,14 @@ allowed-tools: Read, Grep, Glob
 Detect the language of the user's input ($ARGUMENTS or conversation).
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
+
+## Web Search Policy
+
+Use WebSearch and WebFetch only when local context (`.vibeflow/`, codebase
+files, git history) is insufficient. Prefer local knowledge first:
+patterns, conventions, and existing code. Typical valid uses: researching
+unknown frameworks/libraries found in the codebase, checking official docs
+for unfamiliar APIs.
 
 Generate a complete spec for: $ARGUMENTS
 

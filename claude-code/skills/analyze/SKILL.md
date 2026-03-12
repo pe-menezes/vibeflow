@@ -7,7 +7,7 @@ description: >
   deep-dives, interactive review, and satellite repo analysis. Use when setting
   up a project, after significant changes, or to deep-dive into a specific module.
 argument-hint: "[--fresh] [--scope path] [--interactive] [--satellite url]"
-allowed-tools: Read, Grep, Glob, Bash
+allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 ---
 
 ## Description and examples
@@ -32,6 +32,14 @@ Technical terms in English are acceptable regardless of the detected language.
 Section names in generated `.vibeflow/` files may be in English (they are technical),
 but all descriptive text, analyses, observations, and final user reports should be
 in the detected language.
+
+## Web Search Policy
+
+Use WebSearch and WebFetch only when local context (`.vibeflow/`, codebase
+files, git history) is insufficient. Prefer local knowledge first:
+patterns, conventions, and existing code. Typical valid uses: researching
+unknown frameworks/libraries found in the codebase, checking official docs
+for unfamiliar APIs.
 
 Perform a deep, adaptive analysis of this codebase. Your goal is to build
 curated pattern documentation that will be used by every future spec,

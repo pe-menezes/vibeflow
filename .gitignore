@@ -3,6 +3,7 @@
 .DS_Store
 node_modules/
 *.zip
+docs/
 # Vibeflow — installed + generated (remove to track in git)
 .github/prompts/vibeflow-*.prompt.md
 .github/agents/vibeflow-architect.agent.md
