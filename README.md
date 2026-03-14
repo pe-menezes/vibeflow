@@ -41,8 +41,6 @@ Plus utility commands: **quick** (fast-track for small tasks), **teach** (update
 | **GitHub Copilot** | [`copilot/`](copilot/) | `npx setup-vibeflow@latest --copilot` |
 | **Cursor** | [`cursor/`](cursor/) | `npx setup-vibeflow@latest --cursor` |
 | **Claude Code** | [`claude-code/`](claude-code/) | `pe-menezes/vibeflow-claude` |
-| **Codex** | [`codex/`](codex/) | Manual setup (`codex/README.md`) |
-
 Each edition adapts the same prompts and methodology to the agent's format.
 The methodology content is the same — only the file structure changes.
 
@@ -74,11 +72,6 @@ Or use the automatic installer:
 ```bash
 npx setup-vibeflow@latest --copilot
 ```
-
-### Codex
-
-See [`codex/README.md`](codex/README.md) for installation and usage instructions.
-Codex reads `AGENTS.md` in the repository root as the main operational policy.
 
 > By default the installer adds installed files and the `.vibeflow/` folder to `.gitignore`. Remove the "Vibeflow" block from `.gitignore` if you want to track them in git.
 
