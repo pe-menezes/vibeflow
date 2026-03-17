@@ -22,6 +22,7 @@ const commands = [
       { label: '--scope <path>', desc: t.cmdAnalyzeFlagScope },
       { label: '--interactive', desc: t.cmdAnalyzeFlagInteractive },
       { label: '--satellite <url>', desc: t.cmdAnalyzeFlagSatellite },
+      { label: lang === 'en' ? 'Import protection' : 'Proteção de importados', desc: t.cmdAnalyzeImportProtection },
     ],
     output: t.cmdAnalyzeOutput,
   },
@@ -46,6 +47,7 @@ const commands = [
     flags: [
       { label: lang === 'en' ? 'From PRD' : 'A partir de PRD', desc: t.cmdGenSpecInputPrd },
       { label: lang === 'en' ? 'From description' : 'A partir de descrição', desc: t.cmdGenSpecInputDirect },
+      { label: lang === 'en' ? 'PRD validation' : 'Validação de PRD', desc: t.cmdGenSpecValidation },
       { label: 'Auto-split', desc: t.cmdGenSpecAutoSplit },
     ],
     output: t.cmdGenSpecOutput,
@@ -120,6 +122,7 @@ const commands = [
       { label: lang === 'en' ? 'Architecture decision' : 'Decisão arquitetural', desc: t.cmdTeachCat3 },
       { label: lang === 'en' ? 'New pattern' : 'Padrão novo', desc: t.cmdTeachCat4 },
       { label: '--from', desc: t.cmdTeachCat5 },
+      { label: lang === 'en' ? 'Conflict detection' : 'Detecção de conflito', desc: t.cmdTeachConflict },
     ],
     output: t.cmdTeachOutput,
   },

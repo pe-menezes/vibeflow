@@ -191,6 +191,7 @@ export default {
   cmdAnalyzeFlagScope: 'Deep-dive num módulo ou diretório específico (80%+ dos arquivos). Enriquece padrões globais com exemplos do módulo.',
   cmdAnalyzeFlagInteractive: 'Adiciona checkpoint de review: apresenta padrões encontrados, pergunta sobre falsos positivos e padrões faltando antes de salvar.',
   cmdAnalyzeFlagSatellite: 'Analisa um repo de dependência externa (design system, lib compartilhada). Clona, detecta o que seu repo principal usa, merge padrões relevantes.',
+  cmdAnalyzeImportProtection: 'Proteção de padrões importados: modo incremental pula padrões que têm versão importada (via teach --from). Fonte de verdade externa tem precedência.',
   cmdAnalyzeOutput: '.vibeflow/index.md, conventions.md, patterns/, decisions.md',
 
   // discover
@@ -205,6 +206,7 @@ export default {
   cmdGenSpecUsage: '/vibeflow:gen-spec <descrição da feature ou caminho do PRD>',
   cmdGenSpecInputPrd: 'A partir de PRD: passe o caminho para .vibeflow/prds/<slug>.md e ele usa o PRD como base.',
   cmdGenSpecInputDirect: 'A partir de descrição: descreva a feature diretamente e ele gera a spec do zero.',
+  cmdGenSpecValidation: 'PRD validation gate: quando o input é um PRD (arquivo ou >3 linhas), roda 5 sanity checks (problema concreto, audiência, scope fechável, conflitos com .vibeflow/, viabilidade técnica). Faz até 2 perguntas se achar problemas. Descrições curtas pulam o gate.',
   cmdGenSpecAutoSplit: 'Auto-split: se a spec excede limites (>7 DoD checks ou excede budget), divide automaticamente em partes numeradas com tracking de dependências.',
   cmdGenSpecOutput: '.vibeflow/specs/<slug>.md (ou <slug>-part-N.md se dividida)',
 
@@ -254,6 +256,7 @@ export default {
   cmdTeachCat3: 'Decisão arquitetural: adiciona ao decisions.md com contexto e alternativas descartadas.',
   cmdTeachCat4: 'Padrão novo: cria novo arquivo .vibeflow/patterns/<nome>.md com estrutura padrão.',
   cmdTeachCat5: '--from <url|path>: importa padrões e convenções de um repo externo de referência (ex: guidelines de arquitetura, convenções compartilhadas). Review interativo para escolher o que importar. Salva em .vibeflow/patterns/external-<nome>/.',
+  cmdTeachConflict: 'Detecção de conflito: ao importar ou criar padrões, detecta colisões de nome com padrões locais ou importados. Pergunta qual versão manter — sem sobrescrita silenciosa.',
   cmdTeachOutput: 'Atualizações em .vibeflow/ docs (conventions.md, patterns/, decisions.md, patterns/external-*/)',
 
   // stats

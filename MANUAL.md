@@ -78,7 +78,7 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 └── decisions.md      # Log de decisões (vazio no início)
 ```
 
-**Modo incremental:** Se `.vibeflow/` já existe, detecta mudanças via git e atualiza só o que mudou.
+**Modo incremental:** Se `.vibeflow/` já existe, detecta mudanças via git e atualiza só o que mudou. Patterns importados (em `patterns/external-*/` via `teach --from`) são protegidos — o analyze nunca sobrescreve um pattern que tem versão importada.
 
 **Modo scoped (`--scope`):** Deep-dive num módulo específico. Requer que o analyze geral já tenha rodado. Samplea densamente o módulo (80%+ dos arquivos) e enriquece os pattern docs globais com exemplos daquele módulo. Ideal para repos grandes onde o analyze geral é shallow em módulos individuais.
 
@@ -124,6 +124,15 @@ Gera uma spec técnica a partir de um PRD ou descrição de feature.
 - Escopo e anti-escopo
 - Decisões técnicas com trade-offs
 - Riscos + mitigação
+
+**PRD Validation Gate:** Quando o input é um PRD (arquivo `.md` ou texto >3 linhas), o gen-spec roda 5 sanity checks antes de gerar a spec:
+1. Problema concreto?
+2. Audiência definida?
+3. Scope fechável?
+4. Conflito com `.vibeflow/` (convenções, patterns)?
+5. Viabilidade técnica no stack atual?
+
+Se todos passam, segue normalmente. Se algum falha, faz até 2 perguntas antes de continuar. Descrições curtas (≤3 linhas) pulam o gate.
 
 ---
 
@@ -244,6 +253,8 @@ vibeflow-teach --from https://github.com/org/repo --name plataforma
 4. Salva em `.vibeflow/patterns/external-<nome>/` com provenance
 5. Convenções selecionadas são incorporadas em `conventions.md`
 6. Clone efêmero é removido ao final
+
+**Detecção de conflito:** Se um pattern importado tem o mesmo nome de um pattern local (gerado pelo analyze), o teach pergunta qual manter. Se o externo prevalece, o local é removido. Se o local prevalece, o externo não é importado. Ao criar um pattern novo (sem `--from`), o teach também verifica se já existe um local ou importado com o mesmo nome.
 
 **Re-import:** Rodar `--from` de novo no mesmo repo sobrescreve os padrões com aviso.
 

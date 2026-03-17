@@ -191,6 +191,7 @@ export default {
   cmdAnalyzeFlagScope: 'Deep-dive into a specific module or directory (80%+ of files). Enriches global patterns with module-specific examples.',
   cmdAnalyzeFlagInteractive: 'Adds a review checkpoint: presents patterns found, asks about false positives and missing patterns before saving.',
   cmdAnalyzeFlagSatellite: 'Analyzes an external dependency repo (design system, shared lib). Clones it, detects what your main repo uses, merges relevant patterns.',
+  cmdAnalyzeImportProtection: 'Imported pattern protection: incremental mode skips patterns that have imported versions (from teach --from). External source of truth takes precedence.',
   cmdAnalyzeOutput: '.vibeflow/index.md, conventions.md, patterns/, decisions.md',
 
   // discover
@@ -205,6 +206,7 @@ export default {
   cmdGenSpecUsage: '/vibeflow:gen-spec <feature description or PRD path>',
   cmdGenSpecInputPrd: 'From PRD: pass a path to .vibeflow/prds/<slug>.md and it uses the PRD as basis for the spec.',
   cmdGenSpecInputDirect: 'From description: describe the feature directly and it generates the spec from scratch.',
+  cmdGenSpecValidation: 'PRD validation gate: when input is a PRD (file or >3 lines), runs 5 sanity checks (concrete problem, audience, closable scope, .vibeflow/ conflicts, stack viability). Asks up to 2 questions if issues found. Short descriptions skip the gate.',
   cmdGenSpecAutoSplit: 'Auto-split: if spec exceeds limits (>7 DoD checks or exceeds budget), automatically splits into numbered parts with dependency tracking.',
   cmdGenSpecOutput: '.vibeflow/specs/<slug>.md (or <slug>-part-N.md if split)',
 
@@ -254,6 +256,7 @@ export default {
   cmdTeachCat3: 'Architectural decision: adds to decisions.md with context and discarded alternatives.',
   cmdTeachCat4: 'New pattern: creates a new .vibeflow/patterns/<name>.md file with standard structure.',
   cmdTeachCat5: '--from <url|path>: imports patterns and conventions from an external reference repo (e.g., shared coding guidelines, architecture docs). Interactive review lets you pick what to import. Saves to .vibeflow/patterns/external-<name>/.',
+  cmdTeachConflict: 'Conflict detection: when importing or creating patterns, detects name collisions with existing local or imported patterns. Asks which version to keep — no silent overwrites.',
   cmdTeachOutput: 'Updates to .vibeflow/ docs (conventions.md, patterns/, decisions.md, patterns/external-*/)',
 
   // stats

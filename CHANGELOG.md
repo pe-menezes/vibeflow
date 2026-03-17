@@ -4,6 +4,7 @@
 
 - **`teach --from`: import patterns from external repos** — New flag `--from <url|path>` on the `teach` command imports patterns and conventions from an external reference repo (e.g., shared architecture docs, coding guidelines). Clones the repo (shallow, ephemeral), detects knowledge sources (skills, CLAUDE.md, docs/, knowledge/, .cursorrules, etc.), presents an interactive review, and saves selected patterns to `.vibeflow/patterns/external-<name>/` with provenance and `confidence: imported`. Supports local paths, `--name` alias, and re-import. All 3 editions updated. Site commands page updated.
 - **`gen-spec`: PRD validation gate** — gen-spec now validates PRDs (from `.vibeflow/prds/` or external) before generating the spec. Runs 5 sanity checks (concrete problem, audience, closable scope, .vibeflow/ conflicts, stack viability). If all pass, proceeds silently. If any fail, asks up to 2 targeted questions. Only activates for PRDs (file path or >3 lines), not short descriptions. All 3 editions updated.
+- **Pattern conflict detection** — `teach --from` now detects name collisions with existing local patterns and asks which to keep. `teach` (new pattern) checks for conflicts with both local and imported patterns. `analyze` incremental mode skips patterns that have imported versions from `teach --from`. All 3 editions updated.
 
 ### v0.12.1 (2026-03-11)
 
