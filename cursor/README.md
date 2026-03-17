@@ -27,42 +27,13 @@ Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos 
 
 ## Instalação
 
-### Repo novo (sem nada configurado)
+Na raiz do repo destino:
 
 ```bash
-# Na raiz do repo destino
-cp cursor/AGENTS.md .
-cp -r cursor/rules/ .cursor/rules/
-cp -r cursor/skills/ .cursor/skills/
+npx setup-vibeflow@latest --cursor
 ```
 
-Remova a nota de instrução do topo do `AGENTS.md` (o bloco entre `>` e `---`).
-
-### Repo que JÁ tem AGENTS.md e/ou .cursor/rules/
-
-**Passo 1 — Copie os arquivos (seguro, não sobrescreve nada)**
-
-```bash
-cp cursor/rules/vibeflow.mdc .cursor/rules/
-cp cursor/rules/vibeflow-architect.mdc .cursor/rules/
-cp -r cursor/skills/vibeflow-*/ .cursor/skills/
-```
-
-Os arquivos Vibeflow usam prefixo `vibeflow-` nos nomes, então não conflitam com arquivos existentes.
-
-**Passo 2 — AGENTS.md**
-
-Se já existe, faça append do conteúdo abaixo do `---` do `AGENTS.md` ao final do seu.
-Se não existe, copie direto (removendo a nota do topo).
-
-### O que conflita e o que não conflita
-
-| Arquivo / Pasta | Pode conflitar? | O que fazer |
-|-----------------|----------------|-------------|
-| `.cursor/rules/vibeflow.mdc` | Não | Copia direto (nome único) |
-| `.cursor/rules/vibeflow-architect.mdc` | Não | Copia direto (nome único) |
-| `.cursor/skills/vibeflow-*/` | Não | Copia direto (prefixo único) |
-| `AGENTS.md` | **Sim** | Append ao existente |
+O instalador copia os arquivos, cria diretórios, e faz append no `AGENTS.md` automaticamente.
 
 ## Como usar
 
@@ -94,14 +65,6 @@ Digite `/` no Agent chat e busque pelo nome do skill:
 As rules são aplicadas automaticamente:
 - **vibeflow.mdc** (`alwaysApply: true`) — guardrails e overview da metodologia, ativas em toda conversa
 - **vibeflow-architect.mdc** (`alwaysApply: false`) — persona do Architect, ativada pelo Cursor quando a conversa envolve planejamento, specs ou auditorias
-
-### Instalação automática (experimental)
-
-Se preferir, use o instalador automático:
-
-```bash
-npx setup-vibeflow@latest --cursor
-```
 
 ## Após a instalação
 

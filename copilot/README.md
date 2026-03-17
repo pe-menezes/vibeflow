@@ -33,58 +33,13 @@ Instructions ficam em subpasta `vibeflow/` (subdirectories suportados pelo Copil
 
 ## Instalação
 
-### Repo novo (sem nada configurado)
-
-```bash
-# Na raiz do repo destino
-cp copilot/AGENTS.md .
-cp -r copilot/github/ .github/
-```
-
-Remova a nota de instrução do topo do `AGENTS.md` (o bloco entre `>` e `---`).
-
-#### Repo que JÁ tem AGENTS.md e/ou copilot-instructions.md
-
-**Passo 1 — Copie os arquivos (seguro, não sobrescreve nada)**
-
-```bash
-cp -r copilot/github/instructions/ .github/instructions/
-cp copilot/github/agents/vibeflow-architect.agent.md .github/agents/
-cp copilot/github/prompts/vibeflow-*.prompt.md .github/prompts/
-```
-
-Os arquivos Vibeflow usam prefixo `vibeflow-` nos nomes, então não conflitam com arquivos existentes.
-
-**Passo 2 — copilot-instructions.md (opcional)**
-
-O Copilot carrega automaticamente os arquivos de `.github/instructions/`.
-O `vibeflow.instructions.md` que você copiou já será lido.
-
-Se quiser ser explícito, veja o snippet em `copilot-instructions.md` e adicione ao seu existente.
-
-**Passo 3 — AGENTS.md**
-
-Se já existe, faça append do conteúdo abaixo do `---` do `AGENTS.md` ao final do seu.
-Se não existe, copie direto (removendo a nota do topo).
-
-### O que conflita e o que não conflita
-
-| Arquivo / Pasta | Pode conflitar? | O que fazer |
-|-----------------|----------------|-------------|
-| `.github/instructions/vibeflow/` | Não | Copia direto (subpasta dedicada) |
-| `.github/agents/vibeflow-architect.agent.md` | Não | Copia direto (nome único) |
-| `.github/prompts/vibeflow-*.prompt.md` | Não | Copia direto (prefixo único) |
-| `.github/copilot-instructions.md` | Talvez | Append opcional |
-| `AGENTS.md` | **Sim** | Append ao existente |
-
-### Instalação automática (experimental)
-
-Se preferir, use o instalador automático. Ele copia os arquivos, cria
-diretórios, e faz append no AGENTS.md e copilot-instructions.md automaticamente:
+Na raiz do repo destino:
 
 ```bash
 npx setup-vibeflow@latest --copilot
 ```
+
+O instalador copia os arquivos, cria diretórios, e faz append no `AGENTS.md` e `copilot-instructions.md` automaticamente.
 
 ## Após a instalação
 
