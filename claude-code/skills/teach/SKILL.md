@@ -126,7 +126,22 @@ For each selected item:
 
 Create directory `.vibeflow/patterns/external-<repo-name>/` if it doesn't exist.
 
-For each selected pattern, create a file:
+**Conflict detection:** Before saving each pattern, check if a file with the
+same name already exists in `.vibeflow/patterns/` (the root patterns directory,
+not inside `external-*/`). Compare `<source-name>.md` against filenames in
+`.vibeflow/patterns/*.md`.
+
+If a conflict is found:
+1. Show the user both patterns (name + description/first few lines of each).
+2. Ask: "A local pattern `<name>.md` already exists. Keep local or replace
+   with the external version?"
+3. **User chooses external:** Delete the local file from `.vibeflow/patterns/`
+   and proceed to save the external version in `external-<repo-name>/`.
+4. **User chooses local:** Skip this pattern — do not save the external version.
+
+If no conflict: proceed normally.
+
+For each selected pattern (not skipped), create a file:
 `.vibeflow/patterns/external-<repo-name>/<source-name>.md`
 
 Format:
