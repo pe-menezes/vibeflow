@@ -103,6 +103,10 @@ Example questions:
 - **Objective** — 1 sentence. What changes for the user.
 - **Context** — What exists today and why this matters now.
 - **Definition of Done** — 3-7 binary checks (pass/fail, no ambiguity).
+  At least 1 check MUST be a craftsmanship/quality gate (e.g., "No violations
+  of conventions.md Don'ts", "Follows <pattern-name> pattern from .vibeflow/",
+  "No new `any` types introduced", "Error handling follows project conventions").
+  Functional checks alone are not sufficient.
 - **Scope** — What's in.
 - **Anti-scope** — What's explicitly OUT. Be aggressive.
 - **Technical Decisions** — With trade-offs and justification.

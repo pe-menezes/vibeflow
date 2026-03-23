@@ -73,10 +73,12 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 ```
 .vibeflow/
 ├── index.md          # Overview: stack, estrutura, budget
-├── conventions.md    # Convenções com exemplos reais
+├── conventions.md    # Convenções com exemplos reais + seção Don'ts
 ├── patterns/         # Um doc por padrão descoberto
 └── decisions.md      # Log de decisões (vazio no início)
 ```
+
+O `conventions.md` inclui uma seção **Don'ts** com regras proibitivas explícitas — o que NÃO fazer. Don'ts são minerados dos anti-patterns nos pattern docs, regras de projeto (.cursorrules, CLAUDE.md), e pitfalls comuns da stack.
 
 **Modo incremental:** Se `.vibeflow/` já existe, detecta mudanças via git e atualiza só o que mudou. Patterns importados (em `patterns/external-*/` via `teach --from`) são protegidos — o analyze nunca sobrescreve um pattern que tem versão importada.
 
@@ -120,7 +122,7 @@ Gera uma spec técnica a partir de um PRD ou descrição de feature.
 **O que gera:** spec em `.vibeflow/specs/<slug>.md` com:
 - Objetivo (1 frase)
 - Contexto
-- Definition of Done (3-7 checks binários)
+- Definition of Done (3-7 checks binários, pelo menos 1 de craftsmanship/qualidade)
 - Escopo e anti-escopo
 - Decisões técnicas com trade-offs
 - Riscos + mitigação

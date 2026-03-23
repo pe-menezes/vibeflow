@@ -1,5 +1,11 @@
 # Changelog
 
+### v1.10.0 (2026-03-23)
+
+- **`analyze`: conventions.md now includes `## Don'ts` section** — Prohibitive rules are mined from anti-patterns, rule sources, and stack-specific pitfalls. Coding agents need to know what NOT to do, not just what to do. Don'ts must be specific and grounded in the actual codebase, not generic best practices.
+- **`gen-spec`: DoD requires at least 1 craftsmanship check** — Specs must include at least one quality gate (pattern compliance, convention violations, typing, error handling) alongside functional checks. Prevents purely functional DoDs that miss code quality.
+- All 3 editions updated.
+
 ### v1.9.0 (2026-03-13)
 
 - **`teach --from`: import patterns from external repos** — New flag `--from <url|path>` on the `teach` command imports patterns and conventions from an external reference repo (e.g., shared architecture docs, coding guidelines). Clones the repo (shallow, ephemeral), detects knowledge sources (skills, CLAUDE.md, docs/, knowledge/, .cursorrules, etc.), presents an interactive review, and saves selected patterns to `.vibeflow/patterns/external-<name>/` with provenance and `confidence: imported`. Supports local paths, `--name` alias, and re-import. All 3 editions updated. Site commands page updated.

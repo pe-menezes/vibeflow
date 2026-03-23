@@ -401,6 +401,33 @@ must be included in conventions.md with source attribution: "(via .cursorrules)"
 "(via .cursor/rules/design-system.mdc)", "(via docs/ARCHITECTURE.md)". If a rule
 contradicts code, signal conflict: "⚠️ Conflict: .cursorrules says X, but the code does Y".
 
+**Don'ts section:** conventions.md MUST include a `## Don'ts` section with
+explicit prohibitive rules discovered during analysis. These are as important
+as prescriptive conventions — coding agents need to know what NOT to do.
+Place this section inside the `<!-- vibeflow:auto:start/end -->` markers,
+after the prescriptive convention sections.
+
+Mine don'ts from:
+- Anti-patterns found in pattern docs (Phase 3)
+- Explicit prohibitions in rules sources (.cursorrules, CLAUDE.md, docs/, etc.)
+- Patterns that exist in the codebase but are clearly mistakes or legacy
+- Common pitfalls for the detected stack (e.g., `any` abuse in TypeScript,
+  hardcoded strings in i18n projects, mutable global state)
+
+Format: bullet list of concrete prohibitions with brief rationale.
+Example:
+```
+## Don'ts
+- Do NOT use `any` in TypeScript — use `unknown` + type narrowing
+- Do NOT hardcode user-facing strings — all copy goes through i18n files
+- Do NOT import from internal modules of a dependency (e.g., `lib/src/internal`)
+- Do NOT add new dependencies without explicit justification in the spec
+```
+
+Keep don'ts specific and grounded in the actual codebase — not generic best
+practices. Every don't should be traceable to something observed in the code,
+rules, or pattern anti-patterns.
+
 ### decisions.md:
 
 **Important:** This file is NEVER modified by the analyze command, neither in
