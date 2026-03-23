@@ -10,458 +10,222 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 ---
 
-<section class="section demo">
+<div class="section" id="demo">
   <div class="container">
-    <h2 class="section-title fade-in">{t.demoTitle}</h2>
-    <p class="section-subtitle fade-in delay-1">{t.demoSubtitle}</p>
+    <div class="section-label">{t.demoLabel}</div>
+    <h2 class="section-title">{t.demoTitle}</h2>
+    <p class="section-sub">{t.demoSubtitle}</p>
 
-    <div class="terminal fade-in delay-2">
-      <div class="terminal-header">
-        <div class="terminal-dots">
-          <span class="dot dot-red"></span>
-          <span class="dot dot-yellow"></span>
-          <span class="dot dot-green"></span>
+    <div class="demo-container">
+      <!-- Chat conversation -->
+      <div class="chat-thread">
+        <div class="chat-message user">
+          <div class="msg-bubble">{t.demoR1user}</div>
         </div>
-        <span class="terminal-title">full pipeline: discover → gen-spec → implement → audit</span>
+
+        <div class="chat-message vibeflow">
+          <div class="msg-bubble">
+            <strong>{t.demoChallengeLabel}</strong>
+            <ul>
+              <li>{t.demoR2q1}</li>
+              <li>{t.demoR2q2}</li>
+              <li>{t.demoR2q3}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="chat-message user">
+          <div class="msg-bubble">{t.demoR2user}</div>
+        </div>
+
+        <div class="chat-message vibeflow">
+          <div class="msg-bubble">
+            <strong>{t.demoPushbackLabel}</strong>
+            <ul>
+              <li>{t.demoR3q1}</li>
+              <li>{t.demoR3q2}</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="chat-message user">
+          <div class="msg-bubble">{t.demoR3user}</div>
+        </div>
       </div>
 
-      <div class="terminal-body">
-        <!-- Round 1: User drops a vague idea -->
-        <div class="demo-step">
-          <div class="demo-line">
-            <span class="tag tag-you">{t.demoYou}</span>
-            <span class="line-text line-italic">{t.demoR1user}</span>
+      <!-- Output cards -->
+      <div class="demo-output">
+        <div class="output-block">
+          <div class="output-label">{t.demoR4label}</div>
+          <div class="output-content">
+            <div><span class="key">{t.demoOutputScope}</span> <span class="val">{t.demoR4scope}</span></div>
+            <div class="mt"><span class="key">{t.demoOutputAntiScope}</span> <span class="dim">{t.demoR4antiscope}</span></div>
           </div>
         </div>
 
-        <!-- Round 2: Vibeflow challenges hard -->
-        <div class="demo-step">
-          <div class="step-label">
-            <span class="step-label-icon">01</span>
-            <code>discover</code>
-          </div>
-          <div class="demo-line">
-            <span class="tag tag-vf">{t.demoVibeflow}</span>
-            <span class="line-text">{t.demoR2q1}</span>
-          </div>
-          <div class="demo-line">
-            <span class="tag tag-vf">{t.demoVibeflow}</span>
-            <span class="line-text">{t.demoR2q2}</span>
-          </div>
-          <div class="demo-line">
-            <span class="tag tag-vf">{t.demoVibeflow}</span>
-            <span class="line-text">{t.demoR2q3}</span>
-          </div>
-          <div class="demo-line">
-            <span class="tag tag-you">{t.demoYou}</span>
-            <span class="line-text line-italic">{t.demoR2user}</span>
+        <div class="output-block">
+          <div class="output-label">{t.demoR5label}</div>
+          <div class="output-content">
+            <div><span class="check">☐</span> {t.demoR5dod1}</div>
+            <div><span class="check">☐</span> {t.demoR5dod2}</div>
+            <div><span class="check">☐</span> {t.demoR5dod3}</div>
+            <div><span class="check">☐</span> {t.demoR5dod4}</div>
+            <div class="mt"><span class="key">{t.demoOutputBudget}</span> <span class="val">{t.demoR5budget}</span></div>
           </div>
         </div>
 
-        <!-- Round 3: Vibeflow pushes back on scope -->
-        <div class="demo-step">
-          <div class="step-label">
-            <span class="step-label-icon">02</span>
-            <code>discover</code>
-            <span class="step-label-round">round 2</span>
-          </div>
-          <div class="demo-line">
-            <span class="tag tag-vf">{t.demoVibeflow}</span>
-            <span class="line-text">{t.demoR3q1}</span>
-          </div>
-          <div class="demo-line">
-            <span class="tag tag-vf">{t.demoVibeflow}</span>
-            <span class="line-text">{t.demoR3q2}</span>
-          </div>
-          <div class="demo-line">
-            <span class="tag tag-you">{t.demoYou}</span>
-            <span class="line-text line-italic">{t.demoR3user}</span>
-          </div>
-
-          <!-- PRD output -->
-          <div class="demo-output">
-            <span class="output-badge output-badge-purple">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-              {t.demoR4label}
-            </span>
-            <div class="output-content">
-              <span class="output-line">{t.demoR4scope}</span>
-              <span class="output-line output-danger">{t.demoR4antiscope}</span>
-              <span class="output-line">{t.demoR4criteria}</span>
-            </div>
+        <div class="output-block">
+          <div class="output-label">{t.demoR6label}</div>
+          <div class="output-content">
+            <div>{t.demoR6file1}</div>
+            <div>{t.demoR6file2}</div>
+            <div>{t.demoR6file3}</div>
+            <div class="mt"><span class="check">✓</span> <span class="dim">{t.demoR6status}</span></div>
           </div>
         </div>
 
-        <!-- gen-spec output — detailed -->
-        <div class="demo-step">
-          <div class="step-label">
-            <span class="step-label-icon">03</span>
-            <code>gen-spec</code>
-          </div>
-          <div class="demo-output demo-output-spec">
-            <span class="output-badge output-badge-accent">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              {t.demoR5label}
-            </span>
-            <div class="output-content dod-list">
-              <span class="output-line dod-check">{t.demoR5dod1}</span>
-              <span class="output-line dod-check">{t.demoR5dod2}</span>
-              <span class="output-line dod-check">{t.demoR5dod3}</span>
-              <span class="output-line dod-check">{t.demoR5dod4}</span>
-            </div>
-            <div class="spec-meta">
-              <span class="spec-meta-line">{t.demoR5budget}</span>
-              <span class="spec-meta-line">{t.demoR5pattern}</span>
-              <span class="spec-meta-line spec-meta-danger">{t.demoR5antiscope}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- implement output -->
-        <div class="demo-step">
-          <div class="step-label">
-            <span class="step-label-icon">04</span>
-            <code>implement</code>
-          </div>
-          <div class="demo-output demo-output-impl">
-            <span class="output-badge output-badge-green">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-              {t.demoR6label}
-            </span>
-            <div class="output-content impl-files">
-              <span class="output-line impl-file">{t.demoR6file1}</span>
-              <span class="output-line impl-file">{t.demoR6file2}</span>
-              <span class="output-line impl-file">{t.demoR6file3}</span>
-            </div>
-            <div class="impl-status">{t.demoR6status}</div>
-          </div>
-        </div>
-
-        <!-- audit output — the payoff -->
-        <div class="demo-step demo-step-final">
-          <div class="step-label">
-            <span class="step-label-icon">05</span>
-            <code>audit</code>
-          </div>
-          <div class="demo-output demo-output-audit">
-            <span class="output-badge output-badge-green">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
-              {t.demoR7label}
-            </span>
-            <div class="output-content dod-list">
-              <span class="output-line dod-pass">{t.demoR7dod1}</span>
-              <span class="output-line dod-pass">{t.demoR7dod2}</span>
-              <span class="output-line dod-pass">{t.demoR7dod3}</span>
-              <span class="output-line dod-pass">{t.demoR7dod4}</span>
-              <span class="output-line dod-pass">{t.demoR7patterns}</span>
-            </div>
-            <div class="audit-verdict">
-              <span class="verdict-badge">{t.demoR7verdict}</span>
-              <span class="verdict-desc">{t.demoR7verdictDesc}</span>
-            </div>
+        <div class="output-block">
+          <div class="output-label">{t.demoR7label} &rarr; {t.demoR7verdict}</div>
+          <div class="output-content">
+            <div><span class="check">✓</span> {t.demoR7dod1}</div>
+            <div><span class="check">✓</span> {t.demoR7dod2}</div>
+            <div><span class="check">✓</span> {t.demoR7dod3}</div>
+            <div><span class="check">✓</span> {t.demoR7dod4}</div>
+            <div><span class="check">✓</span> {t.demoR7patterns}</div>
+            <div class="mt"><span class="check">{t.demoR7verdict}</span> <span class="dim">&mdash; {t.demoR7verdictDesc}</span></div>
           </div>
         </div>
       </div>
     </div>
   </div>
-</section>
+</div>
 
 <style>
-  .demo {
-    border-top: 1px solid var(--border);
-  }
-
-  .terminal {
-    border-radius: var(--radius-lg);
-    overflow: hidden;
+  .demo-container {
+    background: var(--bg-card);
+    border-radius: 20px;
+    padding: 2rem;
     border: 1px solid var(--border);
-    background: var(--bg-code);
   }
 
-  .terminal-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 20px;
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .terminal-dots {
-    display: flex;
-    gap: 6px;
-  }
-
-  .dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-  .dot-red { background: #ef4444; opacity: 0.7; }
-  .dot-yellow { background: #eab308; opacity: 0.7; }
-  .dot-green { background: #22c55e; opacity: 0.7; }
-
-  .terminal-title {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--text-muted);
-  }
-
-  .terminal-body {
-    padding: 24px;
+  .chat-thread {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 1rem;
+    margin-bottom: 1rem;
   }
 
-  /* Demo Steps */
-  .demo-step {
+  .chat-message {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    gap: 0.75rem;
+    max-width: 700px;
   }
 
-  .demo-step + .demo-step {
-    padding-top: 20px;
-    border-top: 1px solid var(--border-subtle);
+  .chat-message.user {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
   }
 
-  .step-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 4px;
+  .chat-message.vibeflow {
+    justify-content: flex-start;
   }
 
-  .step-label-icon {
-    font-family: var(--font-mono);
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: var(--accent-light);
-    opacity: 0.5;
-  }
-
-  .step-label code {
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--accent-light);
-    background: var(--accent-glow);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-  }
-
-  .step-label-round {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    color: var(--text-muted);
-    opacity: 0.6;
-  }
-
-  /* Lines */
-  .demo-line {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    line-height: 1.5;
-  }
-
-  .tag {
-    flex-shrink: 0;
-    display: inline-block;
-    padding: 1px 8px;
-    border-radius: 4px;
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-top: 2px;
-  }
-
-  .tag-you {
-    background: var(--accent-glow);
-    color: var(--accent-light);
-  }
-
-  .tag-vf {
-    background: var(--purple-glow);
-    color: var(--purple);
-  }
-
-  .line-text {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    font-family: var(--font-mono);
-  }
-
-  .line-italic {
-    color: var(--text-primary);
-    font-style: italic;
-  }
-
-  /* Outputs */
-  .demo-output {
-    margin-top: 4px;
-    padding: 14px 16px;
-    border-radius: var(--radius-md);
-    background: var(--bg-inset);
-    border: 1px solid var(--border-inset);
-  }
-
-  .output-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 10px;
-  }
-
-  .output-badge-purple { color: var(--purple); }
-  .output-badge-accent { color: var(--accent-light); }
-
-  .output-content {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .output-line {
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    color: var(--text-secondary);
+  .msg-bubble {
+    padding: 1rem 1.25rem;
+    border-radius: 14px;
+    font-size: 0.9rem;
     line-height: 1.6;
   }
 
-  .output-danger {
-    color: var(--danger-light);
-  }
-
-  /* DoD checks */
-  .dod-check {
-    color: var(--text-primary);
-  }
-
-  /* Spec metadata section */
-  .spec-meta {
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-subtle);
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .spec-meta-line {
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    line-height: 1.5;
-  }
-
-  .spec-meta-danger {
-    color: var(--danger-light);
-    font-weight: 600;
-  }
-
-  /* Final spec output styling */
-  .demo-output-spec {
-    border-color: var(--accent-border, var(--border-inset));
+  .chat-message.user .msg-bubble {
     background: var(--accent-glow);
+    color: var(--text-primary);
+    max-width: 420px;
+    border: 1px solid var(--accent-glow-strong);
   }
 
-  /* Implement output */
-  .demo-output-impl {
-    border-color: var(--border-inset);
+  .chat-message.vibeflow .msg-bubble {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    max-width: 520px;
   }
 
-  .output-badge-green { color: var(--success-light, #22c55e); }
-
-  .impl-file {
-    color: var(--text-muted);
-    font-size: 0.72rem;
-  }
-  .impl-file::before {
-    content: '  ';
-    margin-right: 4px;
-  }
-
-  .impl-status {
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-subtle);
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: var(--success-light, #22c55e);
+  .msg-bubble strong {
+    display: block;
+    margin-bottom: 0.5rem;
     font-weight: 600;
   }
 
-  /* Audit output */
-  .demo-output-audit {
-    border-color: var(--success-light, #22c55e);
-    background: rgba(34, 197, 94, 0.04);
+  .msg-bubble ul {
+    list-style: none;
+    margin-top: 0.5rem;
   }
 
-  .dod-pass {
-    color: var(--success-light, #22c55e);
-    font-weight: 500;
+  .msg-bubble li {
+    padding-left: 1.25rem;
+    position: relative;
+    margin-bottom: 0.35rem;
   }
 
-  .audit-verdict {
-    margin-top: 12px;
-    padding-top: 10px;
-    border-top: 1px solid var(--border-subtle);
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  .msg-bubble li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
   }
 
-  .verdict-badge {
-    display: inline-block;
-    padding: 3px 12px;
-    border-radius: 4px;
-    background: var(--success-light, #22c55e);
-    color: #000;
+  /* Output blocks */
+  .demo-output {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-top: 1.25rem;
+  }
+
+  .output-block {
+    background: var(--bg-code);
+    border-radius: 12px;
+    overflow: hidden;
+    padding: 1.25rem;
+  }
+
+  .output-label {
     font-family: var(--font-mono);
     font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+    font-weight: 600;
   }
 
-  .verdict-desc {
+  .output-content {
     font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--text-secondary);
+    font-size: 0.75rem;
+    color: #e5e5ea;
+    line-height: 1.8;
   }
+
+  .output-content .key { color: #818cf8; }
+  .output-content .val { color: #a78bfa; }
+  .output-content .check { color: #30d158; font-weight: 500; }
+  .output-content .dim { color: #8e8e93; }
+  .output-content .mt { margin-top: 0.5rem; }
 
   @media (max-width: 768px) {
-    .terminal-body {
-      padding: 16px;
+    .demo-container {
+      padding: 1.5rem 1.25rem;
     }
-
-    .demo-line {
-      flex-direction: column;
-      gap: 4px;
+    .demo-output {
+      grid-template-columns: 1fr;
     }
-
-    .tag {
-      width: fit-content;
+    .chat-message {
+      max-width: 100%;
     }
-
-    .line-text {
-      font-size: 0.8rem;
-    }
-
-    .output-line {
-      font-size: 0.72rem;
-    }
-
-    .spec-meta-line {
-      font-size: 0.68rem;
+    .chat-message.user .msg-bubble,
+    .chat-message.vibeflow .msg-bubble {
+      max-width: 100%;
     }
   }
 </style>

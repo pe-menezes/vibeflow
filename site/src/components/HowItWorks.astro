@@ -10,245 +10,117 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 
 const steps = [
-  { title: t.step1Title, desc: t.step1Desc, output: t.step1Output, color: 'var(--purple)' },
-  { title: t.step2Title, desc: t.step2Desc, output: t.step2Output, color: 'var(--accent-light)' },
-  { title: t.step3Title, desc: t.step3Desc, output: t.step3Output, color: 'var(--success-light)' },
-  { title: t.step4Title, desc: t.step4Desc, output: t.step4Output, color: 'var(--warning-light, #eab308)' },
+  { num: '1', title: t.step1Title, desc: t.pipelineStep1Desc },
+  { num: '2', title: t.step2Title, desc: t.pipelineStep2Desc },
+  { num: '3', title: t.step3Title, desc: t.pipelineStep3Desc },
+  { num: '4', title: t.step4Title, desc: t.pipelineStep4Desc },
 ];
 ---
 
-<section class="section how" id="how">
+<div class="section" id="how">
   <div class="container">
-    <h2 class="section-title fade-in">{t.howTitle}</h2>
-    <p class="section-subtitle fade-in delay-1">{t.howSubtitle}</p>
+    <div class="section-label">{t.pipelineLabel}</div>
+    <h2 class="section-title" set:html={t.howTitle} />
+    <p class="section-sub">{t.howSubtitle}</p>
 
-    <!-- Visual Pipeline Diagram -->
-    <div class="pipeline-wrapper fade-in delay-2">
-      <div class="pipeline-nodes">
-        {steps.map((step, i) => (
-          <div class="pipeline-item" style={`--sc: ${step.color}`}>
-            <div class="pipeline-node">
-              <span class="node-num">{String(i + 1).padStart(2, '0')}</span>
-              <span class="node-name">{step.title}</span>
-            </div>
-            {i < steps.length - 1 && (
-              <svg class="node-arrow" width="20" height="12" viewBox="0 0 20 12" fill="none" aria-hidden="true">
-                <path d="M0 6h16M12 1l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-
-    <!-- Step Cards -->
-    <div class="steps-grid">
-      {steps.map((step, i) => (
-        <div class={`step-card fade-in delay-${i + 2}`} style={`--sc: ${step.color}`}>
-          <div class="step-card-header">
-            <span class="step-num">{String(i + 1).padStart(2, '0')}</span>
-            <code class="step-name">{step.title}</code>
-          </div>
-          <p class="step-desc">{step.desc}</p>
-          <div class="step-output">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-            <span>{step.output}</span>
-          </div>
+    <div class="pipeline">
+      {steps.map((step) => (
+        <div class="pipe-step">
+          <div class="pipe-num">{step.num}</div>
+          <h3>{step.title}</h3>
+          <p>{step.desc}</p>
         </div>
       ))}
     </div>
 
-    <p class="how-footnote fade-in delay-5">{t.howFootnote}</p>
+    <div class="pipe-extra">
+      <strong>{t.pipelineExtra}</strong> {t.pipelineExtraList}
+      <a href={`/${lang}/commands`} class="pipe-link">{t.featSeeAll}</a>
+    </div>
   </div>
-</section>
+</div>
 
 <style>
-  .how {
-    border-top: 1px solid var(--border);
-    background: var(--bg-secondary);
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    position: relative;
   }
 
-  /* Pipeline Wrapper */
-  .pipeline-wrapper {
-    margin-bottom: 48px;
-    padding: 28px 24px;
-    background: var(--bg-primary);
+  @media (min-width: 769px) {
+    .pipeline::before {
+      content: '';
+      position: absolute;
+      top: 27px;
+      left: 40px;
+      right: 40px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.25) 15%, rgba(99, 102, 241, 0.4) 50%, rgba(99, 102, 241, 0.25) 85%, transparent 100%);
+      border-radius: 2px;
+    }
+  }
+
+  .pipe-step {
+    text-align: left;
+  }
+
+  .pipe-num {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow-x: auto;
-  }
-
-  /* Nodes Row */
-  .pipeline-nodes {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    position: relative;
+    z-index: 1;
   }
 
-  .pipeline-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .pipeline-node {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 3px;
-    padding: 14px 24px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--accent-glow-strong);
-    background: var(--accent-glow);
-    transition: all 0.2s;
-    min-width: 110px;
-  }
-  .pipeline-node:hover {
-    border-color: var(--accent-light);
-    background: var(--accent-glow-strong);
-  }
-
-  .node-num {
-    font-family: var(--font-mono);
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: var(--sc);
-    opacity: 0.5;
-  }
-
-  .node-name {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-  }
-
-  .node-arrow {
-    flex-shrink: 0;
-    color: var(--text-muted);
-    opacity: 0.3;
-  }
-
-  /* Step Cards Grid */
-  .steps-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-  }
-
-  .step-card {
-    padding: 28px;
-    border-radius: var(--radius-lg);
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    transition: border-color 0.2s;
-    display: flex;
-    flex-direction: column;
-  }
-  .step-card:hover {
-    border-color: var(--border-light);
-  }
-
-  .step-card-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-  }
-
-  .step-num {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    font-weight: 700;
-    color: var(--sc);
-    opacity: 0.7;
-  }
-
-  .step-name {
+  .pipe-step h3 {
     font-family: var(--font-mono);
     font-size: 1rem;
-    font-weight: 600;
+    font-weight: 500;
     color: var(--text-primary);
-    background: var(--accent-glow);
-    padding: 2px 10px;
-    border-radius: var(--radius-sm);
+    margin-bottom: 0.5rem;
   }
 
-  .step-desc {
-    font-size: 0.9rem;
+  .pipe-step p {
+    font-size: 0.88rem;
     color: var(--text-secondary);
-    line-height: 1.6;
-    flex: 1;
-    margin-bottom: 16px;
+    line-height: 1.55;
   }
 
-  .step-output {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    font-size: 0.8rem;
-    color: var(--sc);
-    font-family: var(--font-mono);
-    line-height: 1.4;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
-  }
-  .step-output svg {
-    flex-shrink: 0;
-    margin-top: 1px;
-    color: var(--sc);
-    opacity: 0.6;
-  }
-
-  .how-footnote {
-    text-align: center;
-    margin-top: 32px;
+  .pipe-extra {
+    margin-top: 1.25rem;
     font-size: 0.85rem;
     color: var(--text-muted);
-    font-family: var(--font-mono);
+  }
+
+  .pipe-extra strong {
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
+  .pipe-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .pipe-link:hover {
+    color: var(--text-primary);
   }
 
   @media (max-width: 768px) {
-    .pipeline-wrapper {
-      padding: 16px 12px;
-    }
-
-    .pipeline-nodes {
-      display: flex !important;
-      flex-wrap: wrap;
-      gap: 6px;
-      justify-content: center;
-    }
-
-    .pipeline-item {
-      gap: 6px;
-    }
-
-    .pipeline-node {
-      min-width: unset;
-      padding: 8px 14px;
-      flex-direction: row;
-      gap: 6px;
-    }
-
-    .node-num {
-      display: none;
-    }
-
-    .node-name {
-      font-size: 0.72rem;
-    }
-
-    .node-arrow {
-      width: 14px;
-      height: 9px;
-    }
-
-    .steps-grid {
+    .pipeline {
       grid-template-columns: 1fr;
-      gap: 12px;
+      gap: 1.5rem;
     }
   }
 </style>

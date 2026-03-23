@@ -7,12 +7,13 @@ export default {
   // Header
   headerGithub: 'GitHub',
   navHow: 'Como funciona',
-  navDeepDive: 'Deep Dive',
   navUseCases: 'Casos de uso',
   navCommands: 'Comandos',
-  navInstall: 'Instalar',
+  navInstall: 'Edições',
+  navStarGithub: 'Star no GitHub',
 
-  // Hero: aspiracional
+  // Hero
+  heroEyebrow: 'Open source · Licença MIT',
   heroTitle: 'Desenvolvimento spec-driven\npara agentes de IA',
   heroSubtitle: 'Defina o que construir, depois deixe o agente construir certo.',
   heroDescription: 'Vibeflow separa o pensar do codar. Você define specs com guardrails. O agente de IA implementa seguindo os padrões reais do seu projeto.',
@@ -28,26 +29,30 @@ export default {
   heroQuickStart4Cmd: '$ audit',
   heroQuickStart4Desc: 'PASS — todos checks verificados, padrões seguidos',
 
-  // How it works: 3 core steps
-  howTitle: 'Como o Vibeflow funciona',
-  howSubtitle: 'Quatro comandos. Da análise do codebase à implementação auditada.',
+  // How it works — Pipeline
+  pipelineLabel: 'Pipeline principal',
+  howTitle: 'Quatro comandos.<br>Da ideia ao código auditado.',
+  howSubtitle: 'O pipeline principal — mais 5 comandos para cada workflow.',
   step1Title: 'analyze',
-  step1Desc: 'Deep-scan do codebase e aprende seus padrões, convenções e arquitetura.',
-  step1Output: 'Docs .vibeflow/ com convenções reais',
   step2Title: 'gen-spec',
-  step2Desc: 'Gera spec com Definition of Done binário, escopo, anti-escopo e budget.',
-  step2Output: 'Spec com checks pass/fail',
   step3Title: 'implement',
-  step3Desc: 'Implementa a partir da spec seguindo seus padrões, dentro do budget, respeitando anti-escopo.',
-  step3Output: 'Código dentro do escopo e budget',
   step4Title: 'audit',
-  step4Desc: 'Verifica cada DoD check com evidência, confirma compliance de padrões, roda testes. PASS, PARTIAL ou FAIL.',
-  step4Output: 'Relatório de audit com veredicto + fix incremental',
-  howFootnote: 'Mais: discover, prompt-pack, quick, teach, stats',
+  pipelineStep1Desc: 'Varre seu codebase. Aprende padrões, convenções, arquitetura. Constrói uma base de conhecimento local.',
+  pipelineStep2Desc: 'Gera spec com Definition of Done binário, escopo, anti-escopo e budget de arquivos.',
+  pipelineStep3Desc: 'Implementa a partir da spec. Segue seus padrões, respeita budget, roda testes, auto-verifica.',
+  pipelineStep4Desc: 'Checa cada DoD com evidência. Compliance de padrões. Veredicto: PASS, PARTIAL ou FAIL.',
+  pipelineExtra: 'Mais 5:',
+  pipelineExtraList: 'discover · prompt-pack · quick · teach · stats —',
 
-  // See it in action
-  demoTitle: 'Veja na prática',
-  demoSubtitle: 'De ideia vaga a implementação verificada. O pipeline completo num exemplo.',
+  // Live Demo
+  demoLabel: 'Demo ao vivo',
+  demoTitle: 'De ideia vaga a código verificado.',
+  demoSubtitle: 'Veja o Vibeflow transformar um pedido de feature em implementação auditada.',
+  demoChallengeLabel: 'fase discover — desafiando escopo:',
+  demoPushbackLabel: 'questiona:',
+  demoOutputScope: 'Escopo:',
+  demoOutputAntiScope: 'Anti-escopo:',
+  demoOutputBudget: 'Budget:',
   demoYou: 'Você',
   demoVibeflow: 'Vibeflow',
 
@@ -99,8 +104,11 @@ export default {
   demoR7verdictDesc: 'Todos 4 DoD checks verificados com evidência. Pode shipar.',
 
   // Use cases
+  useCasesLabel: 'Casos de uso',
   useCasesTitle: 'Casos de uso',
+  useCasesTitle2: 'Feito para workflows reais.',
   useCasesSubtitle: 'Vibeflow se adapta a diferentes papéis e cenários.',
+  useCasesSubtitle2: 'De devs solo a times de produto.',
   uc1Title: 'Feature nova em projeto existente',
   uc1Role: 'Desenvolvedor',
   uc1Desc: 'Você precisa adicionar um fluxo de pagamento. Ao invés de deixar a IA adivinhar, você define escopo (só Stripe, sem PayPal), anti-escopo (sem gerenciamento de assinatura), e um DoD com 5 checks. O agent implementa exatamente isso.',
@@ -118,10 +126,14 @@ export default {
   uc4Desc: 'Dev novo entra no time. Ao invés de ler 200 arquivos, roda analyze. O Vibeflow produz um guia completo do projeto: arquitetura, padrões, convenções, tudo com exemplos reais de código.',
   uc4Flow: 'analyze → dev lê .vibeflow/',
 
-  // Features: tiered
+  // Features / Commands grid
+  cmdLabel: 'Comandos',
+  cmdGridTitle: '9 comandos. Toolkit completo.',
   featuresTitle: 'Todos os comandos',
   featuresSubtitle: 'Pipeline principal mais ferramentas para cada workflow.',
   featSeeAll: 'Ver todos os comandos →',
+  cmdDetails: 'Detalhes →',
+  cmdFullRef: 'Ver referência completa — flags, modos e outputs →',
 
   // Core commands (tier 1)
   feat1Title: 'analyze',
@@ -154,10 +166,22 @@ export default {
   feat7Desc: 'Fast-track para tasks pequenas (até 4 arquivos). Pula discovery, gera spec direto. Para bug fixes e mudanças rápidas.',
   feat7For: 'Tasks pequenas, rápido',
   feat7Highlights: ['budget ≤4 arquivos', 'spec efêmera'],
+  feat8Title: 'teach',
+  feat8Desc: 'Atualiza .vibeflow/ com correções, novas convenções, decisões arquiteturais ou padrões. Também importa de repos externos.',
+  feat8For: 'Atualizar knowledge base',
+  feat8Highlights: ['--from <url>', 'detecção de conflito'],
+  feat9Title: 'stats',
+  feat9Desc: 'Compila estatísticas dos relatórios de audit. Taxas pass/fail, padrões mais violados, gaps de DoD, tendências de qualidade.',
+  feat9For: 'Acompanhar qualidade',
+  feat9Highlights: ['output no chat', '≥3 audits pra trends'],
 
   // Editions
+  editionsLabel: 'Edições',
   editionsTitle: 'Escolha sua edição',
+  editionsTitle2: 'Escolha seu agente.',
   editionsSubtitle: 'Mesma metodologia. Adaptada ao seu agente.',
+  editionsSubtitle2: 'Mesma metodologia, adaptada ao seu workflow.',
+  editionsTagline: 'Mesma metodologia. Seu agente.',
   copilotTitle: 'GitHub Copilot',
   copilotDesc: 'Prompts, agents, skills e instructions para Copilot Chat.',
   copilotInstall: 'npx setup-vibeflow@latest --copilot',
@@ -173,6 +197,7 @@ export default {
 
   // Final CTA
   ctaTitle: 'Comece a construir com specs',
+  ctaTitle2: 'Comece a construir com specs.',
   ctaSubtitle: 'Defina o que quer, deixe a IA executar, verifique o resultado.',
   ctaBadgeOS: 'Open source',
   ctaBadgeMIT: 'Licença MIT',
@@ -183,7 +208,8 @@ export default {
 
   // ─── Contato ────────────────────────────────────────────────
   contactTitle: 'Entre em contato',
-  contactSubtitle: 'Tem uma dúvida, feedback ou quer contribuir? Manda uma mensagem.',
+  contactHeading: 'Tem uma dúvida ou feedback?',
+  contactSubtitle: 'Manda uma mensagem. Te respondo em breve.',
   contactName: 'Nome',
   contactEmail: 'Email',
   contactMessage: 'Mensagem',
@@ -288,85 +314,6 @@ export default {
   cmdStatsTrend: 'Tendência de qualidade: melhorando, estável ou degradando (requer ≥3 audits).',
   cmdStatsOutput: 'Output no chat (somente leitura, sem arquivos modificados).',
 
-  // ─── Deep Dive page ──────────────────────────────────────
-  deepPageTitle: 'Deep Dive — Como o Vibeflow Funciona',
-  deepPageDesc: 'Deep dive técnico no Vibeflow: o pipeline completo, sistema de conhecimento e guardrails que mantêm agentes de IA no caminho certo.',
-  deepTitle: 'Como o Vibeflow Funciona',
-  deepSubtitle: 'Uma visão técnica do pipeline, sistema de conhecimento e guardrails por trás do desenvolvimento spec-driven.',
-  deepBackHome: '← Voltar ao início',
-
-  // Deep Dive — Pipeline
-  deepPipelineTitle: 'O Pipeline',
-  deepPipelineDesc: 'Toda tarefa não-trivial segue um pipeline estruturado. Cada comando tem input, função e output claros.',
-  deepPipelineFlowLabel: 'Fluxo principal',
-  deepCmd1Name: 'discover',
-  deepCmd1Desc: 'Diálogo interativo que transforma uma ideia vaga em um PRD claro. Desafia premissas e corta escopo.',
-  deepCmd1Output: '.vibeflow/prds/<slug>.md',
-  deepCmd2Name: 'analyze',
-  deepCmd2Desc: 'Varre o codebase: stack, arquitetura, padrões, convenções. Constrói a base de conhecimento do projeto.',
-  deepCmd2Output: '.vibeflow/ (index, conventions, patterns)',
-  deepCmd3Name: 'gen-spec',
-  deepCmd3Desc: 'Gera spec com DoD binário (3-7 checks), escopo, anti-escopo, budget e riscos. Auto-split se muito grande.',
-  deepCmd3Output: '.vibeflow/specs/<slug>.md',
-  deepCmd4Name: 'implement',
-  deepCmd4Desc: 'Implementa a partir da spec com guardrails rígidos. Segue padrões, respeita budget, roda testes, auto-verifica DoD.',
-  deepCmd4Output: 'Alterações no código + verificação de DoD',
-  deepCmd5Name: 'audit',
-  deepCmd5Desc: 'Verifica implementação contra a spec. Checa compliance de DoD e aderência a padrões. Veredicto: PASS, PARTIAL ou FAIL.',
-  deepCmd5Output: '.vibeflow/audits/<slug>-audit.md',
-  deepCmd6Name: 'prompt-pack',
-  deepCmd6Desc: 'Cria um prompt autocontido para um agente de código em sessão separada. Embute padrões e convenções reais.',
-  deepCmd6Output: '.vibeflow/prompt-packs/<slug>.md',
-  deepCmd7Name: 'quick',
-  deepCmd7Desc: 'Fast-track para tarefas pequenas (≤4 arquivos). Gera spec efêmera e vai direto para implementação.',
-  deepCmd7Output: 'Spec efêmera → alterações no código',
-  deepCmd8Name: 'teach',
-  deepCmd8Desc: 'Atualiza a base de conhecimento com correções, novas convenções, decisões arquiteturais ou novos padrões.',
-  deepCmd8Output: 'Atualizações nos docs .vibeflow/',
-  deepCmd9Name: 'stats',
-  deepCmd9Desc: 'Compila estatísticas dos relatórios de audit: taxas pass/fail, padrões mais violados, tendência de qualidade.',
-  deepCmd9Output: 'Output no chat (somente leitura)',
-
-  // Deep Dive — Knowledge System
-  deepKnowledgeTitle: 'O Sistema de Conhecimento',
-  deepKnowledgeDesc: 'O Vibeflow constrói uma base de conhecimento local em .vibeflow/ que ancora cada comando nos padrões reais do seu projeto.',
-  deepKnowledgeStructure: 'Estrutura',
-  deepKnowledgeIndex: 'index.md — Visão geral do projeto: stack, estrutura, budget, registro de padrões.',
-  deepKnowledgeConventions: 'conventions.md — Padrões de código com exemplos reais: naming, organização de arquivos, imports, tratamento de erros.',
-  deepKnowledgePatterns: 'patterns/ — Um doc por padrão descoberto: o quê, onde, regras, exemplos, anti-padrões.',
-  deepKnowledgeDecisions: 'decisions.md — Log de decisões arquiteturais: contexto, decisão, alternativas, consequências.',
-  deepKnowledgePrds: 'prds/ — PRDs gerados pelo discover.',
-  deepKnowledgeSpecs: 'specs/ — Specs técnicas geradas pelo gen-spec.',
-  deepKnowledgeAudits: 'audits/ — Relatórios de audit.',
-  deepKnowledgeHowTitle: 'Como alimenta o pipeline',
-  deepKnowledgeHowAnalyze: 'analyze varre o codebase e escreve a base de conhecimento.',
-  deepKnowledgeHowSpec: 'gen-spec lê padrões e convenções para ancorar specs na realidade.',
-  deepKnowledgeHowImpl: 'implement carrega padrões aplicáveis e segue convenções durante a codificação.',
-  deepKnowledgeHowAudit: 'audit verifica compliance de padrões e salva resultados.',
-  deepKnowledgeHowTeach: 'teach permite corrigir ou estender a base de conhecimento manualmente.',
-
-  // Deep Dive — Guardrails
-  deepGuardrailsTitle: 'Os Guardrails',
-  deepGuardrailsDesc: 'Regras rígidas que restringem o agente de IA. Não são sugestões — são aplicadas em cada etapa.',
-  deepGr1Title: 'Sem DoD, sem trabalho',
-  deepGr1Desc: 'Toda tarefa precisa de 3-7 checks binários pass/fail. Sem Definition of Done, nada é implementado.',
-  deepGr2Title: 'Mudança mínima',
-  deepGr2Desc: 'Fecha o DoD. Nada além. Sem melhorias "já que estou aqui".',
-  deepGr3Title: 'Sem refactoring fora do escopo',
-  deepGr3Desc: 'Sem cleanup "só porque sim". Código fora do escopo da spec é intocável.',
-  deepGr4Title: 'Budget',
-  deepGr4Desc: '≤6 arquivos por tarefa (padrão). Limite rígido — o agente para e pergunta se fosse ultrapassar.',
-  deepGr5Title: 'Nova dependência',
-  deepGr5Desc: 'Toda nova dependência precisa ser justificada em 1 linha. Sem adições silenciosas.',
-  deepGr6Title: 'Abstração',
-  deepGr6Desc: 'Só crie abstrações com 2+ usos reais. Sem generalização prematura.',
-  deepGr7Title: 'Anti-escopo',
-  deepGr7Desc: 'Lista explícita do que você não vai fazer. O agente trata cada item como parada obrigatória.',
-  deepGr8Title: 'Testes obrigatórios',
-  deepGr8Desc: 'Se os testes falham, a tarefa não está feita. Ponto.',
-
   // Footer
-  footerBuiltWith: 'Feito com',
-  footerBy: 'por',
   footerLicense: 'Licença MIT',
 } as const;

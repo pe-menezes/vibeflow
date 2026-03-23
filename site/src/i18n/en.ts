@@ -7,12 +7,13 @@ export default {
   // Header
   headerGithub: 'GitHub',
   navHow: 'How it works',
-  navDeepDive: 'Deep Dive',
   navUseCases: 'Use cases',
   navCommands: 'Commands',
-  navInstall: 'Install',
+  navInstall: 'Editions',
+  navStarGithub: 'Star on GitHub',
 
-  // Hero:aspirational
+  // Hero
+  heroEyebrow: 'Open source · MIT License',
   heroTitle: 'Spec-driven development\nfor AI agents',
   heroSubtitle: 'Define what to build, then let the agent build it right.',
   heroDescription: 'Vibeflow separates thinking from coding. You define specs with guardrails, and the AI agent implements following your project\'s real patterns.',
@@ -28,26 +29,30 @@ export default {
   heroQuickStart4Cmd: '$ audit',
   heroQuickStart4Desc: 'PASS — all checks verified, patterns followed',
 
-  // How it works:3 core steps
-  howTitle: 'How Vibeflow works',
-  howSubtitle: 'Four commands. From codebase analysis to audited implementation.',
+  // How it works — Pipeline
+  pipelineLabel: 'Core pipeline',
+  howTitle: 'Four core commands.<br>Idea to audited code.',
+  howSubtitle: 'The main pipeline — plus 5 more commands for every workflow.',
   step1Title: 'analyze',
-  step1Desc: 'Deep-scans your codebase and learns your patterns, conventions, and architecture.',
-  step1Output: '.vibeflow/ docs with real conventions',
   step2Title: 'gen-spec',
-  step2Desc: 'Generates a spec with binary Definition of Done, scope, anti-scope, and budget.',
-  step2Output: 'Spec with pass/fail checks',
   step3Title: 'implement',
-  step3Desc: 'Implements from the spec following your patterns, within budget, respecting anti-scope.',
-  step3Output: 'Code within scope and budget',
   step4Title: 'audit',
-  step4Desc: 'Verifies every DoD check with evidence, confirms pattern compliance, runs tests. PASS, PARTIAL, or FAIL.',
-  step4Output: 'Audit report with verdict + incremental fix',
-  howFootnote: 'Plus: discover, prompt-pack, quick, teach, stats',
+  pipelineStep1Desc: 'Scans your codebase. Learns patterns, conventions, architecture. Builds a local knowledge base.',
+  pipelineStep2Desc: 'Generates a spec with binary Definition of Done, scope, anti-scope, and file budget.',
+  pipelineStep3Desc: 'Builds from the spec. Follows your patterns, respects budget, runs tests, self-verifies.',
+  pipelineStep4Desc: 'Checks every DoD item with evidence. Pattern compliance. Verdict: PASS, PARTIAL, or FAIL.',
+  pipelineExtra: 'Plus 5 more:',
+  pipelineExtraList: 'discover · prompt-pack · quick · teach · stats —',
 
-  // See it in action
-  demoTitle: 'See it in action',
-  demoSubtitle: 'From vague idea to verified implementation. The full pipeline in one example.',
+  // Live Demo
+  demoLabel: 'Live Demo',
+  demoTitle: 'From vague idea to verified code.',
+  demoSubtitle: 'Watch Vibeflow turn a feature request into audited, pattern-compliant implementation.',
+  demoChallengeLabel: 'discover phase — challenging scope:',
+  demoPushbackLabel: 'pushes back:',
+  demoOutputScope: 'Scope:',
+  demoOutputAntiScope: 'Anti-scope:',
+  demoOutputBudget: 'Budget:',
   demoYou: 'You',
   demoVibeflow: 'Vibeflow',
 
@@ -99,8 +104,11 @@ export default {
   demoR7verdictDesc: 'All 4 DoD checks verified with evidence. Ship it.',
 
   // Use cases
+  useCasesLabel: 'Use Cases',
   useCasesTitle: 'Use cases',
+  useCasesTitle2: 'Built for real workflows.',
   useCasesSubtitle: 'Vibeflow adapts to different roles and scenarios.',
+  useCasesSubtitle2: 'From solo devs to product teams.',
   uc1Title: 'New feature in an existing project',
   uc1Role: 'Developer',
   uc1Desc: 'You need to add a payment flow. Instead of letting AI guess, you define scope (Stripe only, no PayPal), anti-scope (no subscription management), and a 5-check DoD. The agent implements exactly that.',
@@ -118,10 +126,14 @@ export default {
   uc4Desc: 'New dev joins the team. Instead of reading 200 files, they run analyze. Vibeflow produces a comprehensive guide to the project: architecture, patterns, conventions, all with real code examples.',
   uc4Flow: 'analyze → dev reads .vibeflow/',
 
-  // Features:tiered
+  // Features / Commands grid
+  cmdLabel: 'Commands',
+  cmdGridTitle: '9 commands. Full toolkit.',
   featuresTitle: 'All commands',
   featuresSubtitle: 'Core pipeline plus power tools for every workflow.',
   featSeeAll: 'See all commands →',
+  cmdDetails: 'Details →',
+  cmdFullRef: 'See full reference — flags, modes & outputs →',
 
   // Core commands (tier 1)
   feat1Title: 'analyze',
@@ -154,10 +166,22 @@ export default {
   feat7Desc: 'Fast-track for small tasks (under 4 files). Skips discovery, generates spec directly. For bug fixes and quick changes.',
   feat7For: 'Small tasks, fast',
   feat7Highlights: ['≤4 files budget', 'ephemeral spec'],
+  feat8Title: 'teach',
+  feat8Desc: 'Updates .vibeflow/ with corrections, new conventions, architectural decisions, or patterns. Also imports from external repos.',
+  feat8For: 'Update knowledge base',
+  feat8Highlights: ['--from <url>', 'conflict detection'],
+  feat9Title: 'stats',
+  feat9Desc: 'Compiles statistics from audit reports. Pass/fail rates, most violated patterns, common DoD gaps, quality trends over time.',
+  feat9For: 'Track quality trends',
+  feat9Highlights: ['chat output only', '≥3 audits for trends'],
 
   // Editions
+  editionsLabel: 'Editions',
   editionsTitle: 'Choose your edition',
+  editionsTitle2: 'Choose your agent.',
   editionsSubtitle: 'Same methodology. Adapted to your agent.',
+  editionsSubtitle2: 'Same methodology, adapted to your workflow.',
+  editionsTagline: 'Same methodology. Your agent.',
   copilotTitle: 'GitHub Copilot',
   copilotDesc: 'Prompts, agents, skills, and instructions for Copilot Chat.',
   copilotInstall: 'npx setup-vibeflow@latest --copilot',
@@ -173,6 +197,7 @@ export default {
 
   // Final CTA
   ctaTitle: 'Start building with specs',
+  ctaTitle2: 'Start building with specs.',
   ctaSubtitle: 'Define what you want, let AI execute, verify the result.',
   ctaBadgeOS: 'Open source',
   ctaBadgeMIT: 'MIT License',
@@ -183,7 +208,8 @@ export default {
 
   // ─── Contact ────────────────────────────────────────────────
   contactTitle: 'Get in touch',
-  contactSubtitle: 'Have a question, feedback, or want to contribute? Send a message.',
+  contactHeading: 'Have a question or feedback?',
+  contactSubtitle: 'Send a message. I\'ll get back to you soon.',
   contactName: 'Name',
   contactEmail: 'Email',
   contactMessage: 'Message',
@@ -288,85 +314,6 @@ export default {
   cmdStatsTrend: 'Quality trend: improving, stable, or degrading (requires ≥3 audits).',
   cmdStatsOutput: 'Chat output only (read-only, no files modified).',
 
-  // ─── Deep Dive page ──────────────────────────────────────
-  deepPageTitle: 'Deep Dive — How Vibeflow Works',
-  deepPageDesc: 'Technical deep dive into Vibeflow: the full pipeline, knowledge system, and guardrails that keep AI agents on track.',
-  deepTitle: 'How Vibeflow Works',
-  deepSubtitle: 'A technical look at the pipeline, knowledge system, and guardrails behind spec-driven development.',
-  deepBackHome: '← Back to home',
-
-  // Deep Dive — Pipeline
-  deepPipelineTitle: 'The Pipeline',
-  deepPipelineDesc: 'Every non-trivial task follows a structured pipeline. Each command has a clear input, job, and output.',
-  deepPipelineFlowLabel: 'Core flow',
-  deepCmd1Name: 'discover',
-  deepCmd1Desc: 'Interactive dialogue that turns a vague idea into a clear PRD. Challenges assumptions and cuts scope.',
-  deepCmd1Output: '.vibeflow/prds/<slug>.md',
-  deepCmd2Name: 'analyze',
-  deepCmd2Desc: 'Deep-scans the codebase: stack, architecture, patterns, conventions. Builds the project knowledge base.',
-  deepCmd2Output: '.vibeflow/ (index, conventions, patterns)',
-  deepCmd3Name: 'gen-spec',
-  deepCmd3Desc: 'Generates a spec with binary DoD (3-7 checks), scope, anti-scope, budget, and risks. Auto-splits if too large.',
-  deepCmd3Output: '.vibeflow/specs/<slug>.md',
-  deepCmd4Name: 'implement',
-  deepCmd4Desc: 'Implements from the spec with hard guardrails. Follows patterns, respects budget, runs tests, self-verifies DoD.',
-  deepCmd4Output: 'Code changes + DoD verification',
-  deepCmd5Name: 'audit',
-  deepCmd5Desc: 'Verifies implementation against spec. Checks DoD compliance and pattern adherence. Verdict: PASS, PARTIAL, or FAIL.',
-  deepCmd5Output: '.vibeflow/audits/<slug>-audit.md',
-  deepCmd6Name: 'prompt-pack',
-  deepCmd6Desc: 'Creates a self-contained prompt for a coding agent in a separate session. Embeds real patterns and conventions.',
-  deepCmd6Output: '.vibeflow/prompt-packs/<slug>.md',
-  deepCmd7Name: 'quick',
-  deepCmd7Desc: 'Fast-track for small tasks (≤4 files). Generates an ephemeral spec and goes straight to implementation.',
-  deepCmd7Output: 'Ephemeral spec → code changes',
-  deepCmd8Name: 'teach',
-  deepCmd8Desc: 'Updates the knowledge base with corrections, new conventions, architectural decisions, or new patterns.',
-  deepCmd8Output: 'Updates to .vibeflow/ docs',
-  deepCmd9Name: 'stats',
-  deepCmd9Desc: 'Compiles statistics from audit reports: pass/fail rates, most violated patterns, quality trend.',
-  deepCmd9Output: 'Chat output (read-only)',
-
-  // Deep Dive — Knowledge System
-  deepKnowledgeTitle: 'The Knowledge System',
-  deepKnowledgeDesc: 'Vibeflow builds a local knowledge base in .vibeflow/ that grounds every command in your project\'s real patterns.',
-  deepKnowledgeStructure: 'Structure',
-  deepKnowledgeIndex: 'index.md — Project overview: stack, structure, budget, pattern registry.',
-  deepKnowledgeConventions: 'conventions.md — Coding standards with real examples: naming, file organization, imports, error handling.',
-  deepKnowledgePatterns: 'patterns/ — One doc per discovered pattern: what, where, rules, examples, anti-patterns.',
-  deepKnowledgeDecisions: 'decisions.md — Architectural decision log: context, decision, alternatives, consequences.',
-  deepKnowledgePrds: 'prds/ — PRDs generated by discover.',
-  deepKnowledgeSpecs: 'specs/ — Technical specs generated by gen-spec.',
-  deepKnowledgeAudits: 'audits/ — Audit reports from audit.',
-  deepKnowledgeHowTitle: 'How it feeds the pipeline',
-  deepKnowledgeHowAnalyze: 'analyze scans the codebase and writes the knowledge base.',
-  deepKnowledgeHowSpec: 'gen-spec reads patterns and conventions to ground specs in reality.',
-  deepKnowledgeHowImpl: 'implement loads applicable patterns and follows conventions during coding.',
-  deepKnowledgeHowAudit: 'audit checks pattern compliance and writes results back.',
-  deepKnowledgeHowTeach: 'teach lets you correct or extend the knowledge base manually.',
-
-  // Deep Dive — Guardrails
-  deepGuardrailsTitle: 'The Guardrails',
-  deepGuardrailsDesc: 'Hard rules that constrain the AI agent. These are not suggestions — they are enforced at every step.',
-  deepGr1Title: 'No DoD, no work',
-  deepGr1Desc: 'Every task needs 3-7 binary pass/fail checks. If there\'s no Definition of Done, nothing gets implemented.',
-  deepGr2Title: 'Minimum change',
-  deepGr2Desc: 'Close the DoD. Nothing beyond. No "while I\'m here" improvements.',
-  deepGr3Title: 'No refactoring outside scope',
-  deepGr3Desc: 'No cleanup "just because". Code outside the spec\'s scope is untouchable.',
-  deepGr4Title: 'Budget',
-  deepGr4Desc: '≤6 files per task (default). Hard limit — the agent stops and asks if it would exceed.',
-  deepGr5Title: 'New dependency',
-  deepGr5Desc: 'Every new dependency must be justified in 1 line. No silent additions.',
-  deepGr6Title: 'Abstraction',
-  deepGr6Desc: 'Only create abstractions with 2+ real uses. No premature generalization.',
-  deepGr7Title: 'Anti-scope',
-  deepGr7Desc: 'Explicit list of what you won\'t do. The agent treats each item as a hard stop.',
-  deepGr8Title: 'Tests mandatory',
-  deepGr8Desc: 'If tests fail, the task is not done. Period.',
-
   // Footer
-  footerBuiltWith: 'Built with',
-  footerBy: 'by',
   footerLicense: 'MIT License',
 } as const;

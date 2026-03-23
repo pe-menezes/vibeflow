@@ -214,8 +214,10 @@ const commands = [
   }
 
   .page-title {
-    font-size: 2.5rem;
-    font-weight: 700;
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4.5vw, 2.8rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
     color: var(--text-primary);
     margin-bottom: 12px;
   }
@@ -232,10 +234,16 @@ const commands = [
   .cmd-nav {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 48px;
-    padding-bottom: 24px;
+    gap: 0.4rem;
+    margin-bottom: 2rem;
+    padding: 0.75rem 0;
     border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 64px;
+    z-index: 50;
+    background: var(--bg-header-glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .cmd-nav-link {

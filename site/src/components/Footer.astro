@@ -12,25 +12,11 @@ const t = useTranslations(lang);
 
 <footer class="footer">
   <div class="container footer-inner">
-    <div class="footer-left">
-      <a href={`/${lang}/`} class="footer-logo">
-        <svg width="20" height="20" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="32" height="32" rx="8" fill="var(--accent)"/>
-          <path d="M8 16L13 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span>Vibeflow</span>
-      </a>
-      <p class="footer-tagline">
-        {t.footerBuiltWith} spec-driven development {t.footerBy}{' '}
-        <a href="https://github.com/pe-menezes" target="_blank" rel="noopener">pe-menezes</a>
-      </p>
-    </div>
-    <div class="footer-right">
-      <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener" class="footer-link">
-        GitHub
-      </a>
-      <span class="footer-sep">|</span>
-      <span class="footer-license">{t.footerLicense}</span>
+    <span class="footer-copy">&copy; 2026 Vibeflow &middot; {t.footerLicense}</span>
+    <div class="footer-links">
+      <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener">{t.headerGithub}</a>
+      <a href="https://www.npmjs.com/package/setup-vibeflow" target="_blank" rel="noopener">npm</a>
+      <a href={`/${lang}/commands`}>{t.navCommands}</a>
     </div>
   </div>
 </footer>
@@ -38,7 +24,7 @@ const t = useTranslations(lang);
 <style>
   .footer {
     border-top: 1px solid var(--border);
-    padding: 40px 0;
+    padding: 2rem 0;
   }
 
   .footer-inner {
@@ -47,49 +33,32 @@ const t = useTranslations(lang);
     justify-content: space-between;
   }
 
-  .footer-logo {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 700;
-    font-size: 1rem;
-    color: var(--text-primary);
-    margin-bottom: 6px;
-  }
-  .footer-logo:hover {
-    color: var(--text-primary);
-  }
-
-  .footer-tagline {
+  .footer-copy {
     font-size: 0.8rem;
     color: var(--text-muted);
   }
 
-  .footer-right {
+  .footer-links {
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    gap: 1.5rem;
   }
 
-  .footer-link {
+  .footer-links a {
     color: var(--text-secondary);
     font-size: 0.8rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.2s var(--ease-out);
   }
-
-  .footer-sep {
-    color: var(--border);
-  }
-
-  .footer-license {
-    color: var(--text-muted);
+  .footer-links a:hover {
+    color: var(--text-primary);
   }
 
   @media (max-width: 768px) {
     .footer-inner {
       flex-direction: column;
-      gap: 16px;
+      gap: 1rem;
       text-align: center;
     }
   }

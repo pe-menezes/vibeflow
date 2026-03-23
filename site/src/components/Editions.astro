@@ -8,181 +8,132 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(lang);
+
+const editions = [
+  { title: t.claudeTitle, desc: t.claudeDesc, install: t.claudeInstall },
+  { title: t.cursorTitle, desc: t.cursorDesc, install: t.cursorInstall },
+  { title: t.copilotTitle, desc: t.copilotDesc, install: t.copilotInstall },
+];
 ---
 
-<section class="section editions" id="editions">
+<div class="section" id="editions">
   <div class="container">
-    <h2 class="section-title fade-in">{t.editionsTitle}</h2>
-    <p class="section-subtitle fade-in delay-1">{t.editionsSubtitle}</p>
+    <div class="section-label">{t.editionsLabel}</div>
+    <h2 class="section-title">{t.editionsTitle2}</h2>
+    <p class="section-sub">{t.editionsSubtitle2}</p>
 
-    <div class="editions-grid fade-in delay-2">
-      <div class="edition-card">
-        <div class="edition-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
-            <path d="M9 18c-4.51 2-5-2-7-2"/>
-          </svg>
-        </div>
-        <h3 class="edition-title">{t.copilotTitle}</h3>
-        <p class="edition-desc">{t.copilotDesc}</p>
-        <div class="install-block">
-          <code class="install-cmd" data-cmd={t.copilotInstall}>{t.copilotInstall}</code>
-          <button class="copy-btn" aria-label={t.copyLabel}>
-            <svg class="icon-copy" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <svg class="icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M20 6L9 17l-5-5"/></svg>
-          </button>
-        </div>
+    <div class="ed-wrap">
+      <div class="ed-grid">
+        {editions.map((ed) => (
+          <div class="ed-card">
+            <h3>{ed.title}</h3>
+            <p class="ed-desc">{ed.desc}</p>
+            <div class="ed-cmd">
+              <span>{ed.install}</span>
+              <button class="copy-btn" data-copy={ed.install} type="button">{t.copyLabel}</button>
+            </div>
+          </div>
+        ))}
       </div>
-
-      <div class="edition-card">
-        <div class="edition-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-        </div>
-        <h3 class="edition-title">{t.cursorTitle}</h3>
-        <p class="edition-desc">{t.cursorDesc}</p>
-        <div class="install-block">
-          <code class="install-cmd" data-cmd={t.cursorInstall}>{t.cursorInstall}</code>
-          <button class="copy-btn" aria-label={t.copyLabel}>
-            <svg class="icon-copy" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <svg class="icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M20 6L9 17l-5-5"/></svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="edition-card">
-        <div class="edition-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4 17 10 11 4 5"/>
-            <line x1="12" y1="19" x2="20" y2="19"/>
-          </svg>
-        </div>
-        <h3 class="edition-title">{t.claudeTitle}</h3>
-        <p class="edition-desc">{t.claudeDesc}</p>
-        <div class="install-block">
-          <code class="install-cmd" data-cmd={t.claudeInstall}>{t.claudeInstall}</code>
-          <button class="copy-btn" aria-label={t.copyLabel}>
-            <svg class="icon-copy" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            <svg class="icon-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M20 6L9 17l-5-5"/></svg>
-          </button>
-        </div>
-      </div>
+      <div class="ed-tag">{t.editionsTagline}</div>
     </div>
-    <p class="editions-disclaimer fade-in delay-3">{t.editionsGitDisclaimer}</p>
   </div>
-</section>
+</div>
 
 <script>
   document.querySelectorAll('.copy-btn').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const block = btn.closest('.install-block');
-      const cmd = block?.querySelector('.install-cmd')?.getAttribute('data-cmd');
-      if (!cmd) return;
-
-      await navigator.clipboard.writeText(cmd);
-
-      const iconCopy = btn.querySelector('.icon-copy') as HTMLElement;
-      const iconCheck = btn.querySelector('.icon-check') as HTMLElement;
-      if (iconCopy && iconCheck) {
-        iconCopy.style.display = 'none';
-        iconCheck.style.display = 'block';
-        setTimeout(() => {
-          iconCopy.style.display = 'block';
-          iconCheck.style.display = 'none';
-        }, 2000);
-      }
+    btn.addEventListener('click', () => {
+      const text = (btn as HTMLElement).dataset.copy || '';
+      navigator.clipboard.writeText(text);
+      const orig = btn.textContent;
+      btn.textContent = (btn.closest('[data-lang]') as HTMLElement)?.dataset.lang === 'pt-br' ? 'Copiado!' : 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 1500);
     });
   });
 </script>
 
 <style>
-  .editions {
-    border-top: 1px solid var(--border);
+  .ed-wrap {
     background: var(--bg-secondary);
+    border-radius: 20px;
+    padding: 2rem;
   }
 
-  .editions-grid {
+  .ed-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
+    gap: 1.5rem;
   }
 
-  .editions-disclaimer {
-    margin-top: 24px;
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    line-height: 1.5;
-    max-width: 640px;
+  .ed-card {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 2rem;
+    border: 1px solid transparent;
+    transition: all 0.35s var(--ease-out);
+  }
+  .ed-card:hover {
+    border-color: var(--accent-glow-strong);
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.08);
+    transform: translateY(-4px);
   }
 
-  .edition-card {
-    padding: 32px;
-    border-radius: var(--radius-lg);
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    transition: border-color 0.2s;
-  }
-  .edition-card:hover {
-    border-color: var(--border-light);
+  .ed-card h3 {
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.4rem;
   }
 
-  .edition-icon {
-    color: var(--accent-light);
-    margin-bottom: 16px;
-  }
-
-  .edition-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
-  .edition-desc {
-    font-size: 0.9rem;
+  .ed-desc {
+    font-size: 0.85rem;
     color: var(--text-secondary);
-    margin-bottom: 20px;
+    margin-bottom: 1.25rem;
     line-height: 1.5;
   }
 
-  .install-block {
+  .ed-cmd {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: var(--bg-code);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 12px 16px;
-  }
-
-  .install-cmd {
-    flex: 1;
+    justify-content: space-between;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 0.65rem 0.9rem;
     font-family: var(--font-mono);
-    font-size: 0.825rem;
-    color: var(--accent-light);
-    user-select: all;
+    font-size: 0.72rem;
+    color: var(--text-primary);
   }
 
   .copy-btn {
     background: none;
     border: none;
-    color: var(--text-muted);
     cursor: pointer;
-    padding: 4px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: color 0.2s;
+    color: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    transition: background 0.2s var(--ease-out);
+    white-space: nowrap;
   }
   .copy-btn:hover {
-    color: var(--text-primary);
+    background: var(--accent-glow);
+  }
+
+  .ed-tag {
+    text-align: center;
+    margin-top: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
   }
 
   @media (max-width: 768px) {
-    .editions-grid {
+    .ed-wrap {
+      padding: 1.5rem 1.25rem;
+    }
+    .ed-grid {
       grid-template-columns: 1fr;
     }
   }

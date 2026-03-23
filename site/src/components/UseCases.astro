@@ -17,94 +17,107 @@ const cases = [
 ];
 ---
 
-<section class="section use-cases" id="use-cases">
+<div class="section" id="use-cases">
   <div class="container">
-    <h2 class="section-title fade-in">{t.useCasesTitle}</h2>
-    <p class="section-subtitle fade-in delay-1">{t.useCasesSubtitle}</p>
+    <div class="section-label">{t.useCasesLabel}</div>
+    <h2 class="section-title">{t.useCasesTitle2}</h2>
+    <p class="section-sub">{t.useCasesSubtitle2}</p>
 
-    <div class="cases-grid">
-      {cases.map((uc, i) => (
-        <div class={`case-card fade-in delay-${i + 1}`}>
-          <div class="case-role">{uc.role}</div>
-          <h3 class="case-title">{uc.title}</h3>
-          <p class="case-desc">{uc.desc}</p>
-          <code class="case-flow">{uc.flow}</code>
+    <div class="uc-grid">
+      {cases.map((uc) => (
+        <div class="uc-card">
+          <div class="uc-role">{uc.role}</div>
+          <h3>{uc.title}</h3>
+          <p>{uc.desc}</p>
+          <div class="uc-flow">
+            {uc.flow.split(' → ').map((step, i, arr) => (
+              <>
+                <span>{step}</span>
+                {i < arr.length - 1 && <span class="arrow">→</span>}
+              </>
+            ))}
+          </div>
         </div>
       ))}
     </div>
   </div>
-</section>
+</div>
 
 <style>
-  .use-cases {
-    border-top: 1px solid var(--border);
-  }
-
-  .cases-grid {
+  .uc-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    gap: 1.25rem;
   }
 
-  .case-card {
-    padding: 28px;
-    border-radius: var(--radius-lg);
-    background: var(--bg-secondary);
+  .uc-card {
+    background: var(--bg-card);
+    border-radius: 16px;
+    padding: 2rem;
     border: 1px solid var(--border);
-    transition: border-color 0.2s;
-    display: flex;
-    flex-direction: column;
+    transition: all 0.35s var(--ease-out);
   }
-  .case-card:hover {
-    border-color: var(--border-light);
+  .uc-card:hover {
+    border-color: var(--accent-glow-strong);
+    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.08);
+    transform: translateY(-4px);
   }
 
-  .case-role {
+  .uc-role {
     display: inline-block;
-    width: fit-content;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 12px;
+    letter-spacing: 0.08em;
     background: var(--accent-glow);
-    color: var(--accent-light);
-    font-family: var(--font-mono);
+    color: var(--accent);
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    margin-bottom: 0.75rem;
   }
 
-  .case-title {
-    font-size: 1.05rem;
-    font-weight: 600;
-    margin-bottom: 8px;
+  .uc-card h3 {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.6rem;
+    line-height: 1.3;
   }
 
-  .case-desc {
-    font-size: 0.9rem;
+  .uc-card p {
+    font-size: 0.88rem;
     color: var(--text-secondary);
     line-height: 1.6;
-    flex: 1;
+    margin-bottom: 1.25rem;
   }
 
-  .case-flow {
-    display: block;
-    margin-top: 16px;
-    padding: 8px 12px;
-    border-radius: var(--radius-sm);
-    background: var(--bg-code);
-    border: 1px solid var(--border);
+  .uc-flow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: var(--text-muted);
-    white-space: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+  }
+  .uc-flow span {
+    display: inline-block;
+    background: var(--bg-secondary);
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .uc-flow .arrow {
+    background: none;
+    color: var(--text-muted);
+    padding: 0;
   }
 
   @media (max-width: 768px) {
-    .cases-grid {
+    .uc-grid {
       grid-template-columns: 1fr;
-      gap: 12px;
     }
   }
 </style>

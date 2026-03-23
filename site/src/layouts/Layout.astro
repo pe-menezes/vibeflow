@@ -49,7 +49,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://vibeflow
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
 
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="/apple-touch-icon.png" />
@@ -64,7 +64,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://vibeflow
     <slot />
 
     <script>
-      // Intersection Observer for fade-in animations
+      // Intersection Observer for scroll reveal animations
       const observer = new IntersectionObserver(
         (entries) => {
           entries.forEach((entry) => {
@@ -74,10 +74,11 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://vibeflow
             }
           });
         },
-        { threshold: 0.1, rootMargin: '0px 0px -40px 0px' }
+        { threshold: 0.15, rootMargin: '0px 0px -60px 0px' }
       );
 
-      document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+      // Observe both fade-in and data-reveal elements
+      document.querySelectorAll('.fade-in, .reveal, [data-reveal]').forEach((el) => observer.observe(el));
     </script>
   </body>
 </html>

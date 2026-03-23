@@ -9,217 +9,139 @@ interface Props {
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
-// Replace with your Formspree form ID from https://formspree.io
 const FORMSPREE_ID = 'xgonvawy';
 ---
 
-<section class="section contact" id="contact">
+<div class="section contact" id="contact">
   <div class="container">
-    <h2 class="section-title fade-in">{t.contactTitle}</h2>
-    <p class="section-subtitle fade-in delay-1">{t.contactSubtitle}</p>
+    <div class="section-label" style="text-align:center;">{t.contactTitle}</div>
+    <h2 class="section-title" style="text-align:center;max-width:100%;">{t.contactHeading}</h2>
+    <p class="section-sub" style="text-align:center;max-width:100%;margin:0 auto 2.5rem;">{t.contactSubtitle}</p>
 
-    <form
-      class="contact-form fade-in delay-2"
-      action={`https://formspree.io/f/${FORMSPREE_ID}`}
-      method="POST"
-      id="contact-form"
-    >
+    <form class="contact-form" action={`https://formspree.io/f/${FORMSPREE_ID}`} method="POST" id="contact-form">
       <div class="form-row">
         <div class="form-group">
-          <label for="contact-name" class="form-label">{t.contactName}</label>
-          <input
-            type="text"
-            id="contact-name"
-            name="name"
-            required
-            placeholder={t.contactNamePlaceholder}
-            class="form-input"
-          />
+          <label class="form-label" for="c-name">{t.contactName}</label>
+          <input class="form-input" type="text" id="c-name" name="name" placeholder={t.contactNamePlaceholder} required />
         </div>
         <div class="form-group">
-          <label for="contact-email" class="form-label">{t.contactEmail}</label>
-          <input
-            type="email"
-            id="contact-email"
-            name="email"
-            required
-            placeholder={t.contactEmailPlaceholder}
-            class="form-input"
-          />
+          <label class="form-label" for="c-email">{t.contactEmail}</label>
+          <input class="form-input" type="email" id="c-email" name="email" placeholder={t.contactEmailPlaceholder} required />
         </div>
       </div>
-
       <div class="form-group">
-        <label for="contact-message" class="form-label">{t.contactMessage}</label>
-        <textarea
-          id="contact-message"
-          name="message"
-          required
-          rows="5"
-          placeholder={t.contactMessagePlaceholder}
-          class="form-input form-textarea"
-        ></textarea>
+        <label class="form-label" for="c-msg">{t.contactMessage}</label>
+        <textarea class="form-textarea" id="c-msg" name="message" placeholder={t.contactMessagePlaceholder} required></textarea>
       </div>
-
-      <!-- Honeypot anti-spam -->
-      <input type="text" name="_gotcha" style="display:none" />
-
-      <button type="submit" class="form-submit" id="contact-submit">
-        <span class="submit-text">{t.contactSend}</span>
-        <span class="submit-loading" style="display:none">{t.contactSending}</span>
-      </button>
-
-      <div class="form-status" id="form-status" style="display:none"></div>
+      <button type="submit" class="form-submit">{t.contactSend}</button>
     </form>
+    <div class="form-success" id="form-success">{t.contactSuccess}</div>
   </div>
-</section>
+</div>
 
-<script define:vars={{ successMsg: t.contactSuccess, errorMsg: t.contactError, sendText: t.contactSend }}>
-  const form = document.getElementById('contact-form');
-  const submitBtn = document.getElementById('contact-submit');
-  const statusEl = document.getElementById('form-status');
-  const textEl = submitBtn.querySelector('.submit-text');
-  const loadingEl = submitBtn.querySelector('.submit-loading');
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    // Show loading state
-    textEl.style.display = 'none';
-    loadingEl.style.display = 'inline';
-    submitBtn.disabled = true;
-    statusEl.style.display = 'none';
-
-    try {
-      const response = await fetch(form.action, {
-        method: 'POST',
-        body: new FormData(form),
-        headers: { 'Accept': 'application/json' },
-      });
-
-      if (response.ok) {
-        statusEl.textContent = successMsg;
-        statusEl.className = 'form-status form-status-success';
-        statusEl.style.display = 'block';
-        form.reset();
-      } else {
-        throw new Error('Form submission failed');
+<script>
+  const contactForm = document.getElementById('contact-form') as HTMLFormElement;
+  const formSuccess = document.getElementById('form-success');
+  if (contactForm && formSuccess) {
+    contactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = contactForm.querySelector('.form-submit') as HTMLButtonElement;
+      const origText = btn.textContent;
+      btn.textContent = btn.closest('[data-lang]')?.getAttribute('data-lang') === 'pt-br' ? 'Enviando...' : 'Sending...';
+      btn.disabled = true;
+      try {
+        const res = await fetch(contactForm.action, {
+          method: 'POST',
+          body: new FormData(contactForm),
+          headers: { 'Accept': 'application/json' }
+        });
+        if (res.ok) {
+          contactForm.style.display = 'none';
+          formSuccess.style.display = 'block';
+        } else {
+          btn.textContent = origText;
+          btn.disabled = false;
+        }
+      } catch {
+        btn.textContent = origText;
+        btn.disabled = false;
       }
-    } catch (err) {
-      statusEl.textContent = errorMsg;
-      statusEl.className = 'form-status form-status-error';
-      statusEl.style.display = 'block';
-    } finally {
-      textEl.style.display = 'inline';
-      loadingEl.style.display = 'none';
-      submitBtn.disabled = false;
-    }
-  });
+    });
+  }
 </script>
 
 <style>
-  .contact {
-    border-top: 1px solid var(--border);
-  }
-
   .contact-form {
     max-width: 600px;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 1rem;
   }
 
   .form-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 1rem;
   }
 
   .form-group {
     display: flex;
     flex-direction: column;
-    gap: 6px;
   }
 
   .form-label {
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
+    color: var(--text-secondary);
+    margin-bottom: 0.4rem;
   }
 
-  .form-input {
-    font-family: var(--font-sans);
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    background: var(--bg-secondary);
+  .form-input,
+  .form-textarea {
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 12px 16px;
-    transition: border-color 0.2s;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.88rem;
+    transition: border-color 0.2s var(--ease-out);
+  }
+  .form-input:focus,
+  .form-textarea:focus {
     outline: none;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  .form-input::placeholder {
-    color: var(--text-muted);
-    opacity: 0.6;
-  }
-
-  .form-input:focus {
-    border-color: var(--accent-light);
+    border-color: var(--accent);
   }
 
   .form-textarea {
-    resize: vertical;
     min-height: 120px;
-    font-family: var(--font-sans);
+    resize: vertical;
   }
 
   .form-submit {
-    align-self: flex-start;
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: white;
-    background: var(--accent);
+    background: var(--accent-gradient);
+    color: #fff;
     border: none;
-    border-radius: var(--radius-md);
-    padding: 12px 28px;
+    padding: 0.75rem 2rem;
+    border-radius: var(--radius-full);
+    font-size: 0.88rem;
+    font-weight: 600;
     cursor: pointer;
-    transition: background-color 0.2s, opacity 0.2s;
+    transition: all 0.25s var(--ease-out);
+    align-self: flex-start;
   }
-
   .form-submit:hover {
-    background: var(--accent-light);
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+    transform: translateY(-1px);
   }
 
-  .form-submit:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-
-  .form-status {
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    padding: 10px 16px;
-    border-radius: var(--radius-sm);
-  }
-
-  .form-status-success {
-    color: var(--success-light);
-    background: var(--success-glow);
-    border: 1px solid var(--success-border);
-  }
-
-  .form-status-error {
-    color: var(--danger-light);
-    background: rgba(239, 68, 68, 0.1);
-    border: 1px solid rgba(239, 68, 68, 0.2);
+  .form-success {
+    display: none;
+    text-align: center;
+    font-size: 1rem;
+    color: var(--success);
+    padding: 2rem;
   }
 
   @media (max-width: 768px) {
