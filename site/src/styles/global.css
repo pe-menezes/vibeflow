@@ -54,7 +54,7 @@ html {
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 
   --max-width: 1080px;
-  --section-gap: 4rem;
+  --section-gap: 2rem;
 
   --ease-out: cubic-bezier(.4, 0, .2, 1);
 }
@@ -243,7 +243,7 @@ code {
 /* === Responsive === */
 @media (max-width: 768px) {
   :root {
-    --section-gap: 2.5rem;
+    --section-gap: 1.25rem;
   }
 
   .container {
