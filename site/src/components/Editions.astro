@@ -16,15 +16,13 @@ const editions = [
 ];
 ---
 
-<div class="section" id="editions">
+<div class="section reveal" id="editions">
   <div class="container">
-    <div class="reveal">
-      <div class="section-label">{t.editionsLabel}</div>
-      <h2 class="section-title">{t.editionsTitle2}</h2>
-      <p class="section-sub">{t.editionsSubtitle2}</p>
-    </div>
+    <div class="section-label">{t.editionsLabel}</div>
+    <h2 class="section-title">{t.editionsTitle2}</h2>
+    <p class="section-sub">{t.editionsSubtitle2}</p>
 
-    <div class="ed-wrap reveal">
+    <div class="ed-wrap">
       <div class="ed-grid">
         {editions.map((ed) => (
           <div class="ed-card">

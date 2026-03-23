@@ -19,13 +19,11 @@ const steps = [
 
 <div class="section" id="how">
   <div class="container">
-    <div class="reveal">
-      <div class="section-label">{t.pipelineLabel}</div>
-      <h2 class="section-title" set:html={t.howTitle} />
-      <p class="section-sub">{t.howSubtitle}</p>
-    </div>
+    <div class="section-label">{t.pipelineLabel}</div>
+    <h2 class="section-title" set:html={t.howTitle} />
+    <p class="section-sub">{t.howSubtitle}</p>
 
-    <div class="pipeline reveal">
+    <div class="pipeline">
       {steps.map((step) => (
         <div class="pipe-step">
           <div class="pipe-num">{step.num}</div>
@@ -35,7 +33,7 @@ const steps = [
       ))}
     </div>
 
-    <div class="pipe-extra reveal">
+    <div class="pipe-extra">
       <strong>{t.pipelineExtra}</strong> {t.pipelineExtraList}
       <a href={`/${lang}/commands`} class="pipe-link">{t.featSeeAll}</a>
     </div>

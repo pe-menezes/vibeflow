@@ -65,20 +65,28 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://vibeflow
 
     <script>
       // Intersection Observer for scroll reveal animations
-      const observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add('visible');
-              observer.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.15, rootMargin: '0px 0px -60px 0px' }
-      );
+      function initReveal() {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.05, rootMargin: '0px 0px -40px 0px' }
+        );
 
-      // Observe both fade-in and data-reveal elements
-      document.querySelectorAll('.fade-in, .reveal, [data-reveal]').forEach((el) => observer.observe(el));
+        document.querySelectorAll('.fade-in, .reveal, [data-reveal]').forEach((el) => observer.observe(el));
+      }
+
+      // Ensure DOM + layout are ready before observing
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initReveal);
+      } else {
+        requestAnimationFrame(initReveal);
+      }
     </script>
   </body>
 </html>

@@ -17,15 +17,13 @@ const cases = [
 ];
 ---
 
-<div class="section" id="use-cases">
+<div class="section reveal" id="use-cases">
   <div class="container">
-    <div class="reveal">
-      <div class="section-label">{t.useCasesLabel}</div>
-      <h2 class="section-title">{t.useCasesTitle2}</h2>
-      <p class="section-sub">{t.useCasesSubtitle2}</p>
-    </div>
+    <div class="section-label">{t.useCasesLabel}</div>
+    <h2 class="section-title">{t.useCasesTitle2}</h2>
+    <p class="section-sub">{t.useCasesSubtitle2}</p>
 
-    <div class="uc-grid reveal">
+    <div class="uc-grid">
       {cases.map((uc) => (
         <div class="uc-card">
           <div class="uc-role">{uc.role}</div>

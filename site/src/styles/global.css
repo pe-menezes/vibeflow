@@ -54,7 +54,7 @@ html {
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 
   --max-width: 1080px;
-  --section-gap: 2rem;
+  --section-gap: 4rem;
 
   --ease-out: cubic-bezier(.4, 0, .2, 1);
 }
@@ -216,12 +216,20 @@ code {
 /* Scroll reveal */
 .reveal {
   opacity: 0;
-  transform: translateY(16px);
-  transition: all 0.6s var(--ease-out);
+  transform: translateY(30px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
 }
 .reveal.visible {
   opacity: 1;
   transform: translateY(0);
+}
+/* Fallback: if user prefers reduced motion, show everything immediately */
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 /* Stagger delays */
@@ -235,7 +243,7 @@ code {
 /* === Responsive === */
 @media (max-width: 768px) {
   :root {
-    --section-gap: 1.5rem;
+    --section-gap: 2.5rem;
   }
 
   .container {

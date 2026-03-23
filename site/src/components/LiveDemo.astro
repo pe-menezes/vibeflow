@@ -10,15 +10,13 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 ---
 
-<div class="section" id="demo">
+<div class="section reveal" id="demo">
   <div class="container">
-    <div class="reveal">
-      <div class="section-label">{t.demoLabel}</div>
-      <h2 class="section-title">{t.demoTitle}</h2>
-      <p class="section-sub">{t.demoSubtitle}</p>
-    </div>
+    <div class="section-label">{t.demoLabel}</div>
+    <h2 class="section-title">{t.demoTitle}</h2>
+    <p class="section-sub">{t.demoSubtitle}</p>
 
-    <div class="demo-container reveal">
+    <div class="demo-container">
       <!-- Chat conversation -->
       <div class="chat-thread">
         <div class="chat-message user">
