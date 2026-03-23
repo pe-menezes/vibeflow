@@ -24,11 +24,13 @@ const commands = [
 
 <div class="section" id="commands">
   <div class="container">
-    <div class="section-label">{t.cmdLabel}</div>
-    <h2 class="section-title">{t.cmdGridTitle}</h2>
-    <p class="section-sub">{t.featuresSubtitle}</p>
+    <div class="reveal">
+      <div class="section-label">{t.cmdLabel}</div>
+      <h2 class="section-title">{t.cmdGridTitle}</h2>
+      <p class="section-sub">{t.featuresSubtitle}</p>
+    </div>
 
-    <div class="cmd-grid">
+    <div class="cmd-grid reveal">
       {commands.map((cmd) => (
         <div class="cmd-card">
           <div class={`cmd-tier ${cmd.tier.toLowerCase()}`}>{cmd.tier}</div>

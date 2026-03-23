@@ -53,8 +53,8 @@ html {
   --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 
-  --max-width: 1100px;
-  --section-gap: 120px;
+  --max-width: 1080px;
+  --section-gap: 2rem;
 
   --ease-out: cubic-bezier(.4, 0, .2, 1);
 }
@@ -235,7 +235,7 @@ code {
 /* === Responsive === */
 @media (max-width: 768px) {
   :root {
-    --section-gap: 80px;
+    --section-gap: 1.5rem;
   }
 
   .container {

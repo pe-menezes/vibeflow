@@ -19,11 +19,13 @@ const cases = [
 
 <div class="section" id="use-cases">
   <div class="container">
-    <div class="section-label">{t.useCasesLabel}</div>
-    <h2 class="section-title">{t.useCasesTitle2}</h2>
-    <p class="section-sub">{t.useCasesSubtitle2}</p>
+    <div class="reveal">
+      <div class="section-label">{t.useCasesLabel}</div>
+      <h2 class="section-title">{t.useCasesTitle2}</h2>
+      <p class="section-sub">{t.useCasesSubtitle2}</p>
+    </div>
 
-    <div class="uc-grid">
+    <div class="uc-grid reveal">
       {cases.map((uc) => (
         <div class="uc-card">
           <div class="uc-role">{uc.role}</div>
