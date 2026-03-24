@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/setup-vibeflow)](https://www.npmjs.com/package/setup-vibeflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/vibeflow.run-docs%20%26%20examples-8A2BE2)](https://vibeflow.run)
 
 **Spec-driven development** — define what to build before you code.
 
