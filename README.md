@@ -37,45 +37,57 @@ Plus utility commands: **quick** (fast-track for small tasks), **teach** (update
 
 ## Editions
 
-| Edition | Folder | Install |
-|---------|--------|---------|
-| **GitHub Copilot** | [`copilot/`](copilot/) | `npx setup-vibeflow@latest --copilot` |
-| **Cursor** | [`cursor/`](cursor/) | `npx setup-vibeflow@latest --cursor` |
-| **Claude Code** | [`claude-code/`](claude-code/) | `pe-menezes/vibeflow-claude` |
-
 Each edition adapts the same prompts and methodology to the agent's format.
 The methodology content is the same — only the file structure changes.
 
-### Claude Code
+### Claude Code (plugin — no npx)
 
-Claude Code uses a git-based plugin system. The distribution repo (marketplace) is maintained separately:
+Claude Code uses its own **plugin system**, not file downloads.
 
-**Distribution repo:** [pe-menezes/vibeflow-claude](https://github.com/pe-menezes/vibeflow-claude) — auto-synced from `claude-code/` in this repo.
+**Claude Desktop (Cowork):**
 
-Install via Claude Code CLI:
+1. Sidebar → **Customize**
+2. Click **+** next to "Personal plugins" → **Add marketplace**
+3. Paste: `pe-menezes/vibeflow-claude`
+4. Click **Sync**
+5. **Browse plugins** → Install **Vibeflow**
+
+**Claude Code CLI (terminal):**
+
+```bash
+/plugin marketplace add pe-menezes/vibeflow-claude
+/plugin install vibeflow@vibeflow-marketplace
 ```
-pe-menezes/vibeflow-claude
-```
+
+Then run `/vibeflow:analyze` to get started.
+
+> **Source:** [`claude-code/`](claude-code/) in this repo → auto-synced to [pe-menezes/vibeflow-claude](https://github.com/pe-menezes/vibeflow-claude)
 
 ### Cursor
 
-See [`cursor/README.md`](cursor/README.md) for installation instructions.
-
-Or use the automatic installer:
 ```bash
 npx setup-vibeflow@latest --cursor
 ```
 
+See [`cursor/README.md`](cursor/README.md) for details.
+
 ### GitHub Copilot
 
-See [`copilot/README.md`](copilot/README.md) for installation instructions.
-
-Or use the automatic installer:
 ```bash
 npx setup-vibeflow@latest --copilot
 ```
 
+See [`copilot/README.md`](copilot/README.md) for details.
+
 > By default the installer adds installed files and the `.vibeflow/` folder to `.gitignore`. Remove the "Vibeflow" block from `.gitignore` if you want to track them in git.
+
+### Edition summary
+
+| Edition | Install method | Command |
+|---------|---------------|---------|
+| **Claude Code** | Plugin (inside Claude Code) | See install steps above |
+| **Cursor** | npx installer | `npx setup-vibeflow@latest --cursor` |
+| **GitHub Copilot** | npx installer | `npx setup-vibeflow@latest --copilot` |
 
 ## Documentation
 

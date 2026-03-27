@@ -10,24 +10,24 @@ compliance), and audits the result — all driven by your project's real pattern
 
 ## Install
 
-### Option A: From GitHub marketplace (recommended)
+### Claude Desktop (Cowork) — recommended
 
-In Claude (Add marketplace from GitHub), use:
+1. Sidebar → **Customize**
+2. Click **+** next to "Personal plugins" → **Add marketplace**
+3. Paste: `pe-menezes/vibeflow-claude`
+4. Click **Sync**
+5. **Browse plugins** → Install **Vibeflow**
 
-```text
-pe-menezes/vibeflow-claude
-```
-
-Important: the marketplace repo is **vibeflow-claude** (synced from this repo). Use `owner/repo` or the full GitHub URL, not the raw `marketplace.json` URL.
-
-In Claude Code CLI:
+### Claude Code CLI (terminal)
 
 ```bash
 /plugin marketplace add pe-menezes/vibeflow-claude
 /plugin install vibeflow@vibeflow-marketplace
 ```
 
-### Option B: From a local marketplace (development)
+> The marketplace repo is **vibeflow-claude** (synced from this repo). Use `owner/repo` format, not the raw `marketplace.json` URL.
+
+### Local development
 
 ```bash
 # 1. Create a marketplace wrapper
@@ -56,13 +56,6 @@ git clone https://github.com/pe-menezes/vibeflow-claude.git vibeflow-plugin
 /plugin install vibeflow@vibeflow-marketplace
 # Restart Claude Code
 ```
-
-### Option C: Upload to Cowork
-
-In the Cowork desktop app:
-1. Go to Customize → Browse Plugins → Upload Plugin
-2. Select the `vibeflow` folder (this repo)
-3. The plugin loads automatically
 
 ## Quick Start (3 commands)
 

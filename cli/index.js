@@ -8,6 +8,7 @@ import pc from 'picocolors';
 
 const REPO = 'pe-menezes/vibeflow';
 const BRANCH = 'main';
+const CLAUDE_PLUGIN_REPO = 'pe-menezes/vibeflow-claude';
 
 const COPILOT_FILES = [
   { src: 'github/prompts/vibeflow-analyze.prompt.md', dest: '.github/prompts/vibeflow-analyze.prompt.md' },
@@ -145,7 +146,31 @@ function detectEdition() {
   const args = process.argv.slice(2);
   if (args.includes('--cursor')) return 'cursor';
   if (args.includes('--copilot')) return 'copilot';
+  if (args.includes('--claude') || args.includes('--claude-code')) return 'claude';
   return null;
+}
+
+function printClaudeInstructions() {
+  console.log('');
+  console.log(`  ${pc.bold(pc.cyan('Vibeflow'))} ${pc.dim('— Claude Code Edition')}`);
+  console.log('');
+  console.log(`  Claude Code uses a ${pc.bold('plugin system')} — not file downloads.`);
+  console.log('');
+  console.log(`  ${pc.bold(pc.underline('Claude Desktop (Cowork)'))}`);
+  console.log(`  ${pc.bold('1.')} Sidebar → ${pc.cyan('Customize')}`);
+  console.log(`  ${pc.bold('2.')} Click ${pc.cyan('+')} next to "Personal plugins" → ${pc.cyan('Add marketplace')}`);
+  console.log(`  ${pc.bold('3.')} Paste: ${pc.cyan(CLAUDE_PLUGIN_REPO)}`);
+  console.log(`  ${pc.bold('4.')} Click ${pc.cyan('Sync')}`);
+  console.log(`  ${pc.bold('5.')} ${pc.cyan('Browse plugins')} → Install ${pc.bold('Vibeflow')}`);
+  console.log('');
+  console.log(`  ${pc.bold(pc.underline('Claude Code CLI (terminal)'))}`);
+  console.log(`  ${pc.bold('1.')} ${pc.cyan(`/plugin marketplace add ${CLAUDE_PLUGIN_REPO}`)}`);
+  console.log(`  ${pc.bold('2.')} ${pc.cyan('/plugin install vibeflow@vibeflow-marketplace')}`);
+  console.log('');
+  console.log(`  ${pc.bold('Then run:')} ${pc.cyan('/vibeflow:analyze')} to get started.`);
+  console.log('');
+  console.log(`  ${pc.dim('Plugin repo:')} ${pc.dim(`https://github.com/${CLAUDE_PLUGIN_REPO}`)}`);
+  console.log('');
 }
 
 function printUsage() {
@@ -157,6 +182,7 @@ function printUsage() {
   console.log(`  ${pc.bold('Editions:')}`);
   console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions)')}`);
   console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills)')}`);
+  console.log(`    ${pc.cyan('--claude')}    Show install instructions for Claude Code ${pc.dim('(plugin system)')}`);
   console.log('');
   console.log(`  ${pc.bold('Options:')}`);
   console.log(`    ${pc.cyan('--force')}     Overwrite existing files`);
@@ -185,6 +211,11 @@ async function main() {
   if (!editionKey) {
     printUsage();
     process.exit(1);
+  }
+
+  if (editionKey === 'claude') {
+    printClaudeInstructions();
+    process.exit(0);
   }
 
   const edition = EDITIONS[editionKey];
