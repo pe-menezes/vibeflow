@@ -18,7 +18,9 @@ compliance), and audits the result — all driven by your project's real pattern
 4. Click **Sync**
 5. **Browse plugins** → Install **Vibeflow**
 
-### Claude Code CLI (terminal)
+### Claude Code CLI (terminal only)
+
+> **These commands only work in the terminal CLI** (`claude` command). They do NOT work in the Claude Desktop chat.
 
 ```bash
 /plugin marketplace add pe-menezes/vibeflow-claude

@@ -52,7 +52,7 @@ Claude Code uses its own **plugin system**, not file downloads.
 4. Click **Sync**
 5. **Browse plugins** → Install **Vibeflow**
 
-**Claude Code CLI (terminal):**
+**Claude Code CLI (terminal only — these do NOT work in Desktop chat):**
 
 ```bash
 /plugin marketplace add pe-menezes/vibeflow-claude
