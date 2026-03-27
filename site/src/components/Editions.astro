@@ -9,8 +9,7 @@ interface Props {
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
-const editions = [
-  { title: t.claudeTitle, desc: t.claudeDesc, install: t.claudeInstall },
+const npxEditions = [
   { title: t.cursorTitle, desc: t.cursorDesc, install: t.cursorInstall },
   { title: t.copilotTitle, desc: t.copilotDesc, install: t.copilotInstall },
 ];
@@ -24,7 +23,34 @@ const editions = [
 
     <div class="ed-wrap">
       <div class="ed-grid">
-        {editions.map((ed) => (
+        <!-- Claude Code — special card with tabs -->
+        <div class="ed-card ed-card--claude">
+          <h3>{t.claudeTitle}</h3>
+          <p class="ed-desc">{t.claudeDesc}</p>
+
+          <div class="ed-tabs">
+            <button class="ed-tab ed-tab--active" data-tab="desktop" type="button">{t.claudeDesktopLabel}</button>
+            <button class="ed-tab" data-tab="cli" type="button">{t.claudeCliLabel}</button>
+          </div>
+
+          <div class="ed-tab-content ed-tab-content--active" data-content="desktop">
+            <p class="ed-steps">{t.claudeDesktopSteps}</p>
+          </div>
+
+          <div class="ed-tab-content" data-content="cli">
+            <div class="ed-cmd">
+              <span>{t.claudeInstall}</span>
+              <button class="copy-btn" data-copy={t.claudeInstall} type="button">{t.copyLabel}</button>
+            </div>
+            <div class="ed-cmd" style="margin-top: 0.5rem;">
+              <span>{t.claudeInstall2}</span>
+              <button class="copy-btn" data-copy={t.claudeInstall2} type="button">{t.copyLabel}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cursor & Copilot — standard cards -->
+        {npxEditions.map((ed) => (
           <div class="ed-card">
             <h3>{ed.title}</h3>
             <p class="ed-desc">{ed.desc}</p>
@@ -41,6 +67,7 @@ const editions = [
 </div>
 
 <script>
+  // Copy buttons
   document.querySelectorAll('.copy-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const text = (btn as HTMLElement).dataset.copy || '';
@@ -48,6 +75,18 @@ const editions = [
       const orig = btn.textContent;
       btn.textContent = (btn.closest('[data-lang]') as HTMLElement)?.dataset.lang === 'pt-br' ? 'Copiado!' : 'Copied!';
       setTimeout(() => { btn.textContent = orig; }, 1500);
+    });
+  });
+
+  // Tab switching for Claude card
+  document.querySelectorAll('.ed-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      const card = tab.closest('.ed-card--claude')!;
+      const target = (tab as HTMLElement).dataset.tab;
+      card.querySelectorAll('.ed-tab').forEach((t) => t.classList.remove('ed-tab--active'));
+      card.querySelectorAll('.ed-tab-content').forEach((c) => c.classList.remove('ed-tab-content--active'));
+      tab.classList.add('ed-tab--active');
+      card.querySelector(`[data-content="${target}"]`)?.classList.add('ed-tab-content--active');
     });
   });
 </script>
@@ -120,6 +159,51 @@ const editions = [
   }
   .copy-btn:hover {
     background: var(--accent-glow);
+  }
+
+  .ed-tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 0.2rem;
+  }
+
+  .ed-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--font-sans);
+    color: var(--text-muted);
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    transition: all 0.2s var(--ease-out);
+  }
+  .ed-tab:hover {
+    color: var(--text-primary);
+  }
+  .ed-tab--active {
+    background: var(--bg-card);
+    color: var(--accent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  }
+
+  .ed-tab-content {
+    display: none;
+  }
+  .ed-tab-content--active {
+    display: block;
+  }
+
+  .ed-steps {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin: 0;
   }
 
   .ed-tag {
