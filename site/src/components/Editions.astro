@@ -34,7 +34,13 @@ const npxEditions = [
           </div>
 
           <div class="ed-tab-content ed-tab-content--active" data-content="desktop">
-            <p class="ed-steps">{t.claudeDesktopSteps}</p>
+            <ol class="ed-steps-list">
+              <li>{t.claudeStep1}</li>
+              <li>{t.claudeStep2}</li>
+              <li><span class="ed-steps-highlight">pe-menezes/vibeflow-claude</span></li>
+              <li>{t.claudeStep4}</li>
+              <li>{t.claudeStep5}</li>
+            </ol>
           </div>
 
           <div class="ed-tab-content" data-content="cli">
@@ -199,11 +205,45 @@ const npxEditions = [
     display: block;
   }
 
-  .ed-steps {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    line-height: 1.7;
+  .ed-steps-list {
+    list-style: none;
+    counter-reset: steps;
+    padding: 0;
     margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .ed-steps-list li {
+    counter-increment: steps;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .ed-steps-list li::before {
+    content: counter(steps);
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-glow);
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ed-steps-highlight {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    background: var(--bg-secondary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    user-select: all;
   }
 
   .ed-tag {
