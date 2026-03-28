@@ -22,15 +22,9 @@ Run `analyze` once, then `gen-spec` → `implement` for each feature. That's it.
 
 ## The pipeline
 
-```
- THINK                          BUILD                    VERIFY
- ─────                          ─────                    ──────
- analyze → discover → gen-spec → implement → audit
-     │                    │          │           │
-     ▼                    ▼          ▼           ▼
-  .vibeflow/           spec.md    code +      PASS/FAIL
-  knowledge            with DoD   tests       + gaps
-```
+> **Think** before you code. **Build** from specs. **Verify** against DoD.
+
+`analyze` → `discover` → `gen-spec` → `implement` → `audit`
 
 | Command | What it does | When to use |
 |---------|-------------|-------------|
