@@ -4,36 +4,44 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/vibeflow.run-docs%20%26%20examples-8A2BE2)](https://vibeflow.run)
 
-**Spec-driven development** — define what to build before you code.
+### Stop vibe-coding blind. Spec it, then ship it.
 
-Vibeflow separates the thinker from the implementer. The Architect (you + AI) defines specs, makes decisions, and cuts scope. The Coding Agent receives a self-contained prompt pack and implements following the project's real patterns.
+AI agents write code fast — but without specs, they write the **wrong** code fast. Vibeflow adds a thinking layer before coding: you define **what** to build with specs, guardrails, and quality gates. The agent implements following your project's real patterns.
 
-## Quick start (3 commands)
+> Works with **Claude Code** (plugin), **Cursor** (rules + skills), and **GitHub Copilot** (prompts + agents).
+
+## 3 commands to start
 
 ```
-analyze              → scans your codebase, builds .vibeflow/ knowledge
-gen-spec "feature"   → generates spec with DoD, scope, patterns
+analyze              → scans your codebase, builds .vibeflow/ knowledge base
+gen-spec "feature"   → generates spec with Definition of Done, scope, patterns
 implement <spec>     → implements with guardrails (budget, DoD, tests)
 ```
 
-That's it. Run `analyze` once, then `gen-spec` → `implement` for each feature.
+Run `analyze` once, then `gen-spec` → `implement` for each feature. That's it.
 
-## The full pipeline
+## The pipeline
 
 ```
-analyze → discover → gen-spec → (prompt-pack | implement) → audit
+ THINK                          BUILD                    VERIFY
+ ─────                          ─────                    ──────
+ analyze → discover → gen-spec → implement → audit
+     │                    │          │           │
+     ▼                    ▼          ▼           ▼
+  .vibeflow/           spec.md    code +      PASS/FAIL
+  knowledge            with DoD   tests       + gaps
 ```
 
-| Step | What it does | When to use |
-|------|-------------|-------------|
-| **analyze** | Deep-scans the codebase, generates `.vibeflow/` | Initial setup or after major code changes |
-| **discover** | Turns a vague idea into a PRD | The idea isn't clear yet |
-| **gen-spec** | Generates a spec with binary DoD | Idea is clear, ready to specify |
-| **implement** | Implements from spec with guardrails (budget, DoD, patterns) | Spec approved, agent has filesystem access |
-| **prompt-pack** | Creates a self-contained prompt for a coding agent | Spec approved, need to delegate to another agent/session |
-| **audit** | Verifies DoD + patterns + tests | Implementation done, time to validate |
+| Command | What it does | When to use |
+|---------|-------------|-------------|
+| **analyze** | Deep-scans codebase → `.vibeflow/` knowledge base | Setup, or after major changes |
+| **discover** | Dialogue that turns a vague idea into a PRD | Idea isn't clear yet |
+| **gen-spec** | Generates spec with binary DoD, scope, anti-scope | Ready to specify |
+| **implement** | Implements from spec with guardrails (budget, DoD, patterns) | Spec approved, ready to code |
+| **prompt-pack** | Self-contained prompt for another agent/session | Need to delegate |
+| **audit** | Verifies DoD + pattern compliance + tests | After implementation |
 
-Plus utility commands: **quick** (fast-track for small tasks), **teach** (update knowledge base, import patterns from external repos via `--from`), **stats** (audit statistics).
+**Utility:** `quick` (fast-track small tasks), `teach` (update knowledge base), `stats` (audit trends).
 
 ## Editions
 
