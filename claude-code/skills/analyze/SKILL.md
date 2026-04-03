@@ -1,9 +1,11 @@
 ---
 name: analyze
-description: >
-  Deep-analyzes the current codebase to discover stack, architecture, patterns,
-  conventions, and pitfalls. Creates curated documentation in .vibeflow/ that
-  persists and can be committed to git. Supports incremental updates, scoped
+description: >-
+  Deep-analyze a codebase to discover its stack, architecture, patterns,
+  conventions, and pitfalls, then generate persistent documentation in .vibeflow/.
+  Use when the user wants to understand a new codebase, audit project architecture,
+  document conventions, onboard to a repo, or says "analyze", "scan codebase",
+  "what stack is this", "document architecture". Supports incremental updates, scoped
   deep-dives, interactive review, and satellite repo analysis. Use when setting
   up a project, after significant changes, or to deep-dive into a specific module.
 argument-hint: "[--fresh] [--scope path] [--interactive] [--satellite url]"
