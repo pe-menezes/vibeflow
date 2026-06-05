@@ -148,7 +148,7 @@ export default {
   feat3Title: 'implement',
   feat3Desc: 'Implements a feature from its spec with guardrails. Follows your patterns, respects budget and anti-scope, runs tests, self-verifies DoD.',
   feat3For: 'Build with guardrails',
-  feat3Highlights: ['7-phase pipeline', 'pattern resolution', 'self-verify DoD'],
+  feat3Highlights: ['8-phase pipeline', 'pattern resolution', 'self-verify DoD'],
 
   // Secondary commands (tier 2)
   feat4Title: 'audit',

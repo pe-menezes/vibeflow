@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.11.0 (2026-06-03)
+
+- **`implement`: new Phase 6 "Refine" (simplify in-scope)** — After tests pass, the coding agent now reviews and cleans the code it just wrote (reuse, naming, dead code, efficiency) before self-verifying DoD. The refinement is strictly bounded: diff-only, behavior-preserving, within budget and anti-scope, and gated by a green baseline — if the post-refine test run regresses, the changes are reverted. Pipeline goes from 7 to 8 phases. Inspired by the `simplify` step in the chama plugin's compose pipeline, adapted to vibeflow's local, no-commit model. All 3 editions updated. Site highlight updated.
+
 ### v1.10.0 (2026-03-23)
 
 - **`analyze`: conventions.md now includes `## Don'ts` section** — Prohibitive rules are mined from anti-patterns, rule sources, and stack-specific pitfalls. Coding agents need to know what NOT to do, not just what to do. Don'ts must be specific and grounded in the actual codebase, not generic best practices.

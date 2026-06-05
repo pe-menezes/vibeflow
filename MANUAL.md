@@ -171,14 +171,15 @@ Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec
 **Quando NÃO usar:**
 - Precisa delegar para outro agente/sessão → use `prompt-pack`
 
-**Fluxo (7 fases):**
+**Fluxo (8 fases):**
 1. **Encontra e valida** a spec (resolve caminho ou nome, valida seções obrigatórias)
 2. **Extrai guardrails** — DoD, escopo, anti-escopo, budget, decisões técnicas
 3. **Carrega contexto** — `conventions.md`, pattern docs aplicáveis, `index.md`
 4. **Planeja** — identifica arquivos, verifica budget e anti-escopo, mapeia DoD → código
 5. **Implementa** — segue padrões, minimum change, budget hard limit, sem decisões arquiteturais
 6. **Roda testes** — detecta test runner, fixa falhas próprias (máx 2 tentativas)
-7. **Self-verifica DoD** — checa cada item com evidência, sugere `/vibeflow:audit`
+7. **Refina (simplify no escopo)** — limpa o diff que escreveu (reuso, nomes, dead code) sobre baseline verde e re-roda os testes; reverte se quebrar
+8. **Self-verifica DoD** — checa cada item com evidência, sugere `/vibeflow:audit`
 
 **Papel:** Coding Agent. Segue a spec, NÃO faz decisões arquiteturais. Se a spec for ambígua, para e pergunta ao invés de assumir.
 

@@ -1,6 +1,6 @@
 ---
 name: vibeflow-implement
-description: "Implements a feature from its spec with guardrails: budget, DoD, anti-scope, and pattern compliance. Runs a 7-phase pipeline (find spec → extract guardrails → load patterns → plan → implement → test → self-verify DoD). Use after gen-spec when ready to implement."
+description: "Implements a feature from its spec with guardrails: budget, DoD, anti-scope, and pattern compliance. Runs an 8-phase pipeline (find spec → extract guardrails → load patterns → plan → implement → test → refine → self-verify DoD). Use after gen-spec when ready to implement."
 ---
 
 # Vibeflow: Implement
@@ -158,7 +158,7 @@ If any planned change touches anti-scope territory: remove it from the plan.
 ### 3.3 Map DoD to implementation steps
 For each DoD check, identify what code changes satisfy it.
 If a DoD check cannot be mapped to a concrete change: flag it
-as "requires manual verification" — you will revisit in Phase 6.
+as "requires manual verification" — you will revisit in Phase 7.
 
 ### 3.4 Present the plan
 Before implementing, show the user:
@@ -274,7 +274,37 @@ After all code changes are complete:
 
 ---
 
-## Phase 6: Self-verify DoD
+## Phase 6: Refine (simplify in-scope)
+
+**Only run this phase if Phase 5 tests PASSED.** If tests failed, were skipped,
+or no test runner exists, SKIP this phase entirely and continue to Phase 7 —
+never refactor without a green baseline to protect against regressions.
+
+Review ONLY the files you created or modified in this implementation. Apply
+clarity and maintainability cleanups that preserve behavior **exactly**:
+
+1. **Reuse** — consolidate duplication you introduced within this diff.
+2. **Quality** — clearer names, cohesive functions, remove dead code you added.
+3. **Efficiency** — obvious N+1 queries, redundant loops, avoidable allocations.
+4. **Consistency** — align with `.vibeflow/conventions.md` and the loaded patterns.
+
+**Boundaries (same guardrails as Phase 4):**
+- Do NOT change behavior or public contracts.
+- Do NOT touch pre-existing code outside this implementation's diff.
+- Do NOT exceed the file budget or enter anti-scope.
+- Do NOT add features or new dependencies.
+
+After refining, **re-run the test suite** (Phase 5.1 detection):
+- Tests still PASS → continue to Phase 7.
+- Tests now FAIL → the refinement broke something. Revert the refine changes,
+  keep the working implementation, and note "Refine skipped: introduced
+  regressions." Then continue to Phase 7.
+
+If there is nothing worth simplifying, state "No refinement needed" and continue.
+
+---
+
+## Phase 7: Self-verify DoD
 
 Before finishing, verify EACH Definition of Done check yourself:
 
@@ -315,7 +345,7 @@ Result: PASS / FAIL (N failures)
 
 ---
 
-## Phase 7: Finish
+## Phase 8: Finish
 
 After self-verification, report the final status to the user:
 
@@ -353,6 +383,7 @@ These rules are ALWAYS active during implementation:
 | Follow conventions | All code follows `.vibeflow/conventions.md`. |
 | No architectural decisions | If undecided by spec, ask — don't decide. |
 | No scope creep | No "while I'm here" improvements or refactoring. |
+| Refine stays in-scope | Phase 6 only cleans the just-written diff on a green baseline; never changes behavior or pre-existing code. |
 | New deps need justification | Stop and ask if a new dependency is needed. |
 | Tests must pass | Run tests. Fix failures in your code (max 2 attempts). |
 | 2-attempt limit on test fixes | Do not loop forever fixing tests. |
