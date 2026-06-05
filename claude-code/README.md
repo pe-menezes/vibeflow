@@ -85,7 +85,7 @@ That's it. Run `analyze` once, then `gen-spec` → `implement` for each feature.
 
 | Command | Description |
 |---------|-------------|
-| `/vibeflow:audit <spec>` | Audits implementation against DoD + patterns + tests (PASS / PARTIAL / FAIL) |
+| `/vibeflow:audit <spec>` | Audits implementation against DoD + patterns + tests + Critical Gate (PASS / PARTIAL / FAIL) |
 | `/vibeflow:discover <idea>` | Interactive dialogue to turn a vague idea into a PRD (1–5 rounds) |
 | `/vibeflow:prompt-pack <spec>` | Generates a self-contained prompt pack with embedded patterns for any agent |
 

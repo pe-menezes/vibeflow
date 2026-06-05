@@ -34,7 +34,7 @@ analyze → discover → gen-spec → (prompt-pack | implement) → audit
 | **gen-spec** | Gera spec técnica com DoD | Ideia clara, pronto pra especificar |
 | **implement** | Implementa a spec com guardrails (budget, DoD, padrões) | Spec aprovada, agente com acesso ao filesystem |
 | **prompt-pack** | Gera prompt auto-contido para o coding agent | Spec aprovada, precisa delegar para outro agente/sessão |
-| **audit** | Verifica DoD + padrões + testes | Implementação feita, hora de validar |
+| **audit** | Verifica DoD + padrões + testes + gate de segurança | Implementação feita, hora de validar |
 
 Nem sempre você precisa do pipeline completo. Veja os atalhos abaixo.
 
@@ -204,20 +204,22 @@ Fast-track para tarefas pequenas. Pula discover, gera spec efêmera (em memória
 
 ### `vibeflow-audit`
 
-Audita a implementação contra o DoD da spec e os padrões do projeto. Roda os testes automaticamente.
+Audita a implementação contra o DoD da spec e os padrões do projeto. Roda os testes automaticamente e passa o diff pelo Critical Gate (scan de operações destrutivas).
 
 **Quando usar:**
 - Implementação feita, hora de validar
 - Quer saber se os padrões foram seguidos
 
 **Veredictos:**
-- **PASS** — Todos os checks do DoD passaram, padrões seguidos, testes verdes
-- **PARTIAL** — Alguns checks passaram, gaps listados
-- **FAIL** — DoD não atendido ou testes falhando
+- **PASS** — Todos os checks do DoD passaram, padrões seguidos, testes verdes, gate limpo
+- **PARTIAL** — Alguns checks passaram, gaps listados (ou warning do gate)
+- **FAIL** — DoD não atendido, testes falhando, ou finding CRITICAL/HIGH do gate
+
+**Critical Gate:** scan determinístico do `git diff` em busca de operações destrutivas/perigosas que o DoD não cobre — auth removida, `DROP TABLE`, secret hardcoded, `0.0.0.0/0`, mass delete, etc. ~40 regras em 6 domínios (DB, Security, IaC, K8s, Config, Data). Severidade: CRITICAL/HIGH bloqueiam (FAIL), WARNING vira PARTIAL, INFO é nota. Suprima um finding intencional com `vibeflow:allow <RULE_ID>: <justificativa>` (CRITICAL/HIGH exigem justificativa). Design: `proposals/critical-gate.md`.
 
 **Se PARTIAL ou FAIL:** gera um prompt pack incremental cobrindo apenas os gaps.
 
-**Regra crítica:** testes falhando = FAIL automático, independente do resto.
+**Regra crítica:** testes falhando = FAIL automático. Finding CRITICAL/HIGH não-justificado do gate = FAIL automático.
 
 **Salva em:** `.vibeflow/audits/<slug>-audit.md`
 

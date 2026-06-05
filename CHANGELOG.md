@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.12.0 (2026-06-03)
+
+- **`audit`: new Critical Gate (destructive-op safety scan)** — `audit` now diffs the implementation (`git diff`) and scans it against a ~40-rule catalog across 6 domains (Database, Security, IaC, Kubernetes, Config, Data) for destructive or dangerous operations the DoD never mentions — removed auth middleware, `DROP TABLE`, hardcoded secrets, `0.0.0.0/0` CIDRs, mass deletes, etc. Unresolved CRITICAL/HIGH findings force a **FAIL** (mirroring "Test FAIL = Audit FAIL"); WARNING caps the verdict at PARTIAL; INFO is a note. Findings can be suppressed with a `vibeflow:allow <RULE_ID>: <reason>` override (CRITICAL/HIGH require a justification). v1 uses a prompt-embedded catalog; a Node engine in `cli/` is planned for v2. Design doc: `proposals/critical-gate.md`. Ported and sized down from the chama plugin's Critical Gate. All 3 editions updated.
+
 ### v1.11.0 (2026-06-03)
 
 - **`implement`: new Phase 6 "Refine" (simplify in-scope)** — After tests pass, the coding agent now reviews and cleans the code it just wrote (reuse, naming, dead code, efficiency) before self-verifying DoD. The refinement is strictly bounded: diff-only, behavior-preserving, within budget and anti-scope, and gated by a green baseline — if the post-refine test run regresses, the changes are reverted. Pipeline goes from 7 to 8 phases. Inspired by the `simplify` step in the chama plugin's compose pipeline, adapted to vibeflow's local, no-commit model. All 3 editions updated. Site highlight updated.

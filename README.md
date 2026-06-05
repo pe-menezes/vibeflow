@@ -33,7 +33,7 @@ Run `analyze` once, then `gen-spec` → `implement` for each feature. That's it.
 | **gen-spec** | Generates spec with binary DoD, scope, anti-scope | Ready to specify |
 | **implement** | Implements from spec with guardrails (budget, DoD, patterns) | Spec approved, ready to code |
 | **prompt-pack** | Self-contained prompt for another agent/session | Need to delegate |
-| **audit** | Verifies DoD + pattern compliance + tests | After implementation |
+| **audit** | Verifies DoD + patterns + tests + destructive-op gate | After implementation |
 
 **Utility:** `quick` (fast-track small tasks), `teach` (update knowledge base), `stats` (audit trends).
 

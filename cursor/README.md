@@ -52,7 +52,7 @@ Digite `/` no Agent chat e busque pelo nome do skill:
 - `/vibeflow-prompt-pack` — gera prompt pack autocontido com patterns embarcados
 
 **Secundários:**
-- `/vibeflow-audit` — audita implementação contra DoD + patterns + testes (PASS / PARTIAL / FAIL)
+- `/vibeflow-audit` — audita implementação contra DoD + patterns + testes + Critical Gate (PASS / PARTIAL / FAIL)
 - `/vibeflow-discover` — diálogo interativo (1–5 rounds) para transformar ideia vaga em PRD
 
 **Utilitários:**

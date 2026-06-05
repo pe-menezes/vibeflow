@@ -17,7 +17,7 @@ copilot/
     │   ├── vibeflow-analyze.prompt.md        (core: deep-analyze codebase)
     │   ├── vibeflow-gen-spec.prompt.md       (core: feature/PRD → spec)
     │   ├── vibeflow-implement.prompt.md      (core: spec → code with guardrails)
-    │   ├── vibeflow-audit.prompt.md          (secondary: verify DoD + patterns)
+    │   ├── vibeflow-audit.prompt.md          (secondary: verify DoD + patterns + gate)
     │   ├── vibeflow-discover.prompt.md       (secondary: idea → PRD)
     │   ├── vibeflow-prompt-pack.prompt.md    (secondary: spec → prompt pack)
     │   ├── vibeflow-quick.prompt.md          (utility: fast-track ≤4 files)
