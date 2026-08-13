@@ -206,12 +206,12 @@ Baseline (2026-08-08):
 | 2 | copilot/github/prompts/vibeflow-audit.prompt.md | 10196 | 2549 | 9479 |
 | 2 | cursor/skills/vibeflow-implement/SKILL.md | 15077 | 3769 | 8242 |
 | 2 | cursor/skills/vibeflow-audit/SKILL.md | 10270 | 2568 | 9552 |
-| 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | |
-| 3 | claude-code/skills/prompt-pack/SKILL.md | 5173 | 1293 | |
-| 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | |
-| 3 | copilot/github/prompts/vibeflow-prompt-pack.prompt.md | 4688 | 1172 | |
-| 3 | cursor/skills/vibeflow-gen-spec/SKILL.md | 6387 | 1597 | |
-| 3 | cursor/skills/vibeflow-prompt-pack/SKILL.md | 4744 | 1186 | |
+| 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | 5666 |
+| 3 | claude-code/skills/prompt-pack/SKILL.md | 5173 | 1293 | 4482 |
+| 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | 4665 |
+| 3 | copilot/github/prompts/vibeflow-prompt-pack.prompt.md | 4688 | 1172 | 3890 |
+| 3 | cursor/skills/vibeflow-gen-spec/SKILL.md | 6387 | 1597 | 4756 |
+| 3 | cursor/skills/vibeflow-prompt-pack/SKILL.md | 4744 | 1186 | 3935 |
 | 4 | claude-code/skills/analyze/SKILL.md | 33955 | 8489 | |
 | 4 | claude-code/skills/teach/SKILL.md | 10297 | 2574 | |
 | 4 | copilot/github/prompts/vibeflow-analyze.prompt.md | 31599 | 7900 | |
