@@ -126,6 +126,20 @@ Gera uma spec técnica a partir de um PRD ou descrição de feature.
 - Escopo e anti-escopo
 - Decisões técnicas com trade-offs
 - Riscos + mitigação
+- Referências (opcional) — só quando o input traz alguma
+
+**Referências:** quando o input aponta para uma suíte de testes, um mockup, um
+código a portar ou uma implementação de referência, a spec ganha uma seção
+`## References` com o caminho (ou URL) e o papel de cada uma — "a suíte que
+define o comportamento", "o mockup a replicar", "a implementação a portar". A
+seção é opcional: sem referências no input, ela não aparece, e specs sem ela
+continuam valendo para `implement`, `prompt-pack` e `audit` sem mudança nenhuma.
+O `prompt-pack` propaga o que estiver ali — embeda o conteúdo quando cabe no
+princípio de auto-contenção do pack, ou passa o caminho verificado quando não cabe.
+
+**DoD ancorado em teste:** onde o projeto tem test runner detectável, pelo menos
+um check do DoD nomeia um teste executável — um que já existe e precisa passar,
+ou um a escrever, nomeado. Sem runner, os checks continuam como antes.
 
 **PRD Validation Gate:** Quando o input é um PRD (arquivo `.md` ou texto >3 linhas), o gen-spec roda 5 sanity checks antes de gerar a spec:
 1. Problema concreto?
@@ -216,6 +230,12 @@ Audita a implementação contra o DoD da spec e os padrões do projeto. Roda os 
 - **FAIL** — DoD não atendido, testes falhando, ou finding CRITICAL/HIGH do gate
 
 **Critical Gate:** scan determinístico do `git diff` em busca de operações destrutivas/perigosas que o DoD não cobre — auth removida, `DROP TABLE`, secret hardcoded, `0.0.0.0/0`, mass delete, etc. ~40 regras em 6 domínios (DB, Security, IaC, K8s, Config, Data). Severidade: CRITICAL/HIGH bloqueiam (FAIL), WARNING vira PARTIAL, INFO é nota. Suprima um finding intencional com `vibeflow:allow <RULE_ID>: <justificativa>` (CRITICAL/HIGH exigem justificativa). Design: `proposals/critical-gate.md`.
+
+**Reporta tudo:** todo finding entra no relatório, inclusive os incertos e os de
+baixa severidade, cada um com nível de confiança e severidade estimada. A
+filtragem acontece no veredicto — é lá que severidade e confiança decidem o que
+bloqueia, o que limita a PARTIAL e o que fica só como nota. O audit não decide
+por você o que era importante o bastante para mencionar.
 
 **Se PARTIAL ou FAIL:** gera um prompt pack incremental cobrindo apenas os gaps.
 
@@ -400,3 +420,12 @@ Regras que estão sempre ativas, independente do comando:
 - **`teach` mantém o conhecimento vivo.** Depois de aprender algo novo sobre o projeto, ensine o `.vibeflow/`.
 - **`audit` é o quality gate.** Rode sempre depois de implementar. Se falhar, use o prompt pack incremental que ele gera.
 - **Tudo responde no idioma do input.** Escreva em português, receba em português. Termos técnicos em inglês são ok.
+
+## Baseline dos prompts
+
+Os prompts do vibeflow são escritos para a geração frontier de 2026: enunciam a
+regra uma vez, sem CAPS de ênfase e sem repetir conhecimento que o modelo já
+tem, e deixam julgamento onde um roteiro só chutaria. Eles funcionam melhor nos
+modelos atuais. Se um comando se comportar mal num modelo antigo, isso é
+regressão e merece uma issue — não um workaround local. Guia normativo de
+estilo: `proposals/unhobbling-style.md`.

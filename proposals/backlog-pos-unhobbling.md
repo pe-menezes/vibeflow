@@ -51,9 +51,18 @@ Either way, the migration matters more than the fix: installs already carrying
 the nested shape must converge to the correct one rather than gaining a third
 marker. That is why this deserves its own spec instead of a one-line patch.
 
-**Collateral:** `.vibeflow/patterns/delimited-marker-blocks.md` states "never
-duplicate" and "Anti-patterns: None observed". Both are wrong today, and the
-pattern doc should be corrected together with the fix.
+**Collateral.** Two records claim this already works:
+
+- `.vibeflow/patterns/delimited-marker-blocks.md` states "never duplicate" and
+  "Anti-patterns: None observed". Both are wrong today.
+- The v0.12.0 CHANGELOG entry says "Running `npx setup-vibeflow --force` no
+  longer duplicates the vibeflow block in `AGENTS.md` or
+  `copilot-instructions.md`". That fix was partial: it stopped the whole block
+  from being duplicated, but left the nested markers accumulating one
+  `<!-- vibeflow:end -->` per `--force`.
+
+Both should be corrected alongside the fix — the CHANGELOG by a note in the
+entry that closes this, not by rewriting v0.12.0's.
 
 ## 2. `vibeflow-implement` is missing from all four command lists
 
