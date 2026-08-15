@@ -218,12 +218,12 @@ Baseline (2026-08-08):
 | 4 | copilot/github/prompts/vibeflow-teach.prompt.md | 9249 | 2312 | 7575 |
 | 4 | cursor/skills/vibeflow-analyze/SKILL.md | 31643 | 7911 | 25394 |
 | 4 | cursor/skills/vibeflow-teach/SKILL.md | 9289 | 2322 | 7615 |
-| 5 | claude-code/skills/discover/SKILL.md | 7080 | 1770 | |
-| 5 | claude-code/skills/quick/SKILL.md | 5227 | 1307 | |
-| 5 | copilot/github/prompts/vibeflow-discover.prompt.md | 6114 | 1529 | |
-| 5 | copilot/github/prompts/vibeflow-quick.prompt.md | 4059 | 1015 | |
-| 5 | cursor/skills/vibeflow-discover/SKILL.md | 6155 | 1539 | |
-| 5 | cursor/skills/vibeflow-quick/SKILL.md | 4044 | 1011 | |
+| 5 | claude-code/skills/discover/SKILL.md | 7080 | 1770 | 5492 |
+| 5 | claude-code/skills/quick/SKILL.md | 5227 | 1307 | 4447 |
+| 5 | copilot/github/prompts/vibeflow-discover.prompt.md | 6114 | 1529 | 4677 |
+| 5 | copilot/github/prompts/vibeflow-quick.prompt.md | 4059 | 1015 | 3719 |
+| 5 | cursor/skills/vibeflow-discover/SKILL.md | 6155 | 1539 | 4718 |
+| 5 | cursor/skills/vibeflow-quick/SKILL.md | 4044 | 1011 | 3702 |
 | 6 | claude-code/skills/stats/SKILL.md | 2989 | 747 | |
 | 6 | copilot/github/prompts/vibeflow-stats.prompt.md | 2568 | 642 | |
 | 6 | cursor/skills/vibeflow-stats/SKILL.md | 2597 | 649 | |
@@ -253,5 +253,18 @@ which is why those parts carry a 15% floor. The floors alone guarantee only
 ~16.6% aggregate; 20% is reachable by outperforming floors where prose
 dominates (implement's repeated tables, discover's scripts), while 25% would
 pressure the rewrite to cut contract, which the keep-list forbids. Per-part
-floors in the specs (15% for parts 2 and 4, 20% for parts 3, 5, 6, 7) remain
+floors in the specs (15% for parts 2, 4 and 5, 20% for parts 3, 6, 7) remain
 the operative gates; part 9 confirms the aggregate against this table.
+
+**Part 5 floor adjusted 20% → 15% (2026-08-15),** after its rewrite landed at
+−18.1% with three cutting rounds and its audit found the remainder to be
+contract. Two structural reasons, both measurable: `quick` is the densest file
+per char in the repo — the pack's 7 sections, the ephemeral spec's field list,
+the ≤4 budget with its warning, and the lightweight-scan steps leave almost no
+prose to remove — and the copilot/cursor editions of it start ~1,170 chars
+below claude-code's (no `## Description and examples` block), so an identical
+absolute cut yields a smaller percentage: they close at −8.4% and −8.5%
+carrying exactly the same content. Closing the remaining 612 chars would mean
+cutting discover's challenge triggers, which that part's spec names as a risk
+to avoid. Same reasoning as the 15% floors on parts 2 and 4; the series
+aggregate target is unchanged.
