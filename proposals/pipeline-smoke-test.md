@@ -1,6 +1,7 @@
 # Work order: pipeline smoke test (`analyze → gen-spec → implement → audit`)
 
-> Status: **open** — ready for a fresh agent or session to pick up.
+> Status: **done** 2026-08-15 — harness in `test/`, results and residual scope
+> in `proposals/backlog-pos-unhobbling.md` items 4 and 5.
 > Origin: Success Criterion 3 of `.vibeflow/prds/unhobbling-geracao-5.md`, the
 > only one of the PRD's five that never entered any spec's DoD, so it never ran.
 > Related: `proposals/backlog-pos-unhobbling.md` item 4,
