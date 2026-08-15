@@ -36,7 +36,8 @@ the user's detected language. Code, paths, and technical names stay in English.
    `<!-- vibeflow:patterns:start/end -->` markers) and cross-reference its tags
    and modules against the spec's scope — top 3–5 matches; with no registry,
    infer which are relevant.
-3. Read the codebase files this task touches.
+3. Read the codebase files this task touches, plus anything the spec lists
+   under References.
 4. Generate the pack.
 
 ## The pack opens with
@@ -71,11 +72,18 @@ Format:
 <relevant conventions for this task>
 ```
 
-### 5. Where to work
+### 5. References from the spec
+Only when the spec lists References. Same self-containment rule as the
+patterns: embed the mockup, the test file, or the snippet the implementation
+has to match, in full. Too large to embed → give the verified path and say what
+the agent should take from it. A reference that is neither embedded nor
+reachable by the receiving agent doesn't belong in the pack.
+
+### 6. Where to work
 Real file paths from the codebase, with the code snippets that give them
 context.
 
-### 6. Directional guidance
+### 7. Directional guidance
 Architectural direction and constraints to respect, not step-by-step
 instructions. The pack carries this contract, adapted to the task:
 
@@ -86,7 +94,7 @@ instructions. The pack carries this contract, adapted to the task:
 > clearly beyond it. Match what you write — code, docs, comments — to what the
 > task needs, without filler or boilerplate.
 
-### 7. How to run and test
+### 8. How to run and test
 Required. Detect the runner from `.vibeflow/index.md` or the project's config
 files and include the command, plus any the spec lists. None detected → "No
 test runner detected. Add manual tests to validate." Format:
@@ -97,7 +105,7 @@ test runner detected. Add manual tests to validate." Format:
 2. Verify manually: [description]
 ```
 
-### 8. Docs to update
+### 9. Docs to update
 Which docs need changes after implementation.
 
 Flag any path you could not verify with `<!-- TODO: verify this path -->`.

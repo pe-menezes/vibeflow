@@ -235,10 +235,17 @@ Baseline (2026-08-08):
 | 7 | copilot/copilot-instructions.md | 863 | 216 | 759 |
 | 7 | copilot/AGENTS.md | 2794 | 699 | 765 |
 | 7 | cursor/AGENTS.md | 2758 | 690 | 725 |
-| | **Total** | **302409** | **~75602** | |
+| | **Total** | **302409** | **~75602** | **237024** |
 
 Per-part subtotals: part 2 — 77,005 · part 3 — 34,742 · part 4 — 126,032 ·
 part 5 — 32,679 · part 6 — 19,721 · part 7 — 12,230.
+
+The part 3 "after" column records what part 3 measured. Part 8 then **added**
+to those same six files — the References section in `gen-spec`, its propagation
+in `prompt-pack` — taking them from 27,394 to 31,105 chars (+3,711). The Total
+row is the post-part-8 figure, which is the one that counts: 302,409 → 237,024
+= **−21.6%**, above the committed ≥20%. Part 8 is the series' only functional
+change, so it is the only part with no reduction floor.
 
 ## Series target
 
