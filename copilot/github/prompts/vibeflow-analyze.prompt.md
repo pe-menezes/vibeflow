@@ -27,11 +27,6 @@ Section names in generated `.vibeflow/` files may be in English (they are techni
 but all descriptive text, analyses, observations, and final user reports should be
 in the detected language.
 
-## Web Search Policy
-
-Use WebSearch and WebFetch only when local context (`.vibeflow/`, codebase,
-git history) is insufficient — an unfamiliar framework or API. Local first.
-
 Perform a deep, adaptive analysis of this codebase. The goal is curated pattern
 documentation that every future spec, prompt pack, and audit uses to keep
 implementations on the project's real conventions.

@@ -214,9 +214,9 @@ Baseline (2026-08-08):
 | 3 | cursor/skills/vibeflow-prompt-pack/SKILL.md | 4744 | 1186 | 3935 |
 | 4 | claude-code/skills/analyze/SKILL.md | 33955 | 8489 | 26275 |
 | 4 | claude-code/skills/teach/SKILL.md | 10297 | 2574 | 8607 |
-| 4 | copilot/github/prompts/vibeflow-analyze.prompt.md | 31599 | 7900 | 25534 |
+| 4 | copilot/github/prompts/vibeflow-analyze.prompt.md | 31599 | 7900 | 25357 |
 | 4 | copilot/github/prompts/vibeflow-teach.prompt.md | 9249 | 2312 | 7575 |
-| 4 | cursor/skills/vibeflow-analyze/SKILL.md | 31643 | 7911 | 25571 |
+| 4 | cursor/skills/vibeflow-analyze/SKILL.md | 31643 | 7911 | 25394 |
 | 4 | cursor/skills/vibeflow-teach/SKILL.md | 9289 | 2322 | 7615 |
 | 5 | claude-code/skills/discover/SKILL.md | 7080 | 1770 | |
 | 5 | claude-code/skills/quick/SKILL.md | 5227 | 1307 | |
