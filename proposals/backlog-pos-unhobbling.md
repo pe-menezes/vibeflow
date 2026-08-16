@@ -1,6 +1,6 @@
 # Backlog: findings from the unhobbling series
 
-> Status: **open** — none of these were done inside the series.
+> Status: **open** — items 1–3 and 5 remain; item 4 closed 2026-08-15.
 > Origin: audits of `unhobbling-geracao-5`, parts 1 and 7
 > (`.vibeflow/audits/`, gitignored — this file is the durable copy).
 > Related: `proposals/unhobbling-style.md` (the series' normative guide).
@@ -12,7 +12,8 @@ gen-spec and its propagation in prompt-pack, is the series' one declared
 functional change — so anything else that turned out to need a behavior change
 was recorded instead of fixed. Four items came out of it — three below in
 descending order of who they hurt, plus one gap in the series' own validation.
-Section 5 collects the cross-review findings of 2026-08-16.
+Closing that gap added a fifth: item 5 was found by the smoke test the gap
+called for. Section 6 collects the cross-review findings of 2026-08-16.
 
 ## 1. `--force` reinstall accumulates a stray `<!-- vibeflow:end -->`
 
@@ -105,32 +106,78 @@ depends on someone remembering to run `/vibeflow:teach` afterwards. Candidate
 as a rule in `gen-spec` (detect a convention change → require a propagation
 check) or as a checklist item in `audit`.
 
-## 4. The pipeline smoke test never ran
+## 4. The pipeline smoke test never ran — done, contract half
 
-**Gap in the series' own validation, not a defect in the product.**
+**Closed 2026-08-15.** Harness in `test/`, work order in
+`proposals/pipeline-smoke-test.md`.
 
 The PRD set five Success Criteria. Criterion 3 — the pipeline
-`analyze → gen-spec → implement → audit` running end to end on a sample repo,
-with artifacts at the right paths, formats intact, and an audit verdict
-equivalent or better — never entered any spec's DoD, so it never ran. The only
-smoke test the series did execute was part 7's CLI install check.
+`analyze → gen-spec → prompt-pack → implement → audit` running end to end on a
+sample repo, with artifacts at the right paths and formats intact — never
+entered any spec's DoD, so it never ran. It has now run.
 
-Two consequences worth stating plainly:
+`node test/run-smoke.mjs` generates a Node fixture, installs one arm's skills
+into it, drives five headless sessions, and asserts the artifact contract.
+Result on opus, one run per arm, 2026-08-15:
 
-- The series' strong claim is "nothing on the keep-list was lost and the prompts
-  shrank 21.6%". That the rewritten prompts *behave* correctly rests on the
-  keep-list retention checks, not on having run them.
-- The nine audits of the series were themselves run with the **old** `audit`
-  prompt — the installed plugin is v1.12.0, pre-rewrite. So the series never
-  executed a single one of the prompts it produced.
+| | new prompts | old prompts (v1.12.0) |
+|---|---|---|
+| assertions | 23 pass, 1 unchecked | 23 pass, 1 unchecked |
+| audit verdict | PASS | PASS |
+| files touched by `implement` | 2, budget ≤ 4 | 2, budget ≤ 4 |
+| fixture tests after `implement` | pass | pass |
+| cost / wall | $4.16 / 672s | $4.40 / 694s |
 
-Work order, self-contained and ready for a fresh agent:
-**`proposals/pipeline-smoke-test.md`**. It scopes the falsifiable half (the
-artifact contract, objectively checkable) and explicitly leaves out the quality
-comparison, with the reason: one run per arm measures noise, and a comparison
-judged by whoever made the change is not evidence.
+Both arms produce well-formed artifacts at the right paths. The one difference
+the contract detects: the new pack carries a `References from the spec`
+section, which part 8 introduced and the old prompts have no notion of.
 
-## 5. Cross-review findings (2026-08-16)
+What remains open is the half the work order deliberately excluded: whether the
+rewritten prompts produce *better* artifacts. One run per arm measures noise,
+and a comparison judged by whoever made the change is not evidence. The shape
+that would answer it — ≥5 runs per arm, artifacts stripped of any arm marker, a
+reader who did not write the prompts scoring against a rubric fixed in advance —
+is written up in `test/README.md`. It produces weak evidence even done well,
+which is worth knowing before anyone pays for it.
+
+One consequence of the original gap still stands: the nine audits of the series
+were themselves run with the **old** `audit` prompt, since the installed plugin
+was v1.12.0.
+
+## 5. `prompt-pack` names two of its own sections inconsistently
+
+**Real defect, pre-existing, cosmetic in effect.** Found by the smoke test on
+2026-08-15; present identically in v1.12.0 and in the rewritten prompt, so the
+unhobbling series neither introduced nor fixed it.
+
+`claude-code/skills/prompt-pack/SKILL.md` names two sections twice, and not
+identically. Its outline of the pack's structure says one thing; the format
+block it tells the agent to emit says another:
+
+| Outline says | Format block says | What packs emit |
+|---|---|---|
+| `### 4. Project patterns to follow` | `## Patterns to Follow` | `## Patterns to Follow` |
+| `### 8. How to run and test` | `## How to validate` | `## How to validate` |
+
+Agents follow the format block, which is the more specific instruction, so the
+packs are consistent with each other and nothing downstream breaks. Measured on
+both arms: the section is present and correctly populated in every run.
+
+The cost is to anyone reading or checking the prompt — the section has no single
+name, so a reader matching the outline against a real pack finds a mismatch that
+is not a defect. That is exactly what happened while building the smoke test:
+two assertions were written against the outline names and had to be corrected
+against the format blocks.
+
+**What a fix has to handle.** Picking one spelling per section is a one-line
+edit in three editions (`claude-code`, `copilot`, `cursor` — see the file
+mapping in `CLAUDE.md`). The question a spec has to settle first is which name
+wins, since the outline names read better in prose and the format-block names
+are what every existing pack in the wild already uses. Changing the emitted
+names would make old and new packs differ for no user-visible gain, so the
+outline is probably what should move.
+
+## 6. Cross-review findings (2026-08-16)
 
 Origin: cross-review Copilot 16/08 over the merged series. Open, one bullet
 each:
