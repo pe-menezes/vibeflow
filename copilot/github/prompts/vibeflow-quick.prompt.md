@@ -26,6 +26,7 @@ Technical terms in English are acceptable regardless of the detected language.
 Quick fixes and small features with clear requirements, fitting in ≤4 files,
 when you want a prompt pack now rather than a paper trail. Not for:
 
+- An observed defect with reproducible evidence → use the vibeflow-hotfix prompt.
 - The idea is vague → use the vibeflow-discover prompt first.
 - You need full documentation for the team → use the full pipeline.
 - The task is large or architecturally significant → use the vibeflow-gen-spec prompt.

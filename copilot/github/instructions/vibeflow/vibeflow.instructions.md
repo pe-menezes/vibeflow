@@ -25,6 +25,7 @@ Small tasks (≤4 files) fast-track through the `vibeflow-quick` prompt.
 | `.vibeflow/specs/` | Specs from gen-spec |
 | `.vibeflow/prompt-packs/` | Prompt packs (self-contained, agent-agnostic) |
 | `.vibeflow/audits/` | Audit reports |
+| `.vibeflow/hotfixes/` | Hotfix trace docs (one file per bug, resumable) |
 | `.github/prompts/vibeflow-*.prompt.md` | Reusable prompt files (the "commands") |
 | `.github/agents/vibeflow-architect.agent.md` | Agent persona (architect) |
 
@@ -69,7 +70,9 @@ See `.github/prompts/` for the full set of Vibeflow prompts:
 - `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
 - `vibeflow-gen-spec` — Generate grounded spec with DoD
 - `vibeflow-prompt-pack` — Self-contained prompt for any coding agent
+- `vibeflow-implement` — Implement a feature from its spec with guardrails
 - `vibeflow-audit` — Verify DoD + pattern + test compliance
 - `vibeflow-quick` — Fast-track for small tasks
+- `vibeflow-hotfix` — Fix an observed defect with a trace doc and a regression test
 - `vibeflow-teach` — Update `.vibeflow/` with feedback
 - `vibeflow-stats` — Audit statistics and trends
