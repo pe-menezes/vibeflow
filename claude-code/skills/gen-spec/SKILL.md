@@ -51,6 +51,9 @@ Generate a complete spec for: $ARGUMENTS
    No `.vibeflow/` → warn that results improve after `/vibeflow:analyze`, then
    read the relevant code directly.
 3. Identify what exists today for this feature and which patterns apply to it.
+4. Collect what the input points at — test files, mockups, code to port, the
+   URL of a reference implementation — and what each one is for. A reference in
+   code pins the target behavior better than a paragraph describing it.
 
 ### PRD Validation Gate
 
@@ -76,12 +79,20 @@ questions about the failures, then generate with the answers. One round only.
 - **Definition of Done** — 3–7 binary checks (pass/fail, no ambiguity). At
   least one must be a craftsmanship gate — "no violations of the Don'ts in
   conventions.md", "no new `any` types". Functional checks alone are not enough.
+  Where the project has a detectable test runner, at least one check names an
+  executable test: one that already exists and has to pass, or one to write,
+  named. With no runner, the checks stay as they are.
 - **Scope** — What's in.
 - **Anti-scope** — What's explicitly out. Be aggressive.
 - **Technical Decisions** — With trade-offs and justification.
 - **Applicable Patterns** — Which patterns from `.vibeflow/patterns/` the
   implementation must follow. Note it when the feature introduces a new one.
 - **Risks** — Premortem: what can go wrong, and the mitigation.
+- **References** (optional) — What the input pointed at: a test suite, a
+  mockup, code to port, a reference implementation. One line each — the path or
+  URL, then the role it plays ("the suite that defines the behavior", "the
+  mockup to replicate", "the implementation to port"). Leave the section out
+  when the input carries no references.
 - **Dependencies** (optional) — Specs that must land before this one, as
   `- .vibeflow/specs/<feature>-part-N.md`. Used in multi-part splits.
 
