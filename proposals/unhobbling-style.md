@@ -200,12 +200,12 @@ Baseline (2026-08-08):
 
 | Part | File | Chars | ~Tokens | After |
 |---|---|---:|---:|---|
-| 2 | claude-code/skills/implement/SKILL.md | 15737 | 3934 | |
-| 2 | claude-code/skills/audit/SKILL.md | 10768 | 2692 | |
-| 2 | copilot/github/prompts/vibeflow-implement.prompt.md | 14957 | 3739 | |
-| 2 | copilot/github/prompts/vibeflow-audit.prompt.md | 10196 | 2549 | |
-| 2 | cursor/skills/vibeflow-implement/SKILL.md | 15077 | 3769 | |
-| 2 | cursor/skills/vibeflow-audit/SKILL.md | 10270 | 2568 | |
+| 2 | claude-code/skills/implement/SKILL.md | 15737 | 3934 | 8919 |
+| 2 | claude-code/skills/audit/SKILL.md | 10768 | 2692 | 10039 |
+| 2 | copilot/github/prompts/vibeflow-implement.prompt.md | 14957 | 3739 | 8122 |
+| 2 | copilot/github/prompts/vibeflow-audit.prompt.md | 10196 | 2549 | 9479 |
+| 2 | cursor/skills/vibeflow-implement/SKILL.md | 15077 | 3769 | 8242 |
+| 2 | cursor/skills/vibeflow-audit/SKILL.md | 10270 | 2568 | 9552 |
 | 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | |
 | 3 | claude-code/skills/prompt-pack/SKILL.md | 5173 | 1293 | |
 | 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | |
