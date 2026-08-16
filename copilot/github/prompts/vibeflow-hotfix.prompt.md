@@ -1,6 +1,6 @@
 ---
 name: 'vibeflow-hotfix'
-description: 'Fixes an observed defect with reproducible evidence in one call: trace doc before code, the fix, and a regression test that fails before and passes after.'
+description: 'Fixes an observed defect with reproducible evidence in one call: trace doc before code, the fix, and a regression test written before the fix.'
 agent: 'agent'
 ---
 
@@ -10,10 +10,13 @@ agent: 'agent'
 
 In one call, produces a short trace doc in `.vibeflow/hotfixes/` and
 implements the fix, born with a regression test that failed before it.
-Exactly two outcomes: done (doc + fix + test red→green) or a named HALT that
-saves the doc and hands the next step to a human. Production incidents are
-the motivating case, not a gate. The discriminator against the other prompts
-is evidence — an observed defect you can show, wherever it surfaced.
+Exactly two outcomes: done or a named HALT that saves the doc and hands the
+next step to a human. Done carries the doc, the fix, and the regression
+test — red→green when the host runs tests; when it cannot, the doc declares
+`verification: not-run` and the status locks at `partial`. Production
+incidents are the motivating case, not a gate. The discriminator against
+the other prompts is evidence — an observed defect you can show, wherever
+it surfaced.
 
 **Usage:** Provide the symptom + evidence as input, or the path to a halted
 doc to resume it.
@@ -119,7 +122,12 @@ project's suite and run it: it must fail on the current code, for the reason
 the hypothesis names. A test that cannot be made to fail means the
 investigation was wrong → HALT `cannot-reproduce`, with the fix code still
 untouched. Failing before the fix is what makes the test an oracle — written
-after, it can only agree with the fix.
+after, it can only agree with the fix. A host with no way to run the test
+writes it anyway — it enters the repo as the oracle for whoever can run it —
+and declares `verification: not-run` in the doc, locking the status at
+`partial`. `cannot-reproduce` stays reserved for a test that runs and comes
+back green, or cannot be constructed at all — not for a test the host was
+unable to execute.
 
 ## The fix
 

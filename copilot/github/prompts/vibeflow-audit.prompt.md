@@ -223,11 +223,15 @@ from those results:
 - `regressed` — a `DoD` check or the regression test broke. Each regressed
   doc is a gap: it feeds the incremental prompt pack, the same mechanism the
   normal round uses for failing checks.
-- `promote` — everything green and the doc signals permanent behavior:
-  `Deviations` entries pointing at structural follow-up, or a
-  `Preservation`/`Regression` contract that did not exist before the fix.
-  Auditor judgment over those named signals; the output is a gen-spec entry
-  stub, not a spec — the human decides.
+- `promote` — everything green plus a signal not every doc carries: a
+  `Deviations` entry pointing at structural follow-up (named debt that asks
+  for a spec), or evidence in the doc itself that the fix introduced
+  permanent new behavior deserving a first-class contract — a `Preservation`
+  property describing behavior that did not exist before the fix, for
+  example, not the mere presence of the section. The `Regression` test and
+  the required sections are in every doc by construction and are not promote
+  signals. Auditor judgment weighs those discriminating signals; the output
+  is a gen-spec entry stub, not a spec — the human decides.
 - `still-holds` — everything green, no promote signals. The fix stands.
 
 Classification silences nothing: docs with `reproduction` below `real` or

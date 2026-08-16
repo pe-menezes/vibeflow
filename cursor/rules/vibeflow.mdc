@@ -12,7 +12,9 @@ Non-trivial work follows the pipeline:
 discover → analyze → gen-spec → prompt-pack → implement → audit
 ```
 
-Small tasks (≤4 files) fast-track through the `vibeflow-quick` skill.
+Small tasks (≤4 files) fast-track through the `vibeflow-quick` skill. An
+observed defect with reproducible evidence routes to the `vibeflow-hotfix`
+skill regardless of size.
 
 ## Where Things Live
 

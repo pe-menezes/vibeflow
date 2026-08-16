@@ -34,7 +34,7 @@ Run `analyze` once, then `gen-spec` → `implement` for each feature. That's it.
 | **implement** | Implements from spec with guardrails (budget, DoD, patterns) | Spec approved, ready to code |
 | **prompt-pack** | Self-contained prompt for another agent/session | Need to delegate |
 | **audit** | Verifies DoD + patterns + tests + destructive-op gate; `--consolidate-hotfixes` reclassifies hotfix trace docs | After implementation |
-| **hotfix** | Traceable fix in one call: trace doc + fix + red→green regression test | Observed defect with reproducible evidence |
+| **hotfix** | Traceable fix in one call: trace doc + fix + regression test written before the fix | Observed defect with reproducible evidence |
 
 **Utility:** `quick` (fast-track small tasks), `teach` (update knowledge base), `stats` (audit trends).
 

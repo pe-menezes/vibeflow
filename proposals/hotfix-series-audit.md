@@ -7,6 +7,8 @@
 
 **Veredito do pacote: PASS — condicionado à pendência externa P1 (smoke `--arm new` em execução pelo operador)**
 
+> Pós-smoke: P1 resolvida e F1 fechada — o veredito passa a PASS pleno. Ver o Addendum no fim do report.
+
 | Spec | Veredito | Budget real/declarado | Anti-scope |
 |---|---|---|---|
 | Part 1 — comando (Claude Code) + fronteira do quick | **PASS** | 2/2 (commit `0e756e5`) | respeitado |
@@ -175,3 +177,14 @@ Runner do projeto: `node test/run-smoke.mjs` (smoke harness de 2 braços). Execu
 ## Veredito e próximos passos
 
 **PASS condicionado a P1.** Com o smoke verde: pronto para merge — restam apenas as pendências externas listadas (nenhuma bloqueia o merge da série; P4 bloqueia apenas o publish). Se o smoke falhar, re-auditar a part 3 antes de qualquer outra coisa.
+
+---
+
+## Addendum (2026-08-16, pós-smoke)
+
+O corpo acima permanece como retrato do momento do audit; este addendum registra o fechamento das duas pendências que condicionavam o veredito.
+
+- **P1 — resolvida.** O smoke `--arm new` completou: 23 pass / 1 fail / 1 skip. O único fail é atribuído a defeito pré-existente já documentado no backlog §5 — não é quebra introduzida pela série.
+- **F1 — fechada.** A tabela File mapping de CLAUDE.md ganhou a linha do hotfix (`CLAUDE.md:28`).
+
+**Veredito do pacote: PASS pleno.** A condição do topo está fechada; as demais pendências externas seguem como listadas, nenhuma condicionando o veredito.

@@ -377,7 +377,7 @@ A primeira pergunta do fluxo: **há defeito observado com evidência reproduzív
 
 ```
 1. vibeflow-hotfix "<sintoma + evidência>"
-   → doc de rastro + fix + teste de regressão red→green
+   → doc de rastro + fix + teste de regressão escrito antes do fix
 2. [commitar fix + teste + doc juntos, como o report instrui]
 ```
 

@@ -16,7 +16,7 @@ cursor/
     ├── vibeflow-prompt-pack/SKILL.md             → .cursor/skills/ (spec → prompt pack)
     ├── vibeflow-audit/SKILL.md                   → .cursor/skills/ (verify DoD + patterns)
     ├── vibeflow-discover/SKILL.md                → .cursor/skills/ (idea → PRD)
-    ├── vibeflow-hotfix/SKILL.md                  → .cursor/skills/ (evidence → trace doc + fix + red→green test)
+    ├── vibeflow-hotfix/SKILL.md                  → .cursor/skills/ (evidence → trace doc + fix + test)
     ├── vibeflow-quick/SKILL.md                   → .cursor/skills/ (fast-track ≤4 files)
     ├── vibeflow-teach/SKILL.md                   → .cursor/skills/ (update .vibeflow/ + --from import)
     └── vibeflow-stats/SKILL.md                   → .cursor/skills/ (audit statistics)
@@ -55,7 +55,7 @@ Digite `/` no Agent chat e busque pelo nome do skill:
 **Secundários:**
 - `/vibeflow-audit` — audita implementação contra DoD + patterns + testes + Critical Gate (PASS / PARTIAL / FAIL)
 - `/vibeflow-discover` — diálogo interativo (1–5 rounds) para transformar ideia vaga em PRD
-- `/vibeflow-hotfix` — defeito observado com evidência reproduzível: doc de rastro + fix + teste de regressão red→green em 1 chamada (path de doc halted retoma)
+- `/vibeflow-hotfix` — defeito observado com evidência reproduzível: doc de rastro + fix + teste de regressão escrito antes do fix, em 1 chamada (path de doc halted retoma)
 
 **Utilitários:**
 - `/vibeflow-quick` — fast-track para tarefas pequenas (≤4 arquivos)
