@@ -21,98 +21,77 @@ Detect the language of the user's input.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 
-## When to Use
+## When to use
 
-- Quick fixes or small features with clear requirements.
-- You want a prompt pack NOW, not a paper trail.
-- The task fits in ≤4 files.
-
-## When NOT to Use
+Quick fixes and small features with clear requirements, fitting in ≤4 files,
+when you want a prompt pack now rather than a paper trail. Not for:
 
 - The idea is vague → use the vibeflow-discover prompt first.
 - You need full documentation for the team → use the full pipeline.
-- The task is large or architecturally significant → use vibeflow-gen-spec.
+- The task is large or architecturally significant → use the vibeflow-gen-spec prompt.
 
-## Phase 0: Check Context
+## Phase 0: Check context
 
-1. Does `.vibeflow/` exist?
-   - **YES** → skip to Phase 2 (use existing knowledge).
-   - **NO** → go to Phase 1 (lightweight scan).
+`.vibeflow/` exists → skip to Phase 2 and use it. Otherwise → Phase 1.
 
-## Phase 1: Lightweight Scan (only if no `.vibeflow/`)
+## Phase 1: Lightweight scan (only without `.vibeflow/`)
 
-This is NOT a full analyze. Do NOT generate `.vibeflow/`. Do just enough
-to understand the project:
+Enough to understand the project, and no more — this doesn't generate
+`.vibeflow/` and writes nothing to disk:
 
-1. Read project config files: `package.json`, `pyproject.toml`, `Cargo.toml`,
-   `go.mod`, `build.gradle`, `pom.xml`, or equivalent. Determine the stack.
-2. Read top-level directory structure (2 levels deep). Identify structural units.
-3. Read 3-4 key files: the main entry point, one route/handler, one model/type
-   definition, and one test file (if present).
-4. If `.cursorrules`, `CLAUDE.md`, `.github/copilot-instructions.md`, or
-   `.cursor/rules/` exist, read them for coding conventions.
+1. The project's config files, for the stack.
+2. The top 2 directory levels, for the structural units.
+3. Three or four key files: the entry point, one route or handler, one
+   model or type definition, one test.
+4. `.cursorrules`, `CLAUDE.md`, or `.cursor/rules/`, if present, for conventions.
 
-Keep all findings in memory — do NOT write files.
+Findings stay in memory. At the end, suggest: "For deeper analysis, run
+the vibeflow-analyze prompt."
 
-At the end, suggest: "For deeper analysis, run the vibeflow-analyze prompt."
+## Phase 2: Generate the ephemeral spec
 
-## Phase 2: Generate Ephemeral Spec
-
-Using `.vibeflow/` (if available) or Phase 1 context, generate a spec
-**in memory only** (do NOT save to file). The spec must contain:
+From `.vibeflow/` or the Phase 1 context, build a spec **in memory only** —
+never saved to a file — containing:
 
 - **Objective** — 1 sentence. What changes for the user.
-- **Definition of Done** — 3-5 binary checks (fewer than standard specs).
+- **Definition of Done** — 3-5 binary checks (fewer than a standard spec).
 - **Scope** — What's in. Keep it tight.
-- **Anti-scope** — What's explicitly OUT. Be aggressive.
-- **Budget** — ≤ 4 files (tighter than standard ≤6). If the task clearly
-  needs more than 4, warn: "This task may be too large for quick.
-  Consider using the vibeflow-gen-spec prompt."
-- **Applicable Patterns** — Which patterns from `.vibeflow/patterns/`
-  apply (if `.vibeflow/` exists).
+- **Anti-scope** — What's explicitly out. Be aggressive.
+- **Budget** — ≤4 files, tighter than the standard ≤6. A task that clearly
+  needs more gets a warning in the user's language: "This task may be too
+  large for quick. Consider using the vibeflow-gen-spec prompt."
+- **Applicable Patterns** — from `.vibeflow/patterns/`, when it exists.
 
-Do NOT include Technical Decisions or Risks sections (this is fast-track).
+No Technical Decisions and no Risks sections — this is the fast track.
 
-## Phase 3: Generate Prompt Pack
+## Phase 3: Generate the prompt pack
 
-Using the ephemeral spec and `.vibeflow/` knowledge (if available),
-generate the prompt pack.
+Same structure the vibeflow-prompt-pack prompt produces, from the ephemeral spec and
+whatever knowledge you have. It opens with the line
 
-The prompt pack MUST start with:
 > You are only seeing this prompt; there is no context outside it.
 
-(Write this opening line in the user's detected language.)
+then, in order:
 
-Then include, in this order:
+1. **Objective and Definition of Done** — from the ephemeral spec.
+2. **Anti-scope** — what not to do.
+3. **Budget** — the ≤4 files from Phase 2.
+4. **Patterns to follow** — with `.vibeflow/`, embed real code examples from the
+   pattern docs and conventions.md; without it, what the Phase 1 scan observed.
+5. **Where to work** — real file paths, verified, with the relevant snippets.
+6. **Directional guidance** — architectural direction, not step-by-step.
+7. **How to run and test** — required. Detect the runner and include the
+   command; none detected → "No test runner detected. Add manual tests to
+   validate."
 
-### 1. Objective and Definition of Done
-From the ephemeral spec.
+Save it to `.vibeflow/prompt-packs/<feature-slug>.md` (create the directory if
+it doesn't exist).
 
-### 2. Anti-scope
-What NOT to do.
+## After saving, report to the user:
 
-### 3. Budget
-≤ 4 files (default for quick).
+- Path of the generated prompt pack
+- Objective and DoD in 2-3 lines
+- If `.vibeflow/` didn't exist: remind them the vibeflow-analyze prompt makes the next
+  run richer
+- Suggest: "After implementing, run the vibeflow-audit prompt to verify."
 
-### 4. Patterns to Follow
-If `.vibeflow/` exists: embed real code examples from pattern docs
-and conventions.md, just like the vibeflow-prompt-pack prompt does.
-If `.vibeflow/` does NOT exist: include the conventions and patterns
-you observed during the Phase 1 lightweight scan.
-
-### 5. Where to Work
-Real file paths. Verify they exist. Include relevant code snippets.
-
-### 6. Directional Guidance
-Architectural direction. NOT step-by-step.
-
-### 7. How to Run/Test (MANDATORY)
-Detect test runner from stack. Always include test commands.
-If no test runner detected: "No test runner detected.
-Add manual tests to validate."
-
-Save the prompt pack to: `.vibeflow/prompt-packs/<feature-slug>.md`
-Create `.vibeflow/prompt-packs/` if it doesn't exist.
-
-After saving, suggest: "Prompt pack saved. After implementation,
-use the vibeflow-audit prompt to verify."
