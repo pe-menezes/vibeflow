@@ -230,11 +230,11 @@ Baseline (2026-08-08):
 | 6 | claude-code/agents/architect.md | 4290 | 1073 | 3364 |
 | 6 | copilot/github/agents/vibeflow-architect.agent.md | 3996 | 999 | 3096 |
 | 6 | cursor/rules/vibeflow-architect.mdc | 3281 | 820 | 2450 |
-| 7 | cursor/rules/vibeflow.mdc | 2884 | 721 | |
-| 7 | copilot/github/instructions/vibeflow/vibeflow.instructions.md | 2931 | 733 | |
-| 7 | copilot/copilot-instructions.md | 863 | 216 | |
-| 7 | copilot/AGENTS.md | 2794 | 699 | |
-| 7 | cursor/AGENTS.md | 2758 | 690 | |
+| 7 | cursor/rules/vibeflow.mdc | 2884 | 721 | 3061 |
+| 7 | copilot/github/instructions/vibeflow/vibeflow.instructions.md | 2931 | 733 | 3103 |
+| 7 | copilot/copilot-instructions.md | 863 | 216 | 759 |
+| 7 | copilot/AGENTS.md | 2794 | 699 | 765 |
+| 7 | cursor/AGENTS.md | 2758 | 690 | 725 |
 | | **Total** | **302409** | **~75602** | |
 
 Per-part subtotals: part 2 — 77,005 · part 3 — 34,742 · part 4 — 126,032 ·
@@ -255,6 +255,16 @@ dominates (implement's repeated tables, discover's scripts), while 25% would
 pressure the rewrite to cut contract, which the keep-list forbids. Per-part
 floors in the specs (15% for parts 2, 4 and 5, 20% for parts 3, 6, 7) remain
 the operative gates; part 9 confirms the aggregate against this table.
+
+**Part 7 consolidates instead of trimming (2026-08-15).** Its two source files
+grow — `cursor/rules/vibeflow.mdc` +6.1% and
+`copilot/github/instructions/vibeflow/vibeflow.instructions.md` +5.9% — because
+the Roles section moves into them from `AGENTS.md`, and the analyze flags merge
+into Cursor's skill table. The two `AGENTS.md` files fall ~73% to pointers, so
+the part still closes at −31.2%. Read the per-file column for that part as a
+map of where an instruction now lives, not as a per-file reduction score: the
+gate is the per-host count, and after the rewrite every guardrail appears
+exactly once per host.
 
 **Part 5 floor adjusted 20% → 15% (2026-08-15),** after its rewrite landed at
 −18.1% with three cutting rounds and its audit found the remainder to be
