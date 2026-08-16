@@ -67,7 +67,7 @@ Pull these from the spec into working context:
 - Scope and anti-scope — each anti-scope item is a hard stop.
 - The budget: the spec's Budget field, else the `Suggested budget` line in
   `.vibeflow/index.md`, else ≤6 files. It caps every file you create or
-  modify; reaching it means stopping and asking.
+  modify; exceeding it means stopping and asking.
 - Technical decisions — constraints to follow, not suggestions to evaluate.
 - Applicable patterns — loaded in the next phase.
 

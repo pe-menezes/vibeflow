@@ -1,3 +1,7 @@
+---
+applyTo: '**'
+---
+
 # Vibeflow — Spec-Driven Development
 
 This repository uses Vibeflow, a spec-driven development methodology.

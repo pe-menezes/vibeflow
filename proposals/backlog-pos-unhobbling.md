@@ -6,11 +6,14 @@
 > Related: `proposals/unhobbling-style.md` (the series' normative guide).
 
 The series `unhobbling-geracao-5` rewrites vibeflow's 35 prompt surfaces in the
-Claude 5 dialect. Its hard constraint is **style only, zero functional change**,
-so anything that turned out to need a behavior change was recorded instead of
-fixed. Four items came out of it — three below in descending order of who they
-hurt, plus one gap in the series' own validation. Closing that gap added a
-fifth: item 5 was found by the smoke test the gap called for.
+Claude 5 dialect. Its hard constraint on the style parts (1–7 and 9) is
+**style only, zero functional change** — part 8, the References section in
+gen-spec and its propagation in prompt-pack, is the series' one declared
+functional change — so anything else that turned out to need a behavior change
+was recorded instead of fixed. Four items came out of it — three below in
+descending order of who they hurt, plus one gap in the series' own validation.
+Closing that gap added a fifth: item 5 was found by the smoke test the gap
+called for. Section 6 collects the cross-review findings of 2026-08-16.
 
 ## 1. `--force` reinstall accumulates a stray `<!-- vibeflow:end -->`
 
@@ -70,20 +73,23 @@ entry that closes this, not by rewriting v0.12.0's.
 
 **Documentation gap, low effort.** `implement` has existed in all 3 editions
 since v1.12.0 and is in `COPILOT_FILES` / `CURSOR_FILES`, so it installs — but
-the persistent layer's command lists omit it:
+the command list that survives part 7 omits it. Since part 7 the two
+`AGENTS.md` files are pointers and carry no command lists; per host, only the
+source file does:
 
-- `copilot/github/instructions/vibeflow/vibeflow.instructions.md`
-- `cursor/rules/vibeflow.mdc`
-- `copilot/AGENTS.md`
-- `cursor/AGENTS.md`
+- `cursor/rules/vibeflow.mdc` — its "Available Skills" table lists 8 skills,
+  with `vibeflow-implement` missing.
+- `copilot/github/instructions/vibeflow/vibeflow.instructions.md` — no
+  enumerated list since part 7; it references the prompt files by glob
+  (`.github/prompts/vibeflow-*.prompt.md`), so there is nothing to add there.
 
-Each lists 8 commands. The pipeline line right above the list already reads
-`discover → analyze → gen-spec → prompt-pack → implement → audit`, so the file
-names the command and then leaves it out of its own index.
+The pipeline line in both files already reads
+`discover → analyze → gen-spec → prompt-pack → implement → audit`, so Cursor's
+file names the command and then leaves it out of its own index.
 
 Part 7 preserved the omission: adding a command to the list a user reads is a
-content change, not a style one. Four lines in four files — but check the
-README command tables and `MANUAL.md` in the same pass.
+content change, not a style one. One line in one file — but check the README
+command tables and `MANUAL.md` in the same pass.
 
 ## 3. A spec that changes a convention should carry the `teach` in its DoD
 
@@ -170,3 +176,20 @@ wins, since the outline names read better in prose and the format-block names
 are what every existing pack in the wild already uses. Changing the emitted
 names would make old and new packs differ for no user-visible gain, so the
 outline is probably what should move.
+
+## 6. Cross-review findings (2026-08-16)
+
+Origin: cross-review Copilot 16/08 over the merged series. Open, one bullet
+each:
+
+- `discover` (3 editions) calls Round 4 "one final round", which makes the
+  declared Round 5 unreachable.
+- `analyze`'s "preserve every byte outside the markers" contradicts the
+  exceptions Phases 3–4 themselves declare (frontmatter regeneration and
+  `index.md` updates).
+- `architect` (3 editions) left reading `.vibeflow/index.md` optional ("read
+  what the task touches").
+- `audit` has a recall rule (report every finding, with severity and
+  confidence) but the report template carries no such fields and the verdict
+  has no deterministic mapping from them — design decision pending.
+- The pipeline smoke harness landed with no CHANGELOG entry.

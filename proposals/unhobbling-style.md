@@ -129,7 +129,7 @@ mid-phase reminder, refine boundary, self-verification field, and a
 After: the contract is stated once at extraction —
 
 > The budget (from the spec, else `index.md`, else ≤6 files) caps every file
-> you create or modify. Reaching it means stopping and asking.
+> you create or modify. Exceeding it means stopping and asking.
 
 — later sections reference it, and the summary/error tables that only
 restated phase rules are removed.
@@ -200,30 +200,30 @@ Baseline (2026-08-08):
 
 | Part | File | Chars | ~Tokens | After |
 |---|---|---:|---:|---|
-| 2 | claude-code/skills/implement/SKILL.md | 15737 | 3934 | 8919 |
+| 2 | claude-code/skills/implement/SKILL.md | 15737 | 3934 | 8920 |
 | 2 | claude-code/skills/audit/SKILL.md | 10768 | 2692 | 10039 |
-| 2 | copilot/github/prompts/vibeflow-implement.prompt.md | 14957 | 3739 | 8122 |
+| 2 | copilot/github/prompts/vibeflow-implement.prompt.md | 14957 | 3739 | 8123 |
 | 2 | copilot/github/prompts/vibeflow-audit.prompt.md | 10196 | 2549 | 9479 |
-| 2 | cursor/skills/vibeflow-implement/SKILL.md | 15077 | 3769 | 8242 |
+| 2 | cursor/skills/vibeflow-implement/SKILL.md | 15077 | 3769 | 8243 |
 | 2 | cursor/skills/vibeflow-audit/SKILL.md | 10270 | 2568 | 9552 |
-| 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | 6457 |
+| 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | 6604 |
 | 3 | claude-code/skills/prompt-pack/SKILL.md | 5173 | 1293 | 4928 |
-| 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | 5456 |
+| 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | 5603 |
 | 3 | copilot/github/prompts/vibeflow-prompt-pack.prompt.md | 4688 | 1172 | 4336 |
-| 3 | cursor/skills/vibeflow-gen-spec/SKILL.md | 6387 | 1597 | 5547 |
+| 3 | cursor/skills/vibeflow-gen-spec/SKILL.md | 6387 | 1597 | 5694 |
 | 3 | cursor/skills/vibeflow-prompt-pack/SKILL.md | 4744 | 1186 | 4381 |
 | 4 | claude-code/skills/analyze/SKILL.md | 33955 | 8489 | 26275 |
-| 4 | claude-code/skills/teach/SKILL.md | 10297 | 2574 | 8607 |
-| 4 | copilot/github/prompts/vibeflow-analyze.prompt.md | 31599 | 7900 | 25357 |
-| 4 | copilot/github/prompts/vibeflow-teach.prompt.md | 9249 | 2312 | 7575 |
-| 4 | cursor/skills/vibeflow-analyze/SKILL.md | 31643 | 7911 | 25394 |
-| 4 | cursor/skills/vibeflow-teach/SKILL.md | 9289 | 2322 | 7615 |
+| 4 | claude-code/skills/teach/SKILL.md | 10297 | 2574 | 8946 |
+| 4 | copilot/github/prompts/vibeflow-analyze.prompt.md | 31599 | 7900 | 24509 |
+| 4 | copilot/github/prompts/vibeflow-teach.prompt.md | 9249 | 2312 | 7914 |
+| 4 | cursor/skills/vibeflow-analyze/SKILL.md | 31643 | 7911 | 24546 |
+| 4 | cursor/skills/vibeflow-teach/SKILL.md | 9289 | 2322 | 7954 |
 | 5 | claude-code/skills/discover/SKILL.md | 7080 | 1770 | 5492 |
-| 5 | claude-code/skills/quick/SKILL.md | 5227 | 1307 | 4447 |
+| 5 | claude-code/skills/quick/SKILL.md | 5227 | 1307 | 4460 |
 | 5 | copilot/github/prompts/vibeflow-discover.prompt.md | 6114 | 1529 | 4677 |
-| 5 | copilot/github/prompts/vibeflow-quick.prompt.md | 4059 | 1015 | 3719 |
+| 5 | copilot/github/prompts/vibeflow-quick.prompt.md | 4059 | 1015 | 3770 |
 | 5 | cursor/skills/vibeflow-discover/SKILL.md | 6155 | 1539 | 4718 |
-| 5 | cursor/skills/vibeflow-quick/SKILL.md | 4044 | 1011 | 3702 |
+| 5 | cursor/skills/vibeflow-quick/SKILL.md | 4044 | 1011 | 3753 |
 | 6 | claude-code/skills/stats/SKILL.md | 2989 | 747 | 2490 |
 | 6 | copilot/github/prompts/vibeflow-stats.prompt.md | 2568 | 642 | 2073 |
 | 6 | cursor/skills/vibeflow-stats/SKILL.md | 2597 | 649 | 2102 |
@@ -231,11 +231,11 @@ Baseline (2026-08-08):
 | 6 | copilot/github/agents/vibeflow-architect.agent.md | 3996 | 999 | 3096 |
 | 6 | cursor/rules/vibeflow-architect.mdc | 3281 | 820 | 2450 |
 | 7 | cursor/rules/vibeflow.mdc | 2884 | 721 | 3061 |
-| 7 | copilot/github/instructions/vibeflow/vibeflow.instructions.md | 2931 | 733 | 3103 |
-| 7 | copilot/copilot-instructions.md | 863 | 216 | 759 |
-| 7 | copilot/AGENTS.md | 2794 | 699 | 765 |
+| 7 | copilot/github/instructions/vibeflow/vibeflow.instructions.md | 2931 | 733 | 3126 |
+| 7 | copilot/copilot-instructions.md | 863 | 216 | 805 |
+| 7 | copilot/AGENTS.md | 2794 | 699 | 806 |
 | 7 | cursor/AGENTS.md | 2758 | 690 | 725 |
-| | **Total** | **302409** | **~75602** | **237024** |
+| | **Total** | **302409** | **~75602** | **237014** |
 
 Per-part subtotals: part 2 — 77,005 · part 3 — 34,742 · part 4 — 126,032 ·
 part 5 — 32,679 · part 6 — 19,721 · part 7 — 12,230.
@@ -245,11 +245,15 @@ part 8's additions on top of part 3's cuts. Part 3 itself closed at −21.2% on
 those files (27,394 chars, audited); part 8 then **added** the References
 section in `gen-spec` and its propagation in `prompt-pack`, taking them to
 31,105 (+3,711). Part 8 is the series' only functional change and its only part
-with no reduction floor.
+with no reduction floor. The post-review fixes (2026-08-16) then added the
+literal `## References` heading rule to the three gen-spec files, +441 in
+total, taking the six part 3 rows to 31,546.
 
-Reconciled at part 9: the column sums to 237,024 against a 302,409 baseline —
+Reconciled at part 9: the column summed to 237,024 against a 302,409 baseline —
 **−21.6%**, above the committed ≥20%, with every baseline checked against `main`
-and every "after" against the file on disk.
+and every "after" against the file on disk. Re-measured 2026-08-16 after the
+post-review fixes: 17 files changed, and the column now sums to 237,014 —
+still **−21.6%** (65,395 / 302,409 = 21.62%).
 
 ## Series target
 
