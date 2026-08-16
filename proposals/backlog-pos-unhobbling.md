@@ -106,9 +106,9 @@ check) or as a checklist item in `audit`.
 `proposals/pipeline-smoke-test.md`.
 
 The PRD set five Success Criteria. Criterion 3 — the pipeline
-`analyze → gen-spec → implement → audit` running end to end on a sample repo,
-with artifacts at the right paths and formats intact — never entered any spec's
-DoD, so it never ran. It has now run.
+`analyze → gen-spec → prompt-pack → implement → audit` running end to end on a
+sample repo, with artifacts at the right paths and formats intact — never
+entered any spec's DoD, so it never ran. It has now run.
 
 `node test/run-smoke.mjs` generates a Node fixture, installs one arm's skills
 into it, drives five headless sessions, and asserts the artifact contract.

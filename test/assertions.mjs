@@ -256,6 +256,11 @@ const PACK_SECTIONS = [
 // fenced block proves the pack embedded real code instead of citing a path.
 const FIXTURE_CODE = ['assertShape', 'ValidationError', 'function ok(', 'fail(', 'nextId'];
 
+// The fixture task cites docs/deletion-policy.md as its one explicit
+// reference. A spec that captured it and a pack that propagated it (path or
+// embedded content) both carry this name.
+const FIXTURE_REFERENCE = /deletion.polic/i;
+
 export function assertPromptPack(fixtureDir) {
   const out = [];
   const dir = join(fixtureDir, '.vibeflow', 'prompt-packs');
@@ -312,6 +317,36 @@ export function assertPromptPack(fixtureDir) {
         : 'no fixture source found inside any code fence',
     ),
   );
+
+  // Part 8's one functional change: a spec References section propagates into
+  // the pack (embedded content, or a verified path when too large). Only
+  // checkable when the spec actually produced the section — a spec without it
+  // is an explicit skip, never a silent pass.
+  const specPath = findSpec(fixtureDir);
+  const spec = specPath ? readFileSync(specPath, 'utf8') : null;
+  if (spec !== null && hasHeading(spec, 'References')) {
+    const propagated = hasHeading(pack, 'References') && FIXTURE_REFERENCE.test(pack);
+    out.push(
+      check(
+        'spec References section propagated into the pack',
+        propagated,
+        propagated
+          ? 'pack carries a References section citing the fixture reference'
+          : hasHeading(pack, 'References')
+            ? 'pack has a References section but not the fixture reference'
+            : 'spec has References, pack does not',
+      ),
+    );
+  } else {
+    out.push(
+      skipped(
+        'spec References section propagated into the pack',
+        spec === null
+          ? 'no spec found — nothing to propagate from'
+          : 'the generated spec carries no References section — propagation not exercised',
+      ),
+    );
+  }
 
   return out;
 }
@@ -405,6 +440,16 @@ export function assertImplement(fixtureDir, { changedFiles, budget, testsPass })
 
 const AUDIT_SECTIONS = ['DoD Checklist', 'Pattern Compliance', 'Critical Gate'];
 
+// Reports state the verdict in two forms in the wild: bold ("**Verdict: PASS**")
+// and heading ("## Verdict: PASS"). Every consumer parses through this one
+// function, so the assertion and the summary table cannot disagree on the same
+// report.
+export function parseVerdict(report) {
+  const m = /\*\*\s*Verdict:\s*(PASS|PARTIAL|FAIL)/i.exec(report)
+    ?? /^#{1,6}\s*Verdict[:\s]+(PASS|PARTIAL|FAIL)/im.exec(report);
+  return m ? m[1].toUpperCase() : null;
+}
+
 export function assertAudit(fixtureDir) {
   const out = [];
   const dir = join(fixtureDir, '.vibeflow', 'audits');
@@ -422,13 +467,12 @@ export function assertAudit(fixtureDir) {
 
   const report = readFileSync(join(dir, named[0] ?? files[0]), 'utf8');
 
-  const verdict = /\*\*\s*Verdict:\s*(PASS|PARTIAL|FAIL)/i.exec(report)
-    ?? /^#{1,6}\s*Verdict[:\s]+(PASS|PARTIAL|FAIL)/im.exec(report);
+  const verdict = parseVerdict(report);
   out.push(
     check(
       'verdict parseable as PASS / PARTIAL / FAIL',
       verdict !== null,
-      verdict ? verdict[1].toUpperCase() : 'no parseable verdict line',
+      verdict ?? 'no parseable verdict line',
     ),
   );
 
@@ -449,7 +493,7 @@ export const VERDICT_OF = (fixtureDir) => {
   if (!existsSync(dir)) return null;
   const files = readdirSync(dir).filter((f) => f.endsWith('.md'));
   if (!files.length) return null;
-  const report = readFileSync(join(dir, files[0]), 'utf8');
-  const m = /\*\*\s*Verdict:\s*(PASS|PARTIAL|FAIL)/i.exec(report);
-  return m ? m[1].toUpperCase() : null;
+  // Same file preference as assertAudit, so both read the same report.
+  const named = files.filter((f) => f.endsWith('-audit.md'));
+  return parseVerdict(readFileSync(join(dir, named[0] ?? files[0]), 'utf8'));
 };

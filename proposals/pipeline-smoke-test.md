@@ -1,4 +1,4 @@
-# Work order: pipeline smoke test (`analyze → gen-spec → implement → audit`)
+# Work order: pipeline smoke test (`analyze → gen-spec → prompt-pack → implement → audit`)
 
 > Status: **done** 2026-08-15 — harness in `test/`, results and residual scope
 > in `proposals/backlog-pos-unhobbling.md` items 4 and 5.
@@ -21,7 +21,8 @@ Definition of Done:
 1. A generated fixture repo — created by the harness, not committed — with a
    detectable stack, at least 2 real patterns, a working test runner, and a
    fixed implementation task that fits the budget.
-2. A harness that runs the four commands end to end against the fixture and
+2. A harness that runs the five commands — `analyze`, `gen-spec`,
+   `prompt-pack`, `implement`, `audit` — end to end against the fixture and
    asserts the artifact contract in section 8's table. Exit code 0 or 1, with
    each failed assertion named.
 3. The harness runs both arms from a clean fixture: **new** prompts (this repo)

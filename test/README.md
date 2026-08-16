@@ -15,6 +15,11 @@ node test/run-smoke.mjs --workdir /tmp/x   somewhere other than $TMPDIR
 Exit code 0 when every assertion passes on the new arm, 1 otherwise, with each
 failed assertion named.
 
+`--arm` accepts only `new`; any other value aborts with an error rather than
+silently filtering every arm out and passing over zero assertions. The harness
+never deletes the `--workdir` root — it only clears and rewrites the
+`arm-<id>` subdirectories it creates, plus `results.json`.
+
 ## What it checks
 
 The artifact contract, per stage. Formats come from the prompts in
@@ -25,7 +30,7 @@ and this table disagree, the prompt wins.
 |---|---|
 | `analyze` | `index.md` exists · `vibeflow:patterns` markers balanced in `index.md` · `vibeflow:auto` markers balanced per generated file · a `Suggested budget: ≤ N` line · ≥1 pattern doc · every `patterns/*.md` has YAML frontmatter ahead of the auto markers |
 | `gen-spec` | spec in `.vibeflow/specs/` · eight named sections present · DoD holds 3–7 checks · ≥1 craftsmanship check · ≥1 check naming an executable test |
-| `prompt-pack` | pack in `.vibeflow/prompt-packs/` · opening self-containment line · eight sections present and in order · fixture source found inside a code fence |
+| `prompt-pack` | pack in `.vibeflow/prompt-packs/` · opening self-containment line · eight sections present and in order · fixture source found inside a code fence · spec `## References` propagated into the pack when the spec has the section (explicit skip when it does not) |
 | `implement` | files touched ≤ budget · something was touched · no path-naming anti-scope item violated · `npm test` passes |
 | `audit` | report at `.vibeflow/audits/<slug>-audit.md` · verdict parseable as PASS/PARTIAL/FAIL · DoD Checklist, Pattern Compliance and Critical Gate present |
 
@@ -63,7 +68,12 @@ and one fixed implementation task. It is generated per arm and never committed,
 so `analyze` always runs its cold path rather than incremental mode.
 
 `run-smoke.mjs` copies one arm's `skills/` into the fixture's `.claude/skills/`
-and drives five headless sessions with `claude -p --output-format json`.
+and drives five headless sessions with `claude -p --output-format json`. It
+commits the artifacts written before `implement`, and leaves the
+implementation uncommitted so `/audit`'s `git diff HEAD` path sees exactly
+what `implement` changed. A stage whose session fails has all of its
+assertions reported as skips — residual artifacts from earlier stages never
+count as passes for a stage that did not run.
 
 Two details the harness depends on:
 
@@ -77,14 +87,18 @@ Two details the harness depends on:
   headings the assertions match on.
 
 Sessions run with `--dangerously-skip-permissions`, since `implement` writes
-files and `audit` shells out to `git` and the test runner. They are confined to
-a generated fixture under `$TMPDIR`.
+files and `audit` shells out to `git` and the test runner. They are pointed at
+a generated fixture under `$TMPDIR`, but nothing technically confines a
+permission-free session to it — run this on a machine where that risk is
+acceptable.
 
 The control arm is the plugin cache at
 `~/.claude/plugins/cache/vibeflow-marketplace/vibeflow/1.12.0/`. The runner
 verifies it before trusting it — version `1.12.0`, `audit/SKILL.md` carrying
 `MANDATORY` and lacking `Report every finding` — and refuses to run rather than
 let a silent plugin upgrade turn the control arm into a second copy of the
-treatment arm.
+treatment arm. This ties the control arm to the maintainer's local plugin
+cache — a fresh clone cannot run it — which is a declared limitation, accepted
+for now over pinning a tag or archive.
 
 Raw per-stage output lands in `<workdir>/results.json`.

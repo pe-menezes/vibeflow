@@ -12,7 +12,7 @@
 import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
-  existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync,
+  existsSync, mkdirSync, cpSync, readFileSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
@@ -40,6 +40,17 @@ const MODEL = flag('model', process.env.SMOKE_MODEL ?? 'opus');
 const WORKDIR = flag('workdir', process.env.SMOKE_WORKDIR ?? join(tmpdir(), 'vibeflow-smoke'));
 const STAGE_TIMEOUT_MS = Number(flag('timeout', 20 * 60 * 1000));
 const ONLY_ARM = flag('arm', null);
+
+// Fail closed on a typo: an unrecognized --arm value used to filter every arm
+// out, and the run ended with "All assertions passed on the new arm" over zero
+// assertions. The documented contract is `--arm new`, or no flag for both arms.
+if (ONLY_ARM !== null && ONLY_ARM !== 'new') {
+  console.error(
+    `unknown --arm value "${ONLY_ARM}" — pass "new" to run the treatment arm only, ` +
+    'or omit the flag to run both arms',
+  );
+  process.exit(1);
+}
 
 const ARMS = [
   { id: 'new', label: 'new prompts (this repo)', skills: join(REPO, 'claude-code', 'skills') },
@@ -222,13 +233,11 @@ async function runArm(arm) {
     testsPass,
   });
 
-  git(fixture, 'add', '-A');
-  try {
-    git(fixture, 'commit', '-q', '-m', 'implementation');
-  } catch {
-    /* nothing to commit */
-  }
-
+  // The implementation stays uncommitted on purpose. `/audit` has exactly two
+  // ways to find the work: `git diff HEAD` for uncommitted changes, or
+  // `git diff <base>...HEAD` for a branch. The fixture has no branch, so
+  // committing here would leave both diffs empty and the Critical Gate would
+  // scan nothing.
   log('stage 5/5 audit');
   stages.audit = await runStage(fixture, `/audit ${specArg}`, log);
   results.assertions.audit = assertAudit(fixture);
@@ -253,19 +262,19 @@ function totals(arm) {
   return { pass, fail, skip };
 }
 
-// A stage whose session died (dropped connection, timeout) produces no
-// artifacts, so its assertions would all read as failures. They are
-// inconclusive instead — the prompt was never exercised.
+// A stage whose session died (dropped connection, timeout) was never
+// exercised, so none of its assertions is conclusive: missing artifacts read
+// as failures, and residual artifacts from earlier stages can read as passes.
+// Every assertion of a dead stage becomes a skip, so the totals and the
+// side-by-side never count a phantom pass.
 function markInconclusiveStages(arm) {
   for (const [stage, session] of Object.entries(arm.stages)) {
     if (session.ok) continue;
     arm.inconclusive = arm.inconclusive ?? [];
     arm.inconclusive.push(stage);
     for (const a of arm.assertions[stage] ?? []) {
-      if (a.ok === false) {
-        a.ok = null;
-        a.detail = `not exercised — session failed: ${String(session.failure).split('\n')[0]}`;
-      }
+      a.ok = null;
+      a.detail = `not exercised — session failed: ${String(session.failure ?? 'is_error').split('\n')[0]}`;
     }
   }
 }
@@ -381,7 +390,9 @@ async function main() {
     console.log(`control arm verified: v1.12.0 at ${OLD_PLUGIN}`);
   }
 
-  rmSync(WORKDIR, { recursive: true, force: true });
+  // Never delete the workdir root — `--workdir .` would wipe the caller's
+  // checkout. The harness only owns the arm-<id> subdirectories, and
+  // generateFixture() already clears each of those before writing.
   mkdirSync(WORKDIR, { recursive: true });
   console.log(`workdir: ${WORKDIR}\n`);
 

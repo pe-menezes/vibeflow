@@ -43,6 +43,7 @@ npm test
 - \`src/validate.js\` — the shape guard every service opens with
 - \`src/store.js\` — in-memory storage
 - \`src/services/\` — one file per operation
+- \`docs/deletion-policy.md\` — behavior contract for task deletion
 `,
 
   'src/result.js': `// The result envelope. Services never throw for expected failures and never
@@ -281,6 +282,21 @@ test('updateTask reports a missing task', () => {
 });
 `,
 
+  // The task's one explicit reference. Local on purpose: gen-spec should list
+  // it under `## References` and prompt-pack should propagate it, and asserting
+  // that must not depend on the network.
+  'docs/deletion-policy.md': `# Task deletion policy
+
+Behavior contract for removing tasks from the store.
+
+- Deleting an existing task returns the envelope with \`ok: true\` and \`data\`
+  carrying the removed task's id.
+- Deleting an id that does not exist returns \`fail('NOT_FOUND', ...)\` — an
+  expected failure stays inside the envelope, it never throws.
+- Input shape is \`{ id: string }\`, validated with \`assertShape\` before the
+  store is touched.
+`,
+
   '.gitignore': `node_modules/
 `,
 };
@@ -289,8 +305,9 @@ test('updateTask reports a missing task', () => {
 // between arms is the prompt set under test.
 export const TASK =
   'Add a deleteTask service that removes a task by id, following the ' +
-  'conventions the existing services already use, with tests covering the ' +
-  'success case and the missing-task case.';
+  'conventions the existing services already use and the behavior contract ' +
+  'in docs/deletion-policy.md, with tests covering the success case and ' +
+  'the missing-task case.';
 
 export const TASK_SLUG_HINT = 'delete-task';
 
