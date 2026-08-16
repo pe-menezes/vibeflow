@@ -33,10 +33,13 @@ Process feedback and update project knowledge: $ARGUMENTS
 
 ## The one rule that governs every edit
 
-Everything you write goes **outside** the `<!-- vibeflow:auto:start/end -->`
-markers — that is what makes a correction survive the next incremental analyze.
-Read the target file before editing it, and never rewrite what is inside the
-markers; analyze owns that region.
+When editing an existing generated region, everything you write goes
+**outside** the `<!-- vibeflow:auto:start/end -->` markers — that is what makes
+a correction survive the next incremental analyze. Read the target file before
+editing it, and never rewrite what is inside the markers; analyze owns that
+region. One explicit exception: a new pattern doc created in category (d) is
+born with its own markers and its initial content inside them, so analyze owns
+that region from the start.
 
 ## Before starting
 
@@ -64,13 +67,14 @@ directory name for a local path (`./my-patterns` → `my-patterns`).
 ### Step 2: Get the repo
 
 A URL (contains `://` or starts with `git@`) is cloned shallow into a temp
-directory — `git clone --depth 1 <url> $TMPDIR/vibeflow-teach-$(date +%s)` — and
-marked for cleanup. A local path is verified to exist and be a directory, and
-its resolved absolute path is used as is; nothing to clean up.
+directory — `git clone --depth 1 <url> $TMPDIR/vibeflow-teach-$(date +%s)` —
+`$REPO_PATH` is set to that directory, and the clone is marked for cleanup. A
+local path is verified to exist and be a directory, and `$REPO_PATH` is set to
+its resolved absolute path; nothing to clean up.
 
 ### Step 3: Detect knowledge sources
 
-Scan the repo for these sources, in order:
+Scan `$REPO_PATH` for these sources, in order:
 
 | Source | Glob pattern |
 |--------|-------------|
@@ -161,8 +165,9 @@ Add the imported directory to the "Pattern Docs Available" section:
 
 ### Step 7: Cleanup
 
-A clone gets removed (`rm -rf`) even when an earlier step failed — treat it as a
-finally block, not a happy-path step.
+A clone gets removed with `rm -rf "$REPO_PATH"` — never `rm -rf` without an
+operand — even when an earlier step failed; treat it as a finally block, not a
+happy-path step.
 
 ### Step 8: Report
 

@@ -25,6 +25,8 @@ allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 Detect the language of the user's input ($ARGUMENTS or conversation).
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
+One heading is exempt: `## References` stays literally in English in any
+output language — prompt-pack's propagation matches that exact heading.
 
 ## Web Search Policy
 

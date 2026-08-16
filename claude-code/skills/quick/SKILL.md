@@ -52,7 +52,7 @@ Enough to understand the project, and no more — this doesn't generate
 1. The project's config files, for the stack.
 2. The top 2 directory levels, for the structural units.
 3. Three or four key files: the entry point, one route or handler, one
-   model or type definition, one test.
+   model or type definition, one test (if present).
 4. `.cursorrules`, `CLAUDE.md`, or `.cursor/rules/`, if present, for conventions.
 
 Findings stay in memory. At the end, suggest: "For deeper analysis, run

@@ -397,41 +397,14 @@ manual curation. On a fresh run, create it only if absent:
 
 ```
 # Decision Log
-> Newest first. Updated automatically by the architect agent.
+> Newest first. Updated by the architect during specs and audits.
 ```
 
-## Phase 5: Update MEMORY.md
+## Phase 5: Update Index
 
-Save a compact index to your MEMORY.md (architect persistent memory):
-
-```
-# Vibeflow Index
-> Project: <name> | Stack: <stack> | Analyzed: <date>
-
-## .vibeflow/ docs available
-- index.md — project overview and structure
-- conventions.md — coding conventions
-- patterns/<name>.md — <1-line desc>
-- patterns/<name>.md — <1-line desc>
-- ... (list all)
-- decisions.md — architectural decision log
-
-## Quick Reference
-<top 5 most important conventions/rules to remember>
-
-## Instructions
-Before generating ANY spec, prompt pack, or audit:
-1. Read .vibeflow/index.md for project context
-2. Read .vibeflow/conventions.md for coding standards
-3. Read the relevant pattern docs from .vibeflow/patterns/
-4. Embed applicable patterns in your output
-
-When you learn something new about this project, update:
-- .vibeflow/decisions.md for architectural decisions
-- .vibeflow/conventions.md if new conventions are discovered
-- .vibeflow/patterns/*.md if patterns evolve
-- This MEMORY.md index if new docs are added
-```
+After compiling all `.vibeflow/` docs, update the "Pattern Docs Available"
+section of `.vibeflow/index.md` so it lists every pattern doc with its 1-line
+description.
 
 Match the length of the generated docs to what the project needs: cover the
 substance, without filler sections, redundant summaries, or boilerplate.

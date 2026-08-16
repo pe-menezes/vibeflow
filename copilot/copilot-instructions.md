@@ -1,8 +1,9 @@
 # Vibeflow — Append Snippet
 
 > A minimal snippet for an existing `.github/copilot-instructions.md`. Without
-> one, skip this file: Copilot loads
-> `.github/instructions/vibeflow/vibeflow.instructions.md` on its own.
+> one, skip this file: Copilot auto-applies
+> `.github/instructions/vibeflow/vibeflow.instructions.md` through that file's
+> `applyTo: '**'` frontmatter.
 
 ---
 
