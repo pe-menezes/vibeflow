@@ -91,6 +91,15 @@ See [`copilot/README.md`](copilot/README.md) for details.
 | **Cursor** | npx installer | `npx setup-vibeflow@latest --cursor` |
 | **GitHub Copilot** | npx installer | `npx setup-vibeflow@latest --copilot` |
 
+## Prompt baseline
+
+Vibeflow's prompts are written for the 2026 frontier generation — they state
+rules once, without caps emphasis or restated knowledge, and leave judgment to
+the model where a script would only guess. They work best on current models.
+If a command misbehaves on an older one, that's a regression worth an issue,
+not something to work around locally. Style guide:
+[`proposals/unhobbling-style.md`](proposals/unhobbling-style.md).
+
 ## Documentation
 
 - [vibeflow.run](https://vibeflow.run) — Website with command reference, examples, and plugin docs

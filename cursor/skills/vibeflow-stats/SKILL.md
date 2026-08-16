@@ -20,23 +20,19 @@ Technical terms in English are acceptable regardless of the detected language.
 
 ## Steps
 
-1. Check if `.vibeflow/audits/` directory exists and contains `.md` files.
-   - If no audits found: report "No audits found. Run the
-     vibeflow-audit skill after implementing a feature." and STOP.
+1. Read every `.md` file in `.vibeflow/audits/`. If there are none, report
+   "No audits found. Run the vibeflow-audit skill after implementing a feature."
+   and stop.
 
-2. Read ALL `.md` files in `.vibeflow/audits/`.
+2. From each audit take the verdict (the `**Verdict:**` line), the `[x]`/`[ ]`
+   counts under `### DoD Checklist`, the patterns marked `[ ]` under
+   `### Pattern Compliance`, and the items under `### Convention Violations`.
+   A file in a different shape contributes what it can, noted as
+   "Non-standard format detected in <file>."
 
-3. For each audit file, extract:
-   - **Verdict**: PASS, PARTIAL, or FAIL (from the `**Verdict:**` line)
-   - **DoD checks**: count of passed `[x]` and failed `[ ]` checkboxes
-     in the `### DoD Checklist` section
-   - **Pattern violations**: items marked `[ ]` in the `### Pattern Compliance`
-     section, with the pattern name
-   - **Convention violations**: items listed in `### Convention Violations`
-     section (if present)
-
-4. Compile the statistics and report directly in the chat (do NOT save
-   to file). Use this format:
+3. Report in the chat in ~20-30 lines, in this format — this skill writes
+   nothing to disk. Skip Trend with fewer than 3 audits; when no pattern was
+   violated, write "No pattern violations."
 
 ```markdown
 ## Vibeflow Stats
@@ -70,14 +66,3 @@ Technical terms in English are acceptable regardless of the detected language.
 <If ≥3 audits exist, note if quality is improving (more PASS over time),
 stable, or degrading. Base on chronological order of audit dates.>
 ```
-
-5. If there are fewer than 3 audits, skip the "Trend" section.
-   If there are no pattern violations, write "No pattern violations."
-
-## Rules
-
-- This skill is READ-ONLY. It does NOT modify any files.
-- Output goes directly to the chat, not to a file.
-- Keep the report concise (~20-30 lines).
-- If audit files have non-standard format, extract what you can and
-  note: "Non-standard format detected in <file>."

@@ -1,9 +1,9 @@
 # Vibeflow — Append Snippet
 
-> This is a minimal snippet to append to your existing `.github/copilot-instructions.md`.
-> If your repo does NOT have one yet, you can skip this file entirely —
-> the full instructions in `.github/instructions/vibeflow/vibeflow.instructions.md`
-> will be loaded automatically by Copilot.
+> A minimal snippet for an existing `.github/copilot-instructions.md`. Without
+> one, skip this file: Copilot auto-applies
+> `.github/instructions/vibeflow/vibeflow.instructions.md` through that file's
+> `applyTo: '**'` frontmatter.
 
 ---
 

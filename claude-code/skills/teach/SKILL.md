@@ -9,7 +9,6 @@ description: >
 argument-hint: "<feedback> | --from <url|path> [--name alias]"
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 ---
----
 
 ## Description and examples
 
@@ -32,47 +31,50 @@ Technical terms in English are acceptable regardless of the detected language.
 
 Process feedback and update project knowledge: $ARGUMENTS
 
+## The one rule that governs every edit
+
+When editing an existing generated region, everything you write goes
+**outside** the `<!-- vibeflow:auto:start/end -->` markers — that is what makes
+a correction survive the next incremental analyze. Read the target file before
+editing it, and never rewrite what is inside the markers; analyze owns that
+region. One explicit exception: a new pattern doc created in category (d) is
+born with its own markers and its initial content inside them, so analyze owns
+that region from the start.
+
 ## Before starting
 
-1. Check if `.vibeflow/` exists.
-   - **YES** → read `.vibeflow/index.md` for orientation.
-   - **NO** → warn: "`.vibeflow/` does not exist. Run `/vibeflow:analyze`
-     first to create the knowledge base." and STOP.
+`.vibeflow/` has to exist: read `.vibeflow/index.md` directly by path for
+orientation. If it isn't there, stop with "`.vibeflow/` does not exist. Run
+`/vibeflow:analyze` first to create the knowledge base." — don't create it by hand.
 
-2. **Check for `--from` flag.**
-   If `$ARGUMENTS` contains `--from`, go to **## Import from external repo**.
-   Otherwise, continue to **## Classify the feedback**.
+Then branch on the input: `--from` in $ARGUMENTS goes to **Import from external
+repo**; anything else goes to **Classify the feedback**.
 
 ---
 
 ## Import from external repo
 
-This flow imports patterns and conventions from an external reference repo
-(e.g., shared architecture docs, coding guidelines).
+Imports patterns and conventions from an external reference repo — shared
+architecture docs, coding guidelines.
 
 ### Step 1: Parse arguments
 
-- Extract the `<url|path>` after `--from`.
-- If `--name <alias>` is present, use `<alias>` as the repo name.
-- Otherwise, auto-detect the name:
-  - URL: use the last path segment without `.git` (e.g., `https://github.com/org/platform-patterns.git` → `platform-patterns`)
-  - Local path: use the directory name (e.g., `./my-patterns` → `my-patterns`)
+Take the `<url|path>` after `--from`. The repo name is `--name <alias>` when
+given, otherwise derived: the URL's last path segment without `.git`
+(`https://github.com/org/platform-patterns.git` → `platform-patterns`), or the
+directory name for a local path (`./my-patterns` → `my-patterns`).
 
 ### Step 2: Get the repo
 
-- **URL (contains `://` or starts with `git@`):**
-  1. Clone to a temp directory: `git clone --depth 1 <url> $TMPDIR/vibeflow-teach-$(date +%s)`
-  2. Set `$REPO_PATH` to the clone directory.
-  3. Mark for cleanup at the end.
-
-- **Local path:**
-  1. Verify the path exists and is a directory.
-  2. Set `$REPO_PATH` to the resolved absolute path.
-  3. No cleanup needed.
+A URL (contains `://` or starts with `git@`) is cloned shallow into a temp
+directory — `git clone --depth 1 <url> $TMPDIR/vibeflow-teach-$(date +%s)` —
+`$REPO_PATH` is set to that directory, and the clone is marked for cleanup. A
+local path is verified to exist and be a directory, and `$REPO_PATH` is set to
+its resolved absolute path; nothing to clean up.
 
 ### Step 3: Detect knowledge sources
 
-Scan `$REPO_PATH` for these knowledge sources (in order):
+Scan `$REPO_PATH` for these sources, in order:
 
 | Source | Glob pattern |
 |--------|-------------|
@@ -84,21 +86,18 @@ Scan `$REPO_PATH` for these knowledge sources (in order):
 | Cursor rule files | `.cursor/rules/*.mdc` |
 | AGENTS.md | `AGENTS.md` |
 
-For each source found:
-1. Read the file.
-2. Extract a **title** (first `#` heading, or filename if no heading).
-3. Extract a **summary** (first 3-5 lines of meaningful content, or the
-   `description` from YAML frontmatter if present).
-4. Classify as `pattern` or `convention` based on content:
-   - If it describes architecture, module structure, code organization → `pattern`
-   - If it describes coding rules, naming, formatting, process → `convention`
+For each one found, take a **title** (the first `#` heading, else the filename),
+a **summary** (the `description` from YAML frontmatter, else the first 3-5 lines
+of real content), and a classification: architecture, module structure, or code
+organization → `pattern`; coding rules, naming, formatting, or process →
+`convention`.
 
-If NO sources are found: report "No knowledge sources found in `<repo>`."
-and STOP (after cleanup if cloned).
+No sources found → report "No knowledge sources found in `<repo>`." and stop,
+after cleanup if you cloned.
 
 ### Step 4: Interactive review
 
-Present the findings to the user:
+Present what you found:
 
 ```
 ## Found N knowledge sources in <repo-name>
@@ -115,36 +114,14 @@ Present the findings to the user:
 Select which to import (comma-separated numbers, "all", or "none"):
 ```
 
-Wait for the user's selection. If the user selects "none": report
-"No patterns imported." and STOP (after cleanup).
+Wait for the selection. "none" → report "No patterns imported." and stop, after
+cleanup.
 
-### Step 5: Import selected patterns
+### Step 5: Import the selection
 
-For each selected item:
+**Pattern items** go to `.vibeflow/patterns/external-<repo-name>/<source-name>.md`
+(create the directory if needed), in this format:
 
-#### 5a. Pattern items → save to `patterns/external-<nome>/`
-
-Create directory `.vibeflow/patterns/external-<repo-name>/` if it doesn't exist.
-
-**Conflict detection:** Before saving each pattern, check if a file with the
-same name already exists in `.vibeflow/patterns/` (the root patterns directory,
-not inside `external-*/`). Compare `<source-name>.md` against filenames in
-`.vibeflow/patterns/*.md`.
-
-If a conflict is found:
-1. Show the user both patterns (name + description/first few lines of each).
-2. Ask: "A local pattern `<name>.md` already exists. Keep local or replace
-   with the external version?"
-3. **User chooses external:** Delete the local file from `.vibeflow/patterns/`
-   and proceed to save the external version in `external-<repo-name>/`.
-4. **User chooses local:** Skip this pattern — do not save the external version.
-
-If no conflict: proceed normally.
-
-For each selected pattern (not skipped), create a file:
-`.vibeflow/patterns/external-<repo-name>/<source-name>.md`
-
-Format:
 ```markdown
 ---
 tags: [external, <repo-name>]
@@ -159,14 +136,16 @@ confidence: imported
 <full content of the source file>
 ```
 
-If the file already exists (re-import):
-- Warn: "Previously imported, updating."
-- Overwrite with the new content.
+Before saving each one, check for a name collision against the local
+`.vibeflow/patterns/*.md` (the root directory, not inside `external-*/`). On a
+collision, show the user both versions — name plus description or opening lines
+— and ask whether to keep the local one or replace it with the external. Keeping
+local skips the import for that pattern; choosing external deletes the local file
+and saves the external version under `external-<repo-name>/`. A file already
+imported before is overwritten, with a "Previously imported, updating." warning.
 
-#### 5b. Convention items → append to `conventions.md`
-
-Read `.vibeflow/conventions.md`. Add a section OUTSIDE the
-`<!-- vibeflow:auto:start/end -->` markers:
+**Convention items** are appended to `.vibeflow/conventions.md`, outside the
+markers, replacing the section if it already exists:
 
 ```markdown
 ## External Conventions: <repo-name>
@@ -176,13 +155,9 @@ Read `.vibeflow/conventions.md`. Add a section OUTSIDE the
 <extracted convention content>
 ```
 
-If an `## External Conventions: <repo-name>` section already exists,
-replace it with the updated content.
-
 ### Step 6: Update index.md
 
-Add the new pattern directory to the "Pattern Docs Available" section
-in `.vibeflow/index.md`:
+Add the imported directory to the "Pattern Docs Available" section:
 
 ```
 - `patterns/external-<repo-name>/` — Patterns imported from <repo-name> (YYYY-MM-DD)
@@ -190,45 +165,38 @@ in `.vibeflow/index.md`:
 
 ### Step 7: Cleanup
 
-If a clone was created (URL source):
-- Run `rm -rf $REPO_PATH` to remove the temporary clone.
-- This MUST happen even if previous steps failed (use try/finally logic).
+A clone gets removed with `rm -rf "$REPO_PATH"` — never `rm -rf` without an
+operand — even when an earlier step failed; treat it as a finally block, not a
+happy-path step.
 
 ### Step 8: Report
 
-Report to the user:
-- How many sources were found and how many were imported
-- Which files were created/updated
-- Where to find the imported patterns
-- Suggest: "Review the imported patterns in `.vibeflow/patterns/external-<repo-name>/`.
-  They are ready to be used by `gen-spec` and `implement`."
+How many sources were found and how many imported, which files were created or
+updated, and where the imported patterns live. Then suggest: "Review the imported
+patterns in `.vibeflow/patterns/external-<repo-name>/`. They are ready to be used
+by `gen-spec` and `implement`."
 
 ---
 
 ## Classify the feedback
 
-Read $ARGUMENTS and classify into one of these categories:
+Read $ARGUMENTS and place it in one of four categories. Ambiguous feedback is
+worth one clarifying question before you edit anything.
 
-### (a) Existing pattern correction
-The user is saying an existing pattern doc is wrong or outdated.
-- Identify which `patterns/*.md` file is affected.
-- Read that file.
-- Apply the correction OUTSIDE the `<!-- vibeflow:auto -->` markers
-  (add a `## Manual Corrections` section at the end if it doesn't exist,
-  or append to it).
-- This ensures the correction survives incremental analyze runs.
+### (a) An existing pattern doc is wrong or outdated
 
-### (b) New convention
-The user is adding a coding convention.
-- Read `conventions.md`.
-- Add the new convention OUTSIDE the `<!-- vibeflow:auto -->` markers
-  (add a `## Team Conventions` section at the end if it doesn't exist,
-  or append to it).
+Identify the affected `patterns/*.md`, read it, and apply the correction in a
+`## Manual Corrections` section at the end — created if absent, appended to if
+present.
 
-### (c) Architectural decision
-The user is recording an architectural decision.
-- Read `decisions.md`.
-- Add a new entry at the TOP (newest first), formatted as:
+### (b) A new convention
+
+Add it to `conventions.md` in a `## Team Conventions` section at the end —
+created if absent, appended to if present.
+
+### (c) An architectural decision
+
+Add an entry at the top of `decisions.md` (newest first):
 
 ```
 ### <date> — <title>
@@ -237,21 +205,15 @@ The user is recording an architectural decision.
 **Discarded alternatives:** <what was not chosen and why>
 ```
 
-### (d) New pattern
-The user is describing a pattern that doesn't have a doc yet.
+### (d) A pattern with no doc yet
 
-**Conflict detection:** Before creating, check if a file with the same name
-already exists in `.vibeflow/patterns/` or `.vibeflow/patterns/external-*/`.
-- If it exists in `patterns/` (local): ask the user — "A pattern `<name>.md`
-  already exists. Update the existing one or create a new one?"
-  If update → treat as category (a) instead.
-- If it exists in `patterns/external-*/` (imported): warn the user — "An
-  imported pattern `<name>.md` exists from `<repo-name>`. Create a local
-  override or skip?" If skip → STOP.
+Check for a name collision first. One in `patterns/` (local) → ask whether to
+update the existing doc or create a separate one; updating makes it category (a).
+One in `patterns/external-*/` (imported) → warn that `<name>.md` came from
+`<repo-name>` and ask whether to create a local override or skip; skipping stops
+here.
 
-If no conflict, proceed:
-- Create a new file: `.vibeflow/patterns/<name>.md`
-- Use the standard structure with markers:
+With no collision, create `.vibeflow/patterns/<name>.md`:
 
 ```
 # Pattern: <Name>
@@ -274,25 +236,14 @@ If no conflict, proceed:
 <from user feedback if mentioned, otherwise empty>
 ```
 
-- Update `.vibeflow/index.md` → add the new pattern to "Pattern Docs Available".
-- Update architect's MEMORY.md if it exists.
+Then add it to "Pattern Docs Available" in `.vibeflow/index.md`, and to the
+architect's MEMORY.md if that exists.
 
 ## After updating
 
-Report to the user:
-- What category was identified
-- Which file(s) were modified
-- What was added/changed (brief summary)
-- Suggest: "Run `/vibeflow:analyze` at the next opportunity to
-  sync auto-generated sections with your corrections."
-
-## Rules
-
-- NEVER modify content inside `<!-- vibeflow:auto:start/end -->` markers.
-  User corrections go OUTSIDE markers to survive incremental updates.
-- ALWAYS read the target file before modifying it.
-- If the feedback is ambiguous, ask ONE clarifying question before acting.
-- If `.vibeflow/` doesn't exist, STOP. Don't create it manually.
+Report which category you identified, which files changed, and a brief summary
+of what was added. Then suggest: "Run `/vibeflow:analyze` at the next opportunity
+to sync auto-generated sections with your corrections."
 
 ---
 

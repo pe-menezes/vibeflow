@@ -1,13 +1,17 @@
+---
+applyTo: '**'
+---
+
 # Vibeflow — Spec-Driven Development
 
-This repository uses **Vibeflow**, a spec-driven development methodology.
-Before starting any non-trivial task, follow the pipeline:
+This repository uses Vibeflow, a spec-driven development methodology.
+Non-trivial work follows the pipeline:
 
 ```
 discover → analyze → gen-spec → prompt-pack → implement → audit
 ```
 
-Fast-track for small tasks (≤4 files): use the `vibeflow-quick` prompt.
+Small tasks (≤4 files) fast-track through the `vibeflow-quick` prompt.
 
 ## Where Things Live
 
@@ -26,28 +30,32 @@ Fast-track for small tasks (≤4 files): use the `vibeflow-quick` prompt.
 
 ## Before Any Task
 
-1. Read `.vibeflow/index.md` for project context (if it exists).
-2. Read `.vibeflow/conventions.md` for coding standards.
-3. Read relevant pattern docs from `.vibeflow/patterns/`.
-4. Use real patterns from these docs in your output.
+Read `.vibeflow/index.md` for project context, `.vibeflow/conventions.md` for
+coding standards, and the pattern docs the task touches — then build the output
+on their real patterns. In installed projects `.vibeflow/` is gitignored, and
+IDE search, grep, and glob respect `.gitignore`: they miss the directory and
+report it as absent. Open these files directly by path.
 
-## Guardrails (Always Active)
+## Guardrails
 
-- **No DoD, no work.** Every task needs a Definition of Done (3-7 binary checks).
-- **Minimum change** to close the DoD. Nothing beyond scope.
-- **No refactoring outside scope.** No cleanup "just because".
-- **Budget:** ≤ 6 files per task (default). ≤ 4 for quick tasks. Justify if exceeding.
-- **New dependency:** justify in 1 line.
-- **Abstraction:** only with 2+ real uses.
-- **Anti-scope is a guardrail.** What you won't do matters.
-- **Tests are mandatory.** If tests fail, the task is not done.
+- No DoD, no work. Every task needs a Definition of Done (3-7 binary checks).
+- Minimum change to close the DoD. Nothing beyond scope, no cleanup "just
+  because", no refactoring outside scope.
+- Budget: ≤ 6 files per task, ≤ 4 for quick tasks. Justify if exceeding.
+- New dependency: justify in 1 line.
+- Abstraction: only with 2+ real uses.
+- Anti-scope is a guardrail — what you won't do matters.
+- Tests are mandatory. If tests fail, the task is not done.
 
-## .vibeflow/ Access Rule
+## Roles
 
-The `.vibeflow/` directory is gitignored by default (installed projects).
-Search, grep, and glob tools in IDEs respect `.gitignore` and will NOT
-find files inside `.vibeflow/`. Always access `.vibeflow/` files by reading
-them directly via their file path — never use search to discover them.
+- **Architect** — produces PRDs, specs, prompt packs, and audit reports;
+  challenges vague requirements, cuts scope, curates `.vibeflow/`. Thinks and
+  documents, never implements. Persona:
+  `.github/agents/vibeflow-architect.agent.md`.
+- **Coding agent** — works from a self-contained prompt pack, follows the
+  patterns embedded in it, holds to the Definition of Done, and stays inside
+  the scope the pack declares.
 
 ## Language
 
