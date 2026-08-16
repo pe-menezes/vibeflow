@@ -206,12 +206,12 @@ Baseline (2026-08-08):
 | 2 | copilot/github/prompts/vibeflow-audit.prompt.md | 10196 | 2549 | 9479 |
 | 2 | cursor/skills/vibeflow-implement/SKILL.md | 15077 | 3769 | 8242 |
 | 2 | cursor/skills/vibeflow-audit/SKILL.md | 10270 | 2568 | 9552 |
-| 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | 5666 |
-| 3 | claude-code/skills/prompt-pack/SKILL.md | 5173 | 1293 | 4482 |
-| 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | 4665 |
-| 3 | copilot/github/prompts/vibeflow-prompt-pack.prompt.md | 4688 | 1172 | 3890 |
-| 3 | cursor/skills/vibeflow-gen-spec/SKILL.md | 6387 | 1597 | 4756 |
-| 3 | cursor/skills/vibeflow-prompt-pack/SKILL.md | 4744 | 1186 | 3935 |
+| 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | 6457 |
+| 3 | claude-code/skills/prompt-pack/SKILL.md | 5173 | 1293 | 4928 |
+| 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | 5456 |
+| 3 | copilot/github/prompts/vibeflow-prompt-pack.prompt.md | 4688 | 1172 | 4336 |
+| 3 | cursor/skills/vibeflow-gen-spec/SKILL.md | 6387 | 1597 | 5547 |
+| 3 | cursor/skills/vibeflow-prompt-pack/SKILL.md | 4744 | 1186 | 4381 |
 | 4 | claude-code/skills/analyze/SKILL.md | 33955 | 8489 | 26275 |
 | 4 | claude-code/skills/teach/SKILL.md | 10297 | 2574 | 8607 |
 | 4 | copilot/github/prompts/vibeflow-analyze.prompt.md | 31599 | 7900 | 25357 |
@@ -240,12 +240,16 @@ Baseline (2026-08-08):
 Per-part subtotals: part 2 — 77,005 · part 3 — 34,742 · part 4 — 126,032 ·
 part 5 — 32,679 · part 6 — 19,721 · part 7 — 12,230.
 
-The part 3 "after" column records what part 3 measured. Part 8 then **added**
-to those same six files — the References section in `gen-spec`, its propagation
-in `prompt-pack` — taking them from 27,394 to 31,105 chars (+3,711). The Total
-row is the post-part-8 figure, which is the one that counts: 302,409 → 237,024
-= **−21.6%**, above the committed ≥20%. Part 8 is the series' only functional
-change, so it is the only part with no reduction floor.
+The "after" column is each file's current state, so the six part 3 rows carry
+part 8's additions on top of part 3's cuts. Part 3 itself closed at −21.2% on
+those files (27,394 chars, audited); part 8 then **added** the References
+section in `gen-spec` and its propagation in `prompt-pack`, taking them to
+31,105 (+3,711). Part 8 is the series' only functional change and its only part
+with no reduction floor.
+
+Reconciled at part 9: the column sums to 237,024 against a 302,409 baseline —
+**−21.6%**, above the committed ≥20%, with every baseline checked against `main`
+and every "after" against the file on disk.
 
 ## Series target
 
