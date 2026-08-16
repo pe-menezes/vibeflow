@@ -224,12 +224,12 @@ Baseline (2026-08-08):
 | 5 | copilot/github/prompts/vibeflow-quick.prompt.md | 4059 | 1015 | 3719 |
 | 5 | cursor/skills/vibeflow-discover/SKILL.md | 6155 | 1539 | 4718 |
 | 5 | cursor/skills/vibeflow-quick/SKILL.md | 4044 | 1011 | 3702 |
-| 6 | claude-code/skills/stats/SKILL.md | 2989 | 747 | |
-| 6 | copilot/github/prompts/vibeflow-stats.prompt.md | 2568 | 642 | |
-| 6 | cursor/skills/vibeflow-stats/SKILL.md | 2597 | 649 | |
-| 6 | claude-code/agents/architect.md | 4290 | 1073 | |
-| 6 | copilot/github/agents/vibeflow-architect.agent.md | 3996 | 999 | |
-| 6 | cursor/rules/vibeflow-architect.mdc | 3281 | 820 | |
+| 6 | claude-code/skills/stats/SKILL.md | 2989 | 747 | 2490 |
+| 6 | copilot/github/prompts/vibeflow-stats.prompt.md | 2568 | 642 | 2073 |
+| 6 | cursor/skills/vibeflow-stats/SKILL.md | 2597 | 649 | 2102 |
+| 6 | claude-code/agents/architect.md | 4290 | 1073 | 3364 |
+| 6 | copilot/github/agents/vibeflow-architect.agent.md | 3996 | 999 | 3096 |
+| 6 | cursor/rules/vibeflow-architect.mdc | 3281 | 820 | 2450 |
 | 7 | cursor/rules/vibeflow.mdc | 2884 | 721 | |
 | 7 | copilot/github/instructions/vibeflow/vibeflow.instructions.md | 2931 | 733 | |
 | 7 | copilot/copilot-instructions.md | 863 | 216 | |
