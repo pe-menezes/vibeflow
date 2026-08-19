@@ -111,6 +111,22 @@ const commands = [
     output: t.cmdQuickOutput,
   },
   {
+    id: 'hotfix',
+    name: 'hotfix',
+    tagline: lang === 'en' ? 'Fix bugs with a paper trail' : 'Conserte bugs com rastro',
+    desc: t.cmdHotfixDesc,
+    usage: t.cmdHotfixUsage,
+    flags: [
+      { label: lang === 'en' ? 'Trace doc' : 'Doc de rastro', desc: t.cmdHotfixTrace },
+      { label: lang === 'en' ? 'Red proof' : 'Prova vermelha', desc: t.cmdHotfixRedProof },
+      { label: lang === 'en' ? 'done or HALT' : 'done ou HALT', desc: t.cmdHotfixHalts },
+      { label: lang === 'en' ? 'verified status' : 'Status verified', desc: t.cmdHotfixVerified },
+      { label: lang === 'en' ? 'Consolidation' : 'Consolidação', desc: t.cmdHotfixConsolidate },
+      { label: lang === 'en' ? 'When to use' : 'Quando usar', desc: t.cmdHotfixWhen },
+    ],
+    output: t.cmdHotfixOutput,
+  },
+  {
     id: 'teach',
     name: 'teach',
     tagline: lang === 'en' ? 'Teach your project' : 'Ensine seu projeto',
