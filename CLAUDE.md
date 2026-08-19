@@ -56,6 +56,8 @@ When making changes, check if these docs need updating:
 After significant changes, bump version in:
 - `CHANGELOG.md` (new entry at top)
 - `claude-code/.claude-plugin/plugin.json` (`"version"` field)
+- `claude-code/.claude-plugin/marketplace.json` (`metadata.version` and `plugins[0].version`, both always match plugin.json)
+- `cli/package.json` (`"version"` field, only when the CLI changed)
 
 ## Site
 
