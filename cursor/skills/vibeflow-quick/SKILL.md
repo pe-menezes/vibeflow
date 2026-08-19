@@ -20,8 +20,8 @@ Technical terms in English are acceptable regardless of the detected language.
 
 ## When to use
 
-Quick fixes and small features with clear requirements, fitting in ≤4 files,
-when you want a prompt pack now rather than a paper trail. Not for:
+Small planned tasks and features with clear requirements, fitting in ≤4
+files, when you want a prompt pack now rather than a paper trail. Not for:
 
 - An observed defect with reproducible evidence → use the vibeflow-hotfix skill.
 - The idea is vague → use the vibeflow-discover skill first.

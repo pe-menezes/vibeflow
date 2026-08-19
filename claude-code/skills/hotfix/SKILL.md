@@ -87,9 +87,10 @@ files_changed: <paths>
 
 ## Regression
 WHEN <trigger, with the data> THEN <expected behavior>
-test: <path of the test in the project's suite>
+test: <path of the test in the project's suite — written at the red proof>
 oracle_type: specified | derived | metamorphic | implicit
 reproduction: real | synthetic | none
+verification: red-green | not-run
 
 ## Deviations
 <append-only: what diverged from the assessment, and why>
@@ -125,12 +126,14 @@ project's suite and run it: it must fail on the current code, for the reason
 the hypothesis names. A test that cannot be made to fail means the
 investigation was wrong → HALT `cannot-reproduce`, with the fix code still
 untouched. Failing before the fix is what makes the test an oracle — written
-after, it can only agree with the fix. A host with no way to run the test
-writes it anyway — it enters the repo as the oracle for whoever can run it —
-and declares `verification: not-run` in the doc, locking the status at
-`partial`. `cannot-reproduce` stays reserved for a test that runs and comes
-back green, or cannot be constructed at all — not for a test the host was
-unable to execute.
+after, it can only agree with the fix. The moment it proves red, record its
+path in the doc's `test:` field — a HALT past this point then carries where
+the red test lives. A host with no way to run the test writes it anyway — it
+enters the repo as the oracle for whoever can run it — and declares
+`verification: not-run` in the doc, locking the status at `partial`.
+`cannot-reproduce` stays reserved for a test that runs and comes back green,
+or cannot be constructed at all — not for a test the host was unable to
+execute.
 
 ## The fix
 
@@ -156,9 +159,10 @@ attempt → HALT `breaker-tripped`.
 ## Time 2 — after the fix
 
 Complete the doc: `Root cause`; `Fix` with `files_changed`; `DoD` with 2–4
-binary checks; `Regression` with the WHEN/THEN scenario, `oracle_type`,
-`reproduction`, and the test path; `Deviations` for anything that diverged
-from the assessment. Then verify:
+binary checks; `Regression` around the `test:` path recorded at the red
+proof — the WHEN/THEN scenario, `oracle_type`, `reproduction`,
+`verification`; `Deviations` for anything that diverged from the
+assessment. Then verify:
 
 1. The regression test passes — red→green.
 2. The project's detected test suite is green. Pre-existing failures in code
@@ -191,7 +195,11 @@ inside the call, not by inventing a new one.
 
 Every HALT saves the doc with `status: halted(<condition>)` and the next
 step for the human. The trace survives even when the fix doesn't; the halted
-doc is the resumable state.
+doc is the resumable state. A HALT that fires after the red proof also
+leaves the regression test red in the suite — an intentional oracle that
+any other run of the suite reads as a plain failure. The report declares
+that state and hands the human the decision: keep the test in place but
+skipped or quarantined until resume, or revert it.
 
 ## Report
 

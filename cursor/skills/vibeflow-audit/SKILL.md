@@ -233,9 +233,11 @@ from those results:
 
 Classification silences nothing: docs with `reproduction` below `real` or
 `status: partial` enter the priority-debt list even when green; docs with
-`status: halted(...)` carry nothing to re-execute and enter the same list
-with their resume instruction. `Deviations` entries — deferred findings
-included — are consumed into the report as listed debt.
+`status: halted(...)` have no fix to re-execute and enter the same list
+with their resume instruction — a filled `test:` path names the red oracle
+the HALT left in the suite, and the entry records its current state.
+`Deviations` entries — deferred findings included — are consumed into the
+report as listed debt.
 
 Per-doc classification, no PASS/PARTIAL/FAIL verdict. Save the report to
 `.vibeflow/audits/<YYYY-MM-DD>-hotfix-consolidation.md`:

@@ -33,8 +33,8 @@ Fast-track prompt pack for: $ARGUMENTS
 
 ## When to use
 
-Quick fixes and small features with clear requirements, fitting in ≤4 files,
-when you want a prompt pack now rather than a paper trail. Not for:
+Small planned tasks and features with clear requirements, fitting in ≤4
+files, when you want a prompt pack now rather than a paper trail. Not for:
 
 - An observed defect with reproducible evidence → use `/vibeflow:hotfix`.
 - The idea is vague → use `/vibeflow:discover` first.
