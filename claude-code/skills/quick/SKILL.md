@@ -10,7 +10,7 @@ allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 
 ## Description and examples
 
-**What it does:** For small, well-defined tasks (e.g. bug fix, tiny feature), skips PRD and full spec: generates a minimal spec in memory and a prompt pack you can hand to the coding agent. Task should fit in ≤4 files.
+**What it does:** For small, well-defined tasks (e.g. tiny feature, small planned change), skips PRD and full spec: generates a minimal spec in memory and a prompt pack you can hand to the coding agent. Task should fit in ≤4 files.
 
 **Examples:**
 - `/vibeflow:quick corrigir formatação de data no dashboard` — One command; you get a prompt pack and can paste it to the agent.
@@ -33,9 +33,10 @@ Fast-track prompt pack for: $ARGUMENTS
 
 ## When to use
 
-Quick fixes and small features with clear requirements, fitting in ≤4 files,
-when you want a prompt pack now rather than a paper trail. Not for:
+Small planned tasks and features with clear requirements, fitting in ≤4
+files, when you want a prompt pack now rather than a paper trail. Not for:
 
+- An observed defect with reproducible evidence → use `/vibeflow:hotfix`.
 - The idea is vague → use `/vibeflow:discover` first.
 - You need full documentation for the team → use the full pipeline.
 - The task is large or architecturally significant → use `/vibeflow:gen-spec`.

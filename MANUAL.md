@@ -201,16 +201,46 @@ Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec
 
 ---
 
+### `vibeflow-hotfix`
+
+Corrige um **defeito observado com evidência reproduzível** em 1 chamada: escreve um doc de rastro curto antes de tocar no código, implementa o fix, e prova com um teste de regressão que falha antes do fix e passa depois. Incidente de produção é o caso motivador, não um requisito. O discriminador contra os outros comandos é a evidência — um defeito que você consegue mostrar, onde quer que tenha aparecido.
+
+**Quando usar:**
+- Defeito observado com evidência em mãos — mensagem de erro, log falhando, dado real se comportando errado
+- Bug investigado na conversa, sintoma+evidência no prompt (CI/headless incluso) ou evidência de terceiro (report de usuário, finding de review)
+- Retomar um doc `halted(...)` — o input é o caminho do doc
+
+**Quando NÃO usar:**
+- Tarefa pequena planejada → use `quick`
+- Feature com spec → use `implement`
+
+**O contrato de 1 chamada:** exatamente duas saídas estruturadas — **done** (doc + fix + teste red→green) ou um **HALT nomeado** que salva o doc e entrega o próximo passo ao humano. Nenhuma pergunta obrigatória no meio: a pergunta que precisaria de resposta vira o HALT que a motiva. Degradação é declarada, não silenciosa — host que não consegue rodar testes escreve `verification: not-run` no doc e o status trava em `partial`.
+
+**O doc de rastro** (`.vibeflow/hotfixes/<YYYY-MM-DD>-<slug>.md`, um por bug) é escrito em 2 tempos:
+
+- **Tempo 1, antes de qualquer código:** `Symptom` (imutável depois de escrito — existe antes do fix, então o fix não pode racionalizá-lo), `Checkpoint` (hipótese + teste de falsificação + pontos cegos), `Preservation` (1–3 propriedades que o sistema continua atendendo), `origin: session | prompt | third-party | resumed`.
+- **A prova vermelha:** com o Tempo 1 escrito, o teste de regressão entra na suíte do projeto e tem que **falhar no código atual**, pela razão que a hipótese nomeia. Falhar antes é o que torna o teste um oráculo — escrito depois do fix, ele só concorda com o fix. No momento em que prova vermelho, o path do teste entra no campo `test:` do doc — um HALT depois desse ponto carrega onde o teste vermelho vive.
+- **Tempo 2, depois do fix:** `Root cause`, `Fix` (com `files_changed`), `DoD` (2–4 checks binários), `Regression` completada em volta do `test:` gravado na prova vermelha (cenário WHEN/THEN, `oracle_type`, `reproduction: real | synthetic | none`, `verification: red-green | not-run`), `Deviations` (append-only).
+
+**Status final:** `verified` só com os 4 juntos — `reproduction: real`, teste red→green, suíte detectada verde, Critical Gate limpo. Qualquer coisa menos que isso é `partial`, com a razão visível no doc (`reproduction: synthetic | none`, suíte não verde, ou `verification: not-run`). Um HALT grava `halted(<condition>)`.
+
+**HALT set (fechado — 6 condições):** `unclear-symptom` (sem sintoma observável com evidência), `cannot-reproduce` (nenhum teste construível falha no código atual), `cause-outside-repo` (causa raiz fora do repo), `exceeds-hotfix-budget` (fix pediria mais de 2 arquivos de código além de teste+doc), `critical-gate` (o fix exige operação que o Rules Catalog do audit bloqueia), `breaker-tripped` (3 tentativas de fix falharam). Todo HALT salva o doc com o próximo passo — o rastro sobrevive mesmo quando o fix não, e o doc halted é o estado retomável. HALT que dispara depois da prova vermelha também deixa o teste de regressão vermelho na suíte — oráculo intencional que qualquer outra rodada da suíte lê como falha comum; o report declara esse estado e entrega a decisão ao humano: manter o teste com skip/quarentena até o resume, ou reverter.
+
+**Commit:** o comando não commita nada; o report instrui commitar **fix + teste + doc juntos**, uma unidade. Como o install padrão coloca `.vibeflow/` inteira no `.gitignore`, o report detecta doc ignorado (`git check-ignore`) e orienta: `git add -f <doc>`, ou o carve-out durável no bloco Vibeflow do `.gitignore` — trocar `.vibeflow/` por `.vibeflow/*` e adicionar `!.vibeflow/hotfixes/` (git não re-inclui dentro de diretório excluído). Orientação, não bloqueio.
+
+---
+
 ### `vibeflow-quick`
 
 Fast-track para tarefas pequenas. Pula discover, gera spec efêmera (em memória), e entrega o prompt pack direto.
 
 **Quando usar:**
-- Bug fix ou feature pequena com requisitos claros
+- Feature pequena ou mudança planejada com requisitos claros
 - A tarefa cabe em **4 arquivos ou menos**
 - Você quer um prompt pack *agora*, sem paper trail
 
 **Quando NÃO usar:**
+- Defeito observado com evidência reproduzível → use `vibeflow-hotfix`
 - Ideia vaga → use `discover` primeiro
 - Tarefa grande ou arquiteturalmente significativa → use `gen-spec`
 
@@ -242,6 +272,10 @@ por você o que era importante o bastante para mencionar.
 **Regra crítica:** testes falhando = FAIL automático. Finding CRITICAL/HIGH não-justificado do gate = FAIL automático.
 
 **Salva em:** `.vibeflow/audits/<slug>-audit.md`
+
+**Flag `--consolidate-hotfixes`:** o alvo da rodada vira `.vibeflow/hotfixes/` em vez de uma spec. Para cada doc, re-executa só o que o próprio doc carrega — os checks binários do `DoD` e o teste de regressão do `Regression` — contra o código atual, e classifica: `still-holds` (tudo verde, o fix se sustenta), `promote` (tudo verde + sinais de comportamento permanente → gera um stub de entrada para o gen-spec; quem decide é o humano), `regressed` (check ou teste quebrou → vira gap no prompt pack incremental, o mesmo mecanismo da rodada normal). Docs com `reproduction` abaixo de `real`, `status: partial` ou `halted(...)` entram na lista de débito prioritário mesmo verdes; doc halted não tem fix a re-executar — `test:` preenchido nomeia o oráculo vermelho que o HALT deixou na suíte, e a entrada registra seu estado atual. Classificação por doc, sem veredicto PASS/PARTIAL/FAIL; salva em `.vibeflow/audits/<YYYY-MM-DD>-hotfix-consolidation.md`.
+
+**Nudge de consolidação:** quando `.vibeflow/hotfixes/` tem docs, todo audit normal fecha o report com uma linha — `N hotfix docs not yet consolidated` — apontando para `--consolidate-hotfixes`. Pasta ausente ou vazia → sem linha.
 
 ---
 
@@ -327,7 +361,7 @@ Mostra estatísticas dos audits: taxa de pass/fail, padrões mais violados, gaps
 3. vibeflow-audit
 ```
 
-### Bug fix ou task pequena
+### Task pequena planejada
 
 ```
 1. vibeflow-quick            # Gera prompt pack direto
@@ -337,17 +371,19 @@ Mostra estatísticas dos audits: taxa de pass/fail, padrões mais violados, gaps
 
 ### Investigação de bug
 
-O fluxo depende de quão bem definido o bug está:
+A primeira pergunta do fluxo: **há defeito observado com evidência reproduzível?**
 
-**Bug claro (sabe o que tá errado, cabe em ≤4 arquivos):**
+**Sim → `vibeflow-hotfix` (1 chamada, rastro incluso):**
 
 ```
-1. vibeflow-quick "fix: <descrição do bug>"
-2. [implementar]
-3. vibeflow-audit            # (opcional)
+1. vibeflow-hotfix "<sintoma + evidência>"
+   → doc de rastro + fix + teste de regressão escrito antes do fix
+2. [commitar fix + teste + doc juntos, como o report instrui]
 ```
 
-**Bug com causa desconhecida (tem evidência mas não sabe a raiz):**
+A chamada parou num HALT? O doc fica salvo em `.vibeflow/hotfixes/` — retome com `vibeflow-hotfix <path do doc>`.
+
+**Não — tem evidência do sintoma, mas não reproduzível (causa desconhecida):**
 
 ```
 1. vibeflow-gen-spec "bug: <sintoma + evidência (logs, stack trace, passos de repro)>"
@@ -358,7 +394,7 @@ O fluxo depende de quão bem definido o bug está:
 
 O `gen-spec` aceita descrições de bug como input — não precisa de PRD. Mas **precisa de evidência**: logs, stack trace, ou passos de reprodução. Sem evidência, o gen-spec vai pedir antes de gerar a spec.
 
-**Bug vago ("tá lento", "às vezes falha", sem repro claro):**
+**Não — bug vago ("tá lento", "às vezes falha", sem repro claro):**
 
 ```
 1. vibeflow-discover "o sistema faz X quando deveria fazer Y"
@@ -391,6 +427,7 @@ Essa é a base de conhecimento do projeto. Tudo aqui é gerado e atualizado pelo
 ├── prds/             # PRDs do discover
 ├── specs/            # Specs do gen-spec
 ├── prompt-packs/     # Prompt packs prontos para uso
+├── hotfixes/         # Docs de rastro do hotfix (um por bug)
 └── audits/           # Relatórios de auditoria
 ```
 

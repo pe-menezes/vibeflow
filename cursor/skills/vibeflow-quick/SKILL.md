@@ -1,6 +1,6 @@
 ---
 name: vibeflow-quick
-description: "Fast-tracks small tasks into a prompt pack in one command. Skips discover, generates an ephemeral spec in memory. Use for well-defined tasks that fit in ≤4 files."
+description: "Fast-tracks small tasks into a prompt pack in one command. Skips discover, generates an ephemeral spec in memory. Use for well-defined planned tasks that fit in ≤4 files — not for an observed defect with reproducible evidence (that's the vibeflow-hotfix skill)."
 ---
 
 # Vibeflow: Quick
@@ -20,9 +20,10 @@ Technical terms in English are acceptable regardless of the detected language.
 
 ## When to use
 
-Quick fixes and small features with clear requirements, fitting in ≤4 files,
-when you want a prompt pack now rather than a paper trail. Not for:
+Small planned tasks and features with clear requirements, fitting in ≤4
+files, when you want a prompt pack now rather than a paper trail. Not for:
 
+- An observed defect with reproducible evidence → use the vibeflow-hotfix skill.
 - The idea is vague → use the vibeflow-discover skill first.
 - You need full documentation for the team → use the full pipeline.
 - The task is large or architecturally significant → use the vibeflow-gen-spec skill.

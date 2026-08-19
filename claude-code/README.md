@@ -86,8 +86,11 @@ That's it. Run `analyze` once, then `gen-spec` → `implement` for each feature.
 | Command | Description |
 |---------|-------------|
 | `/vibeflow:audit <spec>` | Audits implementation against DoD + patterns + tests + Critical Gate (PASS / PARTIAL / FAIL) |
+| `/vibeflow:hotfix <symptom + evidence>` | Fixes an observed defect with reproducible evidence in one call: trace doc + fix + regression test written before the fix. Accepts a halted doc path to resume |
 | `/vibeflow:discover <idea>` | Interactive dialogue to turn a vague idea into a PRD (1–5 rounds) |
 | `/vibeflow:prompt-pack <spec>` | Generates a self-contained prompt pack with embedded patterns for any agent |
+
+`audit` supports `--consolidate-hotfixes`: reclassifies hotfix trace docs against the current code (still-holds / promote / regressed).
 
 ### Utility
 
@@ -115,6 +118,7 @@ That's it. Run `analyze` once, then `gen-spec` → `implement` for each feature.
 ```
 
 **Shortcuts:**
+- `/vibeflow:hotfix "symptom + evidence"` → observed defect with reproducible evidence: trace doc + fix + regression test written before the fix, in one call (quick stays for planned small tasks)
 - `/vibeflow:quick "description"` → prompt pack directly (skips discover/spec)
 - `/vibeflow:analyze --satellite <url>` → analyze a dependency repo (e.g. design system)
 - `/vibeflow:teach --from <url>` → import patterns from an external conventions repo
@@ -134,6 +138,7 @@ a `.vibeflow/` directory with curated documentation:
 ├── prds/                 # PRDs from /vibeflow:discover
 ├── specs/                # Specs from /vibeflow:gen-spec
 ├── prompt-packs/         # Prompt packs from /vibeflow:prompt-pack and :quick
+├── hotfixes/             # Trace docs from /vibeflow:hotfix (one per bug)
 └── audits/               # Audit reports from /vibeflow:audit
 ```
 
@@ -166,6 +171,7 @@ vibeflow/
 │   ├── discover/SKILL.md   # Idea → PRD dialogue
 │   ├── gen-spec/SKILL.md   # PRD/idea → technical spec
 │   ├── implement/SKILL.md  # Spec → code with guardrails
+│   ├── hotfix/SKILL.md     # Evidence → trace doc + fix + test
 │   ├── audit/SKILL.md      # DoD + pattern verification
 │   ├── prompt-pack/SKILL.md # Spec → self-contained prompt
 │   ├── quick/SKILL.md      # Fast-track for small tasks

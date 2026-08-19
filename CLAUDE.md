@@ -25,6 +25,7 @@ corresponding files in `copilot/` and `cursor/`.
 | `skills/gen-spec/SKILL.md` | `github/prompts/vibeflow-gen-spec.prompt.md` | `skills/vibeflow-gen-spec/SKILL.md` |
 | `skills/implement/SKILL.md` | `github/prompts/vibeflow-implement.prompt.md` | `skills/vibeflow-implement/SKILL.md` |
 | `skills/audit/SKILL.md` | `github/prompts/vibeflow-audit.prompt.md` | `skills/vibeflow-audit/SKILL.md` |
+| `skills/hotfix/SKILL.md` | `github/prompts/vibeflow-hotfix.prompt.md` | `skills/vibeflow-hotfix/SKILL.md` |
 | `skills/prompt-pack/SKILL.md` | `github/prompts/vibeflow-prompt-pack.prompt.md` | `skills/vibeflow-prompt-pack/SKILL.md` |
 | `skills/quick/SKILL.md` | `github/prompts/vibeflow-quick.prompt.md` | `skills/vibeflow-quick/SKILL.md` |
 | `skills/teach/SKILL.md` | `github/prompts/vibeflow-teach.prompt.md` | `skills/vibeflow-teach/SKILL.md` |

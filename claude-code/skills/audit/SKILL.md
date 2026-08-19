@@ -5,7 +5,8 @@ description: >
   the test suite, compares code against the spec, and reports PASS / PARTIAL / FAIL.
   Also runs the Critical Gate — a safety scan of the diff for destructive or
   dangerous operations. Generates an incremental prompt pack for any gaps found.
-  Use after implementation to verify quality before shipping.
+  With --consolidate-hotfixes, reclassifies hotfix trace docs against the
+  current code. Use after implementation to verify quality before shipping.
 argument-hint: "<spec file or feature>"
 allowed-tools: Read, Grep, Glob, Bash
 ---
@@ -29,6 +30,9 @@ Technical terms in English are acceptable regardless of the detected language.
 Audit the implementation for: $ARGUMENTS
 
 ## Steps
+
+With `--consolidate-hotfixes` in the input, the round's target is
+`.vibeflow/hotfixes/` instead of a spec — jump to Consolidation mode below.
 
 1. Find the spec — in `.vibeflow/specs/` or at the given path — and extract
    its Definition of Done.
@@ -149,6 +153,11 @@ Audit the implementation for: $ARGUMENTS
    verdict, where severity and confidence decide what blocks, what caps the
    verdict, and what is only noted.
 
+7. When `.vibeflow/hotfixes/` holds hotfix docs, close the report with one
+   line — `N hotfix docs not yet consolidated` — and point at
+   `/vibeflow:audit --consolidate-hotfixes`. No consolidation state is
+   tracked: every doc present counts. Directory absent or empty → no line.
+
 ## Output format
 
 ```
@@ -206,6 +215,61 @@ Report the verdict and suggest next steps:
 - PASS: "Ready to ship."
 - PARTIAL/FAIL: "See the incremental prompt pack in the audit report.
   Fix the gaps and run `/vibeflow:audit` again."
+
+## Consolidation mode — `--consolidate-hotfixes`
+
+Scan `.vibeflow/hotfixes/*.md`. No directory or no docs → report "No hotfix
+docs to consolidate." and stop.
+
+Deterministic by construction: for each doc, re-execute only what the doc
+itself carries — its 2–4 binary `DoD` checks and the regression test at the
+`Regression` section's `test:` path — against the current code, and classify
+from those results:
+
+- `regressed` — a `DoD` check or the regression test broke. Each regressed
+  doc is a gap: it feeds the incremental prompt pack, the same mechanism the
+  normal round uses for failing checks.
+- `promote` — everything green plus a signal not every doc carries: a
+  `Deviations` entry pointing at structural follow-up (named debt that asks
+  for a spec), or evidence in the doc itself that the fix introduced
+  permanent new behavior deserving a first-class contract — a `Preservation`
+  property describing behavior that did not exist before the fix, for
+  example, not the mere presence of the section. The `Regression` test and
+  the required sections are in every doc by construction and are not promote
+  signals. Auditor judgment weighs those discriminating signals; the output
+  is a gen-spec entry stub, not a spec — the human decides.
+- `still-holds` — everything green, no promote signals. The fix stands.
+
+Classification silences nothing: docs with `reproduction` below `real` or
+`status: partial` enter the priority-debt list even when green; docs with
+`status: halted(...)` have no fix to re-execute and enter the same list
+with their resume instruction — a filled `test:` path names the red oracle
+the HALT left in the suite, and the entry records its current state.
+`Deviations` entries — deferred findings included — are consumed into the
+report as listed debt.
+
+Per-doc classification, no PASS/PARTIAL/FAIL verdict. Save the report to
+`.vibeflow/audits/<YYYY-MM-DD>-hotfix-consolidation.md`:
+
+```
+## Hotfix Consolidation
+
+- <file> — still-holds | promote | regressed — <half-line evidence>
+
+### Priority debt
+- <file> — <reproduction below real | status: partial | halted(<condition>)> — <next step>
+
+### Deviations / deferred
+- <file> — <the entry>
+
+### Promote stubs
+- <file> → gen-spec entry stub: <the permanent behavior, in 1–2 lines>
+
+### Incremental Prompt Pack
+A focused pack covering only the regressed docs.
+```
+
+Sections with nothing to list are omitted.
 
 ---
 
