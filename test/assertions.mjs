@@ -371,14 +371,16 @@ function antiScopePaths(spec) {
   const paths = [];
   let prose = 0;
   for (const item of items) {
-    // A path mention is mechanically enforceable only when the prohibition
-    // applies directly to that path. For example, "No change to `src/store.js`"
+    // A path mention is mechanically enforceable only when a negative action
+    // targets that path directly. For example, "No edits to `src/store.js`"
     // is checkable, while "No barrel file in `src/services/`" is not: touching
     // another file in that directory does not violate the statement.
     const directPathProhibition =
-      /\b(?:no (?:changes?|modifications?) to|(?:do not|don't|never|must not|mustn't|should not|shouldn't|may not|cannot|can't) (?:change|modify|touch|edit|delete|create)(?: the)?)\s+`/i.test(item)
-      || /\bkeep\s+`[^`]+`\s+unchanged\b/i.test(item)
-      || /`[^`]+`\s+(?:must remain|is|are)\s+unchanged\b/i.test(item);
+      /\bno (?:changes?|modifications?|edits?|additions?|removals?|renames?|moves?|replacements?) (?:to|of)\s+`/i.test(item)
+      || /\b(?:do not|don't|never|must not|mustn't|should not|shouldn't|may not|cannot|can't) (?:add|change|create|delete|edit|modify|move|remove|rename|replace|touch|write)(?: the)?\s+`/i.test(item)
+      || /\b(?:keep|leave)\s+`[^`]+`\s+unchanged\b/i.test(item)
+      || /`[^`]+`\s+(?:must remain|is|are)\s+unchanged\b/i.test(item)
+      || /`[^`]+`\s+(?:must|should|may|can) not be (?:added|changed|created|deleted|edited|modified|moved|removed|renamed|replaced|touched|written)\b/i.test(item);
 
     const hits = [...item.matchAll(/`([^`]+)`/g)]
       .map((m) => m[1])

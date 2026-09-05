@@ -70,3 +70,38 @@ test('anti-scope catches never and must-not path prohibitions', () => {
     assert.equal(antiScope.detail, 'touched: src/store.js, src/result.js');
   });
 });
+
+test('anti-scope catches direct action variants without treating directory context as direct', () => {
+  withSpec(`
+## Anti-scope
+- Do not add \`src/index.js\`.
+- Do not remove \`src/store.js\`.
+- Never rename \`config.json\`.
+- No edits to \`settings.json\`.
+- Leave \`src/result.js\` unchanged.
+- \`docs/api.md\` must not be changed.
+- No barrel/index file in \`src/services/\`.
+`, (fixture) => {
+    const changedFiles = [
+      'src/index.js',
+      'src/store.js',
+      'config.json',
+      'settings.json',
+      'src/result.js',
+      'docs/api.md',
+      'src/services/deleteTask.js',
+    ];
+    const checks = assertImplement(fixture, {
+      changedFiles,
+      budget: 10,
+      testsPass: true,
+    });
+
+    const antiScope = checks.find((check) => check.name === 'no path-naming anti-scope item violated');
+    assert.equal(antiScope.ok, false);
+    assert.equal(
+      antiScope.detail,
+      'touched: src/index.js, src/store.js, config.json, settings.json, src/result.js, docs/api.md',
+    );
+  });
+});
