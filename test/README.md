@@ -54,7 +54,9 @@ Three limits are worth naming precisely:
   file in `src/services/`" does not prohibit every file below that directory.
   Explicit prohibited path lists are associated with their negative clause, so
   a contextual path later in the same bullet is not swept into the prohibition.
-  The runner prints how many unchecked items there were.
+  Paths are normalized without a leading `./`, and Git renames check both the
+  original and destination names. The runner prints how many unchecked items
+  there were.
 - One run per arm. Same prompt, same model, same input does not produce the
   same output, so a difference between two single runs does not separate a real
   effect from ordinary variation.

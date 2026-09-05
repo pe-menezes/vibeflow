@@ -1,10 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { assertImplement } from './assertions.mjs';
+import { assertImplement, changedFilesFromPorcelainZ } from './assertions.mjs';
 
 function withSpec(body, run) {
   const fixture = mkdtempSync(join(tmpdir(), 'vibeflow-assertions-'));
@@ -120,5 +121,53 @@ test('anti-scope associates prohibited lists without capturing context later in 
     const antiScope = checks.find((check) => check.name === 'no path-naming anti-scope item violated');
     assert.equal(antiScope.ok, true);
     assert.equal(antiScope.detail, '3 paths checked');
+  });
+});
+
+test('anti-scope normalizes a leading dot-slash and accepts no-changes-in wording', () => {
+  withSpec(`
+## Anti-scope
+- No changes in \`./src/store.js\`.
+`, (fixture) => {
+    const checks = assertImplement(fixture, {
+      changedFiles: ['src/store.js'],
+      budget: 4,
+      testsPass: true,
+    });
+
+    const antiScope = checks.find((check) => check.name === 'no path-naming anti-scope item violated');
+    assert.equal(antiScope.ok, false);
+    assert.equal(antiScope.detail, 'touched: src/store.js');
+  });
+});
+
+test('real porcelain rename records expose both old and new paths', () => {
+  withSpec(`
+## Anti-scope
+- Never rename \`config.json\`.
+`, (fixture) => {
+    writeFileSync(join(fixture, 'config.json'), '{}\n');
+    execFileSync('git', ['init', '-q'], { cwd: fixture });
+    execFileSync('git', ['config', 'user.name', 'Vibeflow Test'], { cwd: fixture });
+    execFileSync('git', ['config', 'user.email', 'test@vibeflow.invalid'], { cwd: fixture });
+    execFileSync('git', ['add', '-A'], { cwd: fixture });
+    execFileSync('git', ['commit', '-q', '-m', 'baseline'], { cwd: fixture });
+    execFileSync('git', ['mv', 'config.json', 'settings.json'], { cwd: fixture });
+
+    const porcelain = execFileSync('git', ['status', '--porcelain=v1', '-z'], {
+      cwd: fixture,
+      encoding: 'utf8',
+    });
+    const changedFiles = changedFilesFromPorcelainZ(porcelain);
+    assert.deepEqual(changedFiles, ['settings.json', 'config.json']);
+
+    const checks = assertImplement(fixture, {
+      changedFiles,
+      budget: 4,
+      testsPass: true,
+    });
+    const antiScope = checks.find((check) => check.name === 'no path-naming anti-scope item violated');
+    assert.equal(antiScope.ok, false);
+    assert.equal(antiScope.detail, 'touched: config.json');
   });
 });

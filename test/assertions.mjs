@@ -356,6 +356,34 @@ export function assertPromptPack(fixtureDir) {
 // Anti-scope items that name a concrete repo path can be checked against the
 // diff. Items phrased as prose cannot, and are reported as unchecked rather
 // than silently counted as passing.
+function normalizeRepoPath(path) {
+  return path.replace(/^(?:\.\/)+/, '');
+}
+
+export function changedFilesFromPorcelainZ(output) {
+  const records = String(output).split('\0');
+  const files = [];
+
+  for (let i = 0; i < records.length; i += 1) {
+    const record = records[i];
+    if (!record) continue;
+
+    const status = record.slice(0, 2);
+    const currentPath = record.slice(3);
+    if (currentPath) files.push(normalizeRepoPath(currentPath));
+
+    // In porcelain v1 -z output, rename/copy records carry the destination in
+    // the status record and the original path in the following NUL record.
+    if (/[RC]/.test(status)) {
+      const originalPath = records[i + 1];
+      if (originalPath) files.push(normalizeRepoPath(originalPath));
+      i += 1;
+    }
+  }
+
+  return [...new Set(files)];
+}
+
 function antiScopePaths(spec) {
   const start = headingIndex(spec, 'Anti-?scope');
   if (start === -1) return { paths: [], prose: 0 };
@@ -378,7 +406,7 @@ function antiScopePaths(spec) {
     const pathList = `${pathToken}(?:\\s*(?:,\\s*(?:(?:and|or)\\s+)?|(?:and|or)\\s+)${pathToken})*`;
     const directPatterns = [
       new RegExp(
-        `\\bno (?:changes?|modifications?|edits?|additions?|removals?|renames?|moves?|replacements?) (?:to|of)\\s+${pathList}`,
+        `\\bno (?:changes?|modifications?|edits?|additions?|removals?|renames?|moves?|replacements?) (?:to|of|in)\\s+${pathList}`,
         'gi',
       ),
       new RegExp(
@@ -395,7 +423,7 @@ function antiScopePaths(spec) {
     const hits = directPatterns.flatMap((pattern) =>
       [...item.matchAll(pattern)].flatMap((match) =>
         [...match[0].matchAll(/`([^`]+)`/g)]
-          .map((pathMatch) => pathMatch[1])
+          .map((pathMatch) => normalizeRepoPath(pathMatch[1]))
           .filter((candidate) =>
             !/\s/.test(candidate)
             && (candidate.includes('/') || candidate.startsWith('.') || /\.[a-z0-9]+$/i.test(candidate)),
@@ -411,20 +439,21 @@ function antiScopePaths(spec) {
 
 export function assertImplement(fixtureDir, { changedFiles, budget, testsPass }) {
   const out = [];
+  const normalizedChangedFiles = [...new Set(changedFiles.map(normalizeRepoPath))];
 
   out.push(
     check(
       `files touched within budget (≤ ${budget})`,
-      changedFiles.length <= budget,
-      `${changedFiles.length} files: ${changedFiles.join(', ') || 'none'}`,
+      normalizedChangedFiles.length <= budget,
+      `${normalizedChangedFiles.length} files: ${normalizedChangedFiles.join(', ') || 'none'}`,
     ),
   );
 
   out.push(
     check(
       'implementation actually changed something',
-      changedFiles.length >= 1,
-      changedFiles.length ? '' : 'no non-.vibeflow file was touched',
+      normalizedChangedFiles.length >= 1,
+      normalizedChangedFiles.length ? '' : 'no non-.vibeflow file was touched',
     ),
   );
 
@@ -433,7 +462,7 @@ export function assertImplement(fixtureDir, { changedFiles, budget, testsPass })
     const { paths, prose } = antiScopePaths(readFileSync(specPath, 'utf8'));
     if (paths.length) {
       const violated = paths.filter((p) =>
-        changedFiles.some((f) => f === p || f.startsWith(p.replace(/\/$/, '') + '/')),
+        normalizedChangedFiles.some((f) => f === p || f.startsWith(p.replace(/\/$/, '') + '/')),
       );
       out.push(
         check(

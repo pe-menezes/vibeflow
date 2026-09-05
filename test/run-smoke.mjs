@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { generateFixture, fixtureTestsPass, TASK } from './fixture.mjs';
 import {
   assertAnalyze, assertGenSpec, assertPromptPack, assertImplement,
-  assertAudit, findSpec, VERDICT_OF,
+  assertAudit, changedFilesFromPorcelainZ, findSpec, VERDICT_OF,
 } from './assertions.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -220,10 +220,7 @@ async function runArm(arm) {
   log('stage 4/5 implement');
   stages.implement = await runStage(fixture, `/implement ${specArg}`, log);
 
-  const changed = git(fixture, 'status', '--porcelain')
-    .split('\n')
-    .map((l) => l.slice(3).trim())
-    .filter(Boolean)
+  const changed = changedFilesFromPorcelainZ(git(fixture, 'status', '--porcelain=v1', '-z'))
     .filter((f) => !f.startsWith('.vibeflow/') && !f.startsWith('.claude/'));
 
   const testsPass = fixtureTestsPass(fixture);
