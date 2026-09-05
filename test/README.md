@@ -52,7 +52,9 @@ Three limits are worth naming precisely:
 - Anti-scope items that do not directly prohibit a concrete path are counted as
   unchecked, not as passing. A contextual directory mention such as "no barrel
   file in `src/services/`" does not prohibit every file below that directory.
-  The runner prints how many there were.
+  Explicit prohibited path lists are associated with their negative clause, so
+  a contextual path later in the same bullet is not swept into the prohibition.
+  The runner prints how many unchecked items there were.
 - One run per arm. Same prompt, same model, same input does not produce the
   same output, so a difference between two single runs does not separate a real
   effect from ordinary variation.
