@@ -376,7 +376,7 @@ function antiScopePaths(spec) {
     // is checkable, while "No barrel file in `src/services/`" is not: touching
     // another file in that directory does not violate the statement.
     const directPathProhibition =
-      /\b(?:no (?:changes?|modifications?) to|do not (?:change|modify|touch|edit|delete|create))\s+`/i.test(item)
+      /\b(?:no (?:changes?|modifications?) to|(?:do not|don't|never|must not|mustn't|should not|shouldn't|may not|cannot|can't) (?:change|modify|touch|edit|delete|create)(?: the)?)\s+`/i.test(item)
       || /\bkeep\s+`[^`]+`\s+unchanged\b/i.test(item)
       || /`[^`]+`\s+(?:must remain|is|are)\s+unchanged\b/i.test(item);
 

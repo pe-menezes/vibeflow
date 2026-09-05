@@ -123,8 +123,9 @@ plugins/vibeflow/
 ```
 
 The ten skills are the shared source of truth. The Claude manifest exposes the
-Claude-specific architect sub-agent; Codex uses the same methodology through
-its focused skills and its native task/agent model.
+Claude-specific architect sub-agent with project-scoped persistent memory;
+Codex exposes only the shared skills and uses `.vibeflow/` as durable project
+context through its native task/agent model.
 
 ## Philosophy
 

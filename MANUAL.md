@@ -55,6 +55,11 @@ repositório `pe-menezes/vibeflow-claude` continua como espelho de compatibilida
 para instalações existentes. Para as outras edições, veja
 [`copilot/`](copilot/) e [`cursor/`](cursor/).
 
+No Claude Code, o subagente `architect` usa memória persistente de escopo de
+projeto e mantém seu índice no diretório de memória fornecido pelo próprio
+host. No Codex, o pacote expõe somente as skills; o contexto durável continua
+em `.vibeflow/`, sem criar um `MEMORY.md` específico do Claude.
+
 Uma flag de edição é **obrigatória** — o instalador não tem default para evitar
 instalar na edição errada. `--copilot` e `--cursor` instalam arquivos;
 `--codex` e `--claude` mostram os comandos do marketplace nativo.

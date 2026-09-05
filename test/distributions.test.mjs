@@ -50,8 +50,9 @@ function read(path) {
 }
 
 function frontmatterValue(content, key) {
-  assert.match(content, /^---\n[\s\S]*?\n---\n/, 'file must start with YAML frontmatter');
-  const match = content.match(new RegExp(`^${key}:\\s*(.*?)\\s*$`, 'm'));
+  const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n/);
+  assert.ok(frontmatter, 'file must start with YAML frontmatter');
+  const match = frontmatter[1].match(new RegExp(`^${key}:\\s*(.*?)\\s*$`, 'm'));
   if (!match) return undefined;
   const value = match[1];
   const quote = value[0];
@@ -59,6 +60,16 @@ function frontmatterValue(content, key) {
     ? value.slice(1, -1)
     : value;
 }
+
+test('frontmatter lookup never falls through to the Markdown body', () => {
+  const content = `---
+description: valid header
+---
+name: body-only-value
+`;
+
+  assert.equal(frontmatterValue(content, 'name'), undefined);
+});
 
 function workflowFiles(workflow) {
   return {
@@ -133,4 +144,13 @@ test('Claude and Codex catalogs point at the same versioned plugin', () => {
   assert.equal(claudeCatalog.plugins[0].source, './plugins/vibeflow');
   assert.equal(codexCatalog.plugins[0].source.path, './plugins/vibeflow');
   assert.equal(codexManifest.skills, './skills/');
+});
+
+test('Claude architect enables project memory without changing the Codex skill boundary', () => {
+  const architect = read('plugins/vibeflow/agents/architect.md');
+  const codexManifest = JSON.parse(read('plugins/vibeflow/.codex-plugin/plugin.json'));
+
+  assert.equal(frontmatterValue(architect, 'memory'), 'project');
+  assert.equal(codexManifest.skills, './skills/');
+  assert.equal(codexManifest.agents, undefined);
 });

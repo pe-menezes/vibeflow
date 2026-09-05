@@ -52,3 +52,21 @@ test('anti-scope still catches a directly prohibited path', () => {
     assert.equal(antiScope.detail, 'touched: src/store.js');
   });
 });
+
+test('anti-scope catches never and must-not path prohibitions', () => {
+  withSpec(`
+## Anti-scope
+- Never modify \`src/store.js\`.
+- The implementation must not delete \`src/result.js\`.
+`, (fixture) => {
+    const checks = assertImplement(fixture, {
+      changedFiles: ['src/store.js', 'src/result.js'],
+      budget: 4,
+      testsPass: true,
+    });
+
+    const antiScope = checks.find((check) => check.name === 'no path-naming anti-scope item violated');
+    assert.equal(antiScope.ok, false);
+    assert.equal(antiScope.detail, 'touched: src/store.js, src/result.js');
+  });
+});

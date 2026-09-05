@@ -415,10 +415,11 @@ manual curation. On a fresh run, create it only if absent:
 
 ## Phase 5: Update persistent memory when available
 
-Run this phase only when the host exposes an architect `MEMORY.md` for
-persistent project memory, as Claude Code can. Do not create that file solely
-for this phase. On Codex or any host without an existing architect
-`MEMORY.md`, skip this phase.
+Run this phase only when the host exposes an architect persistent-memory
+directory, as Claude Code does for the architect sub-agent. Create or update
+`MEMORY.md` inside that exact host-provided directory. Never create it at the
+project root or guess a memory path. On Codex or any host that does not expose
+an architect memory directory, skip this phase.
 
 When the file is available, save this compact index to it:
 
