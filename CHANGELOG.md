@@ -6,6 +6,7 @@
 - **One repository, two marketplaces** — `pe-menezes/vibeflow` now exposes the Claude catalog at `.claude-plugin/marketplace.json` and the Codex catalog at `.agents/plugins/marketplace.json`, both pointing to the shared plugin directory. The old `claude-code/` source tree was retired.
 - **Legacy Claude distribution preserved** — the GitHub Actions workflow still publishes `pe-menezes/vibeflow-claude`, but it now derives that compatibility repository from the universal plugin. Existing Claude installations keep their update path while new installations can use the main repository.
 - **Codex-native packaging** — all skills use portable skill frontmatter and remain focused, automatically discoverable workflows. Codex can select them from natural-language requests or users can invoke them explicitly; Claude keeps its namespaced slash commands.
+- **Host-safe project memory** — `analyze` updates an architect `MEMORY.md` only when the host exposes that persistent-memory file, so Codex keeps project knowledge in `.vibeflow/` without creating a Claude-only artifact. The Codex manifest now uses the catalog capability vocabulary, and the installation summary includes both required commands.
 - **CLI 0.16.0 and install surfaces** — `setup-vibeflow --codex` now prints the native Codex marketplace commands, while `--claude` points to the main repository. Root docs, contributor guidance, issue/PR templates, the smoke harness, and the bilingual site now understand the shared plugin layout.
 
 ### v1.14.0 (2026-08-16)

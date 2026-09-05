@@ -413,9 +413,14 @@ manual curation. On a fresh run, create it only if absent:
 > Newest first. Updated automatically by the architect agent.
 ```
 
-## Phase 5: Update MEMORY.md
+## Phase 5: Update persistent memory when available
 
-Save a compact index to your MEMORY.md (architect persistent memory):
+Run this phase only when the host exposes an architect `MEMORY.md` for
+persistent project memory, as Claude Code can. Do not create that file solely
+for this phase. On Codex or any host without an existing architect
+`MEMORY.md`, skip this phase.
+
+When the file is available, save this compact index to it:
 
 ```
 # Vibeflow Index

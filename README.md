@@ -99,7 +99,7 @@ See [`copilot/README.md`](copilot/README.md) for details.
 
 | Edition | Install method | Command |
 |---------|---------------|---------|
-| **Codex** | Plugin marketplace | `codex plugin marketplace add pe-menezes/vibeflow` |
+| **Codex** | Plugin marketplace | `codex plugin marketplace add pe-menezes/vibeflow`<br>`codex plugin add vibeflow@vibeflow-marketplace` |
 | **Claude Code** | Plugin (inside Claude Code) | See install steps above |
 | **Cursor** | npx installer | `npx setup-vibeflow@latest --cursor` |
 | **GitHub Copilot** | npx installer | `npx setup-vibeflow@latest --copilot` |

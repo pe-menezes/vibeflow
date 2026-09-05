@@ -17,7 +17,7 @@
     "longDescription": "Turn an idea into a grounded PRD and technical spec, implement it with scope and budget guardrails, then audit the result against binary completion criteria and real project patterns.",
     "developerName": "Pedro Menezes",
     "category": "Productivity",
-    "capabilities": ["Read", "Write", "Code"],
+    "capabilities": ["Interactive", "Read", "Write"],
     "websiteURL": "https://vibeflow.run",
     "defaultPrompt": [
       "Analyze this project and build its Vibeflow knowledge base.",
