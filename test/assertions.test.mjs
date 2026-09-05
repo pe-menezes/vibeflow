@@ -105,3 +105,20 @@ test('anti-scope catches direct action variants without treating directory conte
     );
   });
 });
+
+test('anti-scope associates prohibited lists without capturing context later in the bullet', () => {
+  withSpec(`
+## Anti-scope
+- Do not modify \`src/store.js\`, \`src/result.js\`, or \`config/settings.yaml\`; add the new code under \`src/services/\`.
+`, (fixture) => {
+    const checks = assertImplement(fixture, {
+      changedFiles: ['src/services/deleteTask.js'],
+      budget: 4,
+      testsPass: true,
+    });
+
+    const antiScope = checks.find((check) => check.name === 'no path-naming anti-scope item violated');
+    assert.equal(antiScope.ok, true);
+    assert.equal(antiScope.detail, '3 paths checked');
+  });
+});

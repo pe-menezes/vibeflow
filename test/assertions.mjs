@@ -371,21 +371,39 @@ function antiScopePaths(spec) {
   const paths = [];
   let prose = 0;
   for (const item of items) {
-    // A path mention is mechanically enforceable only when a negative action
-    // targets that path directly. For example, "No edits to `src/store.js`"
-    // is checkable, while "No barrel file in `src/services/`" is not: touching
-    // another file in that directory does not violate the statement.
-    const directPathProhibition =
-      /\bno (?:changes?|modifications?|edits?|additions?|removals?|renames?|moves?|replacements?) (?:to|of)\s+`/i.test(item)
-      || /\b(?:do not|don't|never|must not|mustn't|should not|shouldn't|may not|cannot|can't) (?:add|change|create|delete|edit|modify|move|remove|rename|replace|touch|write)(?: the)?\s+`/i.test(item)
-      || /\b(?:keep|leave)\s+`[^`]+`\s+unchanged\b/i.test(item)
-      || /`[^`]+`\s+(?:must remain|is|are)\s+unchanged\b/i.test(item)
-      || /`[^`]+`\s+(?:must|should|may|can) not be (?:added|changed|created|deleted|edited|modified|moved|removed|renamed|replaced|touched|written)\b/i.test(item);
+    // Match only the path list attached to a negative action. This keeps
+    // explicit lists checkable without sweeping contextual paths from the
+    // rest of the same bullet into the prohibition.
+    const pathToken = '`[^`]+`';
+    const pathList = `${pathToken}(?:\\s*(?:,\\s*(?:(?:and|or)\\s+)?|(?:and|or)\\s+)${pathToken})*`;
+    const directPatterns = [
+      new RegExp(
+        `\\bno (?:changes?|modifications?|edits?|additions?|removals?|renames?|moves?|replacements?) (?:to|of)\\s+${pathList}`,
+        'gi',
+      ),
+      new RegExp(
+        `\\b(?:do not|don't|never|must not|mustn't|should not|shouldn't|may not|cannot|can't) (?:add|change|create|delete|edit|modify|move|remove|rename|replace|touch|write)(?: the)?\\s+${pathList}`,
+        'gi',
+      ),
+      new RegExp(`\\b(?:keep|leave)\\s+${pathList}\\s+unchanged\\b`, 'gi'),
+      new RegExp(`${pathList}\\s+(?:must remain|is|are)\\s+unchanged\\b`, 'gi'),
+      new RegExp(
+        `${pathList}\\s+(?:must|should|may|can) not be (?:added|changed|created|deleted|edited|modified|moved|removed|renamed|replaced|touched|written)\\b`,
+        'gi',
+      ),
+    ];
+    const hits = directPatterns.flatMap((pattern) =>
+      [...item.matchAll(pattern)].flatMap((match) =>
+        [...match[0].matchAll(/`([^`]+)`/g)]
+          .map((pathMatch) => pathMatch[1])
+          .filter((candidate) =>
+            !/\s/.test(candidate)
+            && (candidate.includes('/') || candidate.startsWith('.') || /\.[a-z0-9]+$/i.test(candidate)),
+          ),
+      ),
+    );
 
-    const hits = [...item.matchAll(/`([^`]+)`/g)]
-      .map((m) => m[1])
-      .filter((t) => /^[\w./-]+\.(js|mjs|json|md)$/.test(t) || /^(src|test)\//.test(t));
-    if (directPathProhibition && hits.length) paths.push(...hits);
+    if (hits.length) paths.push(...hits);
     else prose += 1;
   }
   return { paths: [...new Set(paths)], prose };
