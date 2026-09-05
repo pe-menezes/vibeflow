@@ -8,7 +8,7 @@ import pc from 'picocolors';
 
 const REPO = 'pe-menezes/vibeflow';
 const BRANCH = 'main';
-const CLAUDE_PLUGIN_REPO = 'pe-menezes/vibeflow-claude';
+const PLUGIN_MARKETPLACE_REPO = 'pe-menezes/vibeflow';
 
 const COPILOT_FILES = [
   { src: 'github/prompts/vibeflow-analyze.prompt.md', dest: '.github/prompts/vibeflow-analyze.prompt.md' },
@@ -148,6 +148,7 @@ function detectEdition() {
   const args = process.argv.slice(2);
   if (args.includes('--cursor')) return 'cursor';
   if (args.includes('--copilot')) return 'copilot';
+  if (args.includes('--codex')) return 'codex';
   if (args.includes('--claude') || args.includes('--claude-code')) return 'claude';
   return null;
 }
@@ -161,17 +162,30 @@ function printClaudeInstructions() {
   console.log(`  ${pc.bold(pc.underline('Claude Desktop (Cowork)'))}`);
   console.log(`  ${pc.bold('1.')} Sidebar → ${pc.cyan('Customize')}`);
   console.log(`  ${pc.bold('2.')} Click ${pc.cyan('+')} next to "Personal plugins" → ${pc.cyan('Add marketplace')}`);
-  console.log(`  ${pc.bold('3.')} Paste: ${pc.cyan(CLAUDE_PLUGIN_REPO)}`);
+  console.log(`  ${pc.bold('3.')} Paste: ${pc.cyan(PLUGIN_MARKETPLACE_REPO)}`);
   console.log(`  ${pc.bold('4.')} Click ${pc.cyan('Sync')}`);
   console.log(`  ${pc.bold('5.')} ${pc.cyan('Browse plugins')} → Install ${pc.bold('Vibeflow')}`);
   console.log('');
   console.log(`  ${pc.bold(pc.underline('Claude Code CLI (terminal)'))}`);
-  console.log(`  ${pc.bold('1.')} ${pc.cyan(`/plugin marketplace add ${CLAUDE_PLUGIN_REPO}`)}`);
+  console.log(`  ${pc.bold('1.')} ${pc.cyan(`/plugin marketplace add ${PLUGIN_MARKETPLACE_REPO}`)}`);
   console.log(`  ${pc.bold('2.')} ${pc.cyan('/plugin install vibeflow@vibeflow-marketplace')}`);
   console.log('');
   console.log(`  ${pc.bold('Then run:')} ${pc.cyan('/vibeflow:analyze')} to get started.`);
   console.log('');
-  console.log(`  ${pc.dim('Plugin repo:')} ${pc.dim(`https://github.com/${CLAUDE_PLUGIN_REPO}`)}`);
+  console.log(`  ${pc.dim('Plugin repo:')} ${pc.dim(`https://github.com/${PLUGIN_MARKETPLACE_REPO}`)}`);
+  console.log('');
+}
+
+function printCodexInstructions() {
+  console.log('');
+  console.log(`  ${pc.bold(pc.cyan('Vibeflow'))} ${pc.dim('— Codex Edition')}`);
+  console.log('');
+  console.log(`  ${pc.bold('1.')} ${pc.cyan(`codex plugin marketplace add ${PLUGIN_MARKETPLACE_REPO}`)}`);
+  console.log(`  ${pc.bold('2.')} ${pc.cyan('codex plugin add vibeflow@vibeflow-marketplace')}`);
+  console.log('');
+  console.log(`  ${pc.bold('Then:')} start a new Codex task and ask it to analyze the project with Vibeflow.`);
+  console.log('');
+  console.log(`  ${pc.dim('Plugin repo:')} ${pc.dim(`https://github.com/${PLUGIN_MARKETPLACE_REPO}`)}`);
   console.log('');
 }
 
@@ -184,6 +198,7 @@ function printUsage() {
   console.log(`  ${pc.bold('Editions:')}`);
   console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions)')}`);
   console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills)')}`);
+  console.log(`    ${pc.cyan('--codex')}     Show install instructions for Codex ${pc.dim('(plugin system)')}`);
   console.log(`    ${pc.cyan('--claude')}    Show install instructions for Claude Code ${pc.dim('(plugin system)')}`);
   console.log('');
   console.log(`  ${pc.bold('Options:')}`);
@@ -192,6 +207,8 @@ function printUsage() {
   console.log(`  ${pc.bold('Examples:')}`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --copilot`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor`);
+  console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --codex`);
+  console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --claude`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor --force`);
   console.log('');
 }
@@ -217,6 +234,11 @@ async function main() {
 
   if (editionKey === 'claude') {
     printClaudeInstructions();
+    process.exit(0);
+  }
+
+  if (editionKey === 'codex') {
+    printCodexInstructions();
     process.exit(0);
   }
 

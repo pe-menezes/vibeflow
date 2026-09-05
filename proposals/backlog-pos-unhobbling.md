@@ -150,7 +150,7 @@ was v1.12.0.
 2026-08-15; present identically in v1.12.0 and in the rewritten prompt, so the
 unhobbling series neither introduced nor fixed it.
 
-`claude-code/skills/prompt-pack/SKILL.md` names two sections twice, and not
+`plugins/vibeflow/skills/prompt-pack/SKILL.md` names two sections twice, and not
 identically. Its outline of the pack's structure says one thing; the format
 block it tells the agent to emit says another:
 

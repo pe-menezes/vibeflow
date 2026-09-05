@@ -129,13 +129,13 @@ file (the v2 Node path) and invoke from both sides without duplicating rules.
 Per `CLAUDE.md` cross-edition sync rules, a logic change to `audit` must hit all
 three editions plus docs:
 
-- [ ] `claude-code/skills/audit/SKILL.md` — source of truth: new gate step +
+- [ ] `plugins/vibeflow/skills/audit/SKILL.md` — source of truth: new gate step +
       verdict rule + embedded catalog
 - [ ] `copilot/github/prompts/vibeflow-audit.prompt.md` — mirror
 - [ ] `cursor/skills/vibeflow-audit/SKILL.md` — mirror
 - [ ] `MANUAL.md` — document the gate step under `vibeflow-audit`
 - [ ] `CHANGELOG.md` — new entry
-- [ ] `claude-code/.claude-plugin/plugin.json` — version bump
+- [ ] `plugins/vibeflow/.claude-plugin/plugin.json` — version bump
 - [ ] README command tables — only if the `audit` description changes
 - [ ] (v2 only) `cli/` — Node gate engine + catalog data file
 

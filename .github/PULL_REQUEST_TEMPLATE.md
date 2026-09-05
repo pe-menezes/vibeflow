@@ -18,7 +18,9 @@
 
 - [ ] Copilot (`copilot/`)
 - [ ] Cursor (`cursor/`)
-- [ ] Claude Code (`claude-code/`)
+- [ ] Universal plugin — Codex + Claude (`plugins/vibeflow/`)
+- [ ] Codex marketplace (`.agents/plugins/`)
+- [ ] Claude marketplace (`.claude-plugin/`)
 - [ ] CLI (`cli/`)
 - [ ] Site (`site/`)
 - [ ] Docs (README, MANUAL, CHANGELOG)

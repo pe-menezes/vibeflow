@@ -85,7 +85,7 @@ is normative. No caps as emphasis, no `⚠️`, one instruction in one place.
   the series did run (CLI install). Its structure is a good model for reporting.
 - `proposals/unhobbling-style.md` §Measurement — the per-file ledger, if you
   want to correlate a failure with how much a given file changed.
-- `claude-code/skills/*/SKILL.md` — the rewritten prompts under test. The
+- `plugins/vibeflow/skills/*/SKILL.md` — the rewritten prompts under test. The
   artifact formats you assert against are specified in them; read the format
   from the prompt rather than from this document, which paraphrases.
 
@@ -105,10 +105,10 @@ run tests` and lacks `Report every finding`. It is the control arm; you do not
 need to check anything out to get it. Confirm the version before trusting it,
 since the user may upgrade the plugin at some point.
 
-**The new prompts are not installed anywhere.** They live in `claude-code/`,
+**The new prompts are not installed anywhere.** They live in `plugins/vibeflow/`,
 `copilot/` and `cursor/` on branch `unhobbling/part-9` (and on `main` once the
 series merges). The cleanest way to give the fixture an arm is to copy
-`claude-code/skills/` into the fixture's `.claude/skills/`, per arm, so each
+`plugins/vibeflow/skills/` into the fixture's `.claude/skills/`, per arm, so each
 run is explicit about which version it exercises.
 
 **This repo cannot be the fixture.** It has no test runner —`cli/package.json`

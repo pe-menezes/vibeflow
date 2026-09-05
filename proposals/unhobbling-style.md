@@ -88,7 +88,7 @@ Everything else is deleted or converted into a shorter, reasoned form.
 ## Before / after — real pairs from this repo
 
 **Pair 1 — audit, test detection (D2 + D3).**
-Before (`claude-code/skills/audit/SKILL.md`):
+Before (`plugins/vibeflow/skills/audit/SKILL.md`):
 
 > **MANDATORY: Detect and run tests.**
 > — Based on stack, detect test runners:
@@ -106,7 +106,7 @@ The business rule (fail = FAIL) is intact; the runner enumeration is
 knowledge the model already has.
 
 **Pair 2 — analyze, `.vibeflow/` access (keep-list rewrite).**
-Before (`claude-code/skills/analyze/SKILL.md`):
+Before (`plugins/vibeflow/skills/analyze/SKILL.md`):
 
 > **⚠️ .vibeflow/ access rule:** … To check if `.vibeflow/` exists, **read
 > `.vibeflow/index.md` directly by its file path**. Do NOT use file search,
@@ -122,7 +122,7 @@ The rule and its reason stay; the warning apparatus goes.
 
 **Pair 3 — implement, budget (D4).**
 Before: the budget contract appears seven times in
-`claude-code/skills/implement/SKILL.md` — definition (§1.4), planning check
+`plugins/vibeflow/skills/implement/SKILL.md` — definition (§1.4), planning check
 (§3.1), implementation rule 5 ("**Budget is a hard limit.** … STOP"),
 mid-phase reminder, refine boundary, self-verification field, and a
 "Guardrails Summary" table row ("Do NOT exceed the file budget").
@@ -135,7 +135,7 @@ After: the contract is stated once at extraction —
 restated phase rules are removed.
 
 **Pair 4 — discover, scripted rounds (D5).**
-Before (`claude-code/skills/discover/SKILL.md`):
+Before (`plugins/vibeflow/skills/discover/SKILL.md`):
 
 > Start with: **"Describe what you want to do — the more context the better
 > (problem, audience, scope). If you already have clarity, I can generate
@@ -188,8 +188,8 @@ Method: `wc -c` per file; tokens ≈ chars/4. Rewrites in parts 2–8 fill the
 "after" column and record the delta in their audit. Baseline command:
 
 ```sh
-wc -c claude-code/skills/*/SKILL.md copilot/github/prompts/*.prompt.md \
-  cursor/skills/*/SKILL.md claude-code/agents/architect.md \
+wc -c plugins/vibeflow/skills/*/SKILL.md copilot/github/prompts/*.prompt.md \
+  cursor/skills/*/SKILL.md plugins/vibeflow/agents/architect.md \
   copilot/github/agents/vibeflow-architect.agent.md \
   cursor/rules/vibeflow-architect.mdc cursor/rules/vibeflow.mdc \
   copilot/github/instructions/vibeflow/vibeflow.instructions.md \
@@ -200,34 +200,34 @@ Baseline (2026-08-08):
 
 | Part | File | Chars | ~Tokens | After |
 |---|---|---:|---:|---|
-| 2 | claude-code/skills/implement/SKILL.md | 15737 | 3934 | 8920 |
-| 2 | claude-code/skills/audit/SKILL.md | 10768 | 2692 | 10039 |
+| 2 | plugins/vibeflow/skills/implement/SKILL.md | 15737 | 3934 | 8920 |
+| 2 | plugins/vibeflow/skills/audit/SKILL.md | 10768 | 2692 | 10039 |
 | 2 | copilot/github/prompts/vibeflow-implement.prompt.md | 14957 | 3739 | 8123 |
 | 2 | copilot/github/prompts/vibeflow-audit.prompt.md | 10196 | 2549 | 9479 |
 | 2 | cursor/skills/vibeflow-implement/SKILL.md | 15077 | 3769 | 8243 |
 | 2 | cursor/skills/vibeflow-audit/SKILL.md | 10270 | 2568 | 9552 |
-| 3 | claude-code/skills/gen-spec/SKILL.md | 7454 | 1864 | 6604 |
-| 3 | claude-code/skills/prompt-pack/SKILL.md | 5173 | 1293 | 4928 |
+| 3 | plugins/vibeflow/skills/gen-spec/SKILL.md | 7454 | 1864 | 6604 |
+| 3 | plugins/vibeflow/skills/prompt-pack/SKILL.md | 5173 | 1293 | 4928 |
 | 3 | copilot/github/prompts/vibeflow-gen-spec.prompt.md | 6296 | 1574 | 5603 |
 | 3 | copilot/github/prompts/vibeflow-prompt-pack.prompt.md | 4688 | 1172 | 4336 |
 | 3 | cursor/skills/vibeflow-gen-spec/SKILL.md | 6387 | 1597 | 5694 |
 | 3 | cursor/skills/vibeflow-prompt-pack/SKILL.md | 4744 | 1186 | 4381 |
-| 4 | claude-code/skills/analyze/SKILL.md | 33955 | 8489 | 26275 |
-| 4 | claude-code/skills/teach/SKILL.md | 10297 | 2574 | 8946 |
+| 4 | plugins/vibeflow/skills/analyze/SKILL.md | 33955 | 8489 | 26275 |
+| 4 | plugins/vibeflow/skills/teach/SKILL.md | 10297 | 2574 | 8946 |
 | 4 | copilot/github/prompts/vibeflow-analyze.prompt.md | 31599 | 7900 | 24509 |
 | 4 | copilot/github/prompts/vibeflow-teach.prompt.md | 9249 | 2312 | 7914 |
 | 4 | cursor/skills/vibeflow-analyze/SKILL.md | 31643 | 7911 | 24546 |
 | 4 | cursor/skills/vibeflow-teach/SKILL.md | 9289 | 2322 | 7954 |
-| 5 | claude-code/skills/discover/SKILL.md | 7080 | 1770 | 5492 |
-| 5 | claude-code/skills/quick/SKILL.md | 5227 | 1307 | 4460 |
+| 5 | plugins/vibeflow/skills/discover/SKILL.md | 7080 | 1770 | 5492 |
+| 5 | plugins/vibeflow/skills/quick/SKILL.md | 5227 | 1307 | 4460 |
 | 5 | copilot/github/prompts/vibeflow-discover.prompt.md | 6114 | 1529 | 4677 |
 | 5 | copilot/github/prompts/vibeflow-quick.prompt.md | 4059 | 1015 | 3770 |
 | 5 | cursor/skills/vibeflow-discover/SKILL.md | 6155 | 1539 | 4718 |
 | 5 | cursor/skills/vibeflow-quick/SKILL.md | 4044 | 1011 | 3753 |
-| 6 | claude-code/skills/stats/SKILL.md | 2989 | 747 | 2490 |
+| 6 | plugins/vibeflow/skills/stats/SKILL.md | 2989 | 747 | 2490 |
 | 6 | copilot/github/prompts/vibeflow-stats.prompt.md | 2568 | 642 | 2073 |
 | 6 | cursor/skills/vibeflow-stats/SKILL.md | 2597 | 649 | 2102 |
-| 6 | claude-code/agents/architect.md | 4290 | 1073 | 3364 |
+| 6 | plugins/vibeflow/agents/architect.md | 4290 | 1073 | 3364 |
 | 6 | copilot/github/agents/vibeflow-architect.agent.md | 3996 | 999 | 3096 |
 | 6 | cursor/rules/vibeflow-architect.mdc | 3281 | 820 | 2450 |
 | 7 | cursor/rules/vibeflow.mdc | 2884 | 721 | 3061 |
