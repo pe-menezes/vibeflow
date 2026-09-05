@@ -23,6 +23,19 @@ const npxEditions = [
 
     <div class="ed-wrap">
       <div class="ed-grid">
+        <div class="ed-card">
+          <h3>{t.codexTitle}</h3>
+          <p class="ed-desc">{t.codexDesc}</p>
+          <div class="ed-cmd">
+            <span>{t.codexInstall}</span>
+            <button class="copy-btn" data-copy={t.codexInstall} type="button">{t.copyLabel}</button>
+          </div>
+          <div class="ed-cmd" style="margin-top: 0.5rem;">
+            <span>{t.codexInstall2}</span>
+            <button class="copy-btn" data-copy={t.codexInstall2} type="button">{t.copyLabel}</button>
+          </div>
+        </div>
+
         <!-- Claude Code — special card with tabs -->
         <div class="ed-card ed-card--claude">
           <h3>{t.claudeTitle}</h3>
@@ -37,7 +50,7 @@ const npxEditions = [
             <ol class="ed-steps-list">
               <li>{t.claudeStep1}</li>
               <li>{t.claudeStep2}</li>
-              <li><span class="ed-steps-highlight">pe-menezes/vibeflow-claude</span></li>
+              <li><span class="ed-steps-highlight">pe-menezes/vibeflow</span></li>
               <li>{t.claudeStep4}</li>
               <li>{t.claudeStep5}</li>
             </ol>
@@ -106,7 +119,7 @@ const npxEditions = [
 
   .ed-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }
 

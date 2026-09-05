@@ -6,7 +6,6 @@ description: >
   persists and can be committed to git. Supports incremental updates, scoped
   deep-dives, interactive review, and satellite repo analysis. Use when setting
   up a project, after significant changes, or to deep-dive into a specific module.
-argument-hint: "[--fresh] [--scope path] [--interactive] [--satellite url]"
 allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 ---
 
@@ -15,12 +14,12 @@ allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 **What it does:** Scans the codebase and generates (or updates) `.vibeflow/`: index, conventions, and one pattern doc per significant pattern. Use once for project setup, then after big changes or to deep-dive into a module.
 
 **Examples:**
-- `/vibeflow:analyze` — First run or incremental (only re-analyzes what changed since last run).
-- `/vibeflow:analyze --fresh` — Rebuild everything from scratch; ignore existing `.vibeflow/`.
-- `/vibeflow:analyze --scope src/app` — Deep-dive into `src/app` only; requires `.vibeflow/` to already exist. Enriches pattern docs with examples from that module.
-- `/vibeflow:analyze --interactive` — Run analysis with interactive review: validate patterns, remove false positives, add tribal knowledge before saving.
-- `/vibeflow:analyze --fresh --interactive` — Full rebuild with interactive review.
-- `/vibeflow:analyze --satellite https://github.com/org/design-system` — Analyze a dependency repo, keep only patterns your code uses, merge into `.vibeflow/patterns/satellite-<name>/`.
+- `analyze` — First run or incremental (only re-analyzes what changed since last run).
+- `analyze --fresh` — Rebuild everything from scratch; ignore existing `.vibeflow/`.
+- `analyze --scope src/app` — Deep-dive into `src/app` only; requires `.vibeflow/` to already exist. Enriches pattern docs with examples from that module.
+- `analyze --interactive` — Run analysis with interactive review: validate patterns, remove false positives, add tribal knowledge before saving.
+- `analyze --fresh --interactive` — Full rebuild with interactive review.
+- `analyze --satellite https://github.com/org/design-system` — Analyze a dependency repo, keep only patterns your code uses, merge into `.vibeflow/patterns/satellite-<name>/`.
 
 ---
 
@@ -47,13 +46,13 @@ implementations on the project's real conventions.
 Read `.vibeflow/index.md` directly by its path. Search, grep, and glob respect
 `.gitignore`, so they miss the directory and report it as absent.
 
-Then read the flags in $ARGUMENTS (`--fresh`, `--scope <path>`, `--interactive`,
+Then read any flags in the user's current request (`--fresh`, `--scope <path>`, `--interactive`,
 `--satellite <url>`) and check whether git is available here.
 
 **Decision tree:**
 
 - `--satellite <url>` → satellite mode (below); phases 1–5 don't run. Without an
-  existing `.vibeflow/index.md`, stop: "Run `/vibeflow:analyze` first to
+  existing `.vibeflow/index.md`, stop: "Run `analyze` first to
   establish project context, then use `--satellite` to analyze a dependency repo."
 - `--scope <path>` → scoped mode (below); phases 1–5 don't run. Without an
   existing `.vibeflow/index.md`, stop: "Run `analyze` first to establish project
@@ -185,7 +184,7 @@ imported version exists in `external-<repo>/`."
 the `<!-- vibeflow:auto:start/end -->` markers, including the YAML frontmatter.
 If the doc has frontmatter and the content inside the markers did not change,
 leave the frontmatter untouched — the dev may have edited tags via
-`/vibeflow:teach`. If the auto content did change, regenerate the frontmatter
+`teach`. If the auto content did change, regenerate the frontmatter
 from it. Legacy docs with no markers get rewritten with markers and frontmatter
 added; new patterns are created with both.
 
@@ -243,19 +242,19 @@ Mark them so future work doesn't replicate mistakes.
 - **`tags`** — 3-7 lowercase strings for the domain and concepts the pattern covers, derived from its name, its "What", and the key concepts in "The Pattern". Specific domain tags (`auth`, `middleware`, `api-routes`, `state-management`, `navigation`, `design-system`), never generic ones like `code` or `pattern`.
 - **`modules`** — directory paths relative to the repo root, ending in `/`, taken from "Where" and from the file paths under "Examples from this codebase".
 - **`applies_to`** — the artifact types the pattern governs, as generic names: `components`, `routes`, `handlers`, `middleware`, `hooks`, `models`, `services`, `screens`, `tests`, `configs`, `migrations`, `commands`, `interceptors`, `guards`, `resolvers`, `controllers`.
-- **`confidence`** — `inferred` on creation (found by automated analysis), `validated` once a human confirms it via `--interactive` or `/vibeflow:teach`.
+- **`confidence`** — `inferred` on creation (found by automated analysis), `validated` once a human confirms it via `--interactive` or `teach`.
 
 **Marker placement rule:** the markers wrap `## What`, `## Where`,
 `## The Pattern`, `## Rules`, and `## Examples from this codebase`.
 `## Anti-patterns` stays outside — it's where manual additions and evolution
 land. The YAML frontmatter also stays outside, so tag edits made via
-`/vibeflow:teach` survive incremental updates.
+`teach` survive incremental updates.
 
 Include real code snippets from real files — not pseudocode, not "something like
 this". Actual code is what makes a pattern doc actionable for a coding agent.
 
 **`## Rationale` section:** when a rationale is provided (via `--interactive`
-Phase 3.5 or `/vibeflow:teach`), it goes between `<!-- vibeflow:auto:end -->`
+Phase 3.5 or `teach`), it goes between `<!-- vibeflow:auto:end -->`
 and `## Anti-patterns` — outside the markers, so it survives. Create it only
 when there is a rationale; no empty placeholders.
 
@@ -563,7 +562,7 @@ Only pattern docs cross over — not the satellite's `index.md` or `conventions.
 Remove the temp directory (`rm -rf <temp_dir>`) whether the merge succeeded or
 failed. Report the satellite URL and name, that the clone was removed, how many
 pattern docs were merged, and the provenance. Then suggest: "Run
-`/vibeflow:gen-spec` or `/vibeflow:prompt-pack` — patterns from
+`gen-spec` or `prompt-pack` — patterns from
 `<satellite-name>` are now available under
 `.vibeflow/patterns/satellite-<satellite-name>/`."
 

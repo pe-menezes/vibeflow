@@ -7,7 +7,6 @@ description: >
   dangerous operations. Generates an incremental prompt pack for any gaps found.
   With --consolidate-hotfixes, reclassifies hotfix trace docs against the
   current code. Use after implementation to verify quality before shipping.
-argument-hint: "<spec file or feature>"
 allowed-tools: Read, Grep, Glob, Bash
 ---
 
@@ -16,18 +15,18 @@ allowed-tools: Read, Grep, Glob, Bash
 **What it does:** Finds the spec (in `.vibeflow/specs/` or by path), checks each DoD item and pattern compliance, runs the project's test suite, and reports PASS / PARTIAL / FAIL. If tests fail, the result is FAIL regardless of DoD.
 
 **Examples:**
-- `/vibeflow:audit .vibeflow/specs/login-flow.md` — Audit implementation against the login-flow spec.
-- `/vibeflow:audit login-flow` — Same; the agent looks up the spec by feature name.
+- `audit .vibeflow/specs/login-flow.md` — Audit implementation against the login-flow spec.
+- `audit login-flow` — Same; the agent looks up the spec by feature name.
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 
-Audit the implementation for: $ARGUMENTS
+Audit the implementation identified in the user's current request.
 
 ## Steps
 
@@ -155,7 +154,7 @@ With `--consolidate-hotfixes` in the input, the round's target is
 
 7. When `.vibeflow/hotfixes/` holds hotfix docs, close the report with one
    line — `N hotfix docs not yet consolidated` — and point at
-   `/vibeflow:audit --consolidate-hotfixes`. No consolidation state is
+   `audit --consolidate-hotfixes`. No consolidation state is
    tracked: every doc present counts. Directory absent or empty → no line.
 
 ## Output format
@@ -214,7 +213,7 @@ when the audit surfaced architectural decisions or new pitfalls.
 Report the verdict and suggest next steps:
 - PASS: "Ready to ship."
 - PARTIAL/FAIL: "See the incremental prompt pack in the audit report.
-  Fix the gaps and run `/vibeflow:audit` again."
+  Fix the gaps and run `audit` again."
 
 ## Consolidation mode — `--consolidate-hotfixes`
 

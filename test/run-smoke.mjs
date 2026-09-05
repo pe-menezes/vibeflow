@@ -53,7 +53,7 @@ if (ONLY_ARM !== null && ONLY_ARM !== 'new') {
 }
 
 const ARMS = [
-  { id: 'new', label: 'new prompts (this repo)', skills: join(REPO, 'claude-code', 'skills') },
+  { id: 'new', label: 'new prompts (this repo)', skills: join(REPO, 'plugins', 'vibeflow', 'skills') },
   { id: 'old', label: 'old prompts (v1.12.0 cache)', skills: join(OLD_PLUGIN, 'skills') },
 ].filter((a) => !ONLY_ARM || a.id === ONLY_ARM);
 

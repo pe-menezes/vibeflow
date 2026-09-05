@@ -5,7 +5,6 @@ description: >
   a clear, actionable PRD. Challenges assumptions, cuts scope, and forces decisions.
   Saves the PRD to .vibeflow/prds/. Use before gen-spec when the idea is not yet
   well-defined or requirements are unclear.
-argument-hint: "<idea or area>"
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 
@@ -14,14 +13,14 @@ allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 **What it does:** Runs a short discovery dialogue (1–5 rounds): you describe an idea, the agent asks clarifying questions, challenges scope, and produces a PRD in `.vibeflow/prds/<slug>.md`. Use when the idea is still vague; if it's already clear, you can go straight to gen-spec.
 
 **Examples:**
-- `/vibeflow:discover quero um fluxo de login por email e senha` — Starts dialogue; at the end you get a PRD and can run gen-spec on it.
-- `/vibeflow:discover feature de exportar relatório em PDF` — Same; the agent will ask about scope, audience, and success criteria.
+- `discover quero um fluxo de login por email e senha` — Starts dialogue; at the end you get a PRD and can run gen-spec on it.
+- `discover feature de exportar relatório em PDF` — Same; the agent will ask about scope, audience, and success criteria.
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 
@@ -39,7 +38,7 @@ idea, never the person.
 
 Ground the session in `.vibeflow/index.md`, `conventions.md`, and the relevant
 patterns. Without `.vibeflow/`, say so:
-"I recommend running /vibeflow:analyze first so I can better understand the
+"I recommend running analyze first so I can better understand the
 project. I will continue with what I can read directly from the code."
 
 ## Clarity evaluation (fast-track)
@@ -96,7 +95,7 @@ filler sections, redundant summaries, or boilerplate.
 ```
 # PRD: <title>
 
-> Generated via /vibeflow:discover on <date>
+> Generated via discover on <date>
 
 ## Problem
 <1-3 paragraphs describing the real pain point, who suffers, and what happens today>
@@ -128,7 +127,7 @@ advancing to spec. If there is nothing, write "None.">
 
 After saving, suggest:
 **"PRD saved to `.vibeflow/prds/<slug>.md`. When you are ready to advance to technical spec,
-run: `/vibeflow:gen-spec .vibeflow/prds/<slug>.md`"**
+run: `gen-spec .vibeflow/prds/<slug>.md`"**
 
 ---
 

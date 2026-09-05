@@ -2,10 +2,9 @@
 name: prompt-pack
 description: >
   Generates a self-contained prompt pack from a spec. Embeds real code patterns
-  from .vibeflow/ so any coding agent (Claude Code, Cursor, Copilot) follows the
+  from .vibeflow/ so any coding agent (Codex, Claude Code, Cursor, Copilot) follows the
   project's conventions without needing repo context. Use when handing off
   implementation to a separate session or agent.
-argument-hint: "<spec file or feature>"
 allowed-tools: Read, Grep, Glob
 ---
 
@@ -14,8 +13,8 @@ allowed-tools: Read, Grep, Glob
 **What it does:** Reads a spec from `.vibeflow/specs/` (or path), builds a single prompt that includes objective, DoD, anti-scope, and real code patterns. Saves to `.vibeflow/prompt-packs/<slug>.md`. Give that file to the coding agent so it implements without needing the rest of the repo context.
 
 **Examples:**
-- `/vibeflow:prompt-pack .vibeflow/specs/login-flow.md` — Generate prompt pack from the login-flow spec.
-- `/vibeflow:prompt-pack login-flow` — Same; agent finds the spec by name.
+- `prompt-pack .vibeflow/specs/login-flow.md` — Generate prompt pack from the login-flow spec.
+- `prompt-pack login-flow` — Same; agent finds the spec by name.
 
 ---
 
@@ -24,7 +23,7 @@ allowed-tools: Read, Grep, Glob
 Write the whole pack — opening line, objective, DoD, anti-scope, guidance — in
 the user's detected language. Code, paths, and technical names stay in English.
 
-Generate a self-contained prompt pack for: $ARGUMENTS
+Generate a self-contained prompt pack for the spec in the user's current request.
 
 ## Steps
 
@@ -32,7 +31,7 @@ Generate a self-contained prompt pack for: $ARGUMENTS
    budget (the spec's Budget field, else the `Suggested budget` line in
    `.vibeflow/index.md`, else ≤6 files), and you stop without generating the
    pack — tell the user it exceeds limits (N checks / N files) and to run
-   `/vibeflow:gen-spec` again to split it first.
+   `gen-spec` again to split it first.
 1. Locate the spec: a file path is read directly; a feature description is
    matched against `.vibeflow/specs/`. No spec exists → generate one in the
    gen-spec format, save it, then continue.
@@ -120,7 +119,7 @@ Save the prompt pack to `.vibeflow/prompt-packs/<feature-slug>.md` (create the
 directory if it doesn't exist).
 
 After saving, suggest: "Prompt pack saved. Hand it off to the coding agent.
-After implementation, run `/vibeflow:audit` with the spec to verify."
+After implementation, run `audit` with the spec to verify."
 
 ---
 

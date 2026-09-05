@@ -6,7 +6,6 @@ description: >
   project's real patterns from .vibeflow/. Auto-splits specs that exceed budget or
   DoD limits. Use when requirements are clear and you're ready to define the
   implementation contract.
-argument-hint: "<feature description or PRD path>"
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 
@@ -15,14 +14,14 @@ allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 **What it does:** Produces a technical spec in `.vibeflow/specs/<slug>.md` with objective, Definition of Done (3–7 binary checks), scope, anti-scope, technical decisions, and applicable patterns. Reads `.vibeflow/` to ground the spec in your project. Can take a PRD path (from discover) or a short feature description.
 
 **Examples:**
-- `/vibeflow:gen-spec .vibeflow/prds/login-flow.md` — Generate spec from an existing PRD.
-- `/vibeflow:gen-spec adicionar endpoint POST /auth/login que retorna JWT` — Generate spec from a one-line description (uses .vibeflow/ patterns).
+- `gen-spec .vibeflow/prds/login-flow.md` — Generate spec from an existing PRD.
+- `gen-spec adicionar endpoint POST /auth/login que retorna JWT` — Generate spec from a one-line description (uses .vibeflow/ patterns).
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 One heading is exempt: `## References` stays literally in English in any
@@ -33,7 +32,7 @@ output language — prompt-pack's propagation matches that exact heading.
 Use WebSearch and WebFetch only when local context (`.vibeflow/`, codebase,
 git history) is insufficient — an unfamiliar framework or API. Local first.
 
-Generate a complete spec for: $ARGUMENTS
+Generate a complete spec for the feature in the user's current request.
 
 ## Before writing the spec
 
@@ -50,7 +49,7 @@ Generate a complete spec for: $ARGUMENTS
      and modules against the feature, and load the top 3–5 matches. With no
      registry, fall back to reading all pattern docs.
 
-   No `.vibeflow/` → warn that results improve after `/vibeflow:analyze`, then
+   No `.vibeflow/` → warn that results improve after `analyze`, then
    read the relevant code directly.
 3. Identify what exists today for this feature and which patterns apply to it.
 4. Collect what the input points at — test files, mockups, code to port, the
@@ -121,8 +120,8 @@ Save the spec to `.vibeflow/specs/<feature-slug>.md` (create the directory if
 it doesn't exist).
 
 After saving, suggest: "Spec saved to `.vibeflow/specs/<feature-slug>.md`.
-Run `/vibeflow:implement .vibeflow/specs/<feature-slug>.md` to implement with guardrails (budget, DoD, patterns).
-Or `/vibeflow:prompt-pack .vibeflow/specs/<feature-slug>.md` if you want a
+Run `implement .vibeflow/specs/<feature-slug>.md` to implement with guardrails (budget, DoD, patterns).
+Or `prompt-pack .vibeflow/specs/<feature-slug>.md` if you want a
 self-contained prompt for a separate session/agent."
 
 ---

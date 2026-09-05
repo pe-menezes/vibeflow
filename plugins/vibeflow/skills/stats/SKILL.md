@@ -13,7 +13,7 @@ allowed-tools: Read, Grep, Glob
 **What it does:** Scans `.vibeflow/audits/`, aggregates verdicts (PASS/PARTIAL/FAIL), which patterns are most often violated, and which DoD checks fail most. Output is in the chat only (no file). Use after you have at least a few audits.
 
 **Examples:**
-- `/vibeflow:stats` — No arguments; reports summary of all audits in `.vibeflow/audits/`.
+- `stats` — No arguments; reports summary of all audits in `.vibeflow/audits/`.
 
 ---
 
@@ -28,7 +28,7 @@ Compile and report statistics from audit reports.
 ## Steps
 
 1. Read every `.md` file in `.vibeflow/audits/`. If there are none, report
-   "No audits found. Run `/vibeflow:audit` after implementing a feature."
+   "No audits found. Run `audit` after implementing a feature."
    and stop.
 
 2. From each audit take the verdict (the `**Verdict:**` line), the `[x]`/`[ ]`

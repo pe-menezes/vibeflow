@@ -7,7 +7,6 @@ description: >
   self-verify DoD).
   Use after gen-spec when you're ready to code. The agent
   has filesystem access and acts as Coding Agent.
-argument-hint: "<spec file or feature name>"
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
@@ -16,19 +15,19 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 **What it does:** Reads a spec from `.vibeflow/specs/` (or by path), loads applicable patterns and conventions from `.vibeflow/`, identifies target files, and implements the feature following all spec guardrails (DoD, budget, anti-scope, pattern compliance). Runs tests and self-verifies each DoD check before finishing. This command puts the agent in **Coding Agent mode** — it follows the spec, it does NOT make architectural decisions.
 
 **Examples:**
-- `/vibeflow:implement .vibeflow/specs/auto-install.md` — Implement from spec file path.
-- `/vibeflow:implement auto-install` — Same; agent finds the spec by feature name in `.vibeflow/specs/`.
-- `/vibeflow:implement .vibeflow/specs/auth-part-2.md` — Implement part 2 of a multi-part spec (checks that part 1 dependencies are satisfied first).
+- `implement .vibeflow/specs/auto-install.md` — Implement from spec file path.
+- `implement auto-install` — Same; agent finds the spec by feature name in `.vibeflow/specs/`.
+- `implement .vibeflow/specs/auth-part-2.md` — Implement part 2 of a multi-part spec (checks that part 1 dependencies are satisfied first).
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 
-Implement from spec: $ARGUMENTS
+Implement from the spec identified in the user's current request.
 
 ---
 
@@ -47,12 +46,12 @@ instead of deciding.
 ## Phase 0: Find and validate the spec
 
 1. Locate it. A file path (contains `/` or ends in `.md`) is read directly.
-   A feature name is matched in `.vibeflow/specs/` — exact (`$ARGUMENTS.md`),
+   A feature name is matched in `.vibeflow/specs/` — exact (`<requested-name>.md`),
    then partial; several matches → list them and ask the user to choose;
-   none → list the available specs and suggest `/vibeflow:gen-spec`.
+   none → list the available specs and suggest `gen-spec`.
 2. Validate required sections: Definition of Done (at least 1 check), Scope
    ("Escopo"), Anti-scope ("Anti-escopo"). If any is missing, stop, list
-   what's absent, and point to `/vibeflow:gen-spec`.
+   what's absent, and point to `gen-spec`.
 3. Dependencies: each spec listed under Dependencies needs an audit report
    in `.vibeflow/audits/` with verdict PASS. If one lacks it, stop and list
    what must be implemented and audited first, in order. If no audits
@@ -74,7 +73,7 @@ Pull these from the spec into working context:
 ## Phase 2: Load context from .vibeflow/
 
 If `.vibeflow/` doesn't exist, warn that implementation proceeds without
-pattern guidance (suggest `/vibeflow:analyze`) and skip to Phase 3. Otherwise:
+pattern guidance (suggest `analyze`) and skip to Phase 3. Otherwise:
 
 1. Read `.vibeflow/conventions.md` — always.
 2. Read the pattern docs the spec lists under Applicable Patterns. If it
@@ -206,13 +205,13 @@ architectural decisions or more budget → report the gap and leave it.
 All DoD checks and tests passing →
 
 "Implementation complete. All N DoD checks verified. Budget: M/N files.
-Tests: PASS. Run `/vibeflow:audit <spec>` to get the formal verification."
+Tests: PASS. Run `audit <spec>` to get the formal verification."
 
 With gaps →
 
 "Implementation complete with gaps. DoD: N/M checks passing. Tests:
 PASS/FAIL. Gaps: [list]. The audit will likely return PARTIAL or FAIL —
-consider fixing the gaps above, then run `/vibeflow:audit <spec>`."
+consider fixing the gaps above, then run `audit <spec>`."
 
 Audit is always the next step.
 

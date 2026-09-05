@@ -27,6 +27,7 @@ body:
       multiple: true
       options:
         - All editions
+        - Codex
         - Claude Code
         - Cursor
         - GitHub Copilot

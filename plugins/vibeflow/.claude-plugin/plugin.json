@@ -1,11 +1,13 @@
 {
   "name": "vibeflow",
-  "version": "1.14.0",
+  "version": "1.15.0",
   "description": "Spec-driven development for AI agents. Define what to build, let the agent build it right. Vibeflow separates thinking from coding with specs, guardrails, and audits — grounded in your project's real patterns.",
   "author": {
-    "name": "Pedro Menezes"
+    "name": "Pedro Menezes",
+    "url": "https://github.com/pe-menezes"
   },
-  "repository": "https://github.com/pe-menezes/vibeflow-claude",
+  "homepage": "https://vibeflow.run",
+  "repository": "https://github.com/pe-menezes/vibeflow",
   "license": "MIT",
   "keywords": ["spec-driven", "architecture", "prompt-pack", "audit", "vibe-coding"]
 }

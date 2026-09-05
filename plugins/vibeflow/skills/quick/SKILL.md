@@ -4,7 +4,6 @@ description: >
   Fast-tracks small tasks into a ready-to-use prompt pack in one command. Skips
   discover, generates an ephemeral spec in memory, and outputs a prompt pack with
   embedded patterns. Use for well-defined tasks that fit in ≤4 files.
-argument-hint: "<task description>"
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 
@@ -13,14 +12,14 @@ allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 **What it does:** For small, well-defined tasks (e.g. tiny feature, small planned change), skips PRD and full spec: generates a minimal spec in memory and a prompt pack you can hand to the coding agent. Task should fit in ≤4 files.
 
 **Examples:**
-- `/vibeflow:quick corrigir formatação de data no dashboard` — One command; you get a prompt pack and can paste it to the agent.
-- `/vibeflow:quick adicionar botão de exportar CSV na tela de relatórios` — Same; use when scope is clear and small.
+- `quick corrigir formatação de data no dashboard` — One command; you get a prompt pack and can paste it to the agent.
+- `quick adicionar botão de exportar CSV na tela de relatórios` — Same; use when scope is clear and small.
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 
@@ -29,17 +28,17 @@ Technical terms in English are acceptable regardless of the detected language.
 Use WebSearch and WebFetch only when local context (`.vibeflow/`, codebase,
 git history) is insufficient — an unfamiliar framework or API. Local first.
 
-Fast-track prompt pack for: $ARGUMENTS
+Fast-track the prompt pack requested by the user.
 
 ## When to use
 
 Small planned tasks and features with clear requirements, fitting in ≤4
 files, when you want a prompt pack now rather than a paper trail. Not for:
 
-- An observed defect with reproducible evidence → use `/vibeflow:hotfix`.
-- The idea is vague → use `/vibeflow:discover` first.
+- An observed defect with reproducible evidence → use `hotfix`.
+- The idea is vague → use `discover` first.
 - You need full documentation for the team → use the full pipeline.
-- The task is large or architecturally significant → use `/vibeflow:gen-spec`.
+- The task is large or architecturally significant → use `gen-spec`.
 
 ## Phase 0: Check context
 
@@ -57,7 +56,7 @@ Enough to understand the project, and no more — this doesn't generate
 4. `.cursorrules`, `CLAUDE.md`, or `.cursor/rules/`, if present, for conventions.
 
 Findings stay in memory. At the end, suggest: "For deeper analysis, run
-`/vibeflow:analyze`."
+`analyze`."
 
 ## Phase 2: Generate the ephemeral spec
 
@@ -70,14 +69,14 @@ never saved to a file — containing:
 - **Anti-scope** — What's explicitly out. Be aggressive.
 - **Budget** — ≤4 files, tighter than the standard ≤6. A task that clearly
   needs more gets a warning in the user's language: "This task may be too
-  large for quick. Consider using `/vibeflow:gen-spec`."
+  large for quick. Consider using `gen-spec`."
 - **Applicable Patterns** — from `.vibeflow/patterns/`, when it exists.
 
 No Technical Decisions and no Risks sections — this is the fast track.
 
 ## Phase 3: Generate the prompt pack
 
-Same structure `/vibeflow:prompt-pack` produces, from the ephemeral spec and
+Same structure `prompt-pack` produces, from the ephemeral spec and
 whatever knowledge you have. It opens with the line
 
 > You are only seeing this prompt; there is no context outside it.
@@ -102,9 +101,9 @@ it doesn't exist).
 
 - Path of the generated prompt pack
 - Objective and DoD in 2-3 lines
-- If `.vibeflow/` didn't exist: remind them `/vibeflow:analyze` makes the next
+- If `.vibeflow/` didn't exist: remind them `analyze` makes the next
   run richer
-- Suggest: "After implementing, run `/vibeflow:audit` to verify."
+- Suggest: "After implementing, run `audit` to verify."
 
 ---
 

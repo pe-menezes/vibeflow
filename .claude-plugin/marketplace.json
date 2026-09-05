@@ -1,21 +1,28 @@
 {
   "name": "vibeflow-marketplace",
   "owner": {
-    "name": "Pedro Menezes"
+    "name": "Pedro Menezes",
+    "url": "https://github.com/pe-menezes"
   },
+  "description": "Spec-driven development plugins for Claude Code.",
+  "version": "1.15.0",
   "metadata": {
     "description": "Spec-driven development plugins",
-    "version": "1.14.0"
+    "version": "1.15.0"
   },
   "plugins": [
     {
       "name": "vibeflow",
-      "source": "./",
+      "source": "./plugins/vibeflow",
+      "displayName": "Vibeflow",
       "description": "Spec-driven development: from discovery to shipping. Analyze codebases, generate grounded specs, create self-contained prompt packs, and audit implementations.",
-      "version": "1.14.0",
+      "version": "1.15.0",
       "author": {
-        "name": "Pedro Menezes"
+        "name": "Pedro Menezes",
+        "url": "https://github.com/pe-menezes"
       },
+      "homepage": "https://vibeflow.run",
+      "repository": "https://github.com/pe-menezes/vibeflow",
       "license": "MIT",
       "keywords": ["spec-driven", "architecture", "prompt-pack", "audit", "vibe-coding"]
     }

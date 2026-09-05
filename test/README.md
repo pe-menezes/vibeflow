@@ -23,7 +23,7 @@ never deletes the `--workdir` root — it only clears and rewrites the
 ## What it checks
 
 The artifact contract, per stage. Formats come from the prompts in
-`claude-code/skills/*/SKILL.md`, which are the specification — where a prompt
+`plugins/vibeflow/skills/*/SKILL.md`, which are the specification — where a prompt
 and this table disagree, the prompt wins.
 
 | Stage | Assertions |

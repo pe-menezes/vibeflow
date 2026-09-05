@@ -1,0 +1,29 @@
+{
+  "name": "vibeflow",
+  "version": "1.15.0",
+  "description": "Spec-driven development for AI agents. Analyze real project patterns, define binary completion criteria, implement within explicit guardrails, and audit the result.",
+  "author": {
+    "name": "Pedro Menezes",
+    "url": "https://github.com/pe-menezes"
+  },
+  "homepage": "https://vibeflow.run",
+  "repository": "https://github.com/pe-menezes/vibeflow",
+  "license": "MIT",
+  "keywords": ["spec-driven", "architecture", "prompt-pack", "audit", "vibe-coding"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Vibeflow",
+    "shortDescription": "Spec-driven development grounded in your codebase.",
+    "longDescription": "Turn an idea into a grounded PRD and technical spec, implement it with scope and budget guardrails, then audit the result against binary completion criteria and real project patterns.",
+    "developerName": "Pedro Menezes",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write", "Code"],
+    "websiteURL": "https://vibeflow.run",
+    "defaultPrompt": [
+      "Analyze this project and build its Vibeflow knowledge base.",
+      "Turn this feature idea into a grounded technical spec.",
+      "Audit this implementation against its Vibeflow spec."
+    ],
+    "brandColor": "#8A2BE2"
+  }
+}

@@ -6,7 +6,7 @@
 // runner also prints so the limit travels with the output.
 //
 // Formats are read from the prompts that produce them
-// (claude-code/skills/*/SKILL.md), not from the work order's summary table.
+// (plugins/vibeflow/skills/*/SKILL.md), not from the work order's summary table.
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';

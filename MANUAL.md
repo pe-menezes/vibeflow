@@ -40,18 +40,24 @@ Nem sempre você precisa do pipeline completo. Veja os atalhos abaixo.
 
 ## Instalação
 
-Vibeflow está disponível para 3 agentes. Escolha o seu:
+Vibeflow está disponível para 4 agentes. Escolha o seu:
 
 | Edição | Comando de instalação |
 |--------|----------------------|
+| **Codex** | `codex plugin marketplace add pe-menezes/vibeflow`, depois `codex plugin add vibeflow@vibeflow-marketplace` |
 | **GitHub Copilot** | `npx setup-vibeflow@latest --copilot` |
 | **Cursor** | `npx setup-vibeflow@latest --cursor` |
-| **Claude Code** | Add marketplace `pe-menezes/vibeflow-claude` (ou `/install-plugin pe-menezes/vibeflow-claude`) |
+| **Claude Code** | `/plugin marketplace add pe-menezes/vibeflow`, depois `/plugin install vibeflow@vibeflow-marketplace` |
 
-Ou copie os arquivos manualmente — veja o README de cada edição:
-[`copilot/`](copilot/), [`cursor/`](cursor/), [`claude-code/`](claude-code/).
+Codex e Claude usam o mesmo pacote em [`plugins/vibeflow/`](plugins/vibeflow/),
+com uma única fonte para as skills e manifests específicos para cada host. O
+repositório `pe-menezes/vibeflow-claude` continua como espelho de compatibilidade
+para instalações existentes. Para as outras edições, veja
+[`copilot/`](copilot/) e [`cursor/`](cursor/).
 
-A flag `--copilot` ou `--cursor` é **obrigatória** — o instalador não tem default para evitar instalar na edição errada.
+Uma flag de edição é **obrigatória** — o instalador não tem default para evitar
+instalar na edição errada. `--copilot` e `--cursor` instalam arquivos;
+`--codex` e `--claude` mostram os comandos do marketplace nativo.
 
 **Git:** Por padrão, o instalador adiciona ao `.gitignore` os arquivos que instala e a pasta `.vibeflow/` (gerada pelo analyze). Eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
 
@@ -170,13 +176,13 @@ Gera um prompt pack auto-contido a partir de uma spec. O prompt pack é o que o 
 
 **Salva em:** `.vibeflow/prompt-packs/<slug>.md`
 
-O prompt pack é **agent-agnostic** — funciona no Copilot, Cursor, Claude Code, ou qualquer outro.
+O prompt pack é **agent-agnostic** — funciona no Codex, Copilot, Cursor, Claude Code, ou qualquer outro.
 
 ---
 
 ### `vibeflow-implement`
 
-Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec, carrega padrões e convenções de `.vibeflow/`, e implementa seguindo budget, anti-escopo e DoD. Disponível em todas as edições (Claude Code, Copilot e Cursor).
+Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec, carrega padrões e convenções de `.vibeflow/`, e implementa seguindo budget, anti-escopo e DoD. Disponível em todas as edições (Codex, Claude Code, Copilot e Cursor).
 
 **Quando usar:**
 - Spec aprovada, quer implementar com guardrails automáticos
@@ -453,7 +459,7 @@ Regras que estão sempre ativas, independente do comando:
 - **Rode `analyze` antes de tudo.** Sem `.vibeflow/`, os outros comandos funcionam mas produzem resultados piores.
 - **`discover` não é obrigatório.** Se a ideia já está clara, pule direto para `gen-spec`.
 - **`quick` é o atalho do dia a dia.** Para tasks que cabem em 4 arquivos, não precisa do pipeline completo.
-- **O prompt pack é agent-agnostic.** Copie e cole em qualquer agente de IA — Copilot, Cursor, Claude Code, ChatGPT, etc.
+- **O prompt pack é agent-agnostic.** Copie e cole em qualquer agente de IA — Codex, Copilot, Cursor, Claude Code, ChatGPT, etc.
 - **`teach` mantém o conhecimento vivo.** Depois de aprender algo novo sobre o projeto, ensine o `.vibeflow/`.
 - **`audit` é o quality gate.** Rode sempre depois de implementar. Se falhar, use o prompt pack incremental que ele gera.
 - **Tudo responde no idioma do input.** Escreva em português, receba em português. Termos técnicos em inglês são ok.

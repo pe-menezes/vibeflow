@@ -8,7 +8,7 @@
 
 AI agents write code fast — but without specs, they write the **wrong** code fast. Vibeflow adds a thinking layer before coding: you define **what** to build with specs, guardrails, and quality gates. The agent implements following your project's real patterns.
 
-> Works with **Claude Code** (plugin), **Cursor** (rules + skills), and **GitHub Copilot** (prompts + agents).
+> Works with **Codex** and **Claude Code** through one shared plugin, plus **Cursor** (rules + skills) and **GitHub Copilot** (prompts + agents).
 
 ## 3 commands to start
 
@@ -40,8 +40,19 @@ Run `analyze` once, then `gen-spec` → `implement` for each feature. That's it.
 
 ## Editions
 
-Each edition adapts the same prompts and methodology to the agent's format.
-The methodology content is the same — only the file structure changes.
+Each edition adapts the same methodology to the agent's format. Codex and
+Claude share the exact same skill sources under `plugins/vibeflow/`; their
+platform-specific manifests only handle packaging and discovery.
+
+### Codex (plugin)
+
+```bash
+codex plugin marketplace add pe-menezes/vibeflow
+codex plugin add vibeflow@vibeflow-marketplace
+```
+
+Start a new task after installation. Ask naturally — for example, “analyze this
+project with Vibeflow” — and Codex selects the matching focused skill.
 
 ### Claude Code (plugin — no npx)
 
@@ -51,20 +62,20 @@ Claude Code uses its own **plugin system**, not file downloads.
 
 1. Sidebar → **Customize**
 2. Click **+** next to "Personal plugins" → **Add marketplace**
-3. Paste: `pe-menezes/vibeflow-claude`
+3. Paste: `pe-menezes/vibeflow`
 4. Click **Sync**
 5. **Browse plugins** → Install **Vibeflow**
 
 **Claude Code CLI (terminal only — these do NOT work in Desktop chat):**
 
 ```bash
-/plugin marketplace add pe-menezes/vibeflow-claude
+/plugin marketplace add pe-menezes/vibeflow
 /plugin install vibeflow@vibeflow-marketplace
 ```
 
 Then run `/vibeflow:analyze` to get started.
 
-> **Source:** [`claude-code/`](claude-code/) in this repo → auto-synced to [pe-menezes/vibeflow-claude](https://github.com/pe-menezes/vibeflow-claude)
+> **Source:** [`plugins/vibeflow/`](plugins/vibeflow/) in this repo. Existing users of [pe-menezes/vibeflow-claude](https://github.com/pe-menezes/vibeflow-claude) remain supported through an automatic compatibility mirror.
 
 ### Cursor
 
@@ -88,6 +99,7 @@ See [`copilot/README.md`](copilot/README.md) for details.
 
 | Edition | Install method | Command |
 |---------|---------------|---------|
+| **Codex** | Plugin marketplace | `codex plugin marketplace add pe-menezes/vibeflow` |
 | **Claude Code** | Plugin (inside Claude Code) | See install steps above |
 | **Cursor** | npx installer | `npx setup-vibeflow@latest --cursor` |
 | **GitHub Copilot** | npx installer | `npx setup-vibeflow@latest --copilot` |

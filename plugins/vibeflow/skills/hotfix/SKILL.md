@@ -8,7 +8,6 @@ description: >
   name and saves the doc for a later call to resume. Use when a defect has
   concrete evidence and you need the fix with its paper trail now — planned
   small tasks belong to quick, spec'd features to implement.
-argument-hint: "<symptom + evidence | path to halted doc>"
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
@@ -17,23 +16,23 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 **What it does:** In one call, produces a short trace doc in `.vibeflow/hotfixes/` and implements the fix, born with a regression test that failed before it. Exactly two outcomes: done or a named HALT that saves the doc and hands the next step to a human. Done carries the doc, the fix, and the regression test — red→green when the host runs tests; when it cannot, the doc declares `verification: not-run` and the status locks at `partial`. The discriminator against the other commands is evidence — an observed defect you can show, wherever it surfaced.
 
 **Examples:**
-- `/vibeflow:hotfix` — after a bug was investigated in this conversation; inherits symptom and hypothesis from the session (`origin: session`).
-- `/vibeflow:hotfix login returns 500 for emails with "+"; stack trace below` — symptom + evidence in the prompt, headless/CI included (`origin: prompt`).
-- `/vibeflow:hotfix harness caught: audit stamps PASS on an empty diff — log attached` — evidence produced by someone else: a review finding, a harness failure, a user report (`origin: third-party`).
-- `/vibeflow:hotfix .vibeflow/hotfixes/2026-08-16-saldo-zero.md` — resume a halted doc from where it stopped (`origin: resumed`).
+- `hotfix` — after a bug was investigated in this conversation; inherits symptom and hypothesis from the session (`origin: session`).
+- `hotfix login returns 500 for emails with "+"; stack trace below` — symptom + evidence in the prompt, headless/CI included (`origin: prompt`).
+- `hotfix harness caught: audit stamps PASS on an empty diff — log attached` — evidence produced by someone else: a review finding, a harness failure, a user report (`origin: third-party`).
+- `hotfix .vibeflow/hotfixes/2026-08-16-saldo-zero.md` — resume a halted doc from where it stopped (`origin: resumed`).
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 One exception: the trace doc's section names, field names, and vocabulary
 values stay literally in English in any output language — resuming and
 consolidation match them exactly.
 
-Fix the observed defect: $ARGUMENTS
+Fix the observed defect described in the user's current request.
 
 ## The one-call contract
 
@@ -206,7 +205,7 @@ skipped or quarantined until resume, or revert it.
 The command commits nothing. Close with:
 
 - The outcome — done, or the HALT with its next step and "resume with
-  `/vibeflow:hotfix <doc path>`".
+  `hotfix <doc path>`".
 - Doc path, `files_changed`, the test path with its red→green result, suite
   and Critical Gate results, `reproduction`, final `status`.
 - The commit instruction: commit fix + test + doc together, one unit.

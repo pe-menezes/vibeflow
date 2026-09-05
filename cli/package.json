@@ -1,6 +1,6 @@
 {
   "name": "setup-vibeflow",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "description": "Install Vibeflow (spec-driven development) in your project",
   "bin": {
     "setup-vibeflow": "./index.js"
@@ -11,6 +11,8 @@
   },
   "keywords": [
     "vibeflow",
+    "codex",
+    "claude-code",
     "copilot",
     "github-copilot",
     "cursor",

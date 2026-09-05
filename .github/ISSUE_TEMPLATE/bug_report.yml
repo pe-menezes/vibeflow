@@ -8,6 +8,7 @@ body:
       label: Edition
       description: Which edition are you using?
       options:
+        - Codex
         - Claude Code
         - Cursor
         - GitHub Copilot

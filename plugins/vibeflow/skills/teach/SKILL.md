@@ -3,10 +3,9 @@ name: teach
 description: >
   Updates the project knowledge base (.vibeflow/) with corrections, new conventions,
   architectural decisions, or new patterns based on natural language feedback. Also
-  imports patterns from external repos via --from <url|path>. Edits are placed outside
+  imports patterns from external repos through the --from option. Edits are placed outside
   auto-generated markers to survive incremental analyze runs. Use to keep .vibeflow/
   accurate as the project evolves.
-argument-hint: "<feedback> | --from <url|path> [--name alias]"
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 ---
 
@@ -15,21 +14,21 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, Write
 **What it does:** Updates `.vibeflow/` from natural language: corrects a pattern doc, adds a convention, records a decision, or documents a new pattern. Also imports patterns and conventions from an external reference repo via `--from`. Prefer corrections outside the auto-generated markers so they survive the next analyze.
 
 **Examples:**
-- `/vibeflow:teach sempre usar camelCase para variáveis de estado` — Adds or updates a convention.
-- `/vibeflow:teach o padrão de API mudou, agora validamos com zod` — Updates the relevant pattern or conventions.
-- `/vibeflow:teach decidimos usar Redis para cache, não in-memory` — Logs the decision (e.g. in decisions.md or conventions).
-- `/vibeflow:teach --from https://github.com/org/platform-patterns` — Imports patterns from an external repo.
-- `/vibeflow:teach --from ./my-patterns --name platform` — Imports from a local path with a custom alias.
+- `teach sempre usar camelCase para variáveis de estado` — Adds or updates a convention.
+- `teach o padrão de API mudou, agora validamos com zod` — Updates the relevant pattern or conventions.
+- `teach decidimos usar Redis para cache, não in-memory` — Logs the decision (e.g. in decisions.md or conventions).
+- `teach --from https://github.com/org/platform-patterns` — Imports patterns from an external repo.
+- `teach --from ./my-patterns --name platform` — Imports from a local path with a custom alias.
 
 ---
 
 ## Language
 
-Detect the language of the user's input ($ARGUMENTS or conversation).
+Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 
-Process feedback and update project knowledge: $ARGUMENTS
+Process the user's current feedback and update project knowledge.
 
 ## The one rule that governs every edit
 
@@ -45,9 +44,9 @@ that region from the start.
 
 `.vibeflow/` has to exist: read `.vibeflow/index.md` directly by path for
 orientation. If it isn't there, stop with "`.vibeflow/` does not exist. Run
-`/vibeflow:analyze` first to create the knowledge base." — don't create it by hand.
+`analyze` first to create the knowledge base." — don't create it by hand.
 
-Then branch on the input: `--from` in $ARGUMENTS goes to **Import from external
+Then branch on the input: `--from` in the user's current request goes to **Import from external
 repo**; anything else goes to **Classify the feedback**.
 
 ---
@@ -180,7 +179,7 @@ by `gen-spec` and `implement`."
 
 ## Classify the feedback
 
-Read $ARGUMENTS and place it in one of four categories. Ambiguous feedback is
+Read the user's current request and place it in one of four categories. Ambiguous feedback is
 worth one clarifying question before you edit anything.
 
 ### (a) An existing pattern doc is wrong or outdated
@@ -242,7 +241,7 @@ architect's MEMORY.md if that exists.
 ## After updating
 
 Report which category you identified, which files changed, and a brief summary
-of what was added. Then suggest: "Run `/vibeflow:analyze` at the next opportunity
+of what was added. Then suggest: "Run `analyze` at the next opportunity
 to sync auto-generated sections with your corrections."
 
 ---
