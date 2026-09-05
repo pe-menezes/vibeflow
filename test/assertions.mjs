@@ -371,10 +371,19 @@ function antiScopePaths(spec) {
   const paths = [];
   let prose = 0;
   for (const item of items) {
+    // A path mention is mechanically enforceable only when the prohibition
+    // applies directly to that path. For example, "No change to `src/store.js`"
+    // is checkable, while "No barrel file in `src/services/`" is not: touching
+    // another file in that directory does not violate the statement.
+    const directPathProhibition =
+      /\b(?:no (?:changes?|modifications?) to|do not (?:change|modify|touch|edit|delete|create))\s+`/i.test(item)
+      || /\bkeep\s+`[^`]+`\s+unchanged\b/i.test(item)
+      || /`[^`]+`\s+(?:must remain|is|are)\s+unchanged\b/i.test(item);
+
     const hits = [...item.matchAll(/`([^`]+)`/g)]
       .map((m) => m[1])
       .filter((t) => /^[\w./-]+\.(js|mjs|json|md)$/.test(t) || /^(src|test)\//.test(t));
-    if (hits.length) paths.push(...hits);
+    if (directPathProhibition && hits.length) paths.push(...hits);
     else prose += 1;
   }
   return { paths: [...new Set(paths)], prose };

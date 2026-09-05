@@ -1,6 +1,6 @@
 ---
 name: vibeflow-teach
-description: "Updates .vibeflow/ with corrections, new conventions, architectural decisions, or new patterns from natural language feedback. Also imports from external repos via --from <url|path>. Use to keep .vibeflow/ accurate as the project evolves."
+description: "Updates .vibeflow/ with corrections, new conventions, architectural decisions, or new patterns from natural language feedback. Also imports from external repos through the --from option. Use to keep .vibeflow/ accurate as the project evolves."
 ---
 
 # Vibeflow: Teach
@@ -233,4 +233,3 @@ architect's MEMORY.md if that exists.
 Report which category you identified, which files changed, and a brief summary
 of what was added. Then suggest: "Run the vibeflow-analyze skill at the next opportunity
 to sync auto-generated sections with your corrections."
-

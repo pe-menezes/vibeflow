@@ -49,7 +49,9 @@ Three limits are worth naming precisely:
 
 - The craftsmanship and executable-test assertions are keyword heuristics over
   the DoD text. A check phrased outside their keyword lists reads as a miss.
-- Anti-scope items that name no path are counted as unchecked, not as passing.
+- Anti-scope items that do not directly prohibit a concrete path are counted as
+  unchecked, not as passing. A contextual directory mention such as "no barrel
+  file in `src/services/`" does not prohibit every file below that directory.
   The runner prints how many there were.
 - One run per arm. Same prompt, same model, same input does not produce the
   same output, so a difference between two single runs does not separate a real
@@ -102,3 +104,18 @@ cache — a fresh clone cannot run it — which is a declared limitation, accept
 for now over pinning a tag or archive.
 
 Raw per-stage output lands in `<workdir>/results.json`.
+
+## Distribution parity checks
+
+The dependency-free Node test suite also guards the static distribution
+contract for every host:
+
+```
+node --test test/*.test.mjs
+```
+
+It requires the same ten workflows in the shared Claude/Codex plugin, Cursor
+skills, and Copilot prompt files; validates host-specific names and frontmatter;
+checks essential behavior anchors for each workflow; and verifies that the
+Claude and Codex catalogs resolve to the same versioned plugin. GitHub Actions
+runs these checks for every pull request and push to `main`.
