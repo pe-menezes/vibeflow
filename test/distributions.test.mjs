@@ -140,6 +140,8 @@ test('Claude and Codex catalogs point at the same versioned plugin', () => {
   assert.equal(claudeManifest.name, 'vibeflow');
   assert.equal(codexManifest.name, 'vibeflow');
   assert.equal(claudeManifest.version, codexManifest.version);
+  assert.equal(claudeCatalog.version, claudeManifest.version);
+  assert.equal(claudeCatalog.metadata.version, claudeManifest.version);
   assert.equal(claudeCatalog.plugins[0].version, claudeManifest.version);
   assert.equal(claudeCatalog.plugins[0].source, './plugins/vibeflow');
   assert.equal(codexCatalog.plugins[0].source.path, './plugins/vibeflow');
