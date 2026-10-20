@@ -2,7 +2,8 @@
 // Review package: the round's diff in one file, for the auditor and the re-auditor to read at once.
 // Commits since the base, status, stat, the diff with 10 lines of context (committed and not) and
 // every new file. For a re-audit the base is the commit of the audited round, so the package is
-// the fix diff only. A package over the cap names what it left out; an empty one says so.
+// the fix diff only. A package over the cap names what it left out; an empty one says so. The
+// loop's own artifact folders under .vibeflow/ never count as a change: they stay out, counted.
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
@@ -10,11 +11,20 @@ import { basename, dirname, resolve } from 'node:path';
 
 const DEFAULT_MAX_BYTES = 400_000;
 
+// Written by the loop itself (state, briefings, progress, packages, reports): never the change under
+// review. In a plugin project `.vibeflow/` is not ignored, and an earlier report would otherwise
+// turn an empty package into a non-empty one.
+const ARTIFACT_FOLDERS = ['loop', 'briefings', 'progress', 'reviews', 'audits'];
+const isArtifact = (path) => ARTIFACT_FOLDERS.some((folder) => path.startsWith(`.vibeflow/${folder}/`));
+const ARTIFACT_PATHSPEC = ['--', '.', ...ARTIFACT_FOLDERS.map((folder) => `:(exclude).vibeflow/${folder}/`)];
+
 const USAGE = `usage: review-package.mjs <dir> <base> <out> [--max-bytes <n>]
 
 Writes to <out> the commits since <base>, git status, the stat, the diff from <base> to the
 worktree with 10 lines of context, and every untracked, not ignored file. File diffs that do
 not fit under --max-bytes (default ${DEFAULT_MAX_BYTES}) are left out and listed at the top.
+The loop's artifact folders under .vibeflow/ (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}) are left
+out and counted at the top; a package that would hold only them is empty.
 
 exit 0 written · 1 empty (nothing changed; the file says so) · 2 error`;
 
@@ -83,25 +93,32 @@ function build({ dir: dirArg, base, out, maxBytes }) {
 
   // A package written inside the worktree must not carry its previous copy.
   const outReal = resolve(realDir(dirname(out)), basename(out));
-  const untracked = git(dir, ['ls-files', '--others', '--exclude-standard', '-z'])
+  const allUntracked = git(dir, ['ls-files', '--others', '--exclude-standard', '-z'])
     .split('\0')
     .filter((path) => path && resolve(dir, path) !== outReal);
-  const commits = git(dir, ['log', '--oneline', `${base}..HEAD`]);
+  const untracked = allUntracked.filter((path) => !isArtifact(path));
+  const trackedArtifacts = git(dir, ['diff', '--name-only', '-z', base, '--'])
+    .split('\0')
+    .filter((path) => path && isArtifact(path));
+  const artifactCount = trackedArtifacts.length + allUntracked.length - untracked.length;
+  const artifactLine = `Loop artifacts left out: ${artifactCount} path(s) under .vibeflow/ (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}); they never count as a change.`;
+  // A commit that touches only loop artifacts is not part of the round either.
+  const commits = git(dir, ['log', '--oneline', `${base}..HEAD`, ...ARTIFACT_PATHSPEC]);
   // Explicit prefixes: splitDiff reads `a/<path>`, and diff.noprefix or diff.mnemonicPrefix in
   // the user's config would otherwise change them and leave the cap naming files as "?".
-  const diff = git(dir, ['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U10', base, '--']);
+  const diff = git(dir, ['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U10', base, ...ARTIFACT_PATHSPEC]);
 
   if (!commits.trim() && !diff.trim() && untracked.length === 0) {
     return {
       empty: true,
-      text: `${title}\n\nEMPTY PACKAGE: nothing changed between base ${base} and the worktree (no commit, no diff, no new file). An audit over this file has nothing to read; check the base.\n`,
+      text: `${title}\n\n${artifactLine}\n\nEMPTY PACKAGE: nothing changed between base ${base} and the worktree (no commit, no diff, no new file). An audit over this file has nothing to read; check the base.\n`,
     };
   }
 
   const headSections = [
     '## Commits since the base', commits.trim() || '(none: the round is not committed)',
-    '## git status --short', git(dir, ['status', '--short']).trim() || '(clean)',
-    '## Files and lines', git(dir, ['diff', '--stat', base, '--']).trim() || '(no tracked change)',
+    '## git status --short', git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]).trim() || '(clean)',
+    '## Files and lines', git(dir, ['diff', '--stat', base, ...ARTIFACT_PATHSPEC]).trim() || '(no tracked change)',
     '## New files', untracked.length ? untracked.map((path) => `- ${path}`).join('\n') : '(none)',
   ].join('\n\n');
 
@@ -113,7 +130,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     }),
   ];
 
-  let size = Buffer.byteLength(`${title}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
+  let size = Buffer.byteLength(`${title}\n\n${artifactLine}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
   const kept = [];
   const leftOut = [];
   for (const chunk of chunks) {
@@ -132,7 +149,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     : '';
   const tracked = kept.filter((chunk) => !chunk.heading).map((chunk) => chunk.piece).join('');
   const added = kept.filter((chunk) => chunk.heading).map((chunk) => chunk.piece).join('');
-  const text = `${title}\n\n${notice}${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n${tracked || '(no tracked change)\n'}${added}`;
+  const text = `${title}\n\n${artifactLine}\n\n${notice}${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n${tracked || '(no tracked change)\n'}${added}`;
   return { empty: false, text, leftOut, newFiles: untracked.length };
 }
 

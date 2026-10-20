@@ -89,6 +89,40 @@ test('audit builds or reads a review package and refuses to pass over an empty o
   });
 });
 
+// Amended 10:45 (findings F1, F2 and L1 of the part 2 audit).
+test('F1: --base names the base, and a standalone audit over committed work runs as before instead of failing', () => {
+  forEachEdition((content, edition) => {
+    assert.match(content, /`--base <ref>`/, `${edition}: --base flag`);
+    assert.match(content, /`Review package: none \(no uncommitted or branch change; --base <ref> audits committed work\)`/,
+      `${edition}: header value of the standalone audit over committed work`);
+    assert.match(content, /already committed on the default branch[^.]*runs over the code as before/i,
+      `${edition}: the standalone audit over committed work runs over the code`);
+    assert.match(content, /Critical Gate section says (that )?no diff was scanned/i, `${edition}: the gate says no diff was scanned`);
+    const rule = /- An empty package[\s\S]*?proven nothing\./.exec(content)?.[0] ?? '';
+    for (const expected of [/a loop part/, /a given `--package`/, /a given `--base <ref>`/, /a re-audit/]) {
+      assert.match(rule, expected, `${edition}: the empty-package rule names ${expected}`);
+    }
+  });
+});
+
+test('F2: the package is built before the first write and the loop artifacts never count as a change', () => {
+  forEachEdition((content, edition) => {
+    assert.match(content, /before the report's first write/i, `${edition}: package before the first write`);
+    assert.match(content, /`loop\/`, `briefings\/`, `progress\/`, `reviews\/`, `audits\/`/, `${edition}: the artifact folders`);
+    assert.match(content, /never count as a change/i, `${edition}: artifacts never count as a change`);
+  });
+});
+
+test('L1: Node.js 18+ is checked before the kit, and exit 1 is empty only with the EMPTY PACKAGE marker', () => {
+  forEachEdition((content, edition) => {
+    assert.match(content, /`node --version`/, `${edition}: checks the Node version`);
+    assert.match(content, /`Review package: none \(Node\.js 18\+ not found\)`/, `${edition}: header value without Node 18`);
+    assert.match(content, /Exit 1 reads as empty only when the file it wrote carries the EMPTY PACKAGE marker/,
+      `${edition}: exit 1 needs the marker`);
+    assert.match(content, /any other failure[^.]*is an error[^.]*quote/i, `${edition}: any other failure is an error, quoted`);
+  });
+});
+
 // ------------------------------------------------------- DoD 2 header, stages
 
 test('the report carries the loop header, a pending verdict until the last stage, and the parsed sections', () => {
@@ -98,7 +132,7 @@ test('the report carries the loop header, a pending verdict until the last stage
       'Independence: fresh session | same session',
       'Round: audit | reaudit <n>',
       'Stage: <k>/<total> <name> | final',
-      'Review package: <path> | none (kit not installed)',
+      'Review package: <path> | none (<reason>)',
       'Base: <sha>',
       '**Verdict: PASS | PARTIAL | FAIL**',
       '### DoD Checklist',
@@ -162,6 +196,18 @@ test('proof scales with risk: scenarios, sabotage only in risk code, undone from
   });
 });
 
+// Amended 10:45 (finding F3).
+test('F3: a sabotage is recorded before it is applied, a retry restores it first, and a standalone audit spares uncommitted files', () => {
+  forEachEdition((content, edition) => {
+    assert.match(content, /before applying a sabotage, write it into the report[^.]*the file, the path of its copy under `\.vibeflow\/audits\/`[^.]*hash/i,
+      `${edition}: the sabotage is written in the report before it is applied`);
+    assert.match(content, /restores? every sabotage (it|the report) records? as in progress[^.]*before anything else/i,
+      `${edition}: a retry restores an in-progress sabotage first`);
+    assert.match(content, /standalone audit sabotages only files without uncommitted changes[^.]*lists the others as not sabotaged, with the reason/i,
+      `${edition}: a standalone audit spares files with uncommitted changes`);
+  });
+});
+
 // ------------------------------------------------- DoD 5 probes and reaudit
 
 test('behavior probes go to the suite with three answers, state probes stay in the report', () => {
@@ -176,6 +222,28 @@ test('behavior probes go to the suite with three answers, state probes stay in t
     assert.match(content, /check-probes\.mjs[^.]*before the final stage/i, `${edition}: check-probes before the final stage`);
     assert.match(content, /old audit probes[^.]*duplicate implementer tests or pin state[^.]*removal[^.]*reason/i,
       `${edition}: old probes listed for removal with the reason`);
+  });
+});
+
+// Amended 10:45 (findings L6, L7 and L8).
+test('L6, L7: a probe of an open finding carries the expected-failure marker, and check-probes reads the probe folder used', () => {
+  forEachEdition((content, edition) => {
+    assert.match(content, /probe that reproduces an open finding carries the test framework's expected-failure marker naming the finding/i,
+      `${edition}: expected-failure marker on a probe of an open finding`);
+    assert.match(content, /`todo` in node:test, `xfail` in pytest, `test\.failing` in Jest/, `${edition}: the marker per framework`);
+    assert.match(content, /never turns the project's suite red/i, `${edition}: the audit never turns the suite red`);
+    assert.match(content, /fix that closes the finding removes the marker/i, `${edition}: the fix removes the marker`);
+    assert.match(content, /check-probes\.mjs <project root> --base <base> --dir <probe dir>/, `${edition}: check-probes with --dir`);
+    assert.match(content, /how many probe files it read/i, `${edition}: the report states how many probe files were read`);
+  });
+});
+
+test('L8: the re-audit number is the fix round, and new probes go to the audit\'s probe file', () => {
+  forEachEdition((content, edition) => {
+    const reaudit = /## Re-audit mode[\s\S]*?## Consolidation mode/.exec(content)?.[0] ?? '';
+    assert.match(reaudit, /`<n>` is the fix round \(the briefing's number; standalone, one more than the re-audit reports already there\)/,
+      `${edition}: where <n> comes from`);
+    assert.match(reaudit, /appends? its new probes to the audit's probe file/i, `${edition}: new probes go to the audit's probe file`);
   });
 });
 
@@ -215,6 +283,8 @@ test('the auditor role exists once, and the Claude agent body is byte-identical 
   assert.match(flatRole, /rewrite the report at the end of every stage/i, 'role: partial report at every stage');
   assert.match(flatRole, /## Final answer/, 'role: final answer format');
   assert.match(flatRole, /`Stage: final`/, 'role: the final marker');
+  assert.match(flatRole, /`\$\{CLAUDE_SKILL_DIR\}` in a workflow file stands for the directory of that SKILL\.md/,
+    'role: how an agent that reads the workflow itself resolves ${CLAUDE_SKILL_DIR} (finding L2)');
 
   const agent = read(AGENT);
   const { block, body } = frontmatter(agent);

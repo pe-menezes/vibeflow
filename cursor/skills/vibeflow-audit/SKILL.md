@@ -56,24 +56,47 @@ Write it at the first stage and rewrite the report at the end of every stage
 with `Stage: <k>/7 <name>` and `**Verdict: pending**` until the last write, so
 a partial report never reads as a finished one and a retry knows what a dead
 attempt left. The last write sets `Stage: final` and the verdict; when the
-audit stops early, that stop is the last write.
+audit stops early, that stop is the last write. When a report that a dead
+attempt left is already at that path, restore every sabotage it records as in
+progress (step 6) before anything else, from its copy, comparing the hash.
 
 1. **Review package** (`1/7 package`). The audit reads the change from one
-   file, so the Critical Gate and the review judge the same diff.
+   file, so the Critical Gate and the review judge the same diff. Build or
+   read it before the report's first write, so the report is never part of
+   the change.
    - `--package <path>` given: read that file; `Base:` is the base it names.
    - Otherwise build it into `.vibeflow/reviews/<feature-slug>-round-0.md`
-     (in a loop part, the path its briefing names):
+     (in a loop part, the path its briefing names), after checking
+     `node --version`, because the kit needs Node.js 18 or newer:
      `node .cursor/skills/vibeflow-implement/loop/scripts/review-package.mjs <project root> <base> <out>`,
-     with the base the merge-base with the default branch (`main`/`master`),
-     or `HEAD` for uncommitted work on the default branch. Exit 2 is an error,
-     not a verdict: quote its message and fix the base or the path.
-   - Kit not installed: compute the diff as before — `git diff HEAD` for
-     uncommitted work, `git diff <base>...HEAD` for a branch — and record
-     `Review package: none (kit not installed)` with the install hint above.
+     with the base `--base <ref>` when given, otherwise the merge-base with
+     the default branch (`main`/`master`), or `HEAD` for uncommitted work on
+     the default branch. The script leaves the loop's own artifact folders
+     under `.vibeflow/` (`loop/`, `briefings/`, `progress/`, `reviews/`,
+     `audits/`) out of the package and counts them at its top: they never
+     count as a change. Exit 1 reads as empty only when the file it wrote
+     carries the EMPTY PACKAGE marker; exit 2, or any other failure (exit 1
+     without the marker, 127 when `node` is missing), is an error, not a
+     verdict: quote it as an error and fix the base, the path or the install.
+   - Kit not installed, or `node --version` shows no Node 18 or newer:
+     compute the diff as before — `git diff HEAD` for uncommitted work,
+     `git diff <base>...HEAD` for a branch, leaving the same artifact folders
+     out — and record `Review package: none (kit not installed)` with the
+     install hint above, or `Review package: none (Node.js 18+ not found)`
+     with what to install (Node.js 18 or newer, from nodejs.org or the
+     host's package manager).
+   - A standalone audit (no loop part, no `--package`, no `--base`) whose
+     default diff is empty because the work is already committed on the
+     default branch runs over the code as before: it records
+     `Review package: none (no uncommitted or branch change; --base <ref> audits committed work)`,
+     reviews the files the spec names, and its Critical Gate section says
+     that no diff was scanned.
    - An empty package — the script exits 1 and the file says EMPTY PACKAGE,
-     or the given package or the computed diff shows no change — ends the
-     audit with `**Verdict: FAIL**` and the reason "nothing to audit", never
-     PASS: an audit over no change has proven nothing.
+     or the given package or the computed diff shows no change — in every
+     other case, where a change is expected (a loop part, a given
+     `--package`, a given `--base <ref>`, a re-audit), ends the audit with
+     `**Verdict: FAIL**` and the reason "nothing to audit", never PASS: an
+     audit over no change has proven nothing.
 2. **Spec** (`2/7 spec`). Find the spec — in `.vibeflow/specs/` or at the
    given path — and extract its Definition of Done and the `Risk code:` line
    under `## Risks`. Read `.vibeflow/conventions.md` and the pattern docs the
@@ -213,6 +236,13 @@ audit stops early, that stop is the last write.
      restore from the copy and compare. `git checkout`, `git restore`,
      `git stash` and `git reset` are forbidden while work is uncommitted,
      because they throw away the implementer's work.
+   - Before applying a sabotage, write it into the report under
+     `### Sabotage` as in progress: the file, the path of its copy under
+     `.vibeflow/audits/`, and the copy's hash; mark it restored once the
+     restored file matches the hash. A standalone audit sabotages only files
+     without uncommitted changes and lists the others as not sabotaged, with
+     the reason: for those, an interrupted sabotage would leave nothing in git
+     to fall back on.
    - Each sabotage runs only the tests of that code; the full suite runs once
      at the end, after the last restore.
    - A survivor is a proof gap: a `risk-gap` finding, unless your probe closes
@@ -223,17 +253,24 @@ audit stops early, that stop is the last write.
    `<test dir>/audit/<feature>-<part>.test.<ext>` (a standalone audit uses its
    feature slug for `<feature>-<part>`), following the project's test
    conventions, pinned by content: each asserts a behavior through the code's
-   interface. In the report, each probe answers the contract it protects, the
+   interface. A probe that reproduces an open finding carries the test
+   framework's expected-failure marker naming the finding (`todo` in
+   node:test, `xfail` in pytest, `test.failing` in Jest), so an audit never
+   turns the project's suite red; the fix that closes the finding removes the
+   marker. In the report, each probe answers the contract it protects, the
    plausible regression that breaks it and why the implementer's tests miss
    it; a probe without the three answers stays in the report. A state probe —
    one that pins the repository instead of a behavior: a diff against the
    base, today's version, a doc sentence, a line number, the real clock —
    stays in the report as a check you ran, never in the test directory.
    - Run the probe file, then
-     `node .cursor/skills/vibeflow-implement/loop/scripts/check-probes.mjs <project root> --base <base>`
-     before the final stage; each suspect it lists leaves the test directory
-     or is rewritten to pin behavior. Without the kit, check the probe file
-     against the state list above by reading it.
+     `node .cursor/skills/vibeflow-implement/loop/scripts/check-probes.mjs <project root> --base <base> --dir <probe dir>`
+     before the final stage, with `<probe dir>` the folder the probe file
+     went to; the report states how many probe files it read, from its
+     summary line. Its exit 1 means suspects only when that summary lists
+     them; any other exit is an error, quoted as such. Each suspect leaves
+     the test directory or is rewritten to pin behavior. Without the kit,
+     check the probe file against the state list above by reading it.
    - When earlier audit probes exist for the same module, list the old audit
      probes that duplicate implementer tests or pin state under `### Probes`,
      recommended for removal, each with the reason.
@@ -268,7 +305,7 @@ Every finding is one line:
 Independence: fresh session | same session
 Round: audit | reaudit <n>
 Stage: <k>/<total> <name> | final
-Review package: <path> | none (kit not installed)
+Review package: <path> | none (<reason>)
 Base: <sha>
 
 **Verdict: PASS | PARTIAL | FAIL**
@@ -289,7 +326,7 @@ Base: <sha>
 - 🟠 HIGH [SEC101] api/auth.ts:1 — auth middleware removed (blocks)
 - 🟡 WARNING [CFG102] config/app.yml:4 — debug mode enabled
 - ✅ ALLOWED [DS104] db/migrate/004.sql:7 — DROP COLUMN — override: "documented in spec"
-(or "Clean — no destructive operations detected.")
+(or "Clean — no destructive operations detected.", or "No diff scanned — <why>." when step 1 ran over the code)
 
 ### Findings
 - [F1] defect · implementation · confidence high — total ignores the discount — evidence: src/cart.ts:42 — probe: tests/audit/cart-p1.test.ts::discount enters the total
@@ -297,6 +334,8 @@ Base: <sha>
 
 ### Sabotage
 - <file:line> — <the wrong change> — killed by <test> | survived → <finding id>
+- <file> — in progress — copy: .vibeflow/audits/<copy> — sha256 <hash> (until restored)
+- <file> — not sabotaged — <reason>
 (or "No risk code in the diff.", with how it was classified)
 
 ### Probes
@@ -351,20 +390,22 @@ Report the verdict and suggest next steps:
 
 A re-audit checks one fix round against the audit it answers and reads the fix
 diff only: re-doing the whole audit costs more than the audit did and judges
-code the fix never touched.
+code the fix never touched. Here `<n>` is the fix round (the briefing's number;
+standalone, one more than the re-audit reports already there).
 
 1. Read the audit report, its open findings and, when there is one, the fix
    round's section of the progress file.
 2. Build the package from the round commit, so it holds the fix diff only:
    `node .cursor/skills/vibeflow-implement/loop/scripts/review-package.mjs <project root> <round-commit> <out>`,
-   into `.vibeflow/reviews/<feature>-<part>-round-<n>.md`. Without the kit,
-   `git diff <round-commit>` stands in for it. The empty-package rule of
+   into `.vibeflow/reviews/<feature>-<part>-round-<n>.md`. Without the kit or
+   Node.js 18+, `git diff <round-commit>` stands in for it. The empty-package rule of
    step 1 applies.
 3. Run the suite and the audit's probes; a failing test is FAIL, as in a full
    audit. The Critical Gate runs on the fix diff.
 4. The re-audit closes or keeps each open finding with its proof (the test,
    the sabotage that now dies, the line), and looks for new defects in the fix
-   diff only, with cause `fix` when the fix introduced them.
+   diff only, with cause `fix` when the fix introduced them. It appends its
+   new probes to the audit's probe file.
 5. Do a full audit only when the fix left the findings' scope, saying why
    (it changed code no finding pointed at).
 

@@ -3,9 +3,9 @@
 // to run (the edition's kit path mapped to the kit folder of this repository, its placeholders
 // filled in), in a hermetic git sandbox, and checks the exit code and the marker the edition
 // tells the auditor to read. The executor's test pins the editions' wording; these pin that the
-// wording and the scripts agree. Cases marked `todo` are evidence of a finding in the audit
-// report (.vibeflow/audits/vibeflow-1-16-p2-audit.md), not contracts: they assert today's
-// mechanics so anyone can re-run the scenario.
+// wording and the scripts agree. The three "evidence" cases reproduced findings F1, F2 and L1 of
+// the audit report (.vibeflow/audits/vibeflow-1-16-p2-audit.md) as `todo`; since fix round 1 they
+// pin the fixed behavior on the same scenarios.
 // Run with: node --test test/*.test.mjs test/audit/*.test.mjs
 
 import { test } from 'node:test';
@@ -242,22 +242,39 @@ test('p2-9 in the verdict rules, risk-gap appears only in the sentence that keep
   }
 });
 
-// ------------------------------------------- evidence of findings (todo)
+// ------------------------------------------- evidence of findings, now contracts
+// F1, F2 and L1 were `todo` evidence of open findings; fix round 1 closed them, and these cases
+// (rewritten under the fix briefing's authorization) pin the fixed behavior on the same scenarios.
 
-test('evidence F1: work committed on the default branch gives the base rule of step 1 an empty package', { todo: 'F1, cause spec: a hand audit after a commit on main now ends in "nothing to audit"; the human decides the base rule' }, () => {
-  const command = commandOf(edition(EDITIONS.shared), ...STEP1);
-  withSandbox((box) => {
-    box.write('src/rules.ts', 'export const x = 2\n');
-    box.git('add', '-A');
-    box.git('commit', '-q', '-m', 'the work, committed on main');
-    const base = box.git('merge-base', 'main', 'HEAD').trim();
-    const out = join(box.root, 'pkg.md');
-    const result = run(command, STEP1[0], { root: box.repo, '<base>': base, '<out>': out }, box.env());
-    assert.equal(result.status, 1, result.out);
-  });
+test('evidence F1: work committed on the default branch still gives the default base an empty package, and the edition runs over the code there instead of failing; --base <ref> audits the committed work', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const flatText = text.replace(/\s+/g, ' ');
+    const step1 = section(text, '1. **Review package**', '2. **Spec**');
+    const standalone = step1.indexOf('already committed on the default branch');
+    const emptyRule = step1.indexOf('- An empty package');
+    assert.ok(standalone !== -1 && standalone < emptyRule, `${name}: the committed-work case is handled before the empty-package rule`);
+    assert.match(step1.slice(standalone, emptyRule), /runs over the code as before/, `${name}: it runs over the code`);
+    assert.match(step1.slice(standalone, emptyRule), /`Review package: none \(no uncommitted or branch change; --base <ref> audits committed work\)`/, `${name}: and records why`);
+    assert.doesNotMatch(step1.slice(standalone, emptyRule), /Verdict: FAIL/, `${name}: no FAIL in that case`);
+    assert.match(flatText, /base `--base <ref>` when given/, `${name}: --base names the package base`);
+    const command = commandOf(text, ...STEP1);
+    withSandbox((box) => {
+      box.write('src/rules.ts', 'export const x = 2\n');
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'the work, committed on main');
+      const out = join(box.root, 'pkg.md');
+      const byDefault = run(command, STEP1[0], { root: box.repo, '<base>': box.git('merge-base', 'main', 'HEAD').trim(), '<out>': out }, box.env());
+      assert.equal(byDefault.status, 1, `${name}: ${byDefault.out}`);
+      assert.match(readFileSync(out, 'utf8'), /EMPTY PACKAGE/, `${name}: the default base sees nothing`);
+      const withBase = run(command, STEP1[0], { root: box.repo, '<base>': box.base, '<out>': out }, box.env());
+      assert.equal(withBase.status, 0, `${name}: ${withBase.out}`);
+      assert.match(readFileSync(out, 'utf8'), /^\+export const x = 2$/m, `${name}: --base <ref> puts the committed work in the package`);
+    });
+  }
 });
 
-test('evidence F2: an earlier audit report left untracked turns the same empty package into a non-empty one', { todo: 'F2, cause spec: the empty-package rule does not discount the audit\'s own artifacts' }, () => {
+test('evidence F2: an earlier audit report left untracked no longer turns an empty package into a non-empty one', () => {
   const command = commandOf(edition(EDITIONS.shared), ...STEP1);
   withSandbox((box) => {
     box.git('checkout', '-q', '-b', 'feat');
@@ -266,21 +283,29 @@ test('evidence F2: an earlier audit report left untracked turns the same empty p
     assert.equal(first.status, 1, first.out);
     box.write('.vibeflow/audits/feat-audit.md', '## Audit Report: feat\n\n**Verdict: FAIL**\n\nnothing to audit\n');
     const second = run(command, STEP1[0], { root: box.repo, '<base>': 'main', '<out>': out }, box.env());
-    assert.equal(second.status, 0, second.out);
+    assert.equal(second.status, 1, second.out);
     const pkg = readFileSync(out, 'utf8');
-    assert.match(pkg, /## New files\n\n- \.vibeflow\/audits\/feat-audit\.md\n\n/, 'the only change is the earlier report');
+    assert.match(pkg, /EMPTY PACKAGE/, 'the earlier report is not a change');
+    assert.match(pkg, /^Loop artifacts left out: 1 path\(s\)/m, 'and the package says it left it out');
   });
 });
 
-test('evidence L1: a kit command that fails before the script runs exits 1, the code the editions read as "empty" or "suspects"', { todo: 'L1, low: node exits 1 on a missing module or a syntax error of an older Node' }, () => {
+test('evidence L1: a kit command that fails before the script runs exits 1 without the EMPTY PACKAGE marker, which the editions read as an error', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const flatText = edition(path).replace(/\s+/g, ' ');
+    assert.match(flatText, /Exit 1 reads as empty only when the file it wrote carries the EMPTY PACKAGE marker/, `${name}: exit 1 alone is not empty`);
+    assert.match(flatText, /`node --version`[^.]*Node\.js 18/, `${name}: Node 18 checked before the kit`);
+  }
   withSandbox((box) => {
-    const unexpanded = spawnSync('sh', ['-c', 'node "${CLAUDE_SKILL_DIR}/../implement/loop/scripts/check-probes.mjs" . --base main'], {
+    const out = join(box.root, 'pkg.md');
+    const unexpanded = spawnSync('sh', ['-c', `node "\${CLAUDE_SKILL_DIR}/../implement/loop/scripts/review-package.mjs" . main '${out}'`], {
       cwd: box.repo,
       env: box.env({ CLAUDE_SKILL_DIR: undefined }),
       encoding: 'utf8',
     });
     assert.equal(unexpanded.status, 1, 'the literal ${CLAUDE_SKILL_DIR} expands to nothing and node exits 1');
+    assert.equal(existsSync(out), false, 'no file, so no EMPTY PACKAGE marker: an error, not an empty package');
     const syntax = spawnSync(process.execPath, ['-e', 'const a = {}; a?.b; syntax error('], { encoding: 'utf8' });
-    assert.equal(syntax.status, 1, 'a syntax error (what Node 12 sees in `?.`) exits 1');
+    assert.equal(syntax.status, 1, 'a syntax error (what Node 12 sees in `?.`) exits 1, with no marker either');
   });
 });

@@ -243,6 +243,47 @@ test('an empty review package exits 1 and says so in the file', () => {
   });
 });
 
+// The loop's own artifacts (finding F2 of the part 2 audit): in a plugin project `.vibeflow/` is not
+// ignored, so a report, a briefing or an earlier package would otherwise make the package non-empty.
+test('review package leaves the loop artifact folders out and says how many paths it left out', () => {
+  withSandbox((box) => {
+    box.write('.vibeflow/loop/state.json', '{}\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'loop state');
+    box.write('.vibeflow/briefings/p1.md', 'briefing\n');
+    box.write('.vibeflow/progress/p1.md', 'progress\n');
+    box.write('.vibeflow/audits/p1-audit.md', '**Verdict: pending**\n');
+    box.write('.vibeflow/specs/p1.md', 'a spec is not a loop artifact\n');
+    box.write('src/rules.ts', 'export const x = 8\n');
+    const out = join(box.repo, '.vibeflow/reviews/p1-round-0.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.match(text, /^Loop artifacts left out: 4 path\(s\) under \.vibeflow\/ \(loop\/, briefings\/, progress\/, reviews\/, audits\/\)/m);
+    assert.match(text, /^\+export const x = 8$/m);
+    assert.match(text, /^## New file: \.vibeflow\/specs\/p1\.md$/m);
+    for (const folder of ['loop', 'briefings', 'progress', 'reviews', 'audits']) {
+      assert.doesNotMatch(text, new RegExp(`\\.vibeflow/${folder}/`), `${folder}/ stays out of the package`);
+    }
+  });
+});
+
+test('a review package that would hold only loop artifacts is empty', () => {
+  withSandbox((box) => {
+    box.git('checkout', '-q', '-b', 'feat');
+    box.write('.vibeflow/progress/p1.md', 'progress\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'progress only');
+    box.write('.vibeflow/audits/p1-audit.md', '**Verdict: FAIL**\n');
+    const out = join(box.repo, '.vibeflow/reviews/p1-round-0.md');
+    const result = runScript('review-package.mjs', [box.repo, 'main', out], box.env());
+    assert.equal(result.status, 1, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.match(text, /EMPTY PACKAGE/);
+    assert.match(text, /^Loop artifacts left out: 2 path\(s\)/m);
+  });
+});
+
 test('a round whose commits cancel out is not an empty package', () => {
   withSandbox((box) => {
     box.write('src/rules.ts', 'export const x = 7\n');
