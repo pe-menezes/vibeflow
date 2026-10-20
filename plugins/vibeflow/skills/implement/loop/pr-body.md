@@ -50,14 +50,14 @@ The body of the pull request that ends a loop in company mode (`orchestrator.md`
 
 ## Commands
 
-<!-- from: the progress files and the orchestrator's outside checks recorded in the ledger -->
+<!-- from: Suite, Types and Perimeter: the ledger's `Check:` lines, written by each outside check as it ran; CI-environment suite: the ledger's line from step 2 of the ending; PR checks: watch-pr.mjs's output in `-pr-checks.txt` next to this body in `.vibeflow/reviews/`, added with `gh pr edit` after the watch ends -->
 | Check | Command | Result |
 |---|---|---|
 | Suite | <command> | <passed / failed / skipped, counts> |
 | Types | <command, or "no type checker"> | <result> |
 | Perimeter | <perimeter.mjs command> | <exit and files outside> |
 | CI-environment suite | <image, network off, clone depth, command> | <result, or not possible: why, or no CI in this repository> |
-| PR checks | watch-pr.mjs | <result, or skipped: no CI> |
+| PR checks | watch-pr.mjs | <result, or skipped: no CI, or skipped: the CI does not run on this PR> |
 
 ## Decisions
 

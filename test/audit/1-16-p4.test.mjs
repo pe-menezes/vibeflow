@@ -186,7 +186,7 @@ test('p4-3: the push and the PR as step 5 writes them land on the feature branch
 
 // ------------------------------------------------------------------ p4-4 (F2)
 
-test('p4-4: the gh pr create command of step 5 passes gh\'s check for a non-interactive run (title and body given)', { todo: 'F2' }, () => {
+test('p4-4: the gh pr create command of step 5 passes gh\'s check for a non-interactive run (title and body given)', () => {
   withSandbox((box) => {
     // gh 2.87.3, measured in the audit: without a TTY, `gh pr create` exits 1 with
     // "must provide `--title` and `--body` (or `--fill` ...) when not running interactively"
@@ -289,7 +289,7 @@ test('p4-6: every evidence section of pr-body.md is sourced from a section the a
   assert.match(executorTemplate, /each proof command with its result/);
 });
 
-test('p4-7: every row of the Commands section has a file source written before step 4 fills the body', { todo: 'F1' }, () => {
+test('p4-7: every row of the Commands section has a file source written before step 4 fills the body', () => {
   const orchestrator = kit('orchestrator.md');
   const sentences = flat(orchestrator).split(/(?<=[.;])\s+/);
   const recorded = (what) => sentences.some((s) => what.test(s) && /\bledger\b/.test(s) && /\b(record|write|add)/i.test(s));
