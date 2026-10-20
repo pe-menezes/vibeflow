@@ -8,6 +8,12 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
+// The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
+if (Number(process.versions.node.split('.')[0]) < 18) {
+  process.stderr.write(`who-reads.mjs: needs Node.js 18 or later; found ${process.versions.node}\n`);
+  process.exit(64);
+}
+
 const USAGE = `usage: who-reads.mjs <repo> <file>...
 
 For each <file> (a path relative to the repository root), lists the tracked and untracked

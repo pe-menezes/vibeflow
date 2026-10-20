@@ -11,7 +11,8 @@ the implementation follows conventions from `.vibeflow/`.
 
 **Usage:** Provide the spec file path or feature name as input. Optional:
 `--package <path>` audits from a review package already written,
-`--reaudit <round-commit>` re-audits a fix round, and
+`--reaudit <round-commit>` re-audits a fix round, `--probes` lets an audit
+run by hand write its probe file and sabotage, and
 `--consolidate-hotfixes` reclassifies hotfix docs.
 
 ---
@@ -48,6 +49,9 @@ says how the audit runs without it.
 With `--consolidate-hotfixes` in the input, the round's target is
 `.vibeflow/hotfixes/` instead of a spec — jump to Consolidation mode below.
 With `--reaudit <round-commit>`, follow Re-audit mode below.
+A standalone audit (no loop briefing) writes the probe file and sabotages only
+with `--probes`, so an audit run by hand writes only under `.vibeflow/`; a loop
+part (briefing present) runs both as written (steps 6 and 7).
 
 The audit runs in seven stages, named in the steps. Save the report to
 `.vibeflow/audits/<feature-slug>-audit.md` (in a loop part, the path its
@@ -221,7 +225,9 @@ progress (step 6) before anything else, from its copy, comparing the hash.
    importance at the finding stage — filtering happens at the verdict, where
    severity and cause decide what blocks and what becomes a follow-up.
 
-6. **Sabotage, only in risk code** (`6/7 sabotage`). Risk code is money and
+6. **Sabotage, only in risk code** (`6/7 sabotage`). A standalone audit
+   without `--probes` records `Sabotage: skipped (standalone audit; --probes runs it)`
+   under `### Sabotage` and skips the stage. Risk code is money and
    totals, credentials and permissions, deleting or overwriting data, date and
    time boundaries. Sabotage the paths on the spec's `Risk code:` line; with
    no `Risk code:` line, classify the changed code under the four categories
@@ -239,10 +245,10 @@ progress (step 6) before anything else, from its copy, comparing the hash.
    - Before applying a sabotage, write it into the report under
      `### Sabotage` as in progress: the file, the path of its copy under
      `.vibeflow/audits/`, and the copy's hash; mark it restored once the
-     restored file matches the hash. A standalone audit sabotages only files
-     without uncommitted changes and lists the others as not sabotaged, with
-     the reason: for those, an interrupted sabotage would leave nothing in git
-     to fall back on.
+     restored file matches the hash. With `--probes`, a standalone audit
+     sabotages only files without uncommitted changes and lists the others as
+     not sabotaged, with the reason: for those, an interrupted sabotage would
+     leave nothing in git to fall back on.
    - Each sabotage runs only the tests of that code; the full suite runs once
      at the end, after the last restore.
    - A survivor is a proof gap: a `risk-gap` finding, unless your probe closes
@@ -262,7 +268,9 @@ progress (step 6) before anything else, from its copy, comparing the hash.
    it; a probe without the three answers stays in the report. A state probe —
    one that pins the repository instead of a behavior: a diff against the
    base, today's version, a doc sentence, a line number, the real clock —
-   stays in the report as a check you ran, never in the test directory.
+   stays in the report as a check you ran, never in the test directory. A
+   standalone audit without `--probes` writes no probe file and skips the check
+   below: it lists under `### Probes` the probe cases it would write, as code.
    - Run the probe file, then
      `node .cursor/skills/vibeflow-implement/loop/scripts/check-probes.mjs <project root> --base <base> --dir <probe dir>`
      before the final stage, with `<probe dir>` the folder the probe file
@@ -336,10 +344,12 @@ Base: <sha>
 - <file:line> — <the wrong change> — killed by <test> | survived → <finding id>
 - <file> — in progress — copy: .vibeflow/audits/<copy> — sha256 <hash> (until restored)
 - <file> — not sabotaged — <reason>
+Sabotage: skipped (standalone audit; --probes runs it)
 (or "No risk code in the diff.", with how it was classified)
 
 ### Probes
 - <path::case> — contract: <...> — regression: <...> — missed by the implementer's tests because: <...>
+- would write (standalone, no `--probes`): <path::case>, then the test as a code block and its three answers
 - state check (report only): <what was checked> — <result>
 - old probe recommended for removal: <path::case> — <duplicates <test> | pins state>
 
@@ -405,7 +415,8 @@ standalone, one more than the re-audit reports already there).
 4. The re-audit closes or keeps each open finding with its proof (the test,
    the sabotage that now dies, the line), and looks for new defects in the fix
    diff only, with cause `fix` when the fix introduced them. It appends its
-   new probes to the audit's probe file.
+   new probes to the audit's probe file. A standalone re-audit follows the
+   `--probes` rule of a standalone audit.
 5. Do a full audit only when the fix left the findings' scope, saying why
    (it changed code no finding pointed at).
 

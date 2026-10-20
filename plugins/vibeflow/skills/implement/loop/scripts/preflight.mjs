@@ -7,6 +7,12 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+// The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
+if (Number(process.versions.node.split('.')[0]) < 18) {
+  process.stderr.write(`preflight.mjs: needs Node.js 18 or later; found ${process.versions.node}\n`);
+  process.exit(64);
+}
+
 const GO = 0;
 const ATTENTION = 1;
 const STOP = 2;

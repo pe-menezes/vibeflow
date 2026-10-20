@@ -208,6 +208,32 @@ test('F3: a sabotage is recorded before it is applied, a retry restores it first
   });
 });
 
+// Amended 13:00 (finding C3 of the compatibility proof): an audit run by hand keeps
+// the 1.15 footprint plus the report's new fields.
+test('C3: a standalone audit writes the probe file and sabotages only with --probes; a loop part runs both', () => {
+  forEachEdition((content, edition, raw) => {
+    assert.match(content, /standalone audit \(no loop briefing\)[^.]*writes the probe file and sabotages only with `--probes`/i,
+      `${edition}: the rule, with what makes an audit standalone`);
+    assert.match(content, /loop part \(briefing present\) runs both/i, `${edition}: a loop part runs both as written`);
+    const step6 = /6\. \*\*Sabotage, only in risk code\*\*[\s\S]*?7\. \*\*Probes\*\*/.exec(content)?.[0] ?? '';
+    assert.match(step6, /standalone audit without `--probes`[^.]*records? `Sabotage: skipped \(standalone audit; --probes runs it\)`[^.]*skips? the stage/i,
+      `${edition}: without --probes, sabotage is skipped and recorded`);
+    assert.match(step6, /With `--probes`, a standalone audit sabotages only files without uncommitted changes/,
+      `${edition}: the F3 rule holds inside --probes`);
+    const step7 = /7\. \*\*Probes\*\*[\s\S]*?8\. When/.exec(content)?.[0] ?? '';
+    assert.match(step7, /standalone audit without `--probes` writes no probe file[^.]*lists? under `### Probes` the probe cases it would write, as code/i,
+      `${edition}: without --probes, the probe cases are listed as code instead of written`);
+    const template = fenceAfter(raw, '## Output format');
+    const sabotage = /### Sabotage\n([\s\S]*?)\n### Probes/.exec(template)?.[1] ?? '';
+    assert.ok(sabotage.split('\n').some((line) => line.includes('Sabotage: skipped (standalone audit; --probes runs it)')),
+      `${edition}: the template carries the skipped line`);
+    const probes = /### Probes\n([\s\S]*?)\n### Follow-ups/.exec(template)?.[1] ?? '';
+    assert.match(probes, /would write \(standalone, no `--probes`\)/, `${edition}: the template carries the listed probe case`);
+    const reaudit = /## Re-audit mode[\s\S]*?## Consolidation mode/.exec(content)?.[0] ?? '';
+    assert.match(reaudit, /standalone re-audit follows the `--probes` rule/i, `${edition}: the re-audit follows the same rule`);
+  });
+});
+
 // ------------------------------------------------- DoD 5 probes and reaudit
 
 test('behavior probes go to the suite with three answers, state probes stay in the report', () => {

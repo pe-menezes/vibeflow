@@ -162,6 +162,8 @@ test('orchestrator.md: the opening', () => {
   assert.ok(text.includes('`commit-rounds: true`'), 'the config key that grants it');
   assert.match(text, /preflight\.mjs/, 'preflight');
   assert.match(text, /exit 2[^.]*stop/i, 'preflight exit 2 stops');
+  // Finding C5 of the compatibility proof: `--power` reads pmset and ioreg, so only macOS has it.
+  assert.match(text, /`--power`[^.]*macOS only/, '--power is said to be macOS only');
 });
 
 test('orchestrator.md: the executor briefing, the outside check and the audit', () => {

@@ -8,6 +8,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
+// The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
+if (Number(process.versions.node.split('.')[0]) < 18) {
+  process.stderr.write(`loop-stats.mjs: needs Node.js 18 or later; found ${process.versions.node}\n`);
+  process.exit(64);
+}
+
 const USAGE = `usage: loop-stats.mjs <repo> [--json]
 
 Reads every .vibeflow/loop/*.md ledger under <repo>. The rounds table sits under the heading

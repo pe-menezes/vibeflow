@@ -7,6 +7,12 @@
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+// The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
+if (Number(process.versions.node.split('.')[0]) < 18) {
+  process.stderr.write(`watch-round.mjs: needs Node.js 18 or later; found ${process.versions.node}\n`);
+  process.exit(64);
+}
+
 const USAGE = `usage: watch-round.mjs --file <progress-or-report> [--stale-min <m>] [--timeout-min <m>] [--interval-sec <s>]
 
 Exits as soon as the file gains a line "Stage: final" (reports) or "State: final" (progress

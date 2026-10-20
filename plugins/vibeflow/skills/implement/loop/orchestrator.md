@@ -22,7 +22,7 @@ On Claude Code, each subagent's description is `<feature> · <part> · <role> ·
 2. The branch: the feature runs on a feature branch, never the default branch, because rounds are committed there. On the default branch, stop and ask for a branch name; create it only with the user's answer.
 3. Read the full `git status` and `git stash list`. Every dirty file and every stash gets an owner in the ledger (this feature, the user, or unknown); an unknown owner is asked about before the first dispatch, because the round commits take paths and a stranger's file must stay out of them.
 4. The OK to commit rounds on that branch is asked once per feature, in one line, and recorded in the ledger as a `Decision:` line. `commit-rounds: true` in the front matter of `.vibeflow/loop/config.md` grants it in advance. What the OK changes is under "Round commits".
-5. Before long work, `scripts/preflight.mjs --repo <project root> --hours <expected hours>` (add `--power` on a laptop). Exit 2: stop and say what it found. Exit 1: read each attention line and resolve it or record why it does not block. Exit 0: go.
+5. Before long work, `scripts/preflight.mjs --repo <project root> --hours <expected hours>` (add `--power` on a macOS laptop: it reads battery, lid and sleep through `pmset` and `ioreg`, so it is macOS only). Exit 2: stop and say what it found. Exit 1: read each attention line and resolve it or record why it does not block. Exit 0: go.
 
 ## Executor briefing
 

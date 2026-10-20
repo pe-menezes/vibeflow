@@ -9,6 +9,12 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 
+// The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
+if (Number(process.versions.node.split('.')[0]) < 18) {
+  process.stderr.write(`review-package.mjs: needs Node.js 18 or later; found ${process.versions.node}\n`);
+  process.exit(64);
+}
+
 const DEFAULT_MAX_BYTES = 400_000;
 
 // Written by the loop itself (state, briefings, progress, packages, reports): never the change under
