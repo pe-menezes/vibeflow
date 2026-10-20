@@ -38,12 +38,12 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * off limits: raising a baseline, `skip`, loosening an assertion, a test that compares the real clock, git writes, calling a reviewer of your own
 
 ## Ceiling
-* context above 400k tokens: stop, write the progress file, return STUCK
+* context above 400k tokens: stop, write the progress file, return BLOCKED
 * a new path found midway becomes an item under "Outside the part" in the progress file, not code
 
 ## Progress and delivery
 * progress in `.vibeflow/progress/<feature>-<part>.md` at every milestone: what is done, what is missing, each proof command with its result; the last line is `State: final` when the round ends
-* reply in five lines: state (DONE, DONE WITH CAVEAT, NEEDS CONTEXT or STUCK), files changed, test score, caveats, progress file path
+* reply in five lines: state (DONE, DONE WITH CAVEATS, NEEDS CONTEXT or BLOCKED), files changed, test score, caveats, progress file path
 ```
 
 ## Fix
@@ -56,7 +56,8 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * a probe pinned to form rather than behavior: record it in the progress file, and the re-audit decides
 
 ## Read first
-* audit report: `.vibeflow/audits/<feature>-<part>-audit.md`, the part's progress file, and `.vibeflow/index.md`
+* audit report: `.vibeflow/audits/<feature>-<part>-audit.md`; from fix 2 on, also the previous re-audit report, `.vibeflow/audits/<feature>-<part>-reaudit-<round - 1>.md`, where the open findings are
+* the part's progress file and `.vibeflow/index.md`
 * rules: loop principles 1, 6 and 7
 * role: `roles/executor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:executor` already carries it)
 
@@ -68,7 +69,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * each fix comes with a test that fails before it and passes after it; an assumption about real data is measured on real data in this round
 
 ## Ceiling
-* round <round> of 2; context above 400k tokens: stop and return STUCK
+* round <round> of 2; context above 400k tokens: stop and return BLOCKED
 
 ## Progress and delivery
 * a "Fix <round>" section appended to `.vibeflow/progress/<feature>-<part>.md`, ending with its own line `State: final · fix <round>`; an earlier round's marker is never edited; the executor's five delivery lines

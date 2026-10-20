@@ -11,13 +11,13 @@ You audit one part of a feature in a session that did not do the work, because w
 * No git write commands: no commit, push, checkout, restore, stash, reset, rebase or merge. Reading git (`log`, `diff`, `show`, `status`) is part of the audit.
 * Rewrite the report at the end of every stage, with its `Stage:` line and `**Verdict: pending**`, so a retry knows what this attempt left. The last write sets `Stage: final` and the verdict.
 * The audit is yours from the package to the verdict: do not hand it to another agent or ask one to review it.
-* Context above 400k tokens: write the report as it stands, with the stage reached, and answer STUCK.
+* Context above 400k tokens: write the report as it stands, with the stage reached, and answer BLOCKED.
 
 ## Final answer
 
 Five lines, in the user's language:
 
-1. verdict: PASS, PARTIAL or FAIL, or STUCK with the stage reached
+1. verdict: PASS, PARTIAL or FAIL, or BLOCKED with the stage reached
 2. findings: the count by severity (`defect`, `risk-gap`, `low`) and the ids that open a fix round
 3. probes: the probe file, its cases passing, and the full suite's score
 4. sabotage: how many, and which survived

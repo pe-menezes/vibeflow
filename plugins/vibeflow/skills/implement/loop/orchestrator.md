@@ -21,7 +21,7 @@ On Claude Code, each subagent's description is `<feature> · <part> · <role> ·
 1. The ledger is `.vibeflow/loop/<feature>.md`: state, the rounds table, `Decision:` lines, follow-ups and handoff notes. Create it at the first opening; a later session reads it first and resumes from it.
 2. The branch: the feature runs on a feature branch, never the default branch, because rounds are committed there. On the default branch, stop and ask for a branch name; create it only with the user's answer.
 3. Read the full `git status` and `git stash list`. Every dirty file and every stash gets an owner in the ledger (this feature, the user, or unknown); an unknown owner is asked about before the first dispatch, because the round commits take paths and a stranger's file must stay out of them.
-4. The OK to commit rounds on that branch is asked once per feature, in one line, and recorded in the ledger as a `Decision:` line. `commit-rounds: true` in the front matter of `.vibeflow/loop/config.md` grants it in advance. Without it, the loop stops at the first verdict below PASS and hands the report to the user, because a fix round needs the round commit.
+4. The OK to commit rounds on that branch is asked once per feature, in one line, and recorded in the ledger as a `Decision:` line. `commit-rounds: true` in the front matter of `.vibeflow/loop/config.md` grants it in advance. What the OK changes is under "Round commits".
 5. Before long work, `scripts/preflight.mjs --repo <project root> --hours <expected hours>` (add `--power` on a laptop). Exit 2: stop and say what it found. Exit 1: read each attention line and resolve it or record why it does not block. Exit 0: go.
 
 ## Executor briefing
@@ -39,34 +39,48 @@ The end of a round is read from its file's final marker, never from a verdict al
 
 Run `scripts/watch-round.mjs --file <progress file or report>` in the background where the host allows it, from the moment of dispatch. Exit 0: the marker arrived; confirm the session stopped, then read the file and the session's five lines. Exit 1, silent: check whether the session is waiting on a permission prompt or a question, then whether it died; a session that stopped without an error is ended and its round restarted from the file, after reading what it left in the worktree (loop principle 3). Exit 3: the ceiling passed; report it and stop the part.
 
+The state on the first of the five lines routes the round. `DONE` or `DONE WITH CAVEATS`: the outside check. `NEEDS CONTEXT`: answer from the repository's files, or ask the human when the files do not say, and reopen the round in a fresh session with the answer added to its briefing. `BLOCKED`: stop the part and take it to the human with the progress file.
+
 ## Outside check
 
-After the executor's round and before any audit (loop principle 5):
+After every executor or fix round, and before its audit or re-audit (loop principle 5):
 
 1. Read the full `git status` and `git diff --stat <part base>`.
 2. Run the suite and the type checker yourself; the executor's score is a claim until then.
 3. `scripts/perimeter.mjs <project root> <part base> <briefing globs> .vibeflow/loop/ .vibeflow/briefings/ .vibeflow/progress/ .vibeflow/reviews/ .vibeflow/audits/`. The loop's own artifact folders are passed because they are untracked files of every round when `.vibeflow/` is tracked. Exit 1 names files outside the perimeter: a glob the briefing missed is recorded as a `Decision:` line; anything else goes into the auditor briefing's facts, and the audit judges it.
 4. When the change ships an HTTP boundary, check the running build: start the production build and send real requests (authentication both ways, a wrong method, a malformed query).
 
-A red suite or type check does not go to audit: it becomes a fix round with the failure as its finding (see the fix loop).
+A red suite or type check sends the round back to a fresh executor session with the failure: the same briefing plus the failing command and its output, continuing from the progress file and ending its own section with the round's marker again. It is another row of the same round in the rounds table (another `executor` row of round 0, or another `fix` row of that fix round), at most once; a second red check stops the part and asks the human. It is not a fix round and calls no `--reaudit`: the audit always reads a round that passed the outside check, and every fix round follows an audit or re-audit report.
+
+## Round commits
+
+Every round is committed on the feature branch once it passes: the executor's or a fix round's files after the outside check, the audit's probe file before any fix, the re-audit's new probes at the end of its round. So the last commit of a part that passes is the next part's base, and the next part's diff holds only its own work.
+
+1. Confirm the current branch is the feature branch recorded in the ledger, never the default branch; on any other branch, stop and ask.
+2. Read the full `git status`. The paths are the round's files inside the perimeter, the probe file, and the loop's artifact files when `.vibeflow/` is tracked; a file owned by someone else stays out.
+3. `git add -- <paths>`, then `git commit -- <paths>`: a new file is unknown to git until it is added, and naming the paths keeps every other file out. The message is `<feature> part <n>, <role> round <r>`.
+4. A hook that refuses the commit stops the part: report it, never commit with `--no-verify`.
+5. Record the commit in the ledger. The last commit before a fix round is that round's round commit, the base its re-audit reads.
+
+Without the OK to commit, nothing is committed: the loop runs one part and stops at its first verdict, leaving the work uncommitted for the human, with the report and the ledger.
 
 ## Audit
 
 1. `scripts/review-package.mjs <project root> <part base> .vibeflow/reviews/<feature>-<part>-round-0.md`. Exit 1 is an empty package: the executor changed nothing the audit can read, so read its progress file and stop the part. Exit 2 is an error: fix the base or the path.
 2. Dispatch the auditor round in a fresh session with the auditor briefing; the audit runs as `audit --package <review package>`, following `roles/auditor.md`. Add the audit row to the rounds table and watch `.vibeflow/audits/<feature>-<part>-audit.md`.
-3. PASS ends the part: record it, then the next part, or the ending. Below PASS opens the fix loop. A report with `Independence: same session` is weighed as such and said so to the user.
+3. Commit the audit's probes as above. PASS ends the part: record it, then the next part from that commit, or the ending. Below PASS opens the fix loop. A report with `Independence: same session` is weighed as such and said so to the user.
 
 ## Fix loop
 
 Below PASS, one round at a time:
 
 1. Route each finding. A `spec`-cause finding goes to the human or to a recorded spec amendment (the spec edited and a `Decision:` line) before any fix. A finding that changes scope or product goes to the human first (loop principle 8). A `low` finding becomes a follow-up in the ledger. The rest (`defect` and `risk-gap` with cause `implementation`, `proof` or `fix`) go to the fix round.
-2. Commit the round on the feature branch, only after confirming the current branch is that branch and never the default branch. Read the full `git status` first, then commit with explicit paths (`git commit -- <paths>`): the part's files inside the perimeter, the audit's probe file, and the loop's artifact files when `.vibeflow/` is tracked; a file owned by someone else stays out. The message is `<feature> part <n>, round <r>, before PASS`. A hook that refuses the commit stops the part: report it, never commit with `--no-verify`. Record the commit as the round commit in the ledger.
-3. Write the fix briefing from the Fix template into `.vibeflow/briefings/<feature>-<part>-fix-<r>.md`: per finding, fix it and how, or leave it and why. It passes `scripts/check-briefing.mjs <fix briefing>`. Dispatch the executor in a fresh session, add the fix row, and watch the progress file for `State: final · fix <r>`.
-4. Write the re-auditor briefing from the Re-auditor template into `.vibeflow/briefings/<feature>-<part>-reauditor-<r>.md`, build the package of the fix diff only with `scripts/review-package.mjs <project root> <round commit> .vibeflow/reviews/<feature>-<part>-round-<r>.md`, and dispatch the re-audit in a fresh session, which runs `audit --reaudit <round commit>`. Add the reaudit row and watch `.vibeflow/audits/<feature>-<part>-reaudit-<r>.md`.
+2. Write the fix briefing from the Fix template into `.vibeflow/briefings/<feature>-<part>-fix-<r>.md`, from the report that opened the round: the audit report for fix 1, the re-audit report of the previous round (`.vibeflow/audits/<feature>-<part>-reaudit-<r - 1>.md`), where the open findings are, for fix 2. Per finding: fix it and how, or leave it and why. It passes `scripts/check-briefing.mjs <fix briefing>`. Dispatch the executor in a fresh session, add the fix row, and watch the progress file for `State: final · fix <r>`.
+3. The outside check runs on the fix round, as above with the round commit in place of the part base and the fix briefing's perimeter, before the re-audit; a round that passes it is committed.
+4. Write the re-auditor briefing from the Re-auditor template into `.vibeflow/briefings/<feature>-<part>-reauditor-<r>.md`; it passes `check-briefing.mjs` like every briefing, before the dispatch. Build the package of the fix diff only with `scripts/review-package.mjs <project root> <round commit> .vibeflow/reviews/<feature>-<part>-round-<r>.md`, and dispatch the re-audit in a fresh session, which runs `audit --reaudit <round commit>`. Add the reaudit row, watch `.vibeflow/audits/<feature>-<part>-reaudit-<r>.md`, and commit its new probes when it ends.
 5. PASS ends the part. Below PASS loops to step 1 within the ceiling.
 
-The ceiling (loop principle 8): two fix rounds per part. A third needs the human's OK, asked in one line with the orchestrator's declared default, and leaves the moment it is given. The same finding returning for the same cause stops the part before the ceiling and goes to the human with both reports. A round whose session ended above 400k tokens of context (the executor answers BLOCKED at that point) stops the part before the next fix, and the part is cut smaller.
+The ceiling (loop principle 8): two fix rounds per part. A third needs the human's OK, asked in one line with the orchestrator's declared default, and leaves the moment it is given. The same finding returning for the same cause stops the part before the ceiling and goes to the human with both reports. A round whose session ended above 400k tokens of context (the executor answers `BLOCKED` at that point) stops the part before the next fix, and the part is cut smaller.
 
 ## Rounds table
 

@@ -3,8 +3,8 @@
 // Each probe takes a command, a marker or a table from the kit's own text, runs it with the kit's
 // real scripts in a hermetic git sandbox, and checks the exit code and the effect. The executor's
 // test pins the wording; these pin that the wording and the scripts agree.
-// Cases reproducing open findings of .vibeflow/audits/vibeflow-1-16-p3-audit.md are `todo` with
-// the finding's id, so the suite stays green. Nothing here reads the git history of this repository
+// Cases that reproduced open findings of .vibeflow/audits/vibeflow-1-16-p3-audit.md were `todo`
+// with the finding's id; p3-3 (F4) and p3-4 (F3) were rewritten by fix round 1 to prove the fix. Nothing here reads the git history of this repository
 // or the real clock. Run with: node --test test/*.test.mjs test/audit/*.test.mjs
 
 import { test } from 'node:test';
@@ -166,23 +166,34 @@ test('p3-2: the perimeter command, with the artifact folders as orchestrator.md 
 });
 
 // p3-3 -------------------------------------------------------------------------------------
-// The fix loop's step 2 names the commit by its git commands between backticks. Run them, in
-// order, on a round whose files are new (the probe file is always new at round 0).
-test('p3-3: the round commit as orchestrator.md writes it commits the part\'s new files and the probe file, and nothing else', { todo: 'F4: `git commit -- <paths>` refuses untracked files (pathspec did not match)' }, () => {
+// The "Round commits" section names the commit by its git commands between backticks. Run them,
+// in order, on a round whose files are new (the probe file is always new at round 0).
+function roundCommitCommands() {
+  const text = kit('orchestrator.md');
+  const start = text.indexOf('\n## Round commits\n');
+  assert.ok(start !== -1, 'orchestrator.md has the Round commits section');
+  const section = text.slice(start, text.indexOf('\n## ', start + 1));
+  const commands = [...flat(section).matchAll(/`(git [^`]+)`/g)].map((match) => match[1])
+    .filter((command) => !/--no-verify/.test(command) && /<paths>/.test(command));
+  assert.ok(commands.some((command) => command.startsWith('git commit')), 'Round commits names the commit command');
+  return commands;
+}
+
+function commitRound(sandbox, paths, message) {
+  for (const command of roundCommitCommands()) {
+    const argv = command.split(/\s+/).slice(1).flatMap((token) => (token === '<paths>' ? paths : [token]));
+    if (argv[0] === 'commit' && !argv.includes('-m')) argv.splice(1, 0, '-m', message);
+    sandbox.git(...argv);
+  }
+}
+
+test('p3-3: the round commit as orchestrator.md writes it commits the part\'s new files and the probe file, and nothing else', () => {
   withSandbox((sandbox) => {
     loopRound(sandbox);
     sandbox.write('tests/audit/login-1.test.ts', 'probe\n');
     sandbox.write('notes/owner-unknown.txt', 'someone else\n');
-    const step = /\n2\. Commit the round[^\n]*/.exec(kit('orchestrator.md'));
-    assert.ok(step, 'fix loop step 2');
-    const gitCommands = [...step[0].matchAll(/`(git [^`]+)`/g)].map((match) => match[1]).filter((command) => !/--no-verify/.test(command));
-    assert.ok(gitCommands.some((command) => command.startsWith('git commit')), 'step 2 names the commit command');
     const paths = ['src/login.ts', 'tests/login.test.ts', 'tests/audit/login-1.test.ts'];
-    for (const command of gitCommands) {
-      const argv = command.split(/\s+/).slice(1).flatMap((token) => (token === '<paths>' ? paths : [token]));
-      if (argv[0] === 'commit' && !argv.includes('-m')) argv.splice(1, 0, '-m', 'login part 1, round 0, before PASS');
-      sandbox.git(...argv);
-    }
+    commitRound(sandbox, paths, 'login part 1, executor round 0');
     const committed = sandbox.git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort();
     assert.deepEqual(committed, [...paths].sort());
     assert.match(sandbox.git('status', '--short'), /\?\? notes\//, 'a stranger\'s file stays out');
@@ -191,14 +202,17 @@ test('p3-3: the round commit as orchestrator.md writes it commits the part\'s ne
 
 // p3-4 -------------------------------------------------------------------------------------
 // Two parts run in order. orchestrator.md records each part's base as `git rev-parse HEAD`
-// (Executor briefing, step 6) and commits only below PASS (Fix loop, step 2), so part 1 passing
-// at its first audit leaves its work uncommitted when part 2 starts.
-test('p3-4: after part 1 passes, part 2\'s perimeter and review package hold only part 2', { todo: 'F3: part 1 passing uncommitted stays in part 2\'s base diff' }, () => {
+// (Executor briefing, step 6) and commits every round once it passes (Round commits), so part 1
+// passing at its first audit is committed before part 2 starts.
+test('p3-4: after part 1 passes, part 2\'s perimeter and review package hold only part 2', () => {
+  assert.match(flat(kit('orchestrator.md')), /Every round is committed on the feature branch once it passes/, 'orchestrator.md commits a round that passes');
   withSandbox((sandbox) => {
     const one = loopRound(sandbox, { part: '1' });
+    commitRound(sandbox, ['src/login.ts', 'tests/login.test.ts'], 'login part 1, executor round 0');
     const audit = runIn(sandbox.repo, 'review-package.mjs', [sandbox.repo, one.base, '.vibeflow/reviews/login-1-round-0.md'], sandbox.env());
     assert.equal(audit.status, 0, audit.out);
-    // part 1: PASS. "PASS ends the part: record it, then the next part"
+    assert.match(readFileSync(join(sandbox.repo, '.vibeflow/reviews/login-1-round-0.md'), 'utf8'), /src\/login\.ts/, 'part 1\'s package holds part 1');
+    // part 1: PASS, committed; part 2 records its base as `git rev-parse HEAD`
     const base2 = sandbox.git('rev-parse', 'HEAD').trim();
     sandbox.write('src/session.ts', 'export const session = 1\n');
     sandbox.write('.vibeflow/progress/login-2.md', 'State: final\n');
@@ -206,7 +220,9 @@ test('p3-4: after part 1 passes, part 2\'s perimeter and review package hold onl
     assert.equal(perimeter.status, 0, `part 1's files read as outside part 2:\n${perimeter.out}`);
     const pkg = runIn(sandbox.repo, 'review-package.mjs', [sandbox.repo, base2, '.vibeflow/reviews/login-2-round-0.md'], sandbox.env());
     assert.equal(pkg.status, 0, pkg.out);
-    assert.doesNotMatch(readFileSync(join(sandbox.repo, '.vibeflow/reviews/login-2-round-0.md'), 'utf8'), /src\/login\.ts/, 'part 2\'s package carries part 1\'s diff');
+    const part2 = readFileSync(join(sandbox.repo, '.vibeflow/reviews/login-2-round-0.md'), 'utf8');
+    assert.match(part2, /src\/session\.ts/, 'part 2\'s package holds part 2');
+    assert.doesNotMatch(part2, /src\/login\.ts/, 'part 2\'s package carries part 1\'s diff');
   });
 });
 

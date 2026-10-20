@@ -101,6 +101,24 @@ for (const [edition, path] of Object.entries(EDITIONS)) {
     assert.match(section, /stop the loop/i, `${edition}: stops the loop`);
     assert.match(section, /`implement` without `--loop` still runs/, `${edition}: says the plain pipeline still runs`);
   });
+
+  // The stop is a chain: each missing piece names what installs it, and both end the loop before
+  // phase 0. Pinned as one predicate, so a clause that lets the loop run anyway breaks it.
+  test(`${edition}: the kit-absent and Node stops both end the loop before phase 0`, () => {
+    const section = flat(splitSection(read(path)).section);
+    assert.match(
+      section,
+      /When the folder is missing, the kit is not installed: [^.]*installs it\. When Node\.js is missing or older, install Node\.js 18 or newer \([^)]*\)\. Either way, stop the loop before phase 0, say what to install, and say that `implement` without `--loop` still runs/,
+      `${edition}: no kit or no Node 18 stops the loop before phase 0`,
+    );
+    assert.doesNotMatch(section, /anyway|improvise|run the loop without/i, `${edition}: no path that runs the loop without the kit or Node 18`);
+  });
+
+  test(`${edition}: --no-loop turns the loop off for one run when the config turns it on`, () => {
+    const section = flat(splitSection(read(path)).section);
+    assert.match(section, /`--no-loop`[^.]*turns (it|the loop) off for that run/, `${edition}: --no-loop`);
+    assert.match(section, /still runs the pipeline below, with `--no-loop` when the config turns the loop on/, `${edition}: the stop points at --no-loop when the config turns the loop on`);
+  });
 }
 
 // ------------------------------------------------------- DoD 2 to 4, 6 and 7
@@ -161,9 +179,63 @@ test('orchestrator.md: the executor briefing, the outside check and the audit', 
   assert.match(text, /Auditor template/, 'auditor template');
 });
 
+// The text of one "## <heading>" section of orchestrator.md, flattened.
+function orchestratorSection(heading) {
+  const content = orchestrator();
+  const start = content.indexOf(`\n## ${heading}\n`);
+  assert.ok(start !== -1, `orchestrator.md has a "## ${heading}" section`);
+  const end = content.indexOf('\n## ', start + 1);
+  return flat(content.slice(start, end === -1 ? undefined : end));
+}
+
+test('orchestrator.md: every round is committed once it passes, by explicit path, on the confirmed feature branch, only with the OK', () => {
+  const text = flatOrchestrator();
+  const commits = orchestratorSection('Round commits');
+  // F3: every round, not only the ones below PASS, so a passing part is the next part's base.
+  assert.match(commits, /Every round is committed on the feature branch once it passes/, 'every round is committed once it passes');
+  assert.match(commits, /the executor's or a fix round's files after the outside check, the audit's probe file before any fix, the re-audit's new probes at the end of its round/, 'what each round commits, and when');
+  assert.match(commits, /last commit of a part that passes is the next part's base/, 'a passing part is the next part\'s base');
+  // S1: the branch is checked inside the commit step itself.
+  assert.match(commits, /Confirm the current branch is the feature branch recorded in the ledger, never the default branch; on any other branch, stop and ask/, 'the branch is confirmed before every commit');
+  assert.match(commits, /Read the full `git status`/, 'the full status before the commit');
+  // F4 and S8: add then commit, both by explicit path.
+  assert.ok(commits.includes('`git add -- <paths>`, then `git commit -- <paths>`'), 'git add -- <paths> before git commit -- <paths>');
+  assert.match(commits, /a new file is unknown to git until it is added/, 'why the add is needed');
+  assert.match(text, /a file owned by someone else stays out/, 'a stranger\'s file stays out');
+  assert.doesNotMatch(text, /git add (-A|--all|\.)|git commit -a\b|git commit --all/, 'no command that takes every file');
+  // S6: a refused hook stops the part.
+  assert.match(commits, /A hook that refuses the commit stops the part: report it, never commit with `--no-verify`/, 'a refused hook stops the part');
+  assert.doesNotMatch(text, /(retry|retried|again) with `--no-verify`/i, 'no retry that bypasses the hook');
+  // F2 and S5: without the OK nothing is committed, said once, here.
+  assert.match(commits, /Without the OK to commit, nothing is committed: the loop runs one part and stops at its first verdict, leaving the work uncommitted for the human/, 'without the OK, one part and stop at the first verdict');
+  assert.equal(count(text, 'Without the OK'), 1, 'the no-OK rule is said once');
+  assert.doesNotMatch(text, /commits the rounds anyway|commit[^.]*without the OK/i, 'no path that commits without the OK');
+  // The audit step does not end a part without its commit.
+  assert.match(orchestratorSection('Audit'), /Commit the audit's probes as above\. PASS ends the part/, 'the audit\'s probes are committed before PASS ends the part');
+});
+
+test('orchestrator.md: a red outside check goes back to a fresh executor session, never to a fix round or a re-audit', () => {
+  const check = orchestratorSection('Outside check');
+  assert.match(check, /After every executor or fix round, and before its audit or re-audit/, 'the outside check runs after every executor and fix round');
+  assert.match(check, /A red suite or type check sends the round back to a fresh executor session with the failure/, 'red goes back to the executor');
+  assert.match(check, /another `executor` row of round 0[^.]*at most once; a second red check stops the part and asks the human/, 'once, then the human');
+  assert.match(check, /not a fix round and calls no `--reaudit`: the audit always reads a round that passed the outside check, and every fix round follows an audit or re-audit report/, 'not a fix round, no re-audit');
+  assert.doesNotMatch(flatOrchestrator(), /becomes a fix round with the failure/, 'the old route is gone');
+});
+
+test('orchestrator.md: every executor answer has a route', () => {
+  const watching = orchestratorSection('Watching a round');
+  assert.match(watching, /`DONE` or `DONE WITH CAVEATS`: the outside check/, 'DONE goes to the outside check');
+  assert.match(watching, /`NEEDS CONTEXT`: answer from the repository's files, or ask the human when the files do not say, and reopen the round in a fresh session with the answer/, 'NEEDS CONTEXT is answered and the round reopened');
+  assert.match(watching, /`BLOCKED`: stop the part and take it to the human with the progress file/, 'BLOCKED stops the part');
+});
+
 test('orchestrator.md: the fix loop, the round commit and the ceiling', () => {
   const text = flatOrchestrator();
-  assert.match(text, /commit the round on the feature branch/i, 'round commit on the feature branch');
+  const fix = orchestratorSection('Fix loop');
+  assert.match(fix, /Write the fix briefing from the Fix template into `[^`]+`, from the report that opened the round: the audit report for fix 1, the re-audit report of the previous round \(`\.vibeflow\/audits\/<feature>-<part>-reaudit-<r - 1>\.md`\), where the open findings are, for fix 2/, 'the second fix reads the previous re-audit');
+  assert.match(fix, /The outside check runs on the fix round[^.]*before the re-audit/, 'the outside check runs before the re-audit');
+  assert.match(fix, /re-auditor briefing from the Re-auditor template into `[^`]+`; it passes `check-briefing\.mjs`[^.]*before the dispatch/, 'the re-auditor briefing is checked before dispatch');
   assert.match(text, /`git commit -- <paths>`/, 'commit by explicit path');
   assert.match(text, /`--no-verify`/, 'never bypasses a hook');
   assert.match(text, /`spec`[^.]*human[^.]*spec amendment/i, 'spec-cause findings go to the human or a recorded amendment');
@@ -172,8 +244,13 @@ test('orchestrator.md: the fix loop, the round commit and the ceiling', () => {
   assert.match(text, /re-audit[^.]*fresh session/i, 're-audit in a fresh session');
   assert.match(text, /two fix rounds per part/i, 'two fix rounds');
   assert.match(text, /third[^.]*OK[^.]*one line[^.]*declared default/i, 'a third round asks in one line with a default');
-  assert.match(text, /same finding returning for the same cause stops the part/i, 'same cause stops');
-  assert.match(text, /400k tokens/, 'context ceiling of a round');
+  // S3, S4, S7: the predicate of each stop, not only its words.
+  assert.match(text, /A third needs the human's OK, asked in one line/, 'a third round waits for the OK');
+  assert.doesNotMatch(text, /without (waiting for )?the human's OK/i, 'no third round without the OK');
+  assert.match(text, /same finding returning for the same cause stops the part before the ceiling/i, 'same cause stops before the ceiling');
+  assert.doesNotMatch(text, /only after the ceiling/i, 'same cause does not wait for the ceiling');
+  assert.match(text, /above 400k tokens of context[^.]*stops the part before the next fix/, 'a round above 400k stops the part before the next fix');
+  assert.doesNotMatch(text, /400k[^.]*(next fix proceeds|is noted)/, 'a round above 400k never lets the next fix go');
   assert.ok(text.includes('## Rounds'), 'the rounds table heading');
   assert.ok(orchestrator().includes('| Part | Role | Round | Started | Ended | Verdict |'), 'the rounds table columns (loop-stats contract)');
 });
@@ -255,6 +332,20 @@ test('the executor role exists once, and the Claude agent body is byte-identical
   for (const spawner of ['Agent', 'Task', 'Skill']) {
     assert.ok(!names.some((name) => name.toLowerCase() === spawner.toLowerCase()), `agent tools exclude ${spawner}`);
   }
+});
+
+// One vocabulary for the executor's answer (spec 3, DoD 5), wherever a template or a role says it.
+test('one answer vocabulary across the templates, the orchestrator and the roles', () => {
+  const files = [`${KIT}/briefings.md`, ORCHESTRATOR, ROLE, AGENT, `${KIT}/roles/auditor.md`, 'plugins/vibeflow/agents/auditor.md'];
+  for (const file of files) {
+    const text = read(file);
+    assert.doesNotMatch(text, /\bSTUCK\b/, `${file}: STUCK is not in the vocabulary`);
+    assert.doesNotMatch(text, /DONE WITH CAVEAT\b/, `${file}: DONE WITH CAVEATS, plural`);
+  }
+  const found = templates();
+  for (const template of ['executor', 'fix']) assert.match(flat(found[template]), /400k tokens[^.]*BLOCKED/, `${template} template: the context ceiling answers BLOCKED`);
+  assert.match(flat(found.executor), /DONE, DONE WITH CAVEATS, NEEDS CONTEXT or BLOCKED/, 'executor template: the four states');
+  assert.match(flat(found.fix), /Read first[^#]*reaudit-<(r|round) - 1>\.md/, 'fix template: the second fix reads the previous re-audit report');
 });
 
 // The fenced template under each "## <Role>" heading of briefings.md.
