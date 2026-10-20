@@ -301,3 +301,72 @@ test('p4-7: every row of the Commands section has a file source written before s
   // PR checks: watch-pr.mjs runs at step 6, after the body is written at step 4.
   if (/\| PR checks \|/.test(rows)) assert.match(step(6) + step(7), /gh pr edit/, 'the body is rewritten after watch-pr.mjs, or the row is not in the template');
 });
+
+// ------------------------------------------------------------------ re-audit 1 (fc9079b)
+// Probes of .vibeflow/audits/vibeflow-1-16-p4-reaudit-1.md. A case that reproduces an open
+// finding of that report is `todo` with the finding's id.
+
+// Every sentence of the whole orchestrator.md, list items included, whitespace collapsed.
+function fileSentences() {
+  return flat(kit('orchestrator.md')).split(/(?<=[.;:])\s+(?=[A-Z0-9`*])/);
+}
+
+test('p4-r1-1: no sentence anywhere in orchestrator.md permits a merge, a deploy, a migration or a production read', () => {
+  // The fix moved the limits out of "Orchestrator discipline" into a pointer ("they hold in
+  // every part"), so the predicate of p4-5 runs over the whole file, not only the section.
+  // "the production build" is the local build the outside check starts, not production.
+  const risky = /\bmerg(e|es|ed|ing)\b|\bdeploy|\bmigrat|\bproduction\b(?! build)|\bprod\b/i;
+  const prohibition = /\bnever\b|\bno\b|\bnot\b|\bcannot\b|\bwithout\b/i;
+  const closedRoute = /\bclosed or merged the PR; report it\b/;
+  const named = fileSentences().filter((s) => risky.test(s));
+  assert.ok(named.some((s) => /\bnever merges\b/.test(s)), 'the limits sentence is among the sentences checked');
+  const offending = named.filter((s) => !prohibition.test(s) && !closedRoute.test(s));
+  assert.deepEqual(offending, [], 'every sentence of orchestrator.md that names merge, deploy, migration or production forbids it');
+});
+
+test('p4-r1-2: for a CI that tests the merge commit, the git commands step 2 writes give the merged tree at the CI\'s depth', { todo: 'L3-r1' }, () => {
+  const text = step(2);
+  assert.match(text, /merge commit/, 'step 2 handles a CI that tests the pull request\'s merge commit');
+  const commands = [...text.matchAll(/`(git [^`]+)`/g)].map((m) => m[1]);
+  assert.ok(commands.length >= 1, 'step 2 writes the git commands that build the clone');
+  withSandbox((box) => {
+    // The feature branch leaves main, then main moves on: the case where the merge commit
+    // the CI tests differs from the branch alone.
+    box.git('checkout', '-q', '-b', 'feat/x');
+    box.write('src/feature.ts', 'export const f = 1\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'feature');
+    box.git('checkout', '-q', 'main');
+    box.write('src/main-only.ts', 'export const m = 1\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'main moves on');
+    box.git('checkout', '-q', 'feat/x');
+    const env = box.env({ GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t.invalid' });
+    const run = (argv, cwd = box.repo) => spawnSync(argv[0], argv.slice(1), { cwd, env, encoding: 'utf8' });
+    const known = { '<n>': '1', '<project root>': box.repo, '<default branch>': 'main', '<feature branch>': 'feat/x' };
+    const dirs = new Map();
+    const dir = (name) => {
+      if (!dirs.has(name)) dirs.set(name, join(box.root, `dir-${dirs.size}`));
+      return dirs.get(name);
+    };
+    // Run in order; the suite runs in the last clone they make.
+    let clone = null;
+    for (const c of commands) {
+      const argv = c.replace(/<[^>]+>/g, (name) => known[name] ?? dir(name)).split(' ');
+      const r = run(argv);
+      assert.equal(r.status, 0, `${argv.join(' ')}: ${r.stderr}`);
+      if (argv[1] === 'clone') clone = argv[argv.length - 1];
+    }
+    assert.ok(clone, 'step 2 writes the git clone the suite runs in');
+    // Where the section puts the merge: inside the clone. Done the only way a clone at the
+    // CI's depth allows, fetching the default branch at the same depth.
+    if (/merged with the default branch inside the clone/.test(text)) {
+      assert.equal(run(['git', 'fetch', '-q', '--depth', '1', 'origin', 'main'], clone).status, 0);
+      const merged = run(['git', 'merge', '--no-edit', 'FETCH_HEAD'], clone);
+      assert.equal(merged.status, 0, `the merge inside the clone at the CI's depth: ${merged.stderr.trim()}`);
+    }
+    const has = (path) => run(['git', 'cat-file', '-e', `HEAD:${path}`], clone).status === 0;
+    assert.ok(has('src/feature.ts') && has('src/main-only.ts'), 'the tree the suite runs on holds both the feature and the default branch, as the merge commit does');
+    assert.equal(run(['git', 'rev-parse', '--is-shallow-repository'], clone).stdout.trim(), 'true', 'and the clone is still as shallow as the CI\'s checkout');
+  });
+});
