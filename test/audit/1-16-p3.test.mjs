@@ -310,3 +310,162 @@ test('p3-8: each edition\'s Loop mode kit path is where the kit is installed, an
   }
   for (const { script } of orchestratorCommands()) assert.ok(manifest.includes(`scripts/${script}`), `the manifest installs scripts/${script}`);
 });
+
+// ===================================================================== re-audit 1 (fix round 1)
+// Probes added by .vibeflow/audits/vibeflow-1-16-p3-reaudit-1.md. Same rules as above: commands,
+// paths and tables come from the kit's own text and run against the kit's real scripts in a
+// hermetic sandbox; nothing reads this repository's git history or the real clock.
+
+// The text of one "## <heading>" section of orchestrator.md, flattened.
+function orchestratorSection(heading) {
+  const text = kit('orchestrator.md');
+  const start = text.indexOf(`\n## ${heading}\n`);
+  assert.ok(start !== -1, `orchestrator.md has a "## ${heading}" section`);
+  const end = text.indexOf('\n## ', start + 1);
+  return flat(text.slice(start, end === -1 ? undefined : end));
+}
+
+// The briefing path orchestrator.md names for a role, filled for one feature, part and round.
+function briefingPath(suffixPattern, values) {
+  const match = new RegExp('`(\\.vibeflow/briefings/<feature>-<part>-' + suffixPattern + '\\.md)`').exec(flat(kit('orchestrator.md')));
+  assert.ok(match, `orchestrator.md names the briefing path for ${suffixPattern}`);
+  return match[1].replace(/<[^>]+>/g, (name) => {
+    assert.ok(name in values, `placeholder ${name} has a value`);
+    return values[name];
+  });
+}
+
+// p3-r1-1 ----------------------------------------------------------------------------------
+// L3: every briefing passes check-briefing before dispatch, the re-auditor's included; L4: the
+// second fix round's briefing, named as the orchestrator names it, is checked as a fix briefing.
+test('p3-r1-1: the re-auditor briefing and the second fix briefing, written from their templates at the paths orchestrator.md names, pass check-briefing', () => {
+  withSandbox((sandbox) => {
+    const values = { '<feature>': 'login', '<part>': '1', '<r>': '2' };
+    for (const [role, suffix] of [['reauditor', 'reauditor-<r>'], ['fix', 'fix-<r>']]) {
+      const path = sandbox.write(briefingPath(suffix, values), briefingFromTemplate(role));
+      const result = runIn(sandbox.repo, 'check-briefing.mjs', [path], sandbox.env());
+      assert.equal(result.status, 0, `${role} briefing at ${path}:\n${result.out}`);
+      assert.match(result.out, new RegExp(`\\b${role}\\b`, 'i'), `check-briefing read ${path} as a ${role} briefing`);
+    }
+    // a re-auditor briefing that lost a template section is refused, so the pass above means something
+    const broken = sandbox.write(briefingPath('reauditor-<r>', { ...values, '<r>': '3' }), briefingFromTemplate('reauditor').replace(/## Review package[\s\S]*?(?=\n## )/, ''));
+    assert.notEqual(runIn(sandbox.repo, 'check-briefing.mjs', [broken], sandbox.env()).status, 0, 'a re-auditor briefing without its review package section fails');
+  });
+});
+
+// p3-r1-2 ----------------------------------------------------------------------------------
+// F3 with L7 and the fixer's caveat (b): round 0 committed after the outside check, the audit's
+// probes committed before the fix, the fix's outside check run with the round commit in place of
+// the part base, the fix committed before its re-audit. The re-audit package, built from the round
+// commit, must still hold the fix diff: the fix is committed by then, so a package of the worktree
+// alone would be empty.
+test('p3-r1-2: a fix round committed before its re-audit leaves the outside check clean and the re-audit package holding the fix diff only', () => {
+  withSandbox((sandbox) => {
+    const round = loopRound(sandbox);
+    commitRound(sandbox, ['src/login.ts', 'tests/login.test.ts'], 'login part 1, executor round 0');
+    sandbox.write('tests/audit/login-1.test.ts', 'probe\n');
+    commitRound(sandbox, ['tests/audit/login-1.test.ts'], 'login part 1, audit round 0');
+    // the last commit before the fix round is its round commit (Round commits, step 5)
+    const roundCommit = sandbox.git('rev-parse', 'HEAD').trim();
+    sandbox.write('src/login.ts', 'export const login = () => false\n');
+    sandbox.write('.vibeflow/progress/login-1.md', '# progress\nState: final\n\n## Fix 1\nState: final · fix 1\n');
+    const perimeter = orchestratorCommands().find((entry) => entry.script === 'perimeter.mjs');
+    assert.ok(perimeter, 'orchestrator.md writes the perimeter command');
+    const fixCheck = runIn(sandbox.repo, 'perimeter.mjs', fill(perimeter.args, { '<project root>': sandbox.repo, '<part base>': roundCommit, '<briefing globs>': ['src/login.ts'] }), sandbox.env());
+    assert.equal(fixCheck.status, 0, `the fix round's outside check:\n${fixCheck.out}`);
+    // the same check from the part base names the committed probe file: why the round commit is used
+    const fromBase = runIn(sandbox.repo, 'perimeter.mjs', fill(perimeter.args, { '<project root>': sandbox.repo, '<part base>': round.base, '<briefing globs>': ['src/login.ts'] }), sandbox.env());
+    assert.equal(fromBase.status, 1, fromBase.out);
+    assert.match(fromBase.out, /outside tests\/audit\/login-1\.test\.ts/);
+    commitRound(sandbox, ['src/login.ts'], 'login part 1, fix round 1');
+    const pkgCommand = orchestratorCommands().find((entry) => entry.script === 'review-package.mjs' && entry.args.includes('<round commit>'));
+    assert.ok(pkgCommand, 'orchestrator.md writes the re-audit package command from the round commit');
+    const argv = fill(pkgCommand.args, { '<project root>': sandbox.repo, '<round commit>': roundCommit, '<feature>': 'login', '<part>': '1', '<r>': '1' });
+    const pkg = runIn(sandbox.repo, 'review-package.mjs', argv, sandbox.env());
+    assert.equal(pkg.status, 0, `re-audit package:\n${pkg.out}`);
+    const text = readFileSync(join(sandbox.repo, '.vibeflow/reviews/login-1-round-1.md'), 'utf8');
+    assert.match(text, /\+export const login = \(\) => false/, 'the package holds the committed fix');
+    assert.doesNotMatch(text, /tests\/audit\/login-1\.test\.ts|tests\/login\.test\.ts/, 'round 0 and the audit\'s probes stay out of the fix package');
+  });
+});
+
+// p3-r1-3 ----------------------------------------------------------------------------------
+// p3-3 as rewritten runs only the git commands that carry <paths>. This one runs every git command
+// of the "Round commits" section, in order (a `git status` is harmless), so a command added there
+// that stages someone else's file is caught by behavior, whatever its spelling.
+test('p3-r1-3: every git command of the Round commits section, run in order, leaves a stranger\'s file untracked and unstaged', () => {
+  const commands = [...orchestratorSection('Round commits').matchAll(/`(git [^`]+)`/g)].map((match) => match[1])
+    .filter((command) => !/--no-verify/.test(command));
+  assert.ok(commands.some((command) => command.startsWith('git commit')), 'Round commits names the commit command');
+  withSandbox((sandbox) => {
+    loopRound(sandbox);
+    sandbox.write('notes/owner-unknown.txt', 'someone else\n');
+    const paths = ['src/login.ts', 'tests/login.test.ts'];
+    for (const command of commands) {
+      const argv = command.split(/\s+/).slice(1).flatMap((token) => (token === '<paths>' ? paths : [token]));
+      if (argv[0] === 'commit' && !argv.includes('-m')) argv.splice(1, 0, '-m', 'login part 1, executor round 0');
+      sandbox.git(...argv);
+    }
+    assert.deepEqual(sandbox.git('show', '--name-only', '--format=', 'HEAD').trim().split('\n').sort(), [...paths].sort());
+    assert.equal(sandbox.git('diff', '--cached', '--name-only').trim(), '', 'nothing is left staged');
+    assert.match(sandbox.git('status', '--short'), /^\?\? notes\//m, 'a stranger\'s file stays untracked');
+  });
+});
+
+// p3-r1-4 ----------------------------------------------------------------------------------
+// F1: a red outside check is "another `executor` row of round 0" (or another `fix` row of that fix
+// round), not a fix round. The rows that rule produces must read in loop-stats as one round each,
+// with the audit as the part's first audit.
+test('p3-r1-4: the extra executor and fix rows a red outside check adds count as the same round in loop-stats', () => {
+  const header = /```markdown\n## Rounds\n\n(\| Part[^\n]*\n\|[^\n]*)\n/.exec(kit('orchestrator.md'));
+  assert.ok(header, 'orchestrator.md shows the rounds table header');
+  const table = [
+    '## Rounds', '', header[1],
+    '| 1 | executor | 0 | 2026-10-20 09:00 | 2026-10-20 09:40 | - |',
+    '| 1 | executor | 0 | 2026-10-20 09:45 | 2026-10-20 10:05 | - |',
+    '| 1 | audit | 0 | 2026-10-20 10:10 | 2026-10-20 10:40 | PARTIAL |',
+    '| 1 | fix | 1 | 2026-10-20 10:45 | 2026-10-20 11:00 | - |',
+    '| 1 | fix | 1 | 2026-10-20 11:05 | 2026-10-20 11:15 | - |',
+    '| 1 | reaudit | 1 | 2026-10-20 11:20 | 2026-10-20 11:40 | PASS |',
+  ].join('\n');
+  const dir = mkdtempSync(join(tmpdir(), 'vibeflow-reaudit-p3-'));
+  try {
+    mkdirSync(join(dir, '.vibeflow/loop'), { recursive: true });
+    writeFileSync(join(dir, '.vibeflow/loop/login.md'), `# login\n\n${table}\n`);
+    const result = runScript('loop-stats.mjs', [dir, '--json'], hermeticEnv(dir));
+    assert.equal(result.status, 0, result.out);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.warnings, []);
+    const part = report.parts.find((entry) => entry.part === '1');
+    assert.equal(part.rounds, 2, 'round 0 and fix round 1, whatever the extra rows');
+    assert.equal(part.fixRounds, 1, 'a red outside check is not a fix round');
+    assert.equal(part.firstAudit, 'PARTIAL');
+    assert.equal(part.clockMinutes, 160, 'the clock starts at the first executor row');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// p3-r1-5 ----------------------------------------------------------------------------------
+// F3 across parts with the audit's probes: the base command orchestrator.md writes for a part, run
+// after part 1's executor round and its audit's probes were committed, gives part 2 a perimeter and
+// a package of part 2 alone (p3-4 takes `git rev-parse HEAD` as given; this one reads it).
+test('p3-r1-5: the part base command orchestrator.md writes, run after part 1 and its probes are committed, gives part 2 only part 2', () => {
+  const step = /Record the part's base \(`(git [^`]+)`\)/.exec(orchestratorSection('Executor briefing'));
+  assert.ok(step, 'the executor briefing step names the base command');
+  withSandbox((sandbox) => {
+    loopRound(sandbox, { part: '1' });
+    commitRound(sandbox, ['src/login.ts', 'tests/login.test.ts'], 'login part 1, executor round 0');
+    sandbox.write('tests/audit/login-1.test.ts', 'probe\n');
+    commitRound(sandbox, ['tests/audit/login-1.test.ts'], 'login part 1, audit round 0');
+    const base2 = sandbox.git(...step[1].split(/\s+/).slice(1)).trim();
+    sandbox.write('src/session.ts', 'export const session = 1\n');
+    const perimeter = runIn(sandbox.repo, 'perimeter.mjs', [sandbox.repo, base2, 'src/session.ts', ...ARTIFACTS], sandbox.env());
+    assert.equal(perimeter.status, 0, perimeter.out);
+    const pkg = runIn(sandbox.repo, 'review-package.mjs', [sandbox.repo, base2, '.vibeflow/reviews/login-2-round-0.md'], sandbox.env());
+    assert.equal(pkg.status, 0, pkg.out);
+    const text = readFileSync(join(sandbox.repo, '.vibeflow/reviews/login-2-round-0.md'), 'utf8');
+    assert.match(text, /src\/session\.ts/);
+    assert.doesNotMatch(text, /src\/login\.ts|tests\/audit\/login-1\.test\.ts/, 'part 1 and its probes stay out of part 2');
+  });
+});
