@@ -14,7 +14,12 @@ Reads every .vibeflow/loop/*.md ledger under <repo>. The rounds table sits under
 "## Rounds" with the columns | Part | Role | Round | Started | Ended | Verdict |; Role is
 executor, audit, fix or reaudit; Round is 0 for the first executor and its audit and 1, 2, ...
 for fix rounds and their re-audits; times are YYYY-MM-DD HH:MM; Verdict is PASS, PARTIAL or
-FAIL on audit rows and - on executor and fix rows.
+FAIL on audit rows and - on executor and fix rows. An empty Ended is a round in progress: it
+counts in the part's rounds, has no verdict yet, and the part reads "in progress" until a PASS.
+The table is read up to the next heading; a row-shaped line after the table is a warning.
+
+Times are the orchestrator's local time without a zone, and the clock is their wall-clock
+difference: a round that crosses a daylight-saving change is off by the size of the shift.
 
 Reports per feature and part: rounds, fix rounds, the round-0 audit's verdict and the clock
 from the round-0 executor's start to the end of the first PASS audit or re-audit. Totals:
@@ -63,16 +68,27 @@ function parseRow(fields) {
   if ((role === 'fix' || role === 'reaudit') && round === 0) return { reason: `${role} row in round 0: fix rounds start at 1` };
   const started = minutes(startedText);
   if (started === null) return { reason: `Started "${startedText}" is not a valid date and time (YYYY-MM-DD HH:MM)` };
+  const isAudit = role === 'audit' || role === 'reaudit';
+  // An empty Ended is a round still running (PRD rounds-table contract).
+  if (endedText === '') {
+    if (isAudit ? !['', '-'].includes(verdict) : verdict !== '-') {
+      return { reason: `Verdict "${verdict}" on a ${role} row in progress (empty Ended) must be ${isAudit ? 'empty or -' : '-'}` };
+    }
+    return { row: { part, role, round, started, ended: null, verdict: null } };
+  }
   const ended = minutes(endedText);
   if (ended === null) return { reason: `Ended "${endedText}" is not a valid date and time (YYYY-MM-DD HH:MM)` };
   if (ended < started) return { reason: `Ended ${endedText} is before Started ${startedText}` };
-  const isAudit = role === 'audit' || role === 'reaudit';
   if (isAudit && !VERDICTS.has(verdict)) return { reason: `Verdict "${verdict}" on an ${role} row is not PASS, PARTIAL or FAIL` };
   if (!isAudit && verdict !== '-') return { reason: `Verdict "${verdict}" on a ${role} row must be -` };
   return { row: { part, role, round, started, ended, verdict: isAudit ? verdict : null } };
 }
 
-// The rows of the first "## Rounds" table of one ledger, with the warnings it raised.
+const HEADING = /^#{1,6}\s/;
+
+// The rows of the first "## Rounds" table of one ledger, with the warnings it raised. The
+// section runs to the next heading; a row-shaped line in it after the table is a warning, so
+// a row left behind a stray blank line never vanishes from the numbers unreported.
 function readLedger(text, file, warnings) {
   const lines = text.split(/\r?\n/);
   const heading = lines.findIndex((line) => line.trim() === '## Rounds');
@@ -102,6 +118,11 @@ function readLedger(text, file, warnings) {
     if (parsed.reason) warnings.push({ file, line: index + 1, reason: `${parsed.reason}; row skipped` });
     else rows.push({ ...parsed.row, line: index + 1 });
   }
+  for (; index < lines.length && !HEADING.test(lines[index].trim()); index += 1) {
+    if (lines[index].trim().startsWith('|')) {
+      warnings.push({ file, line: index + 1, reason: 'row outside the table under "## Rounds" (after a blank or other line); row skipped' });
+    }
+  }
   return rows;
 }
 
@@ -114,10 +135,11 @@ function summarizePart(feature, part, file, rows, warnings) {
   const firstAuditRow = earliest(rows.filter((row) => row.role === 'audit'), 'started');
   const executor = earliest(rows.filter((row) => row.role === 'executor'), 'started');
   const firstPass = earliest(rows.filter((row) => row.verdict === 'PASS'), 'ended');
+  const inProgress = rows.some((row) => row.ended === null);
 
   let clockMinutes = null;
   let clockNote = null;
-  if (!firstPass) clockNote = 'no PASS yet';
+  if (!firstPass) clockNote = inProgress ? 'in progress' : 'no PASS yet';
   else if (!executor) clockNote = 'no round-0 executor row to start the clock';
   else if (firstPass.ended < executor.started) {
     clockNote = 'the first PASS ends before the round-0 executor started';

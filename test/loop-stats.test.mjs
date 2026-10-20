@@ -230,3 +230,92 @@ test('no ledgers is a clean zero; a missing repository or no argument exits 64',
     assert.equal(runScript('loop-stats.mjs', [dir, '--bogus'], hermeticEnv(dir)).status, 64);
   });
 });
+
+// Fix round 1 of the part 6a audit (F1, F4, F3).
+
+test('a row-shaped line after the table but inside the Rounds section is a warning; lines after the next heading are not read', () => {
+  scratch((dir) => {
+    writeLedgers(dir, {
+      'eps.md': [
+        '## Rounds', '', HEADER,
+        '| 1 | executor | 0 | 2026-10-20 08:00 | 2026-10-20 09:00 | - |',
+        '| 1 | audit | 0 | 2026-10-20 09:00 | 2026-10-20 10:00 | FAIL |',
+        '',
+        '| 1 | fix | 1 | 2026-10-20 10:00 | 2026-10-20 11:00 | - |',
+        'some prose',
+        '| 1 | reaudit | 1 | 2026-10-20 11:00 | 2026-10-20 12:00 | PASS |',
+        '',
+        '## Notes',
+        '',
+        '| a | table | that | is | not | rounds |',
+        '',
+      ].join('\n'),
+    });
+    const report = statsJson(dir);
+    const warnings = report.warnings.filter((w) => w.file.endsWith('eps.md'));
+    assert.deepEqual(warnings.map((w) => w.line), [8, 10], JSON.stringify(warnings));
+    for (const w of warnings) assert.match(w.reason, /outside the table/);
+    // skipped, never counted: the part keeps only the table's rows
+    const p = part(report, 'eps', '1');
+    assert.equal(p.rounds, 1);
+    assert.equal(p.fixRounds, 0);
+    assert.match(p.clockNote, /no PASS/);
+  });
+});
+
+test('an empty Ended is a round in progress: it counts, the part reads "in progress" and no warning is raised', () => {
+  scratch((dir) => {
+    writeLedgers(dir, {
+      'zeta.md': [
+        '## Rounds', '', HEADER,
+        '| 1 | executor | 0 | 2026-10-20 08:00 |  | - |',
+        '| 2 | executor | 0 | 2026-10-20 08:00 | 2026-10-20 09:00 | - |',
+        '| 2 | audit | 0 | 2026-10-20 09:00 |  |  |',
+        '| 3 | executor | 0 | 2026-10-20 08:00 | 2026-10-20 09:00 | - |',
+        '| 3 | audit | 0 | 2026-10-20 09:00 | 2026-10-20 10:00 | FAIL |',
+        '| 3 | fix | 1 | 2026-10-20 10:00 |  | - |',
+        '| 4 | executor | 0 | 2026-10-20 08:00 |  | - |',
+        '| 4 | executor | 0 | 2026-10-20 08:30 | 2026-10-20 09:00 | - |',
+        '| 4 | audit | 0 | 2026-10-20 09:00 | 2026-10-20 10:00 | PASS |',
+        '| 5 | audit | 0 | 2026-10-20 09:00 |  | PASS |',
+        '',
+      ].join('\n'),
+    });
+    const report = statsJson(dir);
+    const warnings = report.warnings.filter((w) => w.file.endsWith('zeta.md'));
+    // only the open row that already claims a verdict is refused
+    assert.deepEqual(warnings.map((w) => w.line), [14], JSON.stringify(warnings));
+    assert.match(warnings[0].reason, /in progress/);
+
+    const p1 = part(report, 'zeta', '1');
+    assert.equal(p1.rounds, 1);
+    assert.equal(p1.clockMinutes, null);
+    assert.equal(p1.clockNote, 'in progress');
+    const p2 = part(report, 'zeta', '2');
+    assert.equal(p2.rounds, 1);
+    assert.equal(p2.firstAudit, null);
+    assert.equal(p2.clockNote, 'in progress');
+    const p3 = part(report, 'zeta', '3');
+    assert.equal(p3.rounds, 2);
+    assert.equal(p3.fixRounds, 1);
+    assert.equal(p3.firstAudit, 'FAIL');
+    assert.equal(p3.clockNote, 'in progress');
+    // a re-dispatched executor left open does not undo a PASS: the clock still stands
+    const p4 = part(report, 'zeta', '4');
+    assert.equal(p4.clockMinutes, 120);
+    assert.equal(p4.clockNote, null);
+
+    const text = stats(dir);
+    assert.equal(text.status, 0, text.out);
+    assert.match(text.stdout, /zeta · 3\b.*in progress/);
+  });
+});
+
+test('--help says the ledger times are local time without a zone and a round across a daylight-saving change is off by the shift', () => {
+  const help = runScript('loop-stats.mjs', ['--help'], hermeticEnv(tmpdir()));
+  assert.equal(help.status, 0, help.out);
+  assert.match(help.stdout, /local time/i);
+  assert.match(help.stdout, /without a (time )?zone/i);
+  assert.match(help.stdout, /daylight[- ]saving/i);
+  assert.match(help.stdout, /empty Ended/i);
+});

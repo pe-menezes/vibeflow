@@ -117,13 +117,24 @@ async function downloadFile(baseUrl, srcPath) {
   const url = `${baseUrl}/${srcPath}`;
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`Failed to download ${url}: ${res.status} ${res.statusText}`);
+    const error = new Error(`Failed to download ${url}: ${res.status} ${res.statusText}`);
+    error.status = res.status;
+    throw error;
   }
   return res.text();
 }
 
+// The kit's files, or null when the base has no manifest (404): a base published before the
+// kit, or a mirror without it, still installs the edition. A manifest that is there but
+// malformed throws, so nothing is written from a list nobody can trust.
 async function loadKitFiles(kitDest) {
-  const raw = await downloadFile(KIT_BASE_URL, KIT_MANIFEST);
+  let raw;
+  try {
+    raw = await downloadFile(KIT_BASE_URL, KIT_MANIFEST);
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
   let manifest;
   try {
     manifest = JSON.parse(raw);
@@ -177,6 +188,30 @@ function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
 
   const content = existing.trimEnd() + '\n\n' + delimited + '\n';
   return { content, action: 'appended' };
+}
+
+// The .gitignore block is a marker comment line followed by its paths, up to the first blank
+// line. Pure, like upsertDelimitedBlock: marker absent → the block is appended; marker
+// present → only the block's paths the file does not have yet (anywhere, as a whole line) are
+// inserted right after the block, so an older block catches up and the user's lines stay.
+function upsertGitignoreBlock(existing, block) {
+  const marker = GITIGNORE_MARKER;
+  const paths = block.trim().split('\n').filter((line) => line !== marker);
+  const lines = existing.split('\n');
+  const bare = (line) => line.replace(/\r$/, '').trim();
+  const markerIdx = lines.findIndex((line) => bare(line) === marker);
+  if (markerIdx === -1) {
+    const content = (existing.trimEnd() ? existing.trimEnd() + '\n' : '') + block.trim() + '\n';
+    return { content, action: 'appended', added: paths };
+  }
+  const present = new Set(lines.map(bare));
+  const missing = paths.filter((path) => !present.has(path));
+  if (missing.length === 0) return { content: existing, action: 'present', added: [] };
+  let end = markerIdx + 1;
+  while (end < lines.length && bare(lines[end]) !== '') end += 1;
+  const eol = lines[markerIdx].endsWith('\r') ? '\r' : '';
+  lines.splice(end, 0, ...missing.map((path) => path + eol));
+  return { content: lines.join('\n'), action: 'updated', added: missing };
 }
 
 function detectEdition() {
@@ -311,6 +346,10 @@ async function main() {
     log(pc.red('x'), `loop kit — ${err.message}`);
     process.exit(1);
   }
+  if (kitFiles === null) {
+    log(pc.yellow('!'), `loop kit — ${KIT_BASE_URL}/${KIT_MANIFEST} answered 404, so this base has no kit; installing ${edition.name} without it (implement --loop and stats need it: rerun with --force once the base has it)`);
+    kitFiles = [];
+  }
   const files = [...edition.files.map((file) => ({ ...file, baseUrl: edition.baseUrl })), ...kitFiles];
 
   // Download and install files
@@ -400,12 +439,16 @@ async function main() {
       if (existsSync(gitignorePath)) {
         content = readFileSync(gitignorePath, 'utf-8');
       }
-      if (!content.includes(GITIGNORE_MARKER)) {
-        const updated = (content.trimEnd() ? content.trimEnd() + '\n' : '') + block.trim() + '\n';
-        writeFileSync(gitignorePath, updated, 'utf-8');
-        log(pc.green('+'), `.gitignore ${pc.dim('(Vibeflow paths added — remove that block to track in git)')}`);
-      } else {
+      const result = upsertGitignoreBlock(content, block);
+      if (result.action === 'present') {
         log(pc.dim('-'), `${pc.dim('.gitignore')} ${pc.dim('(Vibeflow block already present)')}`);
+      } else {
+        writeFileSync(gitignorePath, result.content, 'utf-8');
+        if (result.action === 'appended') {
+          log(pc.green('+'), `.gitignore ${pc.dim('(Vibeflow paths added — remove that block to track in git)')}`);
+        } else {
+          log(pc.green('+'), `.gitignore ${pc.dim(`(Vibeflow block gained ${result.added.join(', ')})`)}`);
+        }
       }
     }
   } catch (err) {
