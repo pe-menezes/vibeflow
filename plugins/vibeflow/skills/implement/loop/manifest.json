@@ -3,8 +3,10 @@
   "files": [
     "README.md",
     "briefings.md",
+    "orchestrator.md",
     "principles.md",
     "roles/auditor.md",
+    "roles/executor.md",
     "scripts/check-briefing.mjs",
     "scripts/check-probes.mjs",
     "scripts/loop-stats.mjs",

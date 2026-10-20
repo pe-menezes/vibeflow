@@ -43,6 +43,24 @@ Architectural decisions belong to the architect. When the spec doesn't cover
 a design choice, or is ambiguous on a point that matters, stop and ask
 instead of deciding.
 
+## Loop mode
+
+With `--loop` in the input, or `loop: true` in the front matter of
+`.vibeflow/loop/config.md` (its keys `loop` and `commit-rounds` are false
+by default), this session becomes the orchestrator of the execution loop:
+phases 0 to 3 run as written below, and then, instead of phases 4 to 8, read
+and follow `orchestrator.md` in the loop kit at `${CLAUDE_SKILL_DIR}/loop/`
+(in Codex, `loop/` in the directory of this SKILL.md). It names the other kit
+files relative to that folder, and the executor implements in a fresh session.
+
+Before phase 0, check that the kit folder exists and that `node --version`
+shows Node.js 18 or newer, because the kit's scripts need it. When the folder
+is missing, the kit is not installed: updating the Vibeflow plugin installs
+it. When Node.js is missing or older, install Node.js 18 or newer (from
+nodejs.org or the host's package manager). Either way, stop the loop before
+phase 0, say what to install, and say that `implement` without `--loop` still
+runs the pipeline below.
+
 ## Phase 0: Find and validate the spec
 
 1. Locate it. A file path (contains `/` or ends in `.md`) is read directly.
