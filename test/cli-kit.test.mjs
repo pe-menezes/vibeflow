@@ -250,7 +250,7 @@ test('a 0.16 Copilot .gitignore block gains only the missing kit line, right aft
   }
 });
 
-test('a block line the user already has elsewhere in .gitignore is not added twice', async () => {
+test('the kit line the user already has elsewhere in .gitignore is not added twice', async () => {
   const server = await startServer();
   const workspace = makeWorkspace();
   try {
@@ -259,23 +259,14 @@ test('a block line the user already has elsewhere in .gitignore is not added twi
       '# Vibeflow — installed + generated (remove to track in git)',
       '.vibeflow/',
       '.github/prompts/vibeflow-*.prompt.md',
+      '.github/agents/vibeflow-architect.agent.md',
+      '.github/instructions/vibeflow/',
       '',
     ].join('\n');
     writeFileSync(join(workspace.project, '.gitignore'), before);
     const result = await runCli(workspace, ['--copilot', '--force'], { [BASE_ENV]: server.url });
     assert.equal(result.status, 0, result.out);
-    assert.equal(
-      readFileSync(join(workspace.project, '.gitignore'), 'utf8'),
-      [
-        '.github/vibeflow/',
-        '# Vibeflow — installed + generated (remove to track in git)',
-        '.vibeflow/',
-        '.github/prompts/vibeflow-*.prompt.md',
-        '.github/agents/vibeflow-architect.agent.md',
-        '.github/instructions/vibeflow/',
-        '',
-      ].join('\n'),
-    );
+    assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), before);
   } finally {
     workspace.cleanup();
     await server.close();
@@ -316,5 +307,86 @@ test('a manifest that is present but malformed still aborts before anything is w
       workspace.cleanup();
       await server.close();
     }
+  }
+});
+
+// Fix round 2 of the part 6a audit (R1): a reinstall adds only the lines that entered the
+// block after the version the user has, never a line an older block already had.
+
+const BLOCK_016 = {
+  copilot: [
+    '# Vibeflow — installed + generated (remove to track in git)',
+    '.vibeflow/',
+    '.github/prompts/vibeflow-*.prompt.md',
+    '.github/agents/vibeflow-architect.agent.md',
+    '.github/instructions/vibeflow/',
+  ],
+  cursor: [
+    '# Vibeflow — installed + generated (remove to track in git)',
+    '.vibeflow/',
+    '.cursor/rules/vibeflow.mdc',
+    '.cursor/rules/vibeflow-architect.mdc',
+    '.cursor/skills/vibeflow-*/',
+  ],
+};
+
+const carveOut = (lines) => lines.flatMap((line) => (line === '.vibeflow/' ? ['.vibeflow/*', '!.vibeflow/hotfixes/'] : [line]));
+
+for (const edition of ['copilot', 'cursor']) {
+  test(`--${edition} --force over a current block with the hotfix carve-out leaves .gitignore byte for byte`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      const current = edition === 'copilot' ? [...BLOCK_016.copilot, '.github/vibeflow/'] : BLOCK_016.cursor;
+      const before = ['node_modules/', '', ...carveOut(current), '', '.env', ''].join('\n');
+      writeFileSync(join(workspace.project, '.gitignore'), before);
+      const result = await runCli(workspace, [`--${edition}`, '--force'], { [BASE_ENV]: server.url });
+      assert.equal(result.status, 0, result.out);
+      assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), before);
+      assert.match(result.out, /\.gitignore.*already/);
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+}
+
+test('a 0.16 Copilot block with the carve-out and a line the user deleted gains only .github/vibeflow/', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    const block = carveOut(BLOCK_016.copilot).filter((line) => line !== '.github/agents/vibeflow-architect.agent.md');
+    const before = [...block, '', '# mine', 'dist/', ''];
+    writeFileSync(join(workspace.project, '.gitignore'), before.join('\n'));
+    const result = await runCli(workspace, ['--copilot', '--force'], { [BASE_ENV]: server.url });
+    assert.equal(result.status, 0, result.out);
+    const expected = [...block, '.github/vibeflow/', ...before.slice(block.length)].join('\n');
+    assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), expected);
+  } finally {
+    workspace.cleanup();
+    await server.close();
+  }
+});
+
+test('a Copilot install over a Cursor block with the carve-out adds the Copilot paths and keeps the carve-out', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    const block = carveOut(BLOCK_016.cursor);
+    writeFileSync(join(workspace.project, '.gitignore'), [...block, ''].join('\n'));
+    const result = await runCli(workspace, ['--copilot', '--force'], { [BASE_ENV]: server.url });
+    assert.equal(result.status, 0, result.out);
+    const expected = [
+      ...block,
+      '.github/prompts/vibeflow-*.prompt.md',
+      '.github/agents/vibeflow-architect.agent.md',
+      '.github/instructions/vibeflow/',
+      '.github/vibeflow/',
+      '',
+    ].join('\n');
+    assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), expected);
+  } finally {
+    workspace.cleanup();
+    await server.close();
   }
 });
