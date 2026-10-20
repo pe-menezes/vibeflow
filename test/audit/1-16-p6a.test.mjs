@@ -564,3 +564,74 @@ test('r1-10 a CRLF .gitignore with the 0.16 block in the middle gains the kit li
     await server.close();
   }
 });
+
+// --- re-audit 2 (fix round 2: R1) ---
+
+const carve = (lines) => lines.flatMap((line) => (line === '.vibeflow/' ? ['.vibeflow/*', '!.vibeflow/hotfixes/'] : [line]));
+const EDITION_PATHS = {
+  copilot: ['.github/prompts/vibeflow-x.prompt.md', '.github/agents/vibeflow-architect.agent.md', '.github/instructions/vibeflow/a.md', '.github/vibeflow/loop/README.md'],
+  cursor: ['.cursor/rules/vibeflow.mdc', '.cursor/rules/vibeflow-architect.mdc', '.cursor/skills/vibeflow-x/SKILL.md'],
+};
+
+for (const [first, second] of [['copilot', 'cursor'], ['cursor', 'copilot']]) {
+  test(`r2-1 a ${first} block with the hotfix carve-out, then --${second} and --${first} --force in turns: the carve-out holds, both editions end up ignored, reruns change nothing`, async () => {
+    const server = await startServer();
+    const ws = makeWorkspace();
+    try {
+      writeFileSync(join(ws.project, '.gitignore'), ['node_modules/', '', ...carve(BLOCKS[first]), '', '.env', ''].join('\n'));
+      let text = '';
+      let afterFirst = null;
+      for (const edition of [second, first, second, first]) {
+        const result = await runCli(ws, [`--${edition}`, '--force'], { VIBEFLOW_BASE_URL: server.url });
+        assert.equal(result.status, 0, result.out);
+        text = readFileSync(join(ws.project, '.gitignore'), 'utf8');
+        if (afterFirst === null) afterFirst = text;
+        else assert.equal(text, afterFirst, `the rerun of --${edition} changed .gitignore`);
+        assert.equal(ignored(ws.project, '.vibeflow/hotfixes/2026-10-20-bug.md'), false, `after --${edition}, the carve-out was undone:\n${text}`);
+        assert.equal(ignored(ws.project, '.vibeflow/specs/x.md'), true, text);
+        assert.ok(!text.split('\n').includes('.vibeflow/'), `after --${edition}, .vibeflow/ came back:\n${text}`);
+      }
+      for (const path of [...EDITION_PATHS.copilot, ...EDITION_PATHS.cursor, 'node_modules/a.js', '.env']) {
+        assert.equal(ignored(ws.project, path), true, `${path} not ignored:\n${text}`);
+      }
+      for (const line of new Set([...carve(BLOCKS.copilot), ...carve(BLOCKS.cursor)])) {
+        assert.equal(text.split('\n').filter((l) => l === line).length, 1, `${line}\n${text}`);
+      }
+    } finally {
+      ws.cleanup();
+      await server.close();
+    }
+  });
+}
+
+// the blocks older installs have in .gitignore, frozen: 0445778 (first CLI with the block) and 0.16
+const OLD_BLOCKS = {
+  'copilot 0445778': ['# Vibeflow — installed + generated (remove to track in git)', '.vibeflow/', '.github/prompts/vibeflow-*.prompt.md', '.github/agents/vibeflow-architect.agent.md', '.github/skills/vibeflow-spec-driven-dev/', '.github/instructions/vibeflow/'],
+  'copilot 0.16': BLOCKS.copilot.slice(0, 5),
+  'cursor 0.16': BLOCKS.cursor,
+};
+
+for (const [label, old] of Object.entries(OLD_BLOCKS)) {
+  test(`r2-2 a ${label} block upgraded by --force ends up with every line a fresh install writes, once, and keeps its own`, async () => {
+    const edition = label.split(' ')[0];
+    const server = await startServer();
+    const fresh = makeWorkspace();
+    const ws = makeWorkspace();
+    try {
+      const install = await runCli(fresh, [`--${edition}`], { VIBEFLOW_BASE_URL: server.url });
+      assert.equal(install.status, 0, install.out);
+      const freshLines = readFileSync(join(fresh.project, '.gitignore'), 'utf8').split('\n').filter(Boolean);
+      writeFileSync(join(ws.project, '.gitignore'), ['node_modules/', '', ...old, '', '.env', ''].join('\n'));
+      const result = await runCli(ws, [`--${edition}`, '--force'], { VIBEFLOW_BASE_URL: server.url });
+      assert.equal(result.status, 0, result.out);
+      const lines = readFileSync(join(ws.project, '.gitignore'), 'utf8').split('\n');
+      for (const line of [...freshLines, ...old, 'node_modules/', '.env']) {
+        assert.equal(lines.filter((l) => l === line).length, 1, `${line}\n${lines.join('\n')}`);
+      }
+    } finally {
+      fresh.cleanup();
+      ws.cleanup();
+      await server.close();
+    }
+  });
+}
