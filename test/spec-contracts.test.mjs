@@ -150,3 +150,59 @@ test('analyze writes tests and pitfalls into index.md inside the auto markers', 
       `${label}: incremental runs refresh the block`);
   });
 });
+
+// The paragraph that starts with a given literal, up to the next blank line.
+function paragraph(content, start) {
+  const at = content.indexOf(start);
+  if (at === -1) return '';
+  const end = content.indexOf('\n\n', at);
+  return content.slice(at, end === -1 ? undefined : end);
+}
+
+test('gen-spec self-check rule 2 applies only with a test runner, and the marker cap lives in one place', () => {
+  forEachEdition('gen-spec', (content, label, raw) => {
+    const selfCheck = flat(section(raw, '## Self-check'));
+    assert.match(selfCheck, /2\. Where the project has a detectable test runner, every functional check names its test/,
+      `${label}: rule 2 conditioned on a detectable runner`);
+    assert.doesNotMatch(selfCheck, /at most 3/i, `${label}: self-check points at the cap instead of restating it`);
+    assert.match(selfCheck, /\[NEEDS CLARIFICATION\][^.]*counted against the cap above/i,
+      `${label}: self-check points at the cap`);
+    assert.equal((content.match(/at most 3 open/gi) ?? []).length, 1, `${label}: the 3-marker cap stated once`);
+  });
+});
+
+test('gen-spec saves with more than 3 open markers only after the one round, recommending discover', () => {
+  forEachEdition('gen-spec', (content, label, raw) => {
+    const selfCheck = flat(section(raw, '## Self-check'));
+    assert.match(selfCheck, /one question can cover more than one marker/i, `${label}: one question, several markers`);
+    assert.match(selfCheck, /markers still open after it stay in the spec and are named in your reply[^.]*more than 3 still open[^.]*recommends running `discover` before `implement`/i,
+      `${label}: more than 3 left after the round → saved, listed, discover recommended`);
+    assert.match(selfCheck, /never opens a second round/i, `${label}: still one round`);
+  });
+});
+
+test('analyze incremental: an upgrade or a tests-only change refreshes the Tests and Pitfalls block', () => {
+  forEachEdition('analyze', (content, label, raw) => {
+    const phase0 = flat(paragraph(raw, '**Incremental mode.**'));
+    assert.match(phase0, /Tests and Pitfalls block is due when `index\.md` lacks it/i,
+      `${label}: upgrade without code change makes the block due`);
+    assert.match(phase0, /lacks it[^.]*or when a test file, the CI configuration or the test runner's configuration changed/i,
+      `${label}: test, CI or runner changes make the block due`);
+    assert.match(phase0, /even when those changes need no pattern reanalysis/i,
+      `${label}: block refresh independent of pattern reanalysis`);
+    assert.match(phase0, /Nothing changed and the block is not due → report "No changes detected/,
+      `${label}: "up to date" only when the block is not due`);
+    assert.match(phase0, /block is due but nothing else changed → regenerate only the block/i,
+      `${label}: block-only run instead of stopping`);
+    assert.doesNotMatch(content, /regenerated on every run/i, `${label}: no unconditional regeneration`);
+  });
+});
+
+test('analyze measures the suite only when the block is new or its inputs changed', () => {
+  forEachEdition('analyze', (content, label) => {
+    assert.match(content, /measure only when the block is new or a test file, the CI configuration or the test runner's configuration changed[^.]*local and safe/i,
+      `${label}: measurement gated on the block's inputs and on local and safe`);
+    assert.match(content, /otherwise keep the measured time and date already recorded/i,
+      `${label}: other incremental runs keep the last measurement`);
+  });
+});

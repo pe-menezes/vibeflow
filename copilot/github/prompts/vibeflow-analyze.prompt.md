@@ -56,10 +56,17 @@ Then read the flags in the input (`--fresh`, `--scope <path>`, `--interactive`,
 `git log --since="<date>" --name-only --pretty=format:""` to find what changed.
 Filter out tests, docs, and config that doesn't affect source structure
 (`*.test.*`, `*.spec.*`, `docs/`, `README.md`, `.env.*`), then map what's left to
-modules — those are the affected structural units. Nothing changed → report "No
-changes detected since <date>. .vibeflow/ is up to date." and stop. No git →
-warn "Git not available. Falling back to full analysis." and run phases 1–5.
-Otherwise report "Incremental mode: X affected modules: [list]" and continue.
+modules — those are the affected structural units. The Tests and Pitfalls block
+is due when `index.md` lacks it (an index written before the block existed) or
+when a test file, the CI configuration or the test runner's configuration
+changed since <date>, even when those changes need no pattern reanalysis.
+Nothing changed and the block is not due → report "No changes detected since
+<date>. .vibeflow/ is up to date." and stop. The block is due but nothing else
+changed → regenerate only the block and `Analyzed: <date>` (Phase 4), report
+"Tests and Pitfalls refreshed; no structural changes since <date>." and stop.
+No git → warn "Git not available. Falling back to full analysis." and run
+phases 1–5. Otherwise report "Incremental mode: X affected modules: [list]" and
+continue.
 
 Through phases 1–4, incremental means: redo only what the affected modules
 touch, reuse what `index.md` already records for everything else, and preserve
@@ -280,7 +287,7 @@ adopted them. The third is optional and enriches the docs the most.
 
 Incremental specifics, on top of the general rule in Phase 0:
 
-- **index.md** — update `Analyzed: <date>` to today; update Structural Units and Key Files only where they changed; preserve any manually added Known Issues; the Tests and Pitfalls block, inside its `vibeflow:auto` markers, is regenerated on every run and added when an older index.md lacks it.
+- **index.md** — update `Analyzed: <date>` to today; update Structural Units and Key Files only where they changed; preserve any manually added Known Issues; the Tests and Pitfalls block, inside its `vibeflow:auto` markers, is regenerated whenever this phase runs and added when an older index.md lacks it.
 - **conventions.md** — update only inside the `<!-- vibeflow:auto:start/end -->` markers. A legacy file without markers gets rewritten with them added.
 - **decisions.md** — never modified in incremental mode.
 - **patterns/** — as stated in Phase 3.
@@ -359,10 +366,12 @@ stay factual.
 
 - *Tests* — from the manifests, scripts and CI configuration, the command that
   runs the full suite and the narrowest command that runs only the tests
-  affected by a change: by file, package or tag, as the stack allows. When
-  running a command is local and safe (no paid service, no deploy), run it once
-  and record the measured time and the date; a command you did not run is
-  marked `unmeasured`. No test runner → say so in one line.
+  affected by a change: by file, package or tag, as the stack allows. Measure
+  only when the block is new or a test file, the CI configuration or the test
+  runner's configuration changed, and when running a command is local and safe
+  (no paid service, no deploy): run it once and record the measured time and
+  the date. Otherwise keep the measured time and date already recorded; a
+  command never run is marked `unmeasured`. No test runner → say so in one line.
 - *Pitfalls* — mistakes that already cost this project time, each with its
   source: an entry in `decisions.md`, a line of the CI configuration that exists
   to catch it, or a reverted or fix commit (`git log -i --grep='^revert'

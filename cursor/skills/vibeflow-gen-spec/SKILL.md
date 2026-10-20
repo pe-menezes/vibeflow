@@ -130,15 +130,17 @@ without filler sections, redundant summaries, or boilerplate.
 Before saving, check the draft against three rules:
 
 1. Every DoD check is binary — a reader can say pass or fail without asking.
-2. Every functional check names its test or carries a `Scenarios:` field.
-3. The open `[NEEDS CLARIFICATION]` markers are counted: at most 3.
+2. Where the project has a detectable test runner, every functional check names
+   its test or carries a `Scenarios:` field.
+3. The open `[NEEDS CLARIFICATION]` markers are counted against the cap above.
 
 All three pass → save, without comment. A failure you can repair from the
 input and `.vibeflow/`, repair. What is left needs the user: ask up to 2
 targeted questions in one round, the PRD Validation Gate's rhythm, record them
-in `## Clarifications`, apply the answers and save. The self-check never opens
-a second round; markers still open after it stay in the spec and are named in
-your reply.
+in `## Clarifications`, apply the answers and save. One question can cover more
+than one marker. The self-check never opens a second round: markers still open
+after it stay in the spec and are named in your reply, and with more than 3
+still open the reply also recommends running `discover` before `implement`.
 
 ## Spec splitting
 
