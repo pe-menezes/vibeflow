@@ -10,6 +10,19 @@ const REPO = 'pe-menezes/vibeflow';
 const BRANCH = 'main';
 const PLUGIN_MARKETPLACE_REPO = 'pe-menezes/vibeflow';
 
+// Every download starts from this base. The override exists for tests and mirrors.
+const BASE_URL_ENV = 'VIBEFLOW_BASE_URL';
+const DEFAULT_BASE_URL = `https://raw.githubusercontent.com/${REPO}/${BRANCH}`;
+const BASE_URL = (process.env[BASE_URL_ENV] || DEFAULT_BASE_URL).replace(/\/+$/, '');
+
+// The loop kit has one source, inside the plugin's implement skill; its manifest lists the
+// files, so a kit file added later needs no change here.
+const KIT_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills/implement/loop`;
+const KIT_MANIFEST = 'manifest.json';
+// A manifest entry is a plain relative path: no absolute path, no "..", no hidden segment,
+// so nothing it names can land outside the edition's kit folder.
+const KIT_PATH_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/;
+
 const COPILOT_FILES = [
   { src: 'github/prompts/vibeflow-analyze.prompt.md', dest: '.github/prompts/vibeflow-analyze.prompt.md' },
   { src: 'github/prompts/vibeflow-audit.prompt.md', dest: '.github/prompts/vibeflow-audit.prompt.md' },
@@ -43,8 +56,9 @@ const CURSOR_FILES = [
 const EDITIONS = {
   copilot: {
     name: 'Copilot',
-    baseUrl: `https://raw.githubusercontent.com/${REPO}/${BRANCH}/copilot`,
+    baseUrl: `${BASE_URL}/copilot`,
     files: COPILOT_FILES,
+    kitDest: '.github/vibeflow/loop',
     marker: '.github/prompts/vibeflow-analyze.prompt.md',
     markerLegacy: '.github/prompts/vibeflow/vibeflow-analyze.prompt.md',
     agentsSrc: 'AGENTS.md',
@@ -53,8 +67,9 @@ const EDITIONS = {
   },
   cursor: {
     name: 'Cursor',
-    baseUrl: `https://raw.githubusercontent.com/${REPO}/${BRANCH}/cursor`,
+    baseUrl: `${BASE_URL}/cursor`,
     files: CURSOR_FILES,
+    kitDest: '.cursor/skills/vibeflow-implement/loop',
     marker: '.cursor/rules/vibeflow.mdc',
     markerLegacy: null,
     agentsSrc: 'AGENTS.md',
@@ -75,6 +90,7 @@ const GITIGNORE_BLOCKS = {
 .github/prompts/vibeflow-*.prompt.md
 .github/agents/vibeflow-architect.agent.md
 .github/instructions/vibeflow/
+.github/vibeflow/
 `,
   cursor: `
 # Vibeflow — installed + generated (remove to track in git)
@@ -104,6 +120,25 @@ async function downloadFile(baseUrl, srcPath) {
     throw new Error(`Failed to download ${url}: ${res.status} ${res.statusText}`);
   }
   return res.text();
+}
+
+async function loadKitFiles(kitDest) {
+  const raw = await downloadFile(KIT_BASE_URL, KIT_MANIFEST);
+  let manifest;
+  try {
+    manifest = JSON.parse(raw);
+  } catch {
+    throw new Error(`loop kit ${KIT_MANIFEST} is not valid JSON`);
+  }
+  if (!manifest || !Array.isArray(manifest.files) || manifest.files.length === 0) {
+    throw new Error(`loop kit ${KIT_MANIFEST} has no "files" list`);
+  }
+  for (const path of manifest.files) {
+    if (typeof path !== 'string' || !KIT_PATH_PATTERN.test(path)) {
+      throw new Error(`loop kit ${KIT_MANIFEST} lists ${JSON.stringify(path)}, which is not a plain path inside the kit folder`);
+    }
+  }
+  return manifest.files.map((path) => ({ src: path, dest: `${kitDest}/${path}`, baseUrl: KIT_BASE_URL }));
 }
 
 function extractAgentsAppendContent(fullContent) {
@@ -196,13 +231,17 @@ function printUsage() {
   console.log(`  ${pc.bold('Usage:')} npx setup-vibeflow@latest ${pc.cyan('<edition>')}`);
   console.log('');
   console.log(`  ${pc.bold('Editions:')}`);
-  console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions)')}`);
-  console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills)')}`);
+  console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions, vibeflow/loop)')}`);
+  console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills, the loop kit in skills/vibeflow-implement/loop)')}`);
   console.log(`    ${pc.cyan('--codex')}     Show install instructions for Codex ${pc.dim('(plugin system)')}`);
   console.log(`    ${pc.cyan('--claude')}    Show install instructions for Claude Code ${pc.dim('(plugin system)')}`);
   console.log('');
   console.log(`  ${pc.bold('Options:')}`);
   console.log(`    ${pc.cyan('--force')}     Overwrite existing files`);
+  console.log('');
+  console.log(`  ${pc.bold('Environment:')}`);
+  console.log(`    ${pc.cyan(BASE_URL_ENV)}   Download from this base instead of ${pc.dim(DEFAULT_BASE_URL)}`);
+  console.log(`    ${' '.repeat(BASE_URL_ENV.length)}   ${pc.dim('(for tests and mirrors; the layout below it must match the repository)')}`);
   console.log('');
   console.log(`  ${pc.bold('Examples:')}`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --copilot`);
@@ -264,11 +303,21 @@ async function main() {
     process.exit(0);
   }
 
+  // The loop kit's manifest is read and checked before anything is written
+  let kitFiles;
+  try {
+    kitFiles = await loadKitFiles(edition.kitDest);
+  } catch (err) {
+    log(pc.red('x'), `loop kit — ${err.message}`);
+    process.exit(1);
+  }
+  const files = [...edition.files.map((file) => ({ ...file, baseUrl: edition.baseUrl })), ...kitFiles];
+
   // Download and install files
   let created = 0;
   let skipped = 0;
 
-  for (const file of edition.files) {
+  for (const file of files) {
     const destPath = join(cwd, file.dest);
     const destDir = join(destPath, '..');
 
@@ -279,7 +328,7 @@ async function main() {
     }
 
     try {
-      const content = await downloadFile(edition.baseUrl, file.src);
+      const content = await downloadFile(file.baseUrl, file.src);
       ensureDir(destDir);
       writeFileSync(destPath, content, 'utf-8');
       log(pc.green('+'), file.dest);

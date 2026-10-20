@@ -16,6 +16,7 @@ const SCRIPTS = [
   'check-probes.mjs',
   'watch-pr.mjs',
   'watch-round.mjs',
+  'loop-stats.mjs',
 ];
 
 function scratch(run) {
@@ -29,7 +30,7 @@ function scratch(run) {
 
 // --- the kit's shape ---
 
-test('the eight loop scripts exist and import only node: modules', () => {
+test('the loop scripts exist and import only node: modules', () => {
   const present = readdirSync(SCRIPTS_DIR).filter((name) => name.endsWith('.mjs')).sort();
   assert.deepEqual(present, [...SCRIPTS].sort());
   for (const name of SCRIPTS) {
