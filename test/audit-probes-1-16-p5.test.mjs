@@ -1,7 +1,9 @@
 // Audit probes, vibeflow 1.16 part 5 (spec hardening). Behavior only: the
 // smoke harness's DoD counter in test/assertions.mjs, the one piece of risk
-// code this part touched. The three pruning answers for each probe are in
-// .vibeflow/audits/vibeflow-1-16-p5-audit.md.
+// code this part touched (P1 to P3), and the analyze block-only run added by
+// fix round 1 (R1). The three pruning answers for each probe are in
+// .vibeflow/audits/vibeflow-1-16-p5-audit.md (P1 to P3) and
+// .vibeflow/audits/vibeflow-1-16-p5-reaudit-1.md (R1).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -91,5 +93,32 @@ ${numbered + 2}. Every new module follows the naming pattern of its neighbours.
 - src/services/deleteTask.js
 `);
     assert.equal(dod.detail, `${numbered + 2} checks`, path);
+  }
+});
+
+// R1 (reaudit 1). The block-only incremental run (block due, nothing
+// structural changed) goes through Phase 4's index.md rule, which moves
+// `Analyzed:` to today. Without it the same test or CI change keeps the block
+// due on every later run, and the suite is measured again each time.
+test('audit p5 · analyze block-only run advances Analyzed, so the same change is not due again', () => {
+  const flatten = (s) => s.replace(/\s+/g, ' ');
+  for (const path of [
+    'plugins/vibeflow/skills/analyze/SKILL.md',
+    'cursor/skills/vibeflow-analyze/SKILL.md',
+    'copilot/github/prompts/vibeflow-analyze.prompt.md',
+  ]) {
+    const raw = readFileSync(join(ROOT, path), 'utf8');
+    const at = raw.indexOf('**Incremental mode.**');
+    assert.ok(at !== -1, `${path}: incremental mode paragraph`);
+    const end = raw.indexOf('\n\n', at);
+    const phase0 = flatten(raw.slice(at, end === -1 ? undefined : end));
+    const blockOnly = /block is due but nothing else changed → (.*?) report "/i.exec(phase0);
+    assert.ok(blockOnly, `${path}: a block-only path in Phase 0`);
+    assert.match(blockOnly[1], /`Analyzed:/, `${path}: the block-only run writes Analyzed`);
+    // "today" either in the clause itself or in the Phase 4 index.md rule it follows.
+    const p4 = raw.indexOf('## Phase 4');
+    const phase4 = p4 === -1 ? '' : flatten(raw.slice(p4, raw.indexOf('\n## ', p4 + 1)));
+    assert.ok(/today/i.test(blockOnly[1]) || /`Analyzed: <date>` to today/.test(phase4),
+      `${path}: the Analyzed the block-only run writes is today's date`);
   }
 });
