@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -297,5 +297,270 @@ test('p6a-10 a manifest entry that is a hidden segment or a backslash path is re
       ws.cleanup();
       await server.close();
     }
+  }
+});
+
+// --- re-audit 1 (fix round 1: F1, F2, F4, F6) ---
+
+const BLOCKS = {
+  copilot: [
+    '# Vibeflow — installed + generated (remove to track in git)',
+    '.vibeflow/',
+    '.github/prompts/vibeflow-*.prompt.md',
+    '.github/agents/vibeflow-architect.agent.md',
+    '.github/instructions/vibeflow/',
+    '.github/vibeflow/',
+  ],
+  cursor: [
+    '# Vibeflow — installed + generated (remove to track in git)',
+    '.vibeflow/',
+    '.cursor/rules/vibeflow.mdc',
+    '.cursor/rules/vibeflow-architect.mdc',
+    '.cursor/skills/vibeflow-*/',
+  ],
+};
+
+// 0 = ignored, 1 = not ignored; the user's global excludes are kept out
+function ignored(project, path) {
+  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', HOME: project };
+  const init = spawnSync('git', ['init', '-q'], { cwd: project, env });
+  assert.equal(init.status, 0, String(init.stderr));
+  const result = spawnSync('git', ['-c', 'core.excludesFile=', 'check-ignore', '-q', path], { cwd: project, env });
+  assert.ok(result.status === 0 || result.status === 1, String(result.stderr));
+  return result.status === 0;
+}
+
+for (const edition of ['copilot', 'cursor']) {
+  test(`r1-1 --${edition} --force keeps the hotfix carve-out the product documents inside the Vibeflow block`, async () => {
+    // hotfix SKILL.md and MANUAL.md: "the durable carve-out in the Vibeflow block of .gitignore:
+    // switch .vibeflow/ to .vibeflow/* and add !.vibeflow/hotfixes/"
+    const server = await startServer();
+    const ws = makeWorkspace();
+    try {
+      const block = BLOCKS[edition].flatMap((line) => (line === '.vibeflow/' ? ['.vibeflow/*', '!.vibeflow/hotfixes/'] : [line]));
+      writeFileSync(join(ws.project, '.gitignore'), ['node_modules/', '', ...block, ''].join('\n'));
+      assert.equal(ignored(ws.project, '.vibeflow/hotfixes/2026-10-20-bug.md'), false, 'fixture: carve-out not in effect');
+      const result = await runCli(ws, [`--${edition}`, '--force'], { VIBEFLOW_BASE_URL: server.url });
+      assert.equal(result.status, 0, result.out);
+      const text = readFileSync(join(ws.project, '.gitignore'), 'utf8');
+      assert.equal(ignored(ws.project, '.vibeflow/hotfixes/2026-10-20-bug.md'), false, `the carve-out was undone by --force:\n${text}`);
+      assert.equal(ignored(ws.project, '.vibeflow/specs/x.md'), true, text);
+    } finally {
+      ws.cleanup();
+      await server.close();
+    }
+  });
+}
+
+test('r1-2 the README says "remove the Vibeflow block to track in git": a --force reinstall respects a removed block', { todo: 'pre-existing (marker absent → block appended, as before 6a); low finding R2 of the re-audit' }, async () => {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  try {
+    writeFileSync(join(ws.project, '.gitignore'), 'node_modules/\n');
+    for (const args of [['--copilot'], ['--copilot', '--force']]) {
+      if (args.length === 2) {
+        // the user follows the README and removes the block
+        writeFileSync(join(ws.project, '.gitignore'), 'node_modules/\n');
+      }
+      const result = await runCli(ws, args, { VIBEFLOW_BASE_URL: server.url });
+      assert.equal(result.status, 0, result.out);
+    }
+    assert.equal(ignored(ws.project, '.vibeflow/specs/x.md'), false, readFileSync(join(ws.project, '.gitignore'), 'utf8'));
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
+
+test('r1-3 a 0.16 Copilot block with CRLF lines, at the end of a file without a final newline, gains the kit path once and keeps its own', async () => {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  try {
+    const before = ['node_modules/', '', ...BLOCKS.copilot.slice(0, 5)].join('\r\n');
+    writeFileSync(join(ws.project, '.gitignore'), before);
+    const first = await runCli(ws, ['--copilot', '--force'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(first.status, 0, first.out);
+    const after = readFileSync(join(ws.project, '.gitignore'), 'utf8');
+    for (const path of ['.github/vibeflow/loop/README.md', '.github/instructions/vibeflow/x.md', 'node_modules/a.js']) {
+      assert.equal(ignored(ws.project, path), true, `${path} not ignored: ${JSON.stringify(after)}`);
+    }
+    assert.equal(after.split(/\r?\n/).map((line) => line.replace(/\r$/, '')).filter((line) => line === '.github/vibeflow/').length, 1, JSON.stringify(after));
+    const second = await runCli(ws, ['--copilot', '--force'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(second.status, 0, second.out);
+    assert.equal(readFileSync(join(ws.project, '.gitignore'), 'utf8'), after, 'the rerun changed .gitignore');
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
+
+test('r1-3b the same CRLF file keeps one line ending throughout', { todo: 'low finding R3 of the re-audit: a bare LF before the new line and a stray CR at the end' }, async () => {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  try {
+    writeFileSync(join(ws.project, '.gitignore'), ['node_modules/', '', ...BLOCKS.copilot.slice(0, 5)].join('\r\n'));
+    const result = await runCli(ws, ['--copilot', '--force'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(result.status, 0, result.out);
+    const after = readFileSync(join(ws.project, '.gitignore'), 'utf8');
+    assert.ok(!/[^\r]\n/.test(after) && !/\r(?!\n)/.test(after), JSON.stringify(after));
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
+
+test('r1-4 a Cursor block already there: a Copilot install adds its own paths once, keeps every Cursor line, and a rerun changes nothing', async () => {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  try {
+    writeFileSync(join(ws.project, '.gitignore'), ['.env', '', ...BLOCKS.cursor, '', '# mine', 'dist/', ''].join('\n'));
+    const first = await runCli(ws, ['--copilot', '--force'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(first.status, 0, first.out);
+    const after = readFileSync(join(ws.project, '.gitignore'), 'utf8');
+    const lines = after.split('\n');
+    for (const line of [...BLOCKS.cursor, ...BLOCKS.copilot, '.env', '# mine', 'dist/']) {
+      assert.equal(lines.filter((l) => l === line).length, 1, `${line}\n${after}`);
+    }
+    const second = await runCli(ws, ['--copilot', '--force'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(second.status, 0, second.out);
+    assert.equal(readFileSync(join(ws.project, '.gitignore'), 'utf8'), after);
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
+
+// a server that answers `status` for the listed paths and serves the repository otherwise
+async function startStatusServer(statusByPath) {
+  const requests = [];
+  const server = createServer((req, res) => {
+    const path = decodeURIComponent(new URL(req.url, 'http://local').pathname).replace(/^\/+/, '');
+    requests.push(path);
+    if (path in statusByPath) {
+      res.writeHead(statusByPath[path]);
+      res.end('nope');
+      return;
+    }
+    const full = normalize(join(ROOT, path));
+    if (!full.startsWith(ROOT + sep) || !existsSync(full)) {
+      res.writeHead(404);
+      res.end('not found');
+      return;
+    }
+    res.writeHead(200);
+    res.end(readFileSync(full));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { url: `http://127.0.0.1:${server.address().port}`, requests, close: () => new Promise((resolve) => server.close(resolve)) };
+}
+
+for (const status of [500, 403]) {
+  test(`r1-5 a manifest that answers ${status} (not "no kit here") aborts before anything is written`, async () => {
+    const server = await startStatusServer({ [`${KIT_URL_PATH}/manifest.json`]: status });
+    const ws = makeWorkspace();
+    try {
+      for (const edition of ['copilot', 'cursor']) {
+        const result = await runCli(ws, [`--${edition}`], { VIBEFLOW_BASE_URL: server.url });
+        assert.notEqual(result.status, 0, result.out);
+        assert.match(result.out, new RegExp(String(status)));
+        assert.deepEqual(readdirSync(ws.project), [], `${edition}: the project was written to`);
+      }
+    } finally {
+      ws.cleanup();
+      await server.close();
+    }
+  });
+}
+
+test('r1-6 a base that has nothing at all (wrong VIBEFLOW_BASE_URL) still fails and writes nothing', async () => {
+  const server = await startStatusServer({});
+  const ws = makeWorkspace();
+  try {
+    const result = await runCli(ws, ['--copilot'], { VIBEFLOW_BASE_URL: `${server.url}/no/such/base` });
+    assert.notEqual(result.status, 0, result.out);
+    assert.deepEqual(readdirSync(ws.project), []);
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
+
+test('r1-7 --force with a manifest 404 over an install that has the kit leaves the kit files as they are', async () => {
+  const server = await startStatusServer({ [`${KIT_URL_PATH}/manifest.json`]: 404 });
+  const ws = makeWorkspace();
+  try {
+    const kitDest = '.github/vibeflow/loop';
+    mkdirSync(join(ws.project, kitDest, 'scripts'), { recursive: true });
+    writeFileSync(join(ws.project, kitDest, KIT_FILE), 'installed kit\n');
+    mkdirSync(join(ws.project, '.github/prompts'), { recursive: true });
+    writeFileSync(join(ws.project, '.github/prompts/vibeflow-analyze.prompt.md'), 'old\n');
+    const result = await runCli(ws, ['--copilot', '--force'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.out, /404/);
+    assert.equal(readFileSync(join(ws.project, kitDest, KIT_FILE), 'utf8'), 'installed kit\n');
+    assert.notEqual(readFileSync(join(ws.project, '.github/prompts/vibeflow-analyze.prompt.md'), 'utf8'), 'old\n');
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
+
+test('r1-8 in-progress parts stay out of the totals that need a finished round', () => {
+  const report = statsOf({
+    'f.md': [
+      '| 1 | executor | 0 | 2026-10-20 08:00 | 2026-10-20 09:00 | - |',
+      '| 1 | audit | 0 | 2026-10-20 09:00 | 2026-10-20 10:00 | PASS |',
+      '| 2 | executor | 0 | 2026-10-20 08:00 | 2026-10-20 09:00 | - |',
+      '| 2 | audit | 0 | 2026-10-20 09:00 |  | - |',
+      '| 3 | executor | 0 | 2026-10-20 08:00 |  |  |',
+    ],
+  });
+  // the open executor with an empty Verdict is refused (executor and fix rows carry "-")
+  assert.deepEqual(report.warnings.map((w) => w.line), [11], JSON.stringify(report.warnings));
+  assert.equal(partOf(report, 'f', '2').clockNote, 'in progress');
+  assert.equal(report.totals.auditedParts, 1);
+  assert.equal(report.totals.firstAuditPassRate, 1);
+  assert.equal(report.totals.partsWithClock, 1);
+  assert.equal(report.totals.medianClockMinutes, 120);
+});
+
+test('r1-9 a CRLF ledger: a row after a blank line is a warning, and a row under the next heading is not read', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vibeflow-audit-p6a-'));
+  try {
+    const loopDir = join(dir, '.vibeflow/loop');
+    mkdirSync(loopDir, { recursive: true });
+    writeFileSync(join(loopDir, 'f.md'), [
+      '## Rounds', '', ...HEADER.split('\n'),
+      '| 1 | executor | 0 | 2026-10-20 08:00 | 2026-10-20 09:00 | - |',
+      '',
+      '| 1 | audit | 0 | 2026-10-20 09:00 | 2026-10-20 10:00 | PASS |',
+      '## Handoff',
+      '| 9 | executor | 0 | 2026-10-20 08:00 | 2026-10-20 09:00 | - |',
+      '',
+    ].join('\r\n'));
+    const result = runScript('loop-stats.mjs', [dir, '--json'], hermeticEnv(dir));
+    assert.equal(result.status, 0, result.out);
+    const report = JSON.parse(result.stdout);
+    assert.deepEqual(report.warnings.map((w) => w.line), [7], JSON.stringify(report.warnings));
+    assert.deepEqual(report.parts.map((p) => p.part), ['1']);
+    assert.equal(partOf(report, 'f', '1').clockNote, 'no PASS yet');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('r1-10 a CRLF .gitignore with the 0.16 block in the middle gains the kit line with CRLF, between the block and the user lines', async () => {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  try {
+    const before = ['node_modules/', '', ...BLOCKS.copilot.slice(0, 5), '', '.env', ''];
+    writeFileSync(join(ws.project, '.gitignore'), before.join('\r\n'));
+    const result = await runCli(ws, ['--copilot', '--force'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(result.status, 0, result.out);
+    const expected = [...before.slice(0, 7), '.github/vibeflow/', ...before.slice(7)].join('\r\n');
+    assert.equal(readFileSync(join(ws.project, '.gitignore'), 'utf8'), expected);
+  } finally {
+    ws.cleanup();
+    await server.close();
   }
 });
