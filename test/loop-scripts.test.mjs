@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -25,6 +25,34 @@ function scratch(run) {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+async function scratchAsync(run) {
+  const dir = mkdtempSync(join(tmpdir(), 'vibeflow-loop-file-'));
+  try {
+    return await run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Starts a script in the background and runs `steps` (delay in ms, action) while it waits.
+// Resolves with the exit code, the output, and the text of `file` at the moment of the exit,
+// so a test can say what the file held when the script stopped without reading any clock.
+function watchWhile(script, args, env, { file, steps = [] }) {
+  return new Promise((done) => {
+    const child = spawn(process.execPath, [join(SCRIPTS_DIR, script), ...args], { env });
+    let out = '';
+    child.stdout.on('data', (chunk) => { out += chunk; });
+    child.stderr.on('data', (chunk) => { out += chunk; });
+    const timers = steps.map(([delay, action]) => setTimeout(action, delay));
+    const guard = setTimeout(() => child.kill(), 20_000);
+    child.on('exit', (code) => {
+      const atExit = file && existsSync(file) ? readFileSync(file, 'utf8') : null;
+      for (const timer of [...timers, guard]) clearTimeout(timer);
+      done({ code, out, atExit });
+    });
+  });
 }
 
 // --- the kit's shape ---
@@ -243,6 +271,25 @@ test('a review package over the cap names what it left out', () => {
   });
 });
 
+test('a review package names the file it left out under diff.noprefix or diff.mnemonicPrefix', () => {
+  for (const setting of ['diff.noprefix', 'diff.mnemonicPrefix']) {
+    withSandbox((box) => {
+      box.git('config', setting, 'true');
+      box.write('src/rules.ts', 'export const x = 6\n');
+      box.write('src/big.ts', 'const filler = 1\n');
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'track big');
+      box.write('src/big.ts', `${'const filler = 2\n'.repeat(400)}`);
+      const out = join(box.root, 'capped.md');
+      const result = runScript('review-package.mjs', [box.repo, box.base, out, '--max-bytes', '2000'], box.env());
+      assert.equal(result.status, 0, `${setting}: ${result.out}`);
+      const text = readFileSync(out, 'utf8');
+      assert.match(text, /^- src\/big\.ts \(\d+ bytes\)$/m, `${setting}: ${text.slice(0, 600)}`);
+      assert.doesNotMatch(text, /^- \? \(/m, setting);
+    });
+  }
+});
+
 test('review package refuses an unknown base with exit 2', () => {
   withSandbox((box) => {
     const result = runScript('review-package.mjs', [box.repo, 'no-such-ref', join(box.root, 'x.md')], box.env());
@@ -394,10 +441,7 @@ test('check-briefing stops on a secret', () => {
   });
 });
 
-test('check-briefing --pair finds an auditor criterion missing from the executor', () => {
-  scratch((dir) => {
-    const executor = briefing(dir, 'feature-p1-executor.md', EXECUTOR_OK);
-    const auditor = (criteria) => `# feature · part 1 · auditor
+const auditor = (criteria) => `# feature · part 1 · auditor
 
 ## What to audit
 The rules port.
@@ -426,6 +470,10 @@ ${criteria}
 ## Delivery
 * report
 `;
+
+test('check-briefing --pair finds an auditor criterion missing from the executor', () => {
+  scratch((dir) => {
+    const executor = briefing(dir, 'feature-p1-executor.md', EXECUTOR_OK);
     const paired = runScript('check-briefing.mjs', [
       briefing(dir, 'feature-p1-auditor.md', auditor('* DoD 1: the rules load from the file\n* dod 10 — the cache expires at midnight')),
       '--pair', executor,
@@ -453,6 +501,38 @@ ${criteria}
     ], hermeticEnv(dir));
     assert.equal(none.status, 1, none.out);
     assert.match(none.stdout, /no criteria/i);
+  });
+});
+
+test('check-briefing --pair reads a section down to the next heading of its level or above, sub-headings included', () => {
+  scratch((dir) => {
+    const executor = briefing(dir, 'feature-p1-executor.md', EXECUTOR_OK);
+    const grouped = runScript('check-briefing.mjs', [
+      briefing(dir, 'feature-p1-auditor.md', auditor('* DoD 1: the rules load from the file\n\n### From the risks\n* DoD 2: a malformed file is refused')),
+      '--pair', executor,
+    ], hermeticEnv(dir));
+    assert.equal(grouped.status, 1, grouped.out);
+    assert.match(grouped.stdout, /not in the executor's "Done when": DoD 2: a malformed file is refused/);
+
+    // The same rule on the executor side: an item under a sub-heading of "Done when" counts.
+    const subExecutor = briefing(dir, 'sub-p1-executor.md', EXECUTOR_OK.replace(
+      '* DoD 10: the cache expires at midnight\n',
+      '* DoD 10: the cache expires at midnight\n\n### Risks\n* DoD 2: a malformed file is refused\n',
+    ));
+    const both = runScript('check-briefing.mjs', [
+      briefing(dir, 'feature-p1-auditor.md', auditor('* DoD 1: the rules load from the file\n\n### From the risks\n* DoD 2: a malformed file is refused')),
+      '--pair', subExecutor,
+    ], hermeticEnv(dir));
+    assert.equal(both.status, 0, both.out);
+    assert.match(both.stdout, /all 2 auditor criteria/);
+
+    // A heading of the same level ends the section: "Read first" items are not criteria.
+    const after = runScript('check-briefing.mjs', [
+      briefing(dir, 'feature-p1-auditor.md', auditor('* DoD 1: the rules load from the file')),
+      '--pair', executor,
+    ], hermeticEnv(dir));
+    assert.equal(after.status, 0, after.out);
+    assert.match(after.stdout, /all 1 auditor criteria/);
   });
 });
 
@@ -537,6 +617,22 @@ test('watch-pr keeps polling until the checks finish', () => {
   });
 });
 
+test('watch-pr stops at the ceiling, not an interval after it, with checks pending or gh failing', () => {
+  withSandbox((box) => {
+    // A 60-second interval under a 0.6-second ceiling: the runner kills it at 20 s if it sleeps the interval.
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '60', '--timeout-min', '0.01'];
+    box.setGh(PR('OPEN', [{ name: 'test', status: 'IN_PROGRESS', conclusion: '' }]));
+    const pending = runScript('watch-pr.mjs', args, box.env());
+    assert.equal(pending.status, 3, pending.out);
+    assert.match(pending.stdout, /pending: test/);
+
+    box.setGh('not json');
+    const broken = runScript('watch-pr.mjs', args, box.env({ FAKE_GH_EXIT: '1' }));
+    assert.equal(broken.status, 3, broken.out);
+    assert.match(broken.stdout, /ceiling/);
+  });
+});
+
 // --- watch-round ---
 
 function aged(path, minutes) {
@@ -544,14 +640,71 @@ function aged(path, minutes) {
   utimesSync(path, when, when);
 }
 
-test('watch-round exits 0 on the final stage marker of a report or a progress file', () => {
-  scratch((dir) => {
-    for (const marker of ['Stage: final', '* State: final', '**Stage:** final']) {
-      const file = briefing(dir, 'report.md', `# Audit\n${marker}\n`);
+test('watch-round exits 0 on a final stage marker written during the watch, in a report or a progress file', async () => {
+  await scratchAsync(async (dir) => {
+    const markers = ['Stage: final', '* State: final', '**Stage:** final'];
+    const results = await Promise.all(markers.map((marker, i) => {
+      const file = briefing(dir, `report-${i}.md`, '# Audit\nStage: 2/5 reading\n');
       aged(file, 600);
-      const result = runScript('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0'], hermeticEnv(dir));
-      assert.equal(result.status, 0, `${marker}: ${result.out}`);
-    }
+      return watchWhile('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0.5', '--interval-sec', '0.05'], hermeticEnv(dir), {
+        file,
+        steps: [[400, () => appendFileSync(file, `${marker}\n`)]],
+      });
+    }));
+    results.forEach((result, i) => {
+      assert.equal(result.code, 0, `${markers[i]}: ${result.out}`);
+      assert.match(result.out, /final stage marker found/);
+      assert.ok(result.atExit.includes(markers[i]), `${markers[i]}: exited before the marker was written`);
+    });
+  });
+});
+
+test('watch-round watches a fix round: the marker round 0 left does not end it, the fix section\'s own marker does', async () => {
+  await scratchAsync(async (dir) => {
+    const file = briefing(dir, 'feature-p1.md', '# feature · part 1 · progress\n## Milestone 1\n* done\n\nState: final\n');
+    aged(file, 90);
+    const first = runScript('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0'], hermeticEnv(dir));
+    assert.equal(first.status, 3, `the marker of round 0 ended the watch of the fix round: ${first.out}`);
+
+    const fix = await watchWhile('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0.5', '--interval-sec', '0.05'], hermeticEnv(dir), {
+      file,
+      steps: [
+        [300, () => appendFileSync(file, '\n## Fix 1\n* reading the audit report\n')],
+        [900, () => appendFileSync(file, '* fixed F1\n\nState: final · fix 1\n')],
+      ],
+    });
+    assert.equal(fix.code, 0, fix.out);
+    assert.ok(fix.atExit.includes('State: final · fix 1'), `exited before the fix wrote its marker: ${fix.out}`);
+  });
+});
+
+test('watch-round exits 0 when a report that did not exist at the start reaches Stage: final', async () => {
+  await scratchAsync(async (dir) => {
+    const file = join(dir, 'feature-p1-audit.md');
+    const result = await watchWhile('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0.5', '--interval-sec', '0.05'], hermeticEnv(dir), {
+      file,
+      steps: [
+        [300, () => writeFileSync(file, '# Audit\nStage: 1/6 reading\nVerdict: pending\n')],
+        [800, () => appendFileSync(file, 'Verdict: PASS\nStage: final\n')],
+      ],
+    });
+    assert.equal(result.code, 0, result.out);
+    assert.ok(result.atExit.includes('Stage: final'), result.out);
+  });
+});
+
+test('watch-round: a report rewritten from scratch ends on its new marker, though the old copy had one', async () => {
+  await scratchAsync(async (dir) => {
+    const file = briefing(dir, 'feature-p1-audit.md', '# Audit\nVerdict: PARTIAL\nStage: final\n');
+    const result = await watchWhile('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0.5', '--interval-sec', '0.05'], hermeticEnv(dir), {
+      file,
+      steps: [
+        [300, () => writeFileSync(file, '# Audit\nStage: 1/6 reading\n')],
+        [800, () => appendFileSync(file, 'Verdict: PASS\nStage: final\n')],
+      ],
+    });
+    assert.equal(result.code, 0, result.out);
+    assert.ok(result.atExit.includes('Verdict: PASS'), `exited on the old copy's marker: ${result.out}`);
   });
 });
 
@@ -563,16 +716,39 @@ test('watch-round does not take a partial stage or a mention in prose for the en
   });
 });
 
-test('watch-round exits 1 with the silence checklist once the file is stale', () => {
+test('watch-round exits 1 with the silence checklist once the file stays unchanged for --stale-min during the watch', () => {
   scratch((dir) => {
+    // Written long before the watch, then silent for the whole of a 0.6-second limit.
     const file = briefing(dir, 'progress.md', '# Progress\nStage: 2/4 implement\n');
     aged(file, 61);
-    const result = runScript('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0'], hermeticEnv(dir));
+    const result = runScript('watch-round.mjs', ['--file', file, '--stale-min', '0.01', '--timeout-min', '5', '--interval-sec', '0.05'], hermeticEnv(dir));
     assert.equal(result.status, 1, result.out);
+    assert.match(result.stdout, /unchanged for/);
     assert.match(result.stdout, /waiting for an answer/i);
     assert.match(result.stdout, /CPU/);
     assert.match(result.stdout, /network/i);
     assert.match(result.stdout, /re-dispatch/i);
+  });
+});
+
+test('watch-round restarts the silence clock at every change it sees', async () => {
+  await scratchAsync(async (dir) => {
+    const file = briefing(dir, 'progress.md', '# Progress\n');
+    // Limit 1.8 s; a change every 0.6 s for 2.4 s, then the marker at 3 s.
+    const steps = [600, 1200, 1800, 2400].map((delay, i) => [delay, () => appendFileSync(file, `* milestone ${i + 1}\n`)]);
+    steps.push([3000, () => appendFileSync(file, 'State: final\n')]);
+    const result = await watchWhile('watch-round.mjs', ['--file', file, '--stale-min', '0.03', '--timeout-min', '1', '--interval-sec', '0.05'], hermeticEnv(dir), { file, steps });
+    assert.equal(result.code, 0, `silent while the file kept changing: ${result.out}`);
+  });
+});
+
+test('watch-round stops at the ceiling, not an interval after it', () => {
+  scratch((dir) => {
+    const file = briefing(dir, 'progress.md', '# Progress\n');
+    // A 60-second interval under a 0.6-second ceiling: the runner kills it at 20 s if it sleeps the interval.
+    const result = runScript('watch-round.mjs', ['--file', file, '--stale-min', '60', '--timeout-min', '0.01', '--interval-sec', '60'], hermeticEnv(dir));
+    assert.equal(result.status, 3, result.out);
+    assert.match(result.stdout, /ceiling/);
   });
 });
 

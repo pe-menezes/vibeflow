@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Round watchdog, by effect: watches the progress file or the report a round writes.
-// The end signal is the final stage marker in the file, never a verdict line alone (a partial
-// report already carries a verdict). A file silent past the limit exits with the checklist of
+// The end signal is a final stage marker the file gained during the watch, never a verdict line
+// alone (a partial report already carries a verdict), never the marker an earlier round left. A file silent past the limit exits with the checklist of
 // what to look at before assuming the session hung.
 
 import { readFileSync, statSync } from 'node:fs';
@@ -9,11 +9,17 @@ import { resolve } from 'node:path';
 
 const USAGE = `usage: watch-round.mjs --file <progress-or-report> [--stale-min <m>] [--timeout-min <m>] [--interval-sec <s>]
 
-Exits as soon as the file has a line "Stage: final" (reports) or "State: final" (progress
-files), bold or bulleted forms included. Exits as silent when the file has not changed for
---stale-min minutes (default 30; a file that does not exist yet counts from the start of the
-watch). Gives up at --timeout-min minutes (default 240). Reads every --interval-sec seconds
-(default 30).
+Exits as soon as the file gains a line "Stage: final" (reports) or "State: final" (progress
+files), bold or bulleted forms included, that was not there when the watch began: a progress
+file keeps the marker of every earlier round, so each round appends its own (for example
+"State: final · fix 1") and never edits an earlier one. A file rewritten from scratch counts
+again from what it holds after the rewrite.
+
+Exits as silent when the watch has seen no change in the file for --stale-min minutes
+(default 30). The clock starts when the watch starts and restarts at every change it sees; the
+file's age before the watch does not count, and a file that does not exist yet is silent from
+the start. Gives up at --timeout-min minutes (default 240), and never sleeps past that ceiling.
+Reads every --interval-sec seconds (default 30). Limits take fractions (0.5 is half a minute).
 
 exit 0 final · 1 silent · 3 ceiling · 64 bad arguments`;
 
@@ -49,17 +55,21 @@ function parseArgs(argv) {
   return options;
 }
 
-function hasFinalMarker(text) {
-  return text.split('\n').some((line) => FINAL.test(line.replace(/[*_`]/g, '').replace(/^[\s>-]+/, '')));
+function finalMarkers(text) {
+  return text.split('\n').filter((line) => FINAL.test(line.replace(/[*_`]/g, '').replace(/^[\s>-]+/, ''))).length;
 }
 
 function look(file) {
   try {
-    return { mtimeMs: statSync(file).mtimeMs, text: readFileSync(file, 'utf8') };
+    const text = readFileSync(file, 'utf8');
+    return { mtimeMs: statSync(file).mtimeMs, text, markers: finalMarkers(text) };
   } catch {
     return null;
   }
 }
+
+const changed = (before, after) => (before === null) !== (after === null)
+  || (before !== null && (before.mtimeMs !== after.mtimeMs || before.text !== after.text));
 
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
@@ -70,27 +80,36 @@ async function main(argv) {
   }
   const { file, staleMin, timeoutMin, intervalSec } = parseArgs(argv);
   const start = Date.now();
+  const ceiling = start + timeoutMin * 60_000;
+  let previous = look(file);
+  // Markers already in the file belong to earlier rounds; only a new one ends this watch.
+  let baseline = previous ? previous.markers : 0;
+  let lastChange = start;
 
   for (;;) {
     const now = Date.now();
     const seen = look(file);
-    if (seen && hasFinalMarker(seen.text)) {
+    if (changed(previous, seen)) lastChange = now;
+    previous = seen;
+    const markers = seen ? seen.markers : 0;
+    if (markers > baseline) {
       console.log(`${file}: final stage marker found`);
       return 0;
     }
-    const lastChange = seen ? seen.mtimeMs : start;
+    // A rewrite that dropped markers lowers the count a new marker has to beat.
+    baseline = Math.min(baseline, markers);
     const silentMin = (now - lastChange) / 60_000;
     if (silentMin >= staleMin) {
-      const state = seen ? `unchanged for ${Math.floor(silentMin)} min` : `does not exist after ${Math.floor(silentMin)} min`;
+      const state = seen ? `unchanged for ${Math.floor(silentMin)} min of the watch` : `does not exist after ${Math.floor(silentMin)} min`;
       console.log(`${file}: ${state} (limit ${staleMin} min)`);
       console.log(SILENCE_CHECKLIST.join('\n'));
       return 1;
     }
-    if (now - start >= timeoutMin * 60_000) {
-      console.log(`${file}: ceiling of ${timeoutMin} min reached without the final stage marker`);
+    if (now >= ceiling) {
+      console.log(`${file}: ceiling of ${timeoutMin} min reached without a new final stage marker`);
       return 3;
     }
-    await sleep(intervalSec * 1000);
+    await sleep(Math.max(0, Math.min(intervalSec * 1000, ceiling - now)));
   }
 }
 

@@ -12,7 +12,8 @@ const USAGE = `usage: watch-pr.mjs --repo <owner/repo> --pr <n> [--interval-sec 
 
 Reads the PR through gh every --interval-sec seconds (default 60) until every check has
 finished, then exits. A PR with no check reported yet keeps the watch going, so it never
-reads as green before CI starts. Gives up at --timeout-min minutes (default 480).
+reads as green before CI starts. Gives up at --timeout-min minutes (default 480), and never
+sleeps past that ceiling: each wait is cut to the time left. Limits take fractions.
 
 exit 0 green · 1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments`;
 
@@ -67,7 +68,9 @@ async function main(argv) {
   }
   const { repo, pr, intervalSec, timeoutMin } = parseArgs(argv);
   const start = Date.now();
-  const ceilingReached = () => Date.now() - start >= timeoutMin * 60_000;
+  const ceiling = start + timeoutMin * 60_000;
+  const ceilingReached = () => Date.now() >= ceiling;
+  const wait = (ms) => sleep(Math.max(0, Math.min(ms, ceiling - Date.now())));
   let failures = 0;
 
   for (;;) {
@@ -82,7 +85,7 @@ async function main(argv) {
         console.log(`${clock()} ceiling of ${timeoutMin} min reached without reading the PR`);
         return 3;
       }
-      await sleep(Math.min(intervalSec * failures, 600) * 1000);
+      await wait(Math.min(intervalSec * failures, 600) * 1000);
       continue;
     }
 
@@ -107,7 +110,7 @@ async function main(argv) {
       console.log(`${clock()} ceiling of ${timeoutMin} min reached; ${what}`);
       return 3;
     }
-    await sleep(intervalSec * 1000);
+    await wait(intervalSec * 1000);
   }
 }
 

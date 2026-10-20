@@ -87,7 +87,9 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     .split('\0')
     .filter((path) => path && resolve(dir, path) !== outReal);
   const commits = git(dir, ['log', '--oneline', `${base}..HEAD`]);
-  const diff = git(dir, ['diff', '--no-color', '--no-ext-diff', '-U10', base, '--']);
+  // Explicit prefixes: splitDiff reads `a/<path>`, and diff.noprefix or diff.mnemonicPrefix in
+  // the user's config would otherwise change them and leave the cap naming files as "?".
+  const diff = git(dir, ['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U10', base, '--']);
 
   if (!commits.trim() && !diff.trim() && untracked.length === 0) {
     return {
@@ -106,7 +108,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const chunks = [
     ...splitDiff(diff).map((chunk) => ({ ...chunk, heading: null })),
     ...untracked.map((path) => {
-      const text = git(dir, ['diff', '--no-color', '--no-index', '--', '/dev/null', path], { okStatuses: [0, 1] });
+      const text = git(dir, ['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '--no-index', '--', '/dev/null', path], { okStatuses: [0, 1] });
       return { path, text: text || '(empty file)\n', heading: `## New file: ${path}` };
     }),
   ];

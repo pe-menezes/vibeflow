@@ -69,7 +69,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * round <round> of 2; context above 400k tokens: stop and return STUCK
 
 ## Progress and delivery
-* a "Fix <round>" section in `.vibeflow/progress/<feature>-<part>.md`, ending with `State: final`; the executor's five delivery lines
+* a "Fix <round>" section appended to `.vibeflow/progress/<feature>-<part>.md`, ending with its own line `State: final · fix <round>`; an earlier round's marker is never edited; the executor's five delivery lines
 ```
 
 ## Auditor

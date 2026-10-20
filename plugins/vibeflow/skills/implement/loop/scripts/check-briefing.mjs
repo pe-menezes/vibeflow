@@ -108,13 +108,18 @@ function roleFromName(path) {
 }
 
 // Items of the section whose heading starts with `name`: bullets or numbered lines, with
-// their continuation lines joined.
+// their continuation lines joined. The section runs to the next heading of its own level or
+// above; a deeper heading inside it (### under ##) belongs to it.
 function sectionItems(text, name) {
   const items = [];
-  let inside = false;
+  let level = 0; // level of the open section's heading; 0 when outside
   for (const line of text.split('\n')) {
-    if (/^#{1,6}\s/.test(line)) {
-      inside = normal(line.replace(/^#+/, '')).startsWith(name);
+    const heading = line.match(/^(#{1,6})\s/);
+    const inside = level > 0;
+    if (heading) {
+      const depth = heading[1].length;
+      if (inside && depth > level) continue;
+      level = normal(line.replace(/^#+/, '')).startsWith(name) ? depth : 0;
     } else if (inside && /^\s*([*-]|\d+[.)])\s+\S/.test(line)) {
       items.push(line.trim().replace(/^([*-]|\d+[.)])\s+/, ''));
     } else if (inside && line.trim() && items.length) {
