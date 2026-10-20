@@ -290,7 +290,7 @@ adopted them. The third is optional and enriches the docs the most.
 
 Incremental specifics, on top of the general rule in Phase 0:
 
-- **index.md** — update `Analyzed: <date>` to today; update Structural Units and Key Files only where they changed; preserve any manually added Known Issues.
+- **index.md** — update `Analyzed: <date>` to today; update Structural Units and Key Files only where they changed; preserve any manually added Known Issues; the Tests and Pitfalls block, inside its `vibeflow:auto` markers, is regenerated on every run and added when an older index.md lacks it.
 - **conventions.md** — update only inside the `<!-- vibeflow:auto:start/end -->` markers. A legacy file without markers gets rewritten with them added.
 - **decisions.md** — never modified in incremental mode.
 - **patterns/** — as stated in Phase 3.
@@ -345,6 +345,15 @@ patterns:
 
 ## Known Issues / Tech Debt
 <bullet list if anything was found>
+
+<!-- vibeflow:auto:start -->
+## Tests
+- Full suite: `<command>` — <measured time> on <date> | unmeasured
+- Affected only: `<command scoped to a file, package or tag>` — <measured time> on <date> | unmeasured
+
+## Pitfalls
+- <a mistake that already cost this project time> — source: <decisions.md entry | CI configuration path | commit sha>
+<!-- vibeflow:auto:end -->
 ```
 
 **Pattern Registry generation.** After all pattern docs are written, read each
@@ -353,6 +362,22 @@ the `<!-- vibeflow:patterns:start/end -->` markers, keeping the human-readable
 "Pattern Docs Available" list below it with links and 1-line descriptions. The
 registry is always regenerated from the frontmatters and never edited by hand —
 that is what keeps it in sync.
+
+**Tests and Pitfalls.** These two sections tell the implementer and the audit
+how to prove a change cheaply and what has already gone wrong here, so they
+stay factual.
+
+- *Tests* — from the manifests, scripts and CI configuration, the command that
+  runs the full suite and the narrowest command that runs only the tests
+  affected by a change: by file, package or tag, as the stack allows. When
+  running a command is local and safe (no paid service, no deploy), run it once
+  and record the measured time and the date; a command you did not run is
+  marked `unmeasured`. No test runner → say so in one line.
+- *Pitfalls* — mistakes that already cost this project time, each with its
+  source: an entry in `decisions.md`, a line of the CI configuration that exists
+  to catch it, or a reverted or fix commit (`git log -i --grep='^revert'
+  --grep='^fix'`). An item without a source stays out; prohibitions belong to
+  the Don'ts in conventions.md. No sourced pitfall → `None found.`
 
 **Budget calculation.** From the source files counted in Phase 2, suggest ~2-3%,
 clamped between 4 and 12:

@@ -168,11 +168,17 @@ function dodBlock(spec) {
   return next ? rest.slice(0, next.index + 1) : rest;
 }
 
-// A DoD check is a list item: "- [ ] ...", "- ...", or "1. ...".
+// A DoD check is a list item: "- [ ] ...", "- ...", or "1. ...", at the
+// block's shallowest indentation. Nested items are fields of a check
+// (`Scenarios:` lines, a property), never checks of their own.
 function dodChecks(spec) {
-  return dodBlock(spec)
+  const items = dodBlock(spec)
     .split('\n')
-    .filter((line) => /^\s*([-*]\s+(\[[ xX]\]\s*)?|\d+\.\s+)\S/.test(line))
+    .filter((line) => /^\s*([-*]\s+(\[[ xX]\]\s*)?|\d+\.\s+)\S/.test(line));
+  const indent = (line) => /^\s*/.exec(line)[0].length;
+  const top = Math.min(...items.map(indent));
+  return items
+    .filter((line) => indent(line) === top)
     .map((line) => line.trim())
     .filter((line) => line.length > 8);
 }

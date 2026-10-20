@@ -21,6 +21,8 @@ when the idea is not yet well defined.
 Detect the language of the user's input.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
+The `## Clarifications` heading stays literally in English in any output
+language — gen-spec matches that exact heading when it reads the PRD.
 
 ## Role
 
@@ -85,6 +87,12 @@ to `.vibeflow/prds/<slug>.md` (create the directory if it doesn't exist).
 Match the PRD's length to what the idea needs: cover the substance, without
 filler sections, redundant summaries, or boilerplate.
 
+Record the decisive questions of the dialogue under `## Clarifications`: the
+ones whose answers settled the problem, the audience, the scope or the
+approach, each with the answer the user gave. Leave out the questions that
+changed nothing. gen-spec carries them into the spec, so a decision made here
+is not asked again there.
+
 ```
 # PRD: <title>
 
@@ -112,6 +120,9 @@ filler sections, redundant summaries, or boilerplate.
 <Summary of what already exists in the codebase that is relevant.
 Patterns to follow. Known constraints.
 Based on .vibeflow/ when available.>
+
+## Clarifications
+- Q: <decisive question asked in the dialogue> — A: <the user's answer>
 
 ## Open Questions
 <Anything that remained ambiguous. TODOs to resolve before
