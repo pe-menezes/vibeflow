@@ -37,10 +37,15 @@ function commandOf(text, script, argsShape) {
   return { kitPrefix: match[1], args: argsShape };
 }
 
-// Fill the placeholders and point the edition's kit path at this repository's kit.
+// Fill the placeholders and point the edition's kit path at this repository's kit. The two
+// placeholders with a space (`<project root>`, `<probe dir>`) are one argument each.
 function run(command, script, values, env) {
-  const argv = command.args.replace('<project root>', '@ROOT').split(' ').map((token) => {
+  const argv = command.args.replace('<project root>', '@ROOT').replace('<probe dir>', '@PROBE_DIR').split(' ').map((token) => {
     if (token === '@ROOT') return values.root;
+    if (token === '@PROBE_DIR') {
+      assert.ok('<probe dir>' in values, 'placeholder <probe dir> has a value');
+      return values['<probe dir>'];
+    }
     if (/^<.*>$/.test(token)) {
       assert.ok(token in values, `placeholder ${token} has a value`);
       return values[token];
@@ -53,7 +58,9 @@ function run(command, script, values, env) {
 
 const STEP1 = ['review-package.mjs', '<project root> <base> <out>'];
 const REAUDIT = ['review-package.mjs', '<project root> <round-commit> <out>'];
-const PROBES = ['check-probes.mjs', '<project root> --base <base>'];
+// Re-audit 1 rewrote this shape (authorized in its briefing): finding L7 added `--dir <probe dir>`
+// to the command the editions name, and the old shape no longer matched any edition.
+const PROBES = ['check-probes.mjs', '<project root> --base <base> --dir <probe dir>'];
 
 // ------------------------------------------------------------- empty package
 
@@ -122,14 +129,14 @@ test('p2-4 check-probes, called as the editions call it, reads the probe file th
     withSandbox((box) => {
       box.git('checkout', '-q', '-b', 'feat');
       box.write('tests/audit/feat-p1.test.ts', "it('total', () => expect(total([1, 2])).toBe(3))\n");
-      const clean = run(command, PROBES[0], { root: box.repo, '<base>': 'main' }, box.env());
+      const clean = run(command, PROBES[0], { root: box.repo, '<base>': 'main', '<probe dir>': 'tests/audit' }, box.env());
       assert.equal(clean.status, 0, `${name}: ${clean.out}`);
       assert.match(clean.out, /1 probe file\(s\) read/, `${name}: the untracked probe file is read`);
       // The fixture's state line and the expected report are assembled, so check-probes run on
       // this file does not read the fixture as a state probe of this repository.
       const stateLine = `const out = execSync('${['git', 'diff', 'main'].join(' ')}')\n`;
       box.write('tests/audit/feat-p1.test.ts', stateLine);
-      const suspect = run(command, PROBES[0], { root: box.repo, '<base>': 'main' }, box.env());
+      const suspect = run(command, PROBES[0], { root: box.repo, '<base>': 'main', '<probe dir>': 'tests/audit' }, box.env());
       assert.equal(suspect.status, 1, `${name}: ${suspect.out}`);
       assert.ok(suspect.out.includes(['tests/audit/feat-p1.test.ts', '1 [reads git]'].join(':')), `${name}: the state line is named`);
     });
@@ -307,5 +314,138 @@ test('evidence L1: a kit command that fails before the script runs exits 1 witho
     assert.equal(existsSync(out), false, 'no file, so no EMPTY PACKAGE marker: an error, not an empty package');
     const syntax = spawnSync(process.execPath, ['-e', 'const a = {}; a?.b; syntax error('], { encoding: 'utf8' });
     assert.equal(syntax.status, 1, 'a syntax error (what Node 12 sees in `?.`) exits 1, with no marker either');
+  });
+});
+
+// ------------------------------------------------------------ re-audit 1 probes
+// Written by re-audit 1 (.vibeflow/audits/vibeflow-1-16-p2-reaudit-1.md), on the fix diff only:
+// what counts as a change in the package, and the standalone exit from the empty-package rule.
+
+test('p2-r1-1 a re-audit over an empty fix stays empty when the round-0 package and the audit report sit untracked in the project', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const command = commandOf(edition(path), ...REAUDIT);
+    withSandbox((box) => {
+      box.git('checkout', '-q', '-b', 'feat');
+      box.write('src/rules.ts', 'export const x = 2\n');
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'round 0');
+      const round = box.git('rev-parse', 'HEAD').trim();
+      box.write('.vibeflow/reviews/feat-p1-round-0.md', '# package of round 0\n');
+      box.write('.vibeflow/audits/feat-p1-audit.md', '**Verdict: PARTIAL**\n');
+      const out = join(box.repo, '.vibeflow/reviews/feat-p1-round-1.md');
+      const result = run(command, REAUDIT[0], { root: box.repo, '<round-commit>': round, '<out>': out }, box.env());
+      assert.equal(result.status, 1, `${name}: ${result.out}`);
+      const pkg = readFileSync(out, 'utf8');
+      assert.match(pkg, /EMPTY PACKAGE/, `${name}: an earlier package and report are not a fix`);
+      assert.match(pkg, /^Loop artifacts left out: 2 path\(s\)/m, `${name}: both counted as left out`);
+    });
+  }
+});
+
+test('p2-r1-2 what counts as a change: a modified tracked report and an empty commit do not; a source moved into an artifact folder, a mixed commit and a sibling folder do', () => {
+  const command = commandOf(edition(EDITIONS.shared), ...STEP1);
+  const pack = (box, base) => {
+    const out = join(box.root, 'pkg.md');
+    const result = run(command, STEP1[0], { root: box.repo, '<base>': base, '<out>': out }, box.env());
+    return { status: result.status, out: result.out, text: readFileSync(out, 'utf8') };
+  };
+  withSandbox((box) => {
+    box.write('.vibeflow/audits/old-audit.md', 'v1\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'an earlier report, tracked');
+    box.write('.vibeflow/audits/old-audit.md', 'v2\n');
+    const tracked = pack(box, 'HEAD');
+    assert.equal(tracked.status, 1, tracked.out);
+    assert.match(tracked.text, /EMPTY PACKAGE/, 'a rewritten tracked report is not a change');
+  });
+  withSandbox((box) => {
+    box.git('checkout', '-q', '-b', 'feat');
+    box.git('commit', '-q', '--allow-empty', '-m', 'empty');
+    const empty = pack(box, 'main');
+    assert.equal(empty.status, 1, empty.out);
+    assert.match(empty.text, /EMPTY PACKAGE/, 'an empty commit is not a change (fix round 1 decision)');
+  });
+  withSandbox((box) => {
+    box.git('checkout', '-q', '-b', 'feat');
+    box.write('.vibeflow/audits/keep.md', 'k\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'keep');
+    box.git('mv', 'src/rules.ts', '.vibeflow/audits/rules.ts');
+    box.git('commit', '-q', '-m', 'move the source into an artifact folder');
+    const moved = pack(box, 'main');
+    assert.equal(moved.status, 0, moved.out);
+    assert.match(moved.text, /^-export const x = 1$/m, 'the source that left is still a change');
+  });
+  withSandbox((box) => {
+    box.git('checkout', '-q', '-b', 'feat');
+    box.write('src/rules.ts', 'export const x = 3\n');
+    box.write('.vibeflow/progress/p1.md', 'progress\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'mixed');
+    const mixed = pack(box, 'main');
+    assert.equal(mixed.status, 0, mixed.out);
+    assert.match(mixed.text, /^\w+ mixed$/m, 'a commit with a real change stays in the commits');
+    assert.match(mixed.text, /^\+export const x = 3$/m);
+  });
+  withSandbox((box) => {
+    box.write('.vibeflow/audits-old/x.md', 'x\n');
+    const sibling = pack(box, 'HEAD');
+    assert.equal(sibling.status, 0, sibling.out);
+    assert.match(sibling.text, /^- \.vibeflow\/audits-old\/x\.md$/m, 'only the named folders are artifacts, not a folder that starts with the same name');
+  });
+});
+
+test('p2-r1-3 the standalone exit from the empty-package rule names the three cases it excludes, so a loop part, a given package or base, and a re-audit never take it', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const step1 = section(edition(path), '1. **Review package**', '2. **Spec**');
+    const start = step1.indexOf('- A standalone audit');
+    assert.ok(start !== -1, `${name}: the standalone bullet`);
+    const bullet = step1.slice(start, step1.indexOf('- An empty package'));
+    assert.match(bullet, /^- A standalone audit \(no loop part, no `--package`, no `--base`\) whose default diff is empty because the work is already committed on the default branch runs over the code as before/,
+      `${name}: the exit is for a standalone audit only`);
+    const reaudit = section(edition(path), '## Re-audit mode', '## Consolidation mode');
+    assert.doesNotMatch(reaudit, /runs over the code|Review package: none \(no uncommitted/, `${name}: the re-audit has no such exit`);
+  }
+});
+
+test('p2-r1-4 a subproject\'s own .vibeflow/ artifacts stay out when the project root is a folder inside the git repository', { todo: 'low R1 of re-audit 1: the artifact folders are anchored at the git top level, not at <project root>' }, () => {
+  const command = commandOf(edition(EDITIONS.shared), ...STEP1);
+  withSandbox((box) => {
+    box.write('app/src/index.ts', 'export {}\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'app');
+    box.git('checkout', '-q', '-b', 'feat');
+    box.write('app/.vibeflow/audits/feat-audit.md', '**Verdict: FAIL**\n');
+    const out = join(box.root, 'pkg.md');
+    const result = run(command, STEP1[0], { root: join(box.repo, 'app'), '<base>': 'main', '<out>': out }, box.env());
+    assert.equal(result.status, 1, result.out);
+  });
+});
+
+test('p2-r1-5 check-probes reads the probe folder whether --dir is given relative to the project or absolute', { todo: 'low R3 of re-audit 1: an absolute --dir reads 0 probe files and exits 0' }, () => {
+  const command = commandOf(edition(EDITIONS.shared), ...PROBES);
+  withSandbox((box) => {
+    box.git('checkout', '-q', '-b', 'feat');
+    box.write('tests/audit/feat-p1.test.ts', "it('total', () => expect(total([1, 2])).toBe(3))\n");
+    for (const dir of ['tests/audit', join(box.repo, 'tests/audit')]) {
+      const result = run(command, PROBES[0], { root: box.repo, '<base>': 'main', '<probe dir>': dir }, box.env());
+      assert.match(result.out, /1 probe file\(s\) read/, `--dir ${dir}: ${result.out}`);
+    }
+  });
+});
+
+test('p2-r1-6 evidence: work committed on the default branch with a new spec left untracked gives a package of the spec alone, so the standalone exit does not fire', { todo: 'low R2 of re-audit 1, cause spec: .vibeflow/specs/ counts as a change; the human decides whether it should' }, () => {
+  const command = commandOf(edition(EDITIONS.shared), ...STEP1);
+  withSandbox((box) => {
+    box.write('src/rules.ts', 'export const x = 2\n');
+    box.git('add', 'src');
+    box.git('commit', '-q', '-m', 'the work, committed on main');
+    box.write('.vibeflow/specs/feat.md', '# spec\n');
+    const out = join(box.root, 'pkg.md');
+    const result = run(command, STEP1[0], { root: box.repo, '<base>': 'HEAD', '<out>': out }, box.env());
+    assert.equal(result.status, 0, result.out);
+    const pkg = readFileSync(out, 'utf8');
+    assert.match(pkg, /## New files\n\n- \.vibeflow\/specs\/feat\.md\n\n/, 'the spec is the only change');
+    assert.doesNotMatch(pkg, /export const x = 2/, 'and the committed work is not in the package');
   });
 });
