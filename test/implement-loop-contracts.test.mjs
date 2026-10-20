@@ -263,7 +263,7 @@ test('orchestrator.md: the end of a round is the final marker, read with watch-r
   assert.match(text, /never from a verdict alone/i, 'never from a verdict alone');
 });
 
-test('orchestrator.md: the orchestrator discipline and the company-mode placeholder', () => {
+test('orchestrator.md: the orchestrator discipline and the company-mode section', () => {
   const text = flatOrchestrator();
   assert.match(text, /scope (freezes|is frozen) at dispatch/i, 'scope frozen');
   assert.match(text, /new part with its own audit/i, 'an addition becomes a new part or a follow-up');
@@ -273,7 +273,7 @@ test('orchestrator.md: the orchestrator discipline and the company-mode placehol
   assert.match(text, /above 50%[^.]*handoff[^.]*ledger/i, 'the 50% handoff to the ledger');
   assert.match(text, /resumes from the ledger and git/i, 'the next session resumes from the ledger and git');
   assert.match(orchestrator(), /^## Ending: company mode$/m, 'the company-mode section');
-  assert.match(text, /part 4/i, 'the placeholder says part 4 fills it');
+  assert.match(orchestratorSection('Ending: company mode'), /Fill `pr-body\.md` from the ledger/, 'part 4 filled the placeholder: the section ends the loop with the PR body');
 });
 
 test('every kit file and script orchestrator.md names exists', () => {
