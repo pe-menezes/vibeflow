@@ -449,3 +449,46 @@ test('p2-r1-6 evidence: work committed on the default branch with a new spec lef
     assert.doesNotMatch(pkg, /export const x = 2/, 'and the committed work is not in the package');
   });
 });
+
+// ------------------------------------------------------------ re-audit 2 (fix round 2)
+// C3: the `--probes` gate is for an audit run by hand; a loop part sabotages and writes probes
+// as before. C4: every script the kit installs stops below Node 18 with 64 before doing anything.
+
+import { hermeticEnv } from '../loop-helpers.mjs';
+
+test('p2-r2-1 the --probes gate binds only a standalone audit: every clause that makes probes or sabotage wait for --probes names a standalone audit, and the loop-part clause runs both as written', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const steps = text.slice(text.indexOf('## Steps'), text.indexOf('## Consolidation mode'))
+      .replace(/`Sabotage: skipped \(standalone audit; --probes runs it\)`/g, '`SKIPPED-LINE`')
+      .replace(/^Sabotage: skipped \(standalone audit; --probes runs it\)$/m, 'SKIPPED-LINE')
+      .replace(/\s+/g, ' ');
+    const clauses = steps.split(/(?<=[.;])\s/);
+    const gated = clauses.filter((clause) => clause.includes('`--probes`'));
+    assert.ok(gated.length >= 4, `${name}: the gate is written (${gated.length} clauses)`);
+    for (const clause of gated) {
+      assert.match(clause, /standalone/i, `${name}: a clause gates on --probes without naming a standalone audit: ${clause}`);
+    }
+    const loopPart = clauses.filter((clause) => /loop part \(briefing present\)/.test(clause));
+    assert.equal(loopPart.length, 1, `${name}: one clause says what a loop part does`);
+    assert.match(loopPart[0], /runs both as written/, `${name}: ${loopPart[0]}`);
+    assert.doesNotMatch(loopPart[0], /--probes|only|skip/, `${name}: a loop part never waits for --probes: ${loopPart[0]}`);
+  }
+});
+
+test('p2-r2-2 every script the kit manifest installs, on a Node below 18, exits 64 with nothing on stdout and names Node.js 18 and the version found', () => {
+  const manifest = JSON.parse(readFileSync(join(LOOP_DIR, 'manifest.json'), 'utf8'));
+  const scripts = manifest.files.filter((file) => /^scripts\/.*\.mjs$/.test(file));
+  assert.ok(scripts.length >= 9, `the manifest lists the kit scripts (${scripts.length})`);
+  // The old version is assembled, so check-probes does not read a simulated Node as a pinned version.
+  const old = [17, 9, 1].join('.');
+  const preload = `data:text/javascript,${encodeURIComponent(`Object.defineProperty(process, 'versions', { value: { ...process.versions, node: '${old}' } }); delete globalThis.fetch;`)}`;
+  for (const script of scripts) {
+    const result = spawnSync(process.execPath, ['--import', preload, join(LOOP_DIR, script), '--help'], {
+      env: hermeticEnv(tmpdir()), encoding: 'utf8', timeout: 20_000,
+    });
+    assert.equal(result.status, 64, `${script}: ${result.stdout}${result.stderr}`);
+    assert.equal(result.stdout, '', `${script}: nothing ran before the guard`);
+    assert.match(result.stderr, /needs Node\.js 18 or later; found 17\.9\.1/, `${script}: ${result.stderr}`);
+  }
+});
