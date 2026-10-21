@@ -584,14 +584,20 @@ test('preflight: the credentials in an http origin URL stay out of the output, w
   });
 });
 
-// Contract: an origin URL that does not parse as a URL is never printed with the credentials it carries.
+// Contract: an origin URL that does not parse as a URL is never printed with the credentials it carries, a user and password or a token alone.
 // Breaks when: the fallback for an origin without a host prints the remote URL as git returns it.
 // Not covered by: the implementer's tests use only origins that parse and carry no credentials.
-test('preflight: an origin URL that does not parse is not printed with its credentials', { todo: 'open gap: an origin URL that does not parse is printed whole, credentials included' }, () => {
-  withSandbox((box) => {
-    box.git('switch', '-q', '-c', 'feat/x');
-    box.git('remote', 'add', 'origin', 'https://user:s3cret-token@127.0.0.1:99999/owner/repo.git');
-    const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
-    assert.ok(!result.out.includes('s3cret-token'), result.out);
-  });
+test('preflight: an origin URL that does not parse is not printed with its credentials', () => {
+  for (const credentials of ['user:s3cret-token@', 's3cret-token@']) {
+    withSandbox((box) => {
+      box.git('switch', '-q', '-c', 'feat/x');
+      box.git('remote', 'add', 'origin', `https://${credentials}127.0.0.1:99999/owner/repo.git`);
+      const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+      assert.equal(result.status, 1, result.out);
+      assert.ok(!result.out.includes('s3cret-token'), result.out);
+      assert.ok(!result.out.includes('user:'), result.out);
+      assert.match(result.stdout, /^\[attention\] network: nothing to probe \(origin https:\/\/127\.0\.0\.1:99999\/owner\/repo\.git /m, result.out);
+      assert.match(result.stdout, /^\[attention\] pr ending: origin https:\/\/127\.0\.0\.1:99999\/owner\/repo\.git has no host for gh; /m, result.out);
+    });
+  }
 });

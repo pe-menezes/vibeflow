@@ -21,10 +21,10 @@ finished, then exits. A PR with no check reported yet keeps the watch going, so 
 reads as green before CI starts. Gives up at --timeout-min minutes (default 480), and never
 sleeps past that ceiling: each wait is cut to the time left. Limits take fractions.
 
-gh missing or not logged in cannot fix itself, so it exits 64 at the first read with what to
-do; any other failed read (gh exit 1, network, a 5xx) is retried until the ceiling.
+gh missing, not executable or not logged in cannot fix itself, so it exits 64 at the first read
+with what to do; any other failed read (gh exit 1, network, a 5xx) is retried until the ceiling.
 
-exit 0 green · 1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments, or gh missing or not logged in`;
+exit 0 green · 1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments, or gh missing, not executable or not logged in`;
 
 // gh exits 4 when it needs authentication.
 const GH_AUTH_EXIT = 4;
@@ -60,6 +60,9 @@ function readPr(repo, pr) {
   });
   if (result.error?.code === 'ENOENT') {
     throw new Permanent('gh is not installed; install the GitHub CLI, or watch the checks on the pull request page');
+  }
+  if (result.error?.code === 'EACCES') {
+    throw new Permanent('gh cannot be executed (permission denied); fix the permissions of the gh on PATH, or watch the checks on the pull request page');
   }
   if (result.error) throw new Error(`gh could not run: ${result.error.message}`);
   if (result.status === GH_AUTH_EXIT) {

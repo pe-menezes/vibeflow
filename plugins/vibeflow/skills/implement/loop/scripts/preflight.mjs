@@ -31,10 +31,11 @@ asks for mains power.
 network: a HEAD request to the host of the origin remote (<scheme>://<host[:port]> for an http
 or https remote, https://<host> for git@host:... and ssh://) and to every --probe-url, such as
 the model provider's API. Every --probe-url failing is a stop; the origin host failing is
-attention, since the push may still go over SSH; no origin and no --probe-url is attention.
+attention (an http or https push goes through it; an ssh push does not need it); no origin and
+no --probe-url is attention. Credentials written in the origin URL are never printed.
 pr ending: gh auth status --hostname <origin host>. Without gh logged in to that host, the loop
 ends with the branch pushed and the pull request body written, for you to open the pull request
-or merge request by hand.
+or merge request by hand, and the open PRs are not listed.
 --no-network skips the probes and every gh call (open PRs and pr ending).
 
 exit 0 go · 1 attention · 2 stop · 64 bad arguments`;
@@ -103,12 +104,19 @@ function repository(repo, explicitDefault) {
   return { isRepo: true, lines };
 }
 
+// The origin URL as printed: without the credentials it may carry (user:password@ or token@).
+// Everything up to the last @ after the scheme goes, so a password holding a / cannot leak.
+function shown(url) {
+  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)\S*@/i, '$1');
+}
+
 // The origin remote: the URL the network probe uses and the host gh is asked about.
 // An http(s) remote probes itself; an ssh remote probes https on the same host.
 function origin(repo) {
   const result = run('git', ['remote', 'get-url', 'origin'], repo);
   const url = result.status === 0 ? result.out.trim() : '';
   if (!url) return null;
+  const remote = (fields) => ({ url: shown(url), probe: null, host: null, http: false, parses: true, ...fields });
   const parse = (text) => {
     try {
       return new URL(text);
@@ -118,31 +126,39 @@ function origin(repo) {
   };
   if (/^https?:\/\//i.test(url)) {
     const parsed = parse(url);
-    if (parsed) return { url, probe: `${parsed.protocol}//${parsed.host}`, host: parsed.hostname };
+    if (parsed) return remote({ probe: `${parsed.protocol}//${parsed.host}`, host: parsed.hostname, http: true });
+    return remote({ parses: false });
   } else if (/^ssh:\/\//i.test(url)) {
     const parsed = parse(url);
-    if (parsed) return { url, probe: `https://${parsed.hostname}`, host: parsed.hostname };
+    if (parsed) return remote({ probe: `https://${parsed.hostname}`, host: parsed.hostname });
+    return remote({ parses: false });
   } else {
     const scp = url.match(/^(?:[^@/]+@)?([^:/]+):(?!\/\/)/);
-    if (scp && !/^[a-z]:[\\/]/i.test(url)) return { url, probe: `https://${scp[1]}`, host: scp[1] };
+    if (scp && !/^[a-z]:[\\/]/i.test(url)) return remote({ probe: `https://${scp[1]}`, host: scp[1] });
   }
-  return { url, probe: null, host: null };
+  return remote({});
 }
 
 const BY_HAND = 'without it the loop ends with the branch pushed and the pull request body written, for you to open the pull request or merge request by hand';
 
+// Returns the pr ending line, and `unserved`: gh answered that it is not logged in to the origin
+// host or does not serve it.
 function prEnding(repo, remote) {
-  if (!remote) return [[ATTENTION, 'pr ending: no origin remote; the loop has nowhere to push the branch or open a pull request']];
-  if (!remote.host) return [[ATTENTION, `pr ending: origin ${remote.url} has no host for gh; ${BY_HAND}`]];
+  const ending = (level, text, unserved = false) => ({ lines: [[level, `pr ending: ${text}`]], unserved });
+  if (!remote) return ending(ATTENTION, 'no origin remote; the loop has nowhere to push the branch or open a pull request');
+  if (!remote.host) return ending(ATTENTION, `origin ${remote.url} has no host for gh; ${BY_HAND}`);
   const result = run('gh', ['auth', 'status', '--hostname', remote.host], repo);
-  if (result.status === 127 && result.out === 'not installed') return [[ATTENTION, `pr ending: gh not installed; ${BY_HAND}`]];
+  if (result.status === 127 && result.out === 'not installed') return ending(ATTENTION, `gh not installed; ${BY_HAND}`);
   if (result.status !== 0) {
-    return [[ATTENTION, `pr ending: gh is not logged in to ${remote.host} or does not serve it (gh auth login --hostname ${remote.host}); ${BY_HAND}`]];
+    return ending(ATTENTION, `gh is not logged in to ${remote.host} or does not serve it (gh auth login --hostname ${remote.host}); ${BY_HAND}`, true);
   }
-  return [[GO, `pr ending: gh can open the pull request on ${remote.host}`]];
+  return ending(GO, `gh can open the pull request on ${remote.host}`);
 }
 
-function pullRequests(repo) {
+// Open PRs are read only from a host gh is logged in to: anywhere else gh pr list can only
+// fail, and the pr ending line already says so.
+function pullRequests(repo, remote, ending) {
+  if (ending.unserved) return [[GO, `CI: open PRs not checked, gh is not logged in to ${remote.host} or does not serve it (see pr ending)`]];
   const result = run('gh', ['pr', 'list', '--state', 'open', '--json', 'number,title,statusCheckRollup,isDraft'], repo);
   if (result.status === 127 && result.out === 'not installed') return [[GO, 'CI: gh not installed, open PRs not checked']];
   if (result.status !== 0) return [[ATTENTION, `CI: gh did not answer (${result.out.trim().slice(0, 80)})`]];
@@ -176,7 +192,8 @@ async function answers(url) {
 async function network(remote, given) {
   const fallback = remote?.probe ?? null;
   if (!fallback && given.length === 0) {
-    const why = remote ? `origin ${remote.url} is not an http or ssh remote` : 'no origin remote';
+    const kind = remote?.parses === false ? 'does not parse as a URL' : 'is not an http or ssh remote';
+    const why = remote ? `origin ${remote.url} ${kind}` : 'no origin remote';
     return [[ATTENTION, `network: nothing to probe (${why}, no --probe-url)`]];
   }
   const probes = fallback ? [fallback, ...given] : given;
@@ -188,8 +205,9 @@ async function network(remote, given) {
   if (failures.length === 0) return [[GO, `network: ${probes.join(', ')} answer`]];
   const givenFailures = failures.length - (fallback && failures[0].startsWith(`${fallback} `) ? 1 : 0);
   const level = given.length > 0 && givenFailures === given.length ? STOP : ATTENTION;
-  const ssh = givenFailures < failures.length ? `; ${fallback} is the origin host, and a push over SSH does not need it` : '';
-  return [[level, `network: no answer from ${failures.join(', ')}${ssh}`]];
+  const push = remote?.http ? 'the push to an http(s) origin goes through it' : 'a push over SSH does not need it';
+  const why = givenFailures < failures.length ? `; ${fallback} is the origin host, and ${push}` : '';
+  return [[level, `network: no answer from ${failures.join(', ')}${why}`]];
 }
 
 function effort() {
@@ -233,9 +251,10 @@ async function main(argv) {
   const { isRepo, lines: results } = repository(repo, options.defaultBranch);
   if (options.network) {
     const remote = isRepo ? origin(repo) : null;
-    if (isRepo) results.push(...pullRequests(repo));
+    const ending = isRepo ? prEnding(repo, remote) : null;
+    if (isRepo) results.push(...pullRequests(repo, remote, ending));
     results.push(...(await network(remote, options.probes)));
-    if (isRepo) results.push(...prEnding(repo, remote));
+    if (isRepo) results.push(...ending.lines);
   } else {
     results.push([GO, 'network: not probed, gh not called (--no-network)']);
   }

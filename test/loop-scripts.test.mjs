@@ -685,7 +685,7 @@ test('watch-pr stops at the ceiling, not an interval after it, with checks pendi
   });
 });
 
-// gh missing or not logged in is permanent: retrying it only burns the ceiling (480 min by default).
+// gh missing, not executable or not logged in is permanent: retrying it only burns the ceiling (480 min by default).
 test('watch-pr exits 64 at the first read when gh is not installed, and says what to do', () => {
   withSandbox((box) => {
     const empty = join(box.root, 'empty-bin');
@@ -711,21 +711,56 @@ test('watch-pr exits 64 at the first read when gh is not logged in (gh exit 4), 
 
 test('watch-pr keeps reading after any other gh failure until the ceiling', () => {
   withSandbox((box) => {
-    box.setGh('');
+    // The fake gh fails (exit 1) on the first read and answers green afterwards. Under a ceiling far
+    // above the time of one read, an exit 0 can only come from a second read after the failure,
+    // however slow the machine is.
+    const green = join(box.root, 'gh-green.json');
+    writeFileSync(green, JSON.stringify(PR('OPEN', [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }])));
+    box.writeExecutable('gh', [
+      '#!/bin/sh',
+      `printf '%s\\n' "$*" >> '${box.ghLog}'`,
+      `if [ -f '${box.root}/failed-once' ]; then cat '${green}'; exit 0; fi`,
+      `touch '${box.root}/failed-once'`,
+      "echo 'HTTP 502: Bad Gateway' >&2",
+      'exit 1',
+      '',
+    ].join('\n'));
+    const recovering = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '5'], box.env());
+    assert.equal(recovering.status, 0, recovering.out);
+    assert.match(recovering.stdout, /read failed \(gh exited 1: HTTP 502: Bad Gateway\); attempt 1/);
+    assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 2, recovering.out);
+
+    // A failure that never clears ends at the ceiling with exit 3, not with 64.
+    box.writeExecutable('gh', "#!/bin/sh\necho 'HTTP 502: Bad Gateway' >&2\nexit 1\n");
     const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
-    const result = runScript('watch-pr.mjs', args, box.env({ FAKE_GH_EXIT: '1' }));
-    assert.equal(result.status, 3, result.out);
-    assert.ok(readFileSync(box.ghLog, 'utf8').trim().split('\n').length >= 2, 'gh was read only once');
+    const stuck = runScript('watch-pr.mjs', args, box.env());
+    assert.equal(stuck.status, 3, stuck.out);
+    assert.match(stuck.stdout, /ceiling of 0\.01 min reached without reading the PR/);
   });
 });
 
-test('watch-pr usage and README row name exit 64 for gh missing or not logged in', () => {
+test('watch-pr exits 64 at the first read when gh cannot be executed, and says what to do', () => {
+  withSandbox((box) => {
+    // Only this folder on PATH: a gh found without the execute bit, and no other gh behind it.
+    const locked = join(box.root, 'locked-bin');
+    mkdirSync(locked);
+    writeFileSync(join(locked, 'gh'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.05'];
+    const result = runScript('watch-pr.mjs', args, box.env({ PATH: locked }));
+    assert.equal(result.status, 64, result.out);
+    assert.match(result.stderr, /gh cannot be executed/);
+    assert.doesNotMatch(result.out, /attempt|ceiling/);
+  });
+});
+
+test('watch-pr usage and README row name exit 64 for gh missing, not executable or not logged in', () => {
   const usage = runScript('watch-pr.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
-  assert.match(usage, /64 bad arguments, or gh missing or not logged in/);
+  assert.match(usage, /64 bad arguments, or gh missing, not executable or not logged in/);
   const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
   const row = readme.split('\n').find((line) => line.startsWith('| `watch-pr'));
-  assert.match(row, /64 gh missing or not logged in/);
-  assert.match(readme, /`watch-pr\.mjs` also exits 64 at its first read when `gh` is not installed or not logged in/);
+  assert.match(row, /64 gh missing, not executable or not logged in/);
+  assert.match(readme, /`watch-pr\.mjs` .*exits 64 at its first read when `gh` is not installed, cannot be executed or is not logged in/);
+  assert.match(usage, /gh missing, not executable or not logged in cannot fix itself/);
 });
 
 // --- watch-round ---
@@ -992,7 +1027,7 @@ test('preflight probes https://<host> for an scp-style or ssh:// origin', async 
   }
 });
 
-test('preflight: the origin probe failing is attention, since the push may go over SSH', async () => {
+test('preflight: the origin probe failing is attention, not a stop', async () => {
   const port = await closedPort();
   await withSandboxAsync(async (box) => {
     box.git('switch', '-q', '-c', 'feat/x');
@@ -1000,6 +1035,28 @@ test('preflight: the origin probe failing is attention, since the push may go ov
     const result = await preflight(['--repo', box.repo], box.env());
     assert.equal(result.status, 1, result.out);
     assert.match(result.out, new RegExp(`^\\[attention\\] network: no answer from http://127\\.0\\.0\\.1:${port}`, 'm'));
+  });
+});
+
+test('preflight: a failing origin probe says the push needs that host only when the origin is http or https', async () => {
+  const port = await closedPort();
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `http://127.0.0.1:${port}/owner/repo.git`);
+    const http = await preflight(['--repo', box.repo], box.env());
+    const line = http.out.split('\n').find((text) => text.includes('network:'));
+    assert.match(line, /^\[attention\] network: no answer from /, http.out);
+    assert.doesNotMatch(line, /SSH/, http.out);
+    assert.match(line, /the push to an http\(s\) origin goes through it/, http.out);
+  });
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    // The https side of an ssh origin on "localhost" goes through the closed local proxy, so it fails here.
+    box.git('remote', 'add', 'origin', 'git@localhost:owner/repo.git');
+    const ssh = await preflight(['--repo', box.repo], box.env());
+    const line = ssh.out.split('\n').find((text) => text.includes('network:'));
+    assert.match(line, /^\[attention\] network: no answer from https:\/\/localhost /, ssh.out);
+    assert.match(line, /a push over SSH does not need it/, ssh.out);
   });
 });
 
@@ -1085,6 +1142,26 @@ test('preflight pr ending: attention, with the by-hand ending, when gh is not lo
     box.git('remote', 'remove', 'origin');
     const noOrigin = await preflight(['--repo', box.repo], box.env());
     assert.match(noOrigin.out, /^\[attention\] pr ending: no origin remote/m);
+  }));
+});
+
+test('preflight skips the open PRs, without attention, when gh does not serve the origin host', async () => {
+  await withSandboxAsync((box) => withServer(async (origin) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `${origin}/owner/repo.git`);
+    // gh knows no account on this host, and its pr list fails the way it does on a remote it does not serve.
+    box.writeExecutable('gh', [
+      '#!/bin/sh',
+      `printf '%s\\n' "$*" >> '${box.ghLog}'`,
+      "echo 'none of the git remotes configured for this repository point to a known GitHub host' >&2",
+      'exit 1',
+      '',
+    ].join('\n'));
+    const result = await preflight(['--repo', box.repo], box.env());
+    const ci = result.out.split('\n').find((text) => text.includes('CI:'));
+    assert.match(ci, /^\[ok\] CI: open PRs not checked, gh is not logged in to 127\.0\.0\.1 or does not serve it \(see pr ending\)$/, result.out);
+    assert.doesNotMatch(readFileSync(box.ghLog, 'utf8'), /^pr list/m);
+    assert.match(result.out, /^\[attention\] pr ending: /m);
   }));
 });
 
