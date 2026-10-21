@@ -57,7 +57,7 @@ The body of the pull request that ends a loop in company mode (`orchestrator.md`
 | Types | <command, or "no type checker"> | <result> |
 | Perimeter | <perimeter.mjs command> | <exit and files outside> |
 | CI-environment suite | <image, network off, clone depth, command> | <result, or not possible: why, or no CI in this repository> |
-| PR checks | watch-pr.mjs | <result, or skipped: no CI, or skipped: the CI does not run on this PR> |
+| PR checks | watch-pr.mjs | <result, or skipped: no CI, or skipped: the CI does not run on this PR, or not watched: gh missing or not logged in, or not watched: opened by hand> |
 
 ## Decisions
 

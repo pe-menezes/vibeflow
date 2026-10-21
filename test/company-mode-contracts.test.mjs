@@ -142,6 +142,10 @@ const NO_GH_ROUTE = [
   'When gh is missing, is not logged in on that host, or the remote is on a host gh does not serve (GitLab, Bitbucket, Azure DevOps), the ending pushes the feature branch with the push command of step 5, keeps the body step 4 wrote in `.vibeflow/reviews/<feature>-pr-body.md`, skips steps 5 and 6 and `watch-pr.mjs`, and gives the user one line: the branch, the body file, and that they open the pull request or merge request by hand with that body.',
   'The final report of step 7 carries that line in place of the PR link.',
 ];
+// With no remote to push to, the ending cannot push either, so it stops before the push.
+const NO_ORIGIN_ROUTE = 'With no `origin` remote there is nowhere to push: the ending stops before the push, skips steps 5 and 6, and gives the user one line: the branch, the body file in `.vibeflow/reviews/<feature>-pr-body.md`, and that they add a remote, push and open the pull request or merge request by hand.';
+// Both routes skip the watch, and the body says so.
+const BY_HAND_ROW = "The body's PR checks row then reads `not watched: opened by hand`.";
 
 test('company mode: when gh cannot open the pull request, the ending pushes, keeps the body, skips the watch and hands the PR to the user', () => {
   const text = section();
@@ -152,12 +156,29 @@ test('company mode: when gh cannot open the pull request, the ending pushes, kee
   const push = text.indexOf('5. Push the feature branch');
   assert.ok(body !== -1 && push !== -1, 'the section has step 4 and step 5');
   assert.ok(body < route && route < push, 'the route sits between the body (step 4) and the push (step 5)');
-  // No step of the route needs gh: gh appears only in the check that chooses it.
-  assert.doesNotMatch(NO_GH_ROUTE[1], /`gh /, 'the route runs no gh command');
+  // No step of the route needs gh: in orchestrator.md, gh appears only in the check that chooses it.
+  const routeText = text.slice(route, push);
+  assert.ok(routeText.startsWith(NO_GH_ROUTE[0]), 'the route opens with the check');
+  const after = routeText.slice(NO_GH_ROUTE[0].length).split(/(?<=[.;:])\s+(?=[A-Z0-9`])/).filter((s) => s.trim());
+  assert.ok(after.length >= 2, 'the route has its steps after the check');
+  for (const s of after) assert.doesNotMatch(s, /`gh /, `a step of the route runs gh: "${s}"`);
+  hasSentence(routeText, BY_HAND_ROW, 'the body says the checks were not watched');
+});
+
+test('company mode: with no origin remote, the ending stops before the push and hands the branch and the body file to the user', () => {
+  const text = section();
+  hasSentence(text, NO_ORIGIN_ROUTE, 'the route without a remote');
+  const at = text.indexOf(NO_ORIGIN_ROUTE);
+  assert.ok(text.indexOf('Fill `pr-body.md`') < at && at < text.indexOf('5. Push the feature branch'), 'the route sits between the body (step 4) and the push (step 5)');
+  assert.ok(at < text.indexOf(NO_GH_ROUTE[1]), 'the remote is checked before the route that pushes without gh');
 });
 
 test('company mode: watch-pr.mjs exit 64 (gh missing or not logged in) says the checks are not watched and how to follow them', () => {
-  hasSentence(step(6), 'Exit 64: gh is missing or not logged in, so nothing is watching the checks; the final report says so and gives the user `gh pr checks <number> --watch` to follow them.', 'the route of exit 64');
+  hasSentence(step(6), "Exit 64: gh is missing or not logged in, so nothing is watching the checks and `gh pr edit` cannot run: the body file's PR checks row reads `not watched: gh missing or not logged in`, the PR keeps the body step 4 wrote, and the final report says the checks were not watched and gives the user `gh pr checks <number> --watch` to follow them.", 'the route of exit 64');
+  // Only a watch that read the PR rewrites the body with gh.
+  const edits = sentences().filter((s) => /`gh pr edit`/.test(s) && /\breplace\b/.test(s));
+  assert.equal(edits.length, 1, 'one sentence replaces the body with gh pr edit');
+  assert.ok(edits[0].startsWith('When the watch ends with exit 0, 1, 2 or 3,'), `the body is replaced only after a watch that read the PR: "${edits[0]}"`);
 });
 
 test('company mode: the ending runs in order, probes, CI-environment suite, body, push, PR, watch, body updated', () => {
@@ -195,7 +216,9 @@ test('company mode: only the sentences that order the ending speak of pushing or
     'A red run there blocks the push and is a finding for a fix round',
     'With no convention found, the PR opens as a draft,',
     'Before step 5, check that gh can open the pull request:',
+    'With no `origin` remote there is nowhere to push:',
     'When gh is missing, is not logged in on that host,',
+    "The body's PR checks row then reads `not watched: opened by hand`.",
     'Push the feature branch with `git push -u origin <feature branch>` and open the PR with',
     'A repository with no CI, or whose CI does not run on this PR (only on pushes to the default branch,',
     'On a restart the PR already exists:',
@@ -250,7 +273,7 @@ test('company mode: every row of the body\'s Commands has a file written before 
   // The outside check (suite, types, perimeter.mjs) writes to the ledger as it runs.
   hasSentence(text, "The body's Commands rows are filled from files, so in company mode every outside check writes each command it runs (suite, type checker, `perimeter.mjs`) and its result to the ledger as it runs, one line each: `Check: <part> <role> <round> — <command> — <result>`.", 'the outside check in the ledger');
   hasSentence(step(2), 'Record the CI-environment run in the ledger as it ends: image, network, clone depth, command and result.', 'the CI-environment run in the ledger');
-  hasSentence(step(6), "When the watch ends, copy its result from that file into the body's PR checks row and replace the PR's body with `gh pr edit` again.", 'the watch result added after the watch');
+  hasSentence(step(6), "When the watch ends with exit 0, 1, 2 or 3, copy its result from that file into the body's PR checks row and replace the PR's body with `gh pr edit` again.", 'the watch result added after the watch');
   // pr-body.md names, for every row, the file that holds it, and the watch file is the one step 6 writes.
   const commands = prBodyTemplate().get('Commands');
   const from = /<!-- from: (.*?) -->/.exec(commands);
@@ -285,6 +308,8 @@ test('pr-body.md: every section the reviewer reads before the diff', () => {
   assert.match(get('Commands'), /not possible/, 'the CI-environment row can declare the impossibility');
   assert.match(get('Commands'), /no CI/, 'the PR can say the repository has no CI');
   assert.match(get('Commands'), /the CI does not run on this PR/, 'the PR can say the CI does not run on it');
+  assert.match(get('Commands'), /not watched: gh missing or not logged in/, 'the PR can say gh could not watch the checks');
+  assert.match(get('Commands'), /not watched: opened by hand/, 'the PR can say it was opened by hand');
   assert.ok(get('Decisions').includes('Decision: <what> — why: <reason> — cost if wrong: <cost>'), 'the Decision lines');
   assert.match(get('Follow-ups'), /follow-up/i, 'what became follow-up work');
 });
@@ -318,7 +343,6 @@ test('company mode: the four limits and the real-data rule, stated once in orche
 
 test('company mode: the section is complete, with no placeholder wording', () => {
   const text = section();
-  assert.doesNotMatch(text, /part 4/i, 'no placeholder that defers the section to a later part');
   assert.doesNotMatch(text, /Until then/i, 'no "until then"');
   assert.doesNotMatch(text, /fills this section/i, 'no placeholder wording');
 });

@@ -58,7 +58,7 @@ function splitSection(content) {
   if (start === -1) return null;
   const end = content.indexOf(`\n${PHASE_0}`, start);
   if (end === -1) return null;
-  return { section: content.slice(start, end + 1), rest: content.slice(0, start) + content.slice(end + 1) };
+  return { section: content.slice(start, end + 1) };
 }
 
 // ------------------------------------------------------------------ Loop mode in the three editions
