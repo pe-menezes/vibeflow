@@ -5,7 +5,6 @@
 // drifting silently.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,7 +21,8 @@ const EDITIONS = {
 };
 
 // Where each edition reaches the kit, and what it tells the user when the kit
-// is missing.
+// is missing. The file editions name the minimum installer version, because an
+// older setup-vibeflow fetches these prompts but does not install the kit.
 const KIT_PATH = {
   shared: '${CLAUDE_SKILL_DIR}/../implement/loop/',
   cursor: '.cursor/skills/vibeflow-implement/loop/',
@@ -30,8 +30,8 @@ const KIT_PATH = {
 };
 const INSTALL_HINT = {
   shared: /updating the Vibeflow plugin installs it/,
-  cursor: /`npx setup-vibeflow@latest --cursor --force`/,
-  copilot: /`npx setup-vibeflow@latest --copilot --force`/,
+  cursor: /`npx setup-vibeflow@latest --cursor --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
+  copilot: /`npx setup-vibeflow@latest --copilot --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
 };
 
 const FINDING_LINE =
@@ -83,7 +83,7 @@ test('audit builds or reads a review package and refuses to pass over an empty o
     assert.equal(count(content, '"nothing to audit"'), 1, `${edition}: the empty-package rule is stated once`);
     assert.match(content, /exits 1[^.]*empty/i, `${edition}: exit 1 of review-package reads as empty`);
     assert.match(content, /`Review package: none \(kit not installed\)`/, `${edition}: fallback header value`);
-    assert.match(content, INSTALL_HINT[edition], `${edition}: install hint for the host`);
+    assert.match(content, INSTALL_HINT[edition], `${edition}: install hint for the host, with the minimum installer version on the file editions`);
     assert.match(content, /kit not installed[^.]*computes? the diff as (before|today)|computes? the diff as (before|today)[^.]*kit not installed/i,
       `${edition}: without the kit, the diff is computed as before`);
   });
@@ -351,9 +351,11 @@ test('the existing audit contracts still match in every edition', () => {
 
 // ----------------------------------------------------------------- protected
 
-// sha256 of each protected block, taken from the 1.15.0 release with `git show`
-// and kept here because the CI checks out with depth 1 and has no history to
-// read. A block runs from its first marker to the end of its last.
+// The blocks that hold what the audit will not pass over: the Critical Gate
+// catalog and verdict rule, and --consolidate-hotfixes. A block runs from its
+// first marker to the end of its last. Four of them carry no host path and
+// read the same in the three editions, byte for byte; the hotfix docs line
+// names each host's paths, so only its structure is checked.
 const PROTECTED = {
   'consolidate-hotfixes intro': ['With `--consolidate-hotfixes` in the input', 'jump to Consolidation mode below.'],
   'Critical Gate catalog, overrides and verdict mapping': ['b. **Match each changed line', 'treat it as an override.'],
@@ -361,30 +363,69 @@ const PROTECTED = {
   'hotfix docs line': ['When `.vibeflow/hotfixes/` holds hotfix docs', 'no line.'],
   'consolidation mode': ['## Consolidation mode — `--consolidate-hotfixes`', 'Sections with nothing to list are omitted.'],
 };
-const SAME_IN_ALL = {
-  'consolidate-hotfixes intro': '842eadffe75eef86521d97fa76c7ad4af72a3ead3020709c50f90523e747c5e5',
-  'Critical Gate catalog, overrides and verdict mapping': 'f494b97572b9a4ea780d0be40555b81f2849d1affa30dd572a69fa79adb579f8',
-  'Critical Gate verdict rule': 'dca100f57b2b1ee4f3d11a81f43d401b229a860d4f0a5f6488f8f02b864a6dd1',
-  'consolidation mode': 'afbcb932c561bc47f51242dddf75ab29fecaba849fdd3bed2c1665e56f826d0f',
-};
-const BASE_HASHES = {
-  shared: { ...SAME_IN_ALL, 'hotfix docs line': '82219c5fad79e2397427b556c9c46e180e550bffb7b34388234cc901465166dd' },
-  cursor: { ...SAME_IN_ALL, 'hotfix docs line': 'b24ab1a17445a54707d39783f56c3f98185d69ffa162cd04fb2f87d59965d728' },
-  copilot: { ...SAME_IN_ALL, 'hotfix docs line': 'c0813af2c89600a113c9ac7f060432de96b3fb462f3cf10d16e4951dc06c4aba' },
-};
+const SAME_IN_ALL = [
+  'consolidate-hotfixes intro',
+  'Critical Gate catalog, overrides and verdict mapping',
+  'Critical Gate verdict rule',
+  'consolidation mode',
+];
 
-test('the Critical Gate catalog, its verdict mapping and --consolidate-hotfixes are byte-identical to the 1.15.0 release', () => {
+// The block's text, or the reason the file has no single well-formed block.
+function protectedBlock(raw, [start, end]) {
+  const from = raw.indexOf(start);
+  if (from === -1) return { problem: 'does not start' };
+  if (raw.indexOf(start, from + 1) !== -1) return { problem: 'starts more than once' };
+  const to = raw.indexOf(end, from);
+  if (to === -1) return { problem: 'does not end' };
+  return { text: raw.slice(from, to + end.length) };
+}
+
+// One line per edition whose block differs from the shared plugin's, naming
+// the first offset where they part.
+function parityGaps(texts) {
+  const reference = texts.shared;
+  const gaps = [];
+  for (const [edition, text] of Object.entries(texts)) {
+    if (edition === 'shared' || text === reference) continue;
+    let at = 0;
+    while (at < text.length && at < reference.length && text[at] === reference[at]) at += 1;
+    gaps.push(`${edition} differs from shared at offset ${at}: ${JSON.stringify(text.slice(at, at + 40))}`);
+  }
+  return gaps;
+}
+
+test('protected blocks: the parity check catches a one-byte change in one edition', () => {
+  const raw = read(EDITIONS.shared);
+  for (const name of SAME_IN_ALL) {
+    const { text } = protectedBlock(raw, PROTECTED[name]);
+    assert.ok(text, `sample: shared block "${name}" found`);
+    assert.deepEqual(parityGaps({ shared: text, cursor: text, copilot: text }), [], `sample: identical "${name}" passes`);
+    const at = Math.floor(text.length / 2);
+    const changed = text.slice(0, at) + (text[at] === 'x' ? 'y' : 'x') + text.slice(at + 1);
+    const gaps = parityGaps({ shared: text, cursor: text, copilot: changed });
+    assert.equal(gaps.length, 1, `sample: one changed byte in "${name}" is one gap`);
+    assert.match(gaps[0], new RegExp(`^copilot differs from shared at offset ${at}:`), `sample: the gap names the edition and the byte`);
+  }
+  const [start, end] = PROTECTED['Critical Gate verdict rule'];
+  assert.equal(protectedBlock('no markers here', [start, end]).problem, 'does not start', 'sample: a missing block');
+  assert.equal(protectedBlock(`${start} ${start} ${end}`, [start, end]).problem, 'starts more than once', 'sample: a doubled block');
+  assert.equal(protectedBlock(`${start} and no end`, [start, end]).problem, 'does not end', 'sample: an unterminated block');
+});
+
+test('protected blocks: each one starts once and ends in every edition', () => {
   forEachEdition((content, edition, raw) => {
-    for (const [name, [start, end]] of Object.entries(PROTECTED)) {
-      const from = raw.indexOf(start);
-      assert.ok(from !== -1, `${edition}: block "${name}" starts`);
-      assert.equal(raw.indexOf(start, from + 1), -1, `${edition}: block "${name}" starts once`);
-      const to = raw.indexOf(end, from);
-      assert.ok(to !== -1, `${edition}: block "${name}" ends`);
-      const hash = createHash('sha256').update(raw.slice(from, to + end.length)).digest('hex');
-      assert.equal(hash, BASE_HASHES[edition][name], `${edition}: block "${name}" changed since the 1.15.0 release`);
+    for (const [name, markers] of Object.entries(PROTECTED)) {
+      const { problem } = protectedBlock(raw, markers);
+      assert.equal(problem, undefined, `${edition}: block "${name}" ${problem}`);
     }
   });
+});
+
+test('protected blocks: the Critical Gate and --consolidate-hotfixes read byte for byte the same in the three editions', () => {
+  for (const name of SAME_IN_ALL) {
+    const texts = Object.fromEntries(Object.entries(EDITIONS).map(([edition, path]) => [edition, protectedBlock(read(path), PROTECTED[name]).text]));
+    assert.deepEqual(parityGaps(texts), [], `block "${name}" drifted between editions`);
+  }
 });
 
 test('the shared audit stays under 500 lines', () => {

@@ -44,7 +44,8 @@ see the work finds what the implementer missed.
 The loop kit lives at `.github/vibeflow/loop/`. This command uses two of
 its scripts, `review-package.mjs` and `check-probes.mjs`. When the folder is
 missing, the kit is not installed: `npx setup-vibeflow@latest --copilot --force`
-installs it, and each step below says how the audit runs without it.
+(setup-vibeflow 0.17.0 or newer) installs it, and each step below says how the
+audit runs without it.
 
 ## Steps
 
