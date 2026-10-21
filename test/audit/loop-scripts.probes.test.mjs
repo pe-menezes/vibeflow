@@ -1,5 +1,5 @@
 // Behavior probes from independent audits of the loop kit's scripts: perimeter, review-package,
-// check-briefing --pair, watch-round, check-probes, preflight and the Node version guard. Behavior only,
+// check-briefing --pair, watch-round, check-probes, preflight, watch-pr and the Node version guard. Behavior only,
 // pinned by content. Each case states, as comments, the contract it protects, the plausible
 // regression that breaks it, and why the implementer's tests did not catch it. A case marked
 // `todo` asserts what a known open gap asks for: it runs and prints without failing the suite.
@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import {
-  appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync,
+  appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -600,4 +600,70 @@ test('preflight: an origin URL that does not parse is not printed with its crede
       assert.match(result.stdout, /^\[attention\] pr ending: origin https:\/\/127\.0\.0\.1:99999\/owner\/repo\.git has no host for gh; /m, result.out);
     });
   }
+});
+
+// Contract: a password holding a "/" or an "@", in an origin URL that does not parse, is not printed in any part.
+// Breaks when: the credential pattern stops at the first "/" or at the first "@" after the scheme, so the URL prints whole or keeps the tail of the password.
+// Not covered by: the credential case above uses passwords of letters, digits and dashes, which those narrower patterns strip as well.
+test('preflight: a password holding "/" or "@" in an origin URL that does not parse is not printed in any part', () => {
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', 'https://user:left-s3cret/mid-s3cret@end-s3cret@127.0.0.1:99999/owner/repo.git');
+    const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+    assert.equal(result.status, 1, result.out);
+    assert.ok(!result.out.includes('s3cret'), result.out);
+    assert.match(result.stdout, /^\[attention\] pr ending: origin https:\/\/127\.0\.0\.1:99999\/owner\/repo\.git has no host for gh; /m, result.out);
+  });
+});
+
+// Contract: a password holding a space, in an origin URL that does not parse, is not printed in any part.
+// Breaks when: the credential pattern does not cross whitespace, so the URL prints whole.
+// Not covered by: every credential case uses a password without whitespace.
+test('preflight: a password holding a space in an origin URL that does not parse is not printed', { todo: 'open gap: the credential pattern stops at whitespace, so a password with a space is printed whole' }, () => {
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', 'https://user:left-s3cret right-s3cret@127.0.0.1:99999/owner/repo.git');
+    const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+    assert.ok(!result.out.includes('s3cret'), result.out);
+  });
+});
+
+// Contract: with the origin on a host and gh not installed, the open PR line says gh is not installed, not that gh does not serve the host.
+// Breaks when: the skip of the open PR list follows any failed gh auth status, the exit of a gh that is not there included.
+// Not covered by: the implementer's case with gh missing reads only the pr ending line.
+test('preflight: with gh not installed, the open PR line says so instead of blaming the origin host', async () => {
+  const port = await closedPort();
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `http://127.0.0.1:${port}/owner/repo.git`);
+    const gitOnly = join(box.root, 'git-only');
+    mkdirSync(gitOnly);
+    symlinkSync(spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim(), join(gitOnly, 'git'));
+    const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env({ PATH: gitOnly })));
+    assert.match(result.stdout, /^\[ok\] CI: gh not installed, open PRs not checked$/m, result.out);
+    assert.match(result.stdout, /^\[attention\] pr ending: gh not installed; /m, result.out);
+  });
+});
+
+// Contract: a failed gh read is retried until the ceiling, not a set number of times: a gh that fails four reads in a row and then answers green ends green.
+// Breaks when: the retry loop gives up after a fixed number of failed reads and reports the ceiling before it is reached.
+// Not covered by: the implementer's case recovers after a single failed read, and its ceiling half accepts exit 3 after any number of reads.
+test('watch-pr: a gh that fails several reads in a row and then answers green ends green, well before the ceiling', () => {
+  withSandbox((box) => {
+    const green = join(box.root, 'green.json');
+    writeFileSync(green, JSON.stringify({ state: 'OPEN', title: 'feat', url: 'https://example.invalid/pr/7', statusCheckRollup: [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }] }));
+    box.writeExecutable('gh', [
+      '#!/bin/sh',
+      `printf '%s\\n' "$*" >> '${box.ghLog}'`,
+      `reads=$(wc -l < '${box.ghLog}')`,
+      `if [ $reads -gt 4 ]; then cat '${green}'; exit 0; fi`,
+      "echo 'HTTP 502: Bad Gateway' >&2",
+      'exit 1',
+      '',
+    ].join('\n'));
+    const result = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.02', '--timeout-min', '5'], box.env());
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.stdout, /; attempt 4$/m, result.out);
+    assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 5, result.out);
+  });
 });
