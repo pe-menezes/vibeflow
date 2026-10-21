@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Preflight before a long dispatch: measures now instead of assuming. The repository's git
-// state, the network, the CI of open PRs, the effort variable that overrides agent definitions,
-// and, as an option on macOS, power, lid and sleep. One line per check, then the verdict.
+// state, the network, the CI of open PRs, whether gh can open the pull request at the end, the
+// effort variable that overrides agent definitions, and, as an option on macOS, power, lid and
+// sleep. One line per check, then the verdict.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -18,15 +19,23 @@ const ATTENTION = 1;
 const STOP = 2;
 const LABEL = { [GO]: '[ok]', [ATTENTION]: '[attention]', [STOP]: '[stop]' };
 const MIN_BATTERY = 25;
-const DEFAULT_PROBES = ['https://api.github.com'];
 
 const USAGE = `usage: preflight.mjs --repo <dir> [--hours <n>] [--default-branch <name>] [--probe-url <url>]... [--power] [--no-network]
 
-Checks the repository (not the default branch, dirty files, stashes), the network (HEAD
-requests to api.github.com and to every --probe-url, such as the model provider's API), the CI
-of open PRs through gh when it is installed, and CLAUDE_CODE_EFFORT_LEVEL when it is set.
---power adds battery, lid and sleep through pmset and ioreg (macOS). --hours is the expected
-length of the work (default 1); work of an hour or more asks for mains power.
+Checks the repository (not the default branch, dirty files, stashes), the network, the CI of
+open PRs through gh when it is installed, how the pull request can be opened at the end, and
+CLAUDE_CODE_EFFORT_LEVEL when it is set. --power adds battery, lid and sleep through pmset and
+ioreg (macOS). --hours is the expected length of the work (default 1); work of an hour or more
+asks for mains power.
+
+network: a HEAD request to the host of the origin remote (<scheme>://<host[:port]> for an http
+or https remote, https://<host> for git@host:... and ssh://) and to every --probe-url, such as
+the model provider's API. Every --probe-url failing is a stop; the origin host failing is
+attention, since the push may still go over SSH; no origin and no --probe-url is attention.
+pr ending: gh auth status --hostname <origin host>. Without gh logged in to that host, the loop
+ends with the branch pushed and the pull request body written, for you to open the pull request
+or merge request by hand.
+--no-network skips the probes and every gh call (open PRs and pr ending).
 
 exit 0 go · 1 attention · 2 stop · 64 bad arguments`;
 
@@ -46,7 +55,7 @@ function run(command, args, cwd) {
 }
 
 function parseArgs(argv) {
-  const options = { repo: null, hours: 1, defaultBranch: null, probes: [...DEFAULT_PROBES], power: false, network: true };
+  const options = { repo: null, hours: 1, defaultBranch: null, probes: [], power: false, network: true };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     const value = () => {
@@ -94,6 +103,45 @@ function repository(repo, explicitDefault) {
   return { isRepo: true, lines };
 }
 
+// The origin remote: the URL the network probe uses and the host gh is asked about.
+// An http(s) remote probes itself; an ssh remote probes https on the same host.
+function origin(repo) {
+  const result = run('git', ['remote', 'get-url', 'origin'], repo);
+  const url = result.status === 0 ? result.out.trim() : '';
+  if (!url) return null;
+  const parse = (text) => {
+    try {
+      return new URL(text);
+    } catch {
+      return null;
+    }
+  };
+  if (/^https?:\/\//i.test(url)) {
+    const parsed = parse(url);
+    if (parsed) return { url, probe: `${parsed.protocol}//${parsed.host}`, host: parsed.hostname };
+  } else if (/^ssh:\/\//i.test(url)) {
+    const parsed = parse(url);
+    if (parsed) return { url, probe: `https://${parsed.hostname}`, host: parsed.hostname };
+  } else {
+    const scp = url.match(/^(?:[^@/]+@)?([^:/]+):(?!\/\/)/);
+    if (scp && !/^[a-z]:[\\/]/i.test(url)) return { url, probe: `https://${scp[1]}`, host: scp[1] };
+  }
+  return { url, probe: null, host: null };
+}
+
+const BY_HAND = 'without it the loop ends with the branch pushed and the pull request body written, for you to open the pull request or merge request by hand';
+
+function prEnding(repo, remote) {
+  if (!remote) return [[ATTENTION, 'pr ending: no origin remote; the loop has nowhere to push the branch or open a pull request']];
+  if (!remote.host) return [[ATTENTION, `pr ending: origin ${remote.url} has no host for gh; ${BY_HAND}`]];
+  const result = run('gh', ['auth', 'status', '--hostname', remote.host], repo);
+  if (result.status === 127 && result.out === 'not installed') return [[ATTENTION, `pr ending: gh not installed; ${BY_HAND}`]];
+  if (result.status !== 0) {
+    return [[ATTENTION, `pr ending: gh is not logged in to ${remote.host} or does not serve it (gh auth login --hostname ${remote.host}); ${BY_HAND}`]];
+  }
+  return [[GO, `pr ending: gh can open the pull request on ${remote.host}`]];
+}
+
 function pullRequests(repo) {
   const result = run('gh', ['pr', 'list', '--state', 'open', '--json', 'number,title,statusCheckRollup,isDraft'], repo);
   if (result.status === 127 && result.out === 'not installed') return [[GO, 'CI: gh not installed, open PRs not checked']];
@@ -114,22 +162,39 @@ function pullRequests(repo) {
   });
 }
 
-async function network(probes) {
+async function answers(url) {
+  try {
+    await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(6000) });
+    return null;
+  } catch (error) {
+    return `${url} (${error.cause?.code ?? error.name})`;
+  }
+}
+
+// Only the probes the person named can stop the dispatch: the origin host is a guess at
+// what the push needs, and an ssh push does not need its https side.
+async function network(remote, given) {
+  const fallback = remote?.probe ?? null;
+  if (!fallback && given.length === 0) {
+    const why = remote ? `origin ${remote.url} is not an http or ssh remote` : 'no origin remote';
+    return [[ATTENTION, `network: nothing to probe (${why}, no --probe-url)`]];
+  }
+  const probes = fallback ? [fallback, ...given] : given;
   const failures = [];
   for (const url of probes) {
-    try {
-      await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(6000) });
-    } catch (error) {
-      failures.push(`${url} (${error.cause?.code ?? error.name})`);
-    }
+    const failure = await answers(url);
+    if (failure) failures.push(failure);
   }
   if (failures.length === 0) return [[GO, `network: ${probes.join(', ')} answer`]];
-  return [[failures.length === probes.length ? STOP : ATTENTION, `network: no answer from ${failures.join(', ')}`]];
+  const givenFailures = failures.length - (fallback && failures[0].startsWith(`${fallback} `) ? 1 : 0);
+  const level = given.length > 0 && givenFailures === given.length ? STOP : ATTENTION;
+  const ssh = givenFailures < failures.length ? `; ${fallback} is the origin host, and a push over SSH does not need it` : '';
+  return [[level, `network: no answer from ${failures.join(', ')}${ssh}`]];
 }
 
 function effort() {
   const value = process.env.CLAUDE_CODE_EFFORT_LEVEL;
-  if (!value) return [[GO, 'effort: CLAUDE_CODE_EFFORT_LEVEL unset; each agent definition keeps its own effort']];
+  if (!value) return [];
   return [[ATTENTION, `effort: CLAUDE_CODE_EFFORT_LEVEL=${value} is set; it overrides the effort of the executor and auditor definitions`]];
 }
 
@@ -166,8 +231,14 @@ async function main(argv) {
   const options = parseArgs(argv);
   const repo = resolve(options.repo);
   const { isRepo, lines: results } = repository(repo, options.defaultBranch);
-  if (isRepo) results.push(...pullRequests(repo));
-  results.push(...(options.network ? await network(options.probes) : [[GO, 'network: not probed (--no-network)']]));
+  if (options.network) {
+    const remote = isRepo ? origin(repo) : null;
+    if (isRepo) results.push(...pullRequests(repo));
+    results.push(...(await network(remote, options.probes)));
+    if (isRepo) results.push(...prEnding(repo, remote));
+  } else {
+    results.push([GO, 'network: not probed, gh not called (--no-network)']);
+  }
   results.push(...effort());
   if (options.power) results.push(...power(options.hours));
 

@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -684,6 +685,49 @@ test('watch-pr stops at the ceiling, not an interval after it, with checks pendi
   });
 });
 
+// gh missing or not logged in is permanent: retrying it only burns the ceiling (480 min by default).
+test('watch-pr exits 64 at the first read when gh is not installed, and says what to do', () => {
+  withSandbox((box) => {
+    const empty = join(box.root, 'empty-bin');
+    mkdirSync(empty);
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '60', '--timeout-min', '0.01'];
+    const result = runScript('watch-pr.mjs', args, box.env({ PATH: empty }));
+    assert.equal(result.status, 64, result.out);
+    assert.match(result.stderr, /gh is not installed/);
+    assert.doesNotMatch(result.out, /attempt|ceiling/);
+  });
+});
+
+test('watch-pr exits 64 at the first read when gh is not logged in (gh exit 4), and says what to do', () => {
+  withSandbox((box) => {
+    box.setGh('');
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
+    const result = runScript('watch-pr.mjs', args, box.env({ FAKE_GH_EXIT: '4' }));
+    assert.equal(result.status, 64, result.out);
+    assert.match(result.stderr, /gh auth login/);
+    assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 1, 'gh was read more than once');
+  });
+});
+
+test('watch-pr keeps reading after any other gh failure until the ceiling', () => {
+  withSandbox((box) => {
+    box.setGh('');
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
+    const result = runScript('watch-pr.mjs', args, box.env({ FAKE_GH_EXIT: '1' }));
+    assert.equal(result.status, 3, result.out);
+    assert.ok(readFileSync(box.ghLog, 'utf8').trim().split('\n').length >= 2, 'gh was read only once');
+  });
+});
+
+test('watch-pr usage and README row name exit 64 for gh missing or not logged in', () => {
+  const usage = runScript('watch-pr.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
+  assert.match(usage, /64 bad arguments, or gh missing or not logged in/);
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
+  const row = readme.split('\n').find((line) => line.startsWith('| `watch-pr'));
+  assert.match(row, /64 gh missing or not logged in/);
+  assert.match(readme, /`watch-pr\.mjs` also exits 64 at its first read when `gh` is not installed or not logged in/);
+});
+
 // --- watch-round ---
 
 function aged(path, minutes) {
@@ -830,15 +874,78 @@ test('watch-round refuses missing limits', () => {
 
 // --- preflight ---
 
-test('preflight is a go on a clean feature branch', () => {
-  withSandbox((box) => {
-    box.git('switch', '-q', '-c', 'feat/x');
-    const result = runScript('preflight.mjs', ['--repo', box.repo, '--no-network'], box.env());
-    assert.equal(result.status, 0, result.out);
-    assert.match(result.stdout, /branch feat\/x/);
-    assert.match(result.stdout, /open PRs: none/);
-    assert.match(result.stdout, /^verdict: go$/m);
+// No preflight test reaches the real network. The origin and every probe live on 127.0.0.1;
+// any other host goes through a proxy on a closed local port, so a default that points at a
+// public host fails fast instead of leaving the machine.
+const offline = (env) => ({
+  ...env,
+  NODE_USE_ENV_PROXY: '1',
+  NODE_NO_WARNINGS: '1',
+  HTTP_PROXY: 'http://127.0.0.1:9',
+  HTTPS_PROXY: 'http://127.0.0.1:9',
+  http_proxy: 'http://127.0.0.1:9',
+  https_proxy: 'http://127.0.0.1:9',
+  NO_PROXY: '127.0.0.1',
+  no_proxy: '127.0.0.1',
+});
+
+// A local HTTP server that answers every request and records it.
+async function withServer(run) {
+  const hits = [];
+  const server = createServer((request, response) => {
+    hits.push(`${request.method} ${request.url}`);
+    response.end();
   });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  try {
+    return await run(`http://127.0.0.1:${server.address().port}`, hits);
+  } finally {
+    await new Promise((done) => server.close(done));
+  }
+}
+
+// A local port nobody listens on.
+async function closedPort() {
+  const server = createServer();
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address();
+  await new Promise((done) => server.close(done));
+  return port;
+}
+
+// A fake gh whose `auth status` exits with `authExit`; every other call answers the sandbox state.
+function ghWithAuth(box, authExit) {
+  box.writeExecutable('gh', [
+    '#!/bin/sh',
+    `printf '%s\\n' "$*" >> '${box.ghLog}'`,
+    `if [ "$1" = auth ]; then echo 'auth answer'; exit ${authExit}; fi`,
+    `cat '${box.root}/gh-state.json'`,
+    '',
+  ].join('\n'));
+}
+
+const preflight = (args, env) => watchWhile('preflight.mjs', args, offline(env), {}).then(({ code, out }) => ({ status: code, out }));
+
+async function withSandboxAsync(run) {
+  const box = makeSandbox();
+  try {
+    return await run(box);
+  } finally {
+    box.cleanup();
+  }
+}
+
+test('preflight is a go on a clean feature branch whose origin answers and gh can open the PR', async () => {
+  await withSandboxAsync((box) => withServer(async (origin, hits) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `${origin}/owner/repo.git`);
+    const result = await preflight(['--repo', box.repo], box.env());
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.out, /branch feat\/x/);
+    assert.match(result.out, /open PRs: none/);
+    assert.match(result.out, /^verdict: go$/m);
+    assert.ok(hits.length > 0, 'the origin host was not probed');
+  }));
 });
 
 test('preflight stops on the default branch', () => {
@@ -854,12 +961,152 @@ test('preflight calls attention to dirty files, stashes, red CI and the effort v
     box.git('switch', '-q', '-c', 'feat/x');
     box.write('src/rules.ts', 'dirty\n');
     box.setGh([{ number: 3, title: 'other', isDraft: false, statusCheckRollup: [{ name: 't', status: 'COMPLETED', conclusion: 'FAILURE' }] }]);
-    const result = runScript('preflight.mjs', ['--repo', box.repo, '--no-network'], box.env({ CLAUDE_CODE_EFFORT_LEVEL: 'low' }));
+    const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env({ CLAUDE_CODE_EFFORT_LEVEL: 'low' })));
     assert.equal(result.status, 1, result.out);
     assert.match(result.stdout, /1 dirty file/);
     assert.match(result.stdout, /PR #3: CI red/);
     assert.match(result.stdout, /CLAUDE_CODE_EFFORT_LEVEL=low/);
   });
+});
+
+test('preflight probes the origin host, not a fixed public host', async () => {
+  await withSandboxAsync((box) => withServer(async (origin, hits) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `${origin}/owner/repo.git`);
+    const result = await preflight(['--repo', box.repo], box.env());
+    assert.match(result.out, new RegExp(`^\\[ok\\] network: ${origin} answer`, 'm'));
+    assert.doesNotMatch(result.out, /api\.github\.com/);
+    assert.deepEqual(hits, ['HEAD /']);
+  }));
+});
+
+test('preflight probes https://<host> for an scp-style or ssh:// origin', async () => {
+  for (const remote of ['git@127.0.0.1:owner/repo.git', 'ssh://git@127.0.0.1:2222/owner/repo.git']) {
+    await withSandboxAsync(async (box) => {
+      box.git('switch', '-q', '-c', 'feat/x');
+      box.git('remote', 'add', 'origin', remote);
+      const result = await preflight(['--repo', box.repo], box.env());
+      assert.match(result.out, /network: .*https:\/\/127\.0\.0\.1(?!:)/, remote);
+      assert.match(readFileSync(box.ghLog, 'utf8'), /^auth status --hostname 127\.0\.0\.1$/m, remote);
+    });
+  }
+});
+
+test('preflight: the origin probe failing is attention, since the push may go over SSH', async () => {
+  const port = await closedPort();
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `http://127.0.0.1:${port}/owner/repo.git`);
+    const result = await preflight(['--repo', box.repo], box.env());
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, new RegExp(`^\\[attention\\] network: no answer from http://127\\.0\\.0\\.1:${port}`, 'm'));
+  });
+});
+
+test('preflight stops only when every --probe-url given fails', async () => {
+  const port = await closedPort();
+  await withSandboxAsync((box) => withServer(async (origin) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `${origin}/owner/repo.git`);
+    const dead = `http://127.0.0.1:${port}`;
+
+    const allGivenDown = await preflight(['--repo', box.repo, '--probe-url', dead], box.env());
+    assert.equal(allGivenDown.status, 2, allGivenDown.out);
+    assert.match(allGivenDown.out, /^\[stop\] network: /m);
+
+    const oneGivenUp = await preflight(['--repo', box.repo, '--probe-url', dead, '--probe-url', origin], box.env());
+    assert.equal(oneGivenUp.status, 1, oneGivenUp.out);
+    assert.match(oneGivenUp.out, /^\[attention\] network: no answer from /m);
+  }));
+});
+
+test('preflight: a given probe answering keeps a dead origin at attention', async () => {
+  const port = await closedPort();
+  await withSandboxAsync((box) => withServer(async (probe) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `http://127.0.0.1:${port}/owner/repo.git`);
+    const result = await preflight(['--repo', box.repo, '--probe-url', probe], box.env());
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, /^\[attention\] network: no answer from /m);
+  }));
+});
+
+test('preflight: no origin and no --probe-url is attention, with nothing to probe', async () => {
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    const result = await preflight(['--repo', box.repo], box.env());
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.out, /^\[attention\] network: nothing to probe/m);
+  });
+});
+
+test('preflight --no-network never calls gh', () => {
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', 'https://127.0.0.1/owner/repo.git');
+    const result = runScript('preflight.mjs', ['--repo', box.repo, '--no-network'], offline(box.env()));
+    assert.equal(result.status, 0, result.out);
+    assert.equal(existsSync(box.ghLog) ? readFileSync(box.ghLog, 'utf8') : '', '');
+  });
+});
+
+test('preflight pr ending: a go when gh is logged in to the origin host', async () => {
+  await withSandboxAsync((box) => withServer(async (origin) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `${origin}/owner/repo.git`);
+    ghWithAuth(box, 0);
+    const result = await preflight(['--repo', box.repo], box.env());
+    assert.match(result.out, /^\[ok\] pr ending: gh can open the pull request on 127\.0\.0\.1$/m);
+    assert.match(readFileSync(box.ghLog, 'utf8'), /^auth status --hostname 127\.0\.0\.1$/m);
+  }));
+});
+
+test('preflight pr ending: attention, with the by-hand ending, when gh is not logged in, missing, or there is no origin', async () => {
+  const byHand = /branch pushed and the pull request body written.*by hand/;
+  await withSandboxAsync((box) => withServer(async (origin) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `${origin}/owner/repo.git`);
+    ghWithAuth(box, 1);
+    const loggedOut = await preflight(['--repo', box.repo], box.env());
+    assert.equal(loggedOut.status, 1, loggedOut.out);
+    const line = loggedOut.out.split('\n').find((text) => text.includes('pr ending:'));
+    assert.match(line, /^\[attention\] pr ending: .*127\.0\.0\.1/);
+    assert.match(line, byHand);
+
+    // A PATH with git and without gh.
+    const gitOnly = join(box.root, 'git-only-bin');
+    mkdirSync(gitOnly);
+    symlinkSync(spawnSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).stdout.trim(), join(gitOnly, 'git'));
+    const missing = await preflight(['--repo', box.repo], box.env({ PATH: gitOnly }));
+    const missingLine = missing.out.split('\n').find((text) => text.includes('pr ending:'));
+    assert.match(missingLine, /^\[attention\] pr ending: gh not installed/);
+    assert.match(missingLine, byHand);
+
+    box.git('remote', 'remove', 'origin');
+    const noOrigin = await preflight(['--repo', box.repo], box.env());
+    assert.match(noOrigin.out, /^\[attention\] pr ending: no origin remote/m);
+  }));
+});
+
+test('preflight writes the effort line only when CLAUDE_CODE_EFFORT_LEVEL is set', () => {
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    const unset = runScript('preflight.mjs', ['--repo', box.repo, '--no-network'], box.env());
+    assert.doesNotMatch(unset.out, /effort/i);
+    const set = runScript('preflight.mjs', ['--repo', box.repo, '--no-network'], box.env({ CLAUDE_CODE_EFFORT_LEVEL: 'high' }));
+    assert.match(set.out, /^\[attention\] effort: CLAUDE_CODE_EFFORT_LEVEL=high/m);
+  });
+});
+
+test('preflight usage and README row describe the origin probe and the pr ending line', () => {
+  const usage = runScript('preflight.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
+  const row = readme.split('\n').find((line) => line.startsWith('| `preflight'));
+  for (const text of [usage, row]) {
+    assert.doesNotMatch(text, /api\.github\.com/);
+    assert.match(text, /origin/);
+    assert.match(text, /pr ending/);
+  }
 });
 
 test('preflight --power stops on a low battery', () => {
