@@ -2,22 +2,19 @@
 
 ### v1.16.0 (2026-10-20)
 
-The execution loop arrives, off by default: without `--loop`, `implement` runs its pipeline as before, specs written before 1.16 stay valid, and a command used without the loop changes only as listed under Changed. All 3 editions updated.
+The execution loop arrives, off by default: without `--loop`, `implement` runs its pipeline as before and specs written before 1.16 stay valid. `gen-spec`, `discover`, `analyze`, `audit` and `stats` also change for a run without the loop; each change is listed under Changed. All 3 editions updated.
 
 **Added**
 
 - **`implement --loop`**: the session you call becomes the orchestrator; an executor implements each part in a fresh session, an independent audit checks it in another, and at most two fix rounds follow, each re-audited on its own diff, with a third only on your OK.
 - **Turning the loop on**: `loop: true` in `.vibeflow/loop/config.md` for a project, `--no-loop` to turn it off for one run, and one OK per feature (or `commit-rounds: true`) to commit each round on the feature branch; the loop never runs on the default branch.
 - **Fresh sessions per host**: the `vibeflow:executor` and `vibeflow:auditor` agents in Claude Code, a native subagent or a new task in Codex, and a new chat you open with the orchestrator's one-line instruction in Cursor and Copilot.
-- **Claude Code 2.1.69 or newer for the loop**: `implement`, `audit` and `stats` reach the kit through `${CLAUDE_SKILL_DIR}`, which Claude Code substitutes in a skill's body from that version on.
+- **Claude Code 2.1.69 or newer for the loop and for the audit's review package**: `implement`, `audit` and `stats` reach the kit through `${CLAUDE_SKILL_DIR}`, which Claude Code substitutes in a skill's body from that version on. On an older version an `audit` run by hand does not find the kit: it records `Review package: none (kit not installed)` and computes the diff as before, and updating Claude Code, not the plugin, gives it the package.
 - **Company mode, the loop's ending**: once every part passes, the orchestrator checks the probes, runs the suite in the CI's environment when your machine differs from it, pushes the branch, opens the pull request with `gh` (draft or ready by your repository's convention, draft when there is none) and waits for its checks with `watch-pr.mjs`; the agent never merges, deploys, applies a migration to a shared environment or reads production.
 - **Company mode needs GitHub and `gh`**: opening the pull request needs a remote on GitHub (or GitHub Enterprise) and `gh auth status` ok for its host; the `pr ending` line of `preflight.mjs` says so before the first dispatch, and without it the loop pushes the branch and writes the body to `.vibeflow/reviews/<feature>-pr-body.md` for you to open the pull request or merge request by hand.
-- **`audit --package <path>`**: the audit reads the change from a review package, or builds one with the kit's `review-package.mjs` from the merge-base with the default branch or from `--base <ref>`, so the review and the Critical Gate judge the same diff.
-- **`audit` findings**: every finding carries a severity (`defect`, `risk-gap`, `low`) and a cause (`spec`, `implementation`, `proof`, `fix`); an open `defect` or `risk-gap` keeps the verdict below PASS, and an empty package where a change is expected is FAIL.
+- **`audit --package <path>`**: the audit reads the change from a review package, or builds one with the kit's `review-package.mjs` from the merge-base with the default branch or from `--base <ref>`, so the review and the Critical Gate judge the same diff; with `--package` or `--base` given, an empty package ends the audit in FAIL ("nothing to audit").
 - **`audit --reaudit <round-commit>`**: checks one fix round against its own diff (the suite, the audit's probes, each open finding closed or kept, new defects in the fix diff only).
 - **`audit --probes`**: writes behavior probes as tests under `<test dir>/audit/` and sabotages risk code (money and totals, credentials and permissions, deleting or overwriting data, date and time boundaries), each sabotage undone from a copy checked by hash.
-- **`gen-spec` and `discover`**: optional `## Clarifications` (at most 5 questions per session), at most 3 open `[NEEDS CLARIFICATION: ...]` markers, `Scenarios:` lines in the EARS form, property checks naming their oracle, a `Risk code:` list under `## Risks`, and a self-check of the draft before saving; the DoD stays 3 to 7 checks.
-- **`analyze`: a Tests and Pitfalls block in `index.md`**: the full-suite command, the narrowest affected-tests command with its measured time or `unmeasured`, and the pitfalls with their source, refreshed by an incremental run when tests or CI configuration changed.
 - **`stats`: a `### Loop` section** when `.vibeflow/loop/` holds ledgers (its `.md` files other than `config.md`), with the numbers from `loop-stats.mjs`; without ledgers the report is unchanged and the command still writes nothing to disk.
 - **The loop kit** in `plugins/vibeflow/skills/implement/loop/`: the loop principles, four briefing templates, the orchestrator's flow, the PR body template, the executor and auditor roles, and nine dependency-free Node scripts (`preflight`, `who-reads`, `check-briefing`, `perimeter`, `review-package`, `check-probes`, `watch-pr`, `watch-round`, `loop-stats`); the Claude and Codex plugins ship it.
 - **The kit's exit codes**: every script answers `--help`, needs Node.js 18 or later and exits 64 below it, and exits 64 when it cannot run, with the two exceptions the kit's `README.md` gives (`review-package.mjs` exits 2 for every error; `preflight.mjs` exits 2, stop, on a path that is not a git repository); `watch-pr.mjs` also exits 64 at its first read when `gh` is missing or not logged in.
@@ -30,18 +27,19 @@ These change a command you already use, loop or no loop.
 - **`audit`**: `allowed-tools` gains `Edit` and `Write`, which Claude Code pre-approves while the audit runs.
 - **`stats`**: `allowed-tools` gains `Bash`, to run `loop-stats.mjs`.
 - **`audit` report**: gains a header (`Independence`, `Round`, `Stage`, `Review package`, `Base`) and the sections `### Findings`, `### Sabotage`, `### Probes` and `### Follow-ups`, and is rewritten at every stage with `Verdict: pending` until `Stage: final`.
-- **`audit` by hand**: writes its review package to `.vibeflow/reviews/<feature-slug>-round-0.md`, or records `Review package: none (<reason>)` when there is no diff to package, no kit or no Node.js 18+.
-- **`audit` by hand**: writes the probe file and sabotages only with `--probes`; without it, the report lists the probe cases as code and records `Sabotage: skipped (standalone audit; --probes runs it)`.
+- **`audit` by hand**: writes its review package to `.vibeflow/reviews/<feature-slug>-round-0.md`, or records `Review package: none (<reason>)` when there is no diff to package, no kit or no Node.js 18+; the Critical Gate reads its diff from that package. With no uncommitted or branch change, it reviews the files the spec names and its Critical Gate section says no diff was scanned.
+- **`audit` findings**: every finding is one line with a severity (`defect`, `risk-gap`, `low`), a cause (`spec`, `implementation`, `proof`, `fix`) and a confidence; an open `defect` or `risk-gap` keeps the verdict below PASS, a `low` finding goes to `### Follow-ups` without blocking, and a `spec`-cause finding enters the incremental prompt pack as a question, not a task.
+- **`audit` review**: also tests scenarios (edge cases, error paths, the inputs the DoD implies) and reads the spec's `Risk code:` line.
+- **`audit` by hand**: writes the probe file and sabotages only with `--probes`; without it, the report lists the probe cases it would write as code and records `Sabotage: skipped (standalone audit; --probes runs it)`.
+- **`gen-spec`**: where an assumption is not safe to state, writes `[NEEDS CLARIFICATION: <the question>]` in place of a TODO, with at most 3 open markers; checks its own draft before saving (binary DoD checks, a test or `Scenarios:` on each functional check where the project has a test runner, the marker count) and can ask up to 2 questions in one round before saving; ends `## Risks` with a `Risk code:` list of the paths or functions the change touches in money and totals, credentials and permissions, deleting or overwriting data, and date and time boundaries (`Risk code: none` when there are none).
+- **`gen-spec`**: records the questions asked and their answers in `## Clarifications` (at most 5 questions per session), carries a PRD's `## Clarifications` into the spec, and may add `Scenarios:` lines in the EARS form and property checks naming their oracle under a DoD check; the DoD stays 3 to 7 checks.
+- **`discover`**: writes the dialogue's decisive questions and answers under `## Clarifications` in the PRD.
+- **`analyze`**: `index.md` gains a Tests and Pitfalls block (the full-suite command, the narrowest affected-tests command with its measured time or `unmeasured`, and the pitfalls with their source). An incremental run is now due also when only a test file, the CI configuration or the test runner's configuration changed, or when `index.md` lacks the block; then it refreshes the block and moves `Analyzed:` to today. When the block is new or those files changed, and running is local and safe (no paid service, no deploy), it runs the project's test commands once to measure their time.
 - **`implement`**: gains only the `Loop mode` section; without `--loop` it runs phases 0 to 8 as before.
 
 **Fixed**
 
 - **`analyze` incremental**: counts commits from midnight of the analyzed date (`git log --since="<date> 00:00"`); with a date alone git counted from the current time of day, so that day's earlier commits were skipped.
-
-**Release order**
-
-- Publish CLI 0.17.0 to npm at the time of the merge, because the published CLI downloads the prompts from `main`; the Cursor and Copilot prompts already name "setup-vibeflow 0.17.0 or newer", and the CLI prints its own version.
-
 ### v1.15.0 (2026-09-05)
 
 - **Universal Claude + Codex plugin** — `plugins/vibeflow/` is now the single source of truth for the ten Vibeflow skills. The package carries both `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json`, so the same workflows install natively in Claude Code and Codex without duplicated prompt logic.

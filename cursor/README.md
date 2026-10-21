@@ -67,7 +67,7 @@ Type `/` in the Agent chat and search for the skill's name:
 
 ### Execution loop (opt-in)
 
-Off by default. With `/vibeflow-implement <spec> --loop` (or `loop: true` in `.vibeflow/loop/config.md`), the conversation becomes the orchestrator: the executor implements each part in a fresh session, the independent audit runs in another one, and there are at most two fix rounds. In Cursor, each fresh session is a chat you open with the one-line instruction the orchestrator writes ("Read `<briefing>` and follow it."). The loop ends in a pull request carrying the evidence, and it never merges, deploys, migrates a shared environment or reads production. The kit's scripts need Node.js 18 or newer (below that they exit with code 64). Details in [MANUAL.md](../MANUAL.md) (in Portuguese).
+Off by default. With `/vibeflow-implement <spec> --loop` (or `loop: true` in `.vibeflow/loop/config.md`), the conversation becomes the orchestrator: the executor implements each part in a fresh session, the independent audit runs in another one, and there are at most two fix rounds. In Cursor, each fresh session is a chat you open with the one-line instruction the orchestrator writes ("Read `<briefing>` and follow it."). The loop ends in a pull request carrying the evidence when the remote is on GitHub (or GitHub Enterprise) and `gh auth status` is ok for its host; otherwise it pushes the branch and writes the body to `.vibeflow/reviews/<feature>-pr-body.md` for you to open the pull request or merge request by hand. It never merges, deploys, migrates a shared environment or reads production. The kit's scripts need Node.js 18 or newer (below that they exit with code 64). Details in [MANUAL.md](../MANUAL.md) (in Portuguese).
 
 ### Rules
 

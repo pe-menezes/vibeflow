@@ -110,7 +110,10 @@ body template, the role files and the scripts) lives in
 `skills/implement/loop/` and ships with the plugin. Its scripts need Node.js 18
 or later and exit 64 below it; `preflight.mjs --power` is macOS only. In
 Claude Code the loop needs version 2.1.69 or newer, the one that substitutes
-`${CLAUDE_SKILL_DIR}` in a skill's body.
+`${CLAUDE_SKILL_DIR}` in a skill's body. An `audit` run by hand needs it too,
+to build its review package: on an older version it does not find the kit,
+records `Review package: none (kit not installed)` and computes the diff as
+before, and updating Claude Code, not the plugin, fixes it.
 
 The pull request at the end is opened with `gh`, so it needs a remote on GitHub
 (or GitHub Enterprise) and `gh auth status` ok for its host; the `pr ending`

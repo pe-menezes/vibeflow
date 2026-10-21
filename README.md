@@ -51,7 +51,7 @@ after the suite runs in the CI's environment when your machine differs from it
 (when that run is not possible, the PR opens anyway and says why). The agent
 never merges, deploys, migrates a shared environment or reads production.
 
-The loop is off by default, and nothing changes unless you turn it on:
+The loop is off by default and runs only when you turn it on:
 `implement --loop` for one run, or `loop: true` in `.vibeflow/loop/config.md`
 for the project (`--no-loop` turns it off for one run). Requirements:
 
@@ -60,7 +60,10 @@ for the project (`--no-loop` turns it off for one run). Requirements:
   with the plugin; the Cursor and Copilot installers copy it into the project.
 - Node.js 18 or later for the kit's scripts.
 - In Claude Code, version 2.1.69 or newer, the one that substitutes
-  `${CLAUDE_SKILL_DIR}` in a skill's body.
+  `${CLAUDE_SKILL_DIR}` in a skill's body. An `audit` run by hand needs it
+  too, to build its review package: on an older version it does not find the
+  kit, records `Review package: none (kit not installed)` and computes the
+  diff as before, and updating Claude Code, not the plugin, fixes it.
 - For the pull request at the end: a remote on GitHub (or GitHub Enterprise)
   and `gh auth status` ok for its host. The `pr ending` line of
   `preflight.mjs` tells you before the first dispatch. Without it, the loop
