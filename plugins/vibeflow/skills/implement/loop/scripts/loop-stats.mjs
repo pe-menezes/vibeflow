@@ -2,8 +2,9 @@
 // The loop's own numbers, read from the rounds tables of the loop ledgers in
 // .vibeflow/loop/*.md (config.md, the loop's settings, is not one): per feature and part,
 // the rounds, the fix rounds, whether the round-0 audit passed and the clock from the
-// round-0 executor's start to the end of the first PASS; then the totals. A row or table that does not follow the contract is a
-// warning and is skipped: a number built from a guessed row would read as a measurement.
+// round-0 executor's start to the end of the first PASS; then the totals. A row or table
+// that does not follow the contract is a warning and is skipped: a number built from a
+// guessed row would read as a measurement.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';

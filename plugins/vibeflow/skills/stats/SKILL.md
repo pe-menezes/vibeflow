@@ -28,7 +28,8 @@ Compile and report statistics from audit reports.
 ## Steps
 
 1. Read every `.md` file in `.vibeflow/audits/`. If there are none and
-   `.vibeflow/loop/` holds no ledger, report
+   `.vibeflow/loop/` holds no ledger (a `.md` file there other than
+   `config.md`, step 3), report
    "No audits found. Run `audit` after implementing a feature."
    and stop.
 
