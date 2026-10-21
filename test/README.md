@@ -103,8 +103,8 @@ The control arm is the plugin cache at
 verifies it before trusting it — version `1.12.0`, `audit/SKILL.md` carrying
 `MANDATORY` and lacking `Report every finding` — and refuses to run rather than
 let a silent plugin upgrade turn the control arm into a second copy of the
-treatment arm. This ties the control arm to the maintainer's local plugin
-cache — a fresh clone cannot run it — which is a declared limitation, accepted
+treatment arm. This ties the control arm to a local plugin cache at that
+path — a fresh clone cannot run it — which is a declared limitation, accepted
 for now over pinning a tag or archive.
 
 Raw per-stage output lands in `<workdir>/results.json`.
@@ -115,11 +115,21 @@ The dependency-free Node test suite also guards the static distribution
 contract for every host:
 
 ```
-node --test test/*.test.mjs
+node --test test/*.test.mjs test/audit/*.test.mjs
 ```
+
+`test/audit/` holds the probes that independent audits of this repository
+left behind: behavior tests pinned by content, one file per subject, named
+`<subject>.probes.test.mjs`. Each probe carries its three pruning answers as
+comments right above its `test(` call: the contract it protects (`Contract:`),
+the plausible regression that breaks it (`Breaks when:`) and why the
+implementer's tests did not catch it (`Not covered by:`). A probe that
+reproduces a known open gap is marked `todo` with a plain description of the
+gap, so it runs and prints without failing the suite.
 
 It requires the same ten workflows in the shared Claude/Codex plugin, Cursor
 skills, and Copilot prompt files; validates host-specific names and frontmatter;
 checks essential behavior anchors for each workflow; and verifies that the
-Claude and Codex catalogs resolve to the same versioned plugin. GitHub Actions
-runs these checks for every pull request and push to `main`.
+Claude and Codex catalogs resolve to the same versioned plugin. It also covers
+the loop kit's scripts, contracts and installer. GitHub Actions runs the same
+command for every pull request and push to `main`.

@@ -64,6 +64,8 @@ Uma flag de edição é **obrigatória** — o instalador não tem default para 
 instalar na edição errada. `--copilot` e `--cursor` instalam arquivos;
 `--codex` e `--claude` mostram os comandos do marketplace nativo.
 
+**Kit do loop:** desde o CLI 0.17.0, `--cursor` e `--copilot` também instalam o kit do loop de execução, em `.cursor/skills/vibeflow-implement/loop/` e em `.github/vibeflow/loop/`, baixando do plugin os arquivos que o `manifest.json` do kit lista (uma fonte só, `plugins/vibeflow/skills/implement/loop/`). Instalação anterior ganha o kit rodando o instalador de novo com `--force`. No Codex e no Claude Code o kit vem dentro do plugin. Veja [O loop de execução](#o-loop-de-execução).
+
 **Git:** Por padrão, o instalador adiciona ao `.gitignore` os arquivos que instala e a pasta `.vibeflow/` (gerada pelo analyze). Eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
 
 ## Comandos
@@ -83,7 +85,7 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 **O que gera:**
 ```
 .vibeflow/
-├── index.md          # Overview: stack, estrutura, budget
+├── index.md          # Overview: stack, estrutura, budget, testes e pitfalls
 ├── conventions.md    # Convenções com exemplos reais + seção Don'ts
 ├── patterns/         # Um doc por padrão descoberto
 └── decisions.md      # Log de decisões (vazio no início)
@@ -91,7 +93,9 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 
 O `conventions.md` inclui uma seção **Don'ts** com regras proibitivas explícitas — o que NÃO fazer. Don'ts são minerados dos anti-patterns nos pattern docs, regras de projeto (.cursorrules, CLAUDE.md), e pitfalls comuns da stack.
 
-**Modo incremental:** Se `.vibeflow/` já existe, detecta mudanças via git e atualiza só o que mudou. Patterns importados (em `patterns/external-*/` via `teach --from`) são protegidos — o analyze nunca sobrescreve um pattern que tem versão importada.
+**Modo incremental:** Se `.vibeflow/` já existe, detecta mudanças via git e atualiza só o que mudou. A busca é `git log --since="<data> 00:00"`, com a data do `Analyzed:` do `index.md` e a hora explícita: com a data sozinha, o git conta a partir da hora atual daquele dia e perderia os commits feitos mais cedo. Patterns importados (em `patterns/external-*/` via `teach --from`) são protegidos: o analyze nunca sobrescreve um pattern que tem versão importada.
+
+**Testes e pitfalls no `index.md`:** dentro dos marcadores auto-gerados, o `index.md` traz o comando da suíte inteira e o comando mais estreito que roda só os testes afetados por uma mudança (por arquivo, pacote ou tag, como a stack permitir), com o tempo medido quando rodar foi local e seguro (sem serviço pago, sem deploy) e `unmeasured` quando nunca rodou; e os pitfalls que já custaram tempo ao projeto, cada um com a fonte (`decisions.md`, uma linha da CI, um commit de revert ou de fix). No modo incremental o bloco é refeito quando falta (index de antes do bloco) ou quando mudou um arquivo de teste, a configuração da CI ou a do test runner, mesmo sem mudança estrutural; nesse caso o analyze refaz só o bloco e move o `Analyzed:` para a data de hoje.
 
 **Modo scoped (`--scope`):** Deep-dive num módulo específico. Requer que o analyze geral já tenha rodado. Samplea densamente o módulo (80%+ dos arquivos) e enriquece os pattern docs globais com exemplos daquele módulo. Ideal para repos grandes onde o analyze geral é shallow em módulos individuais.
 
@@ -117,6 +121,8 @@ Diálogo interativo que transforma uma ideia vaga em um PRD (Product Requirement
 
 **Se a ideia já estiver clara:** o agente detecta e faz fast-track (1-2 rodadas).
 
+**Clarifications:** as perguntas decisivas do diálogo e as respostas vão para a seção `## Clarifications` do PRD, e o `gen-spec` as leva para a spec.
+
 ---
 
 ### `vibeflow-gen-spec`
@@ -136,8 +142,13 @@ Gera uma spec técnica a partir de um PRD ou descrição de feature.
 - Definition of Done (3-7 checks binários, pelo menos 1 de craftsmanship/qualidade)
 - Escopo e anti-escopo
 - Decisões técnicas com trade-offs
-- Riscos + mitigação
+- Riscos + mitigação, com a lista `Risk code:` (opcional): os caminhos ou funções concretos que mexem com dinheiro e totais, credenciais e permissões, apagar ou sobrescrever dado, ou fronteira de data e hora; é onde o audit sabota
 - Referências (opcional) — só quando o input traz alguma
+- Clarifications (opcional): cada pergunta feita nesta sessão e a resposta, no máximo 5 por sessão, mais as que vieram do PRD
+
+**Cenários e propriedades:** um check funcional do DoD pode levar `Scenarios:`, de 1 a 3 linhas na forma EARS (`WHEN <condição> THE SYSTEM SHALL <comportamento>`), que o implementador transforma no teste vermelho; e, quando o projeto tem biblioteca de teste de propriedade, um check pode ser uma propriedade ("for any <espaço de entrada>, <invariante>") com o oráculo nomeado. São campos de um check, não checks a mais: o DoD continua com 3 a 7.
+
+**Dúvidas abertas e auto-checagem:** o que a spec não consegue decidir vira um marcador `[NEEDS CLARIFICATION: <pergunta>]`, no máximo 3 abertos; mais do que isso, o gen-spec pergunta antes de salvar. Antes de salvar, ele confere o rascunho: todo check binário, todo check funcional nomeando seu teste ou com cenário, os marcadores contados. Se falhar, faz até 2 perguntas numa rodada só. Tudo isso é opcional: spec sem essas seções continua valendo.
 
 **Referências:** quando o input aponta para uma suíte de testes, um mockup, um
 código a portar ou uma implementação de referência, a spec ganha uma seção
@@ -196,19 +207,23 @@ Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec
 **Quando NÃO usar:**
 - Precisa delegar para outro agente/sessão → use `prompt-pack`
 
-**Fluxo (8 fases):**
-1. **Encontra e valida** a spec (resolve caminho ou nome, valida seções obrigatórias)
-2. **Extrai guardrails** — DoD, escopo, anti-escopo, budget, decisões técnicas
-3. **Carrega contexto** — `conventions.md`, pattern docs aplicáveis, `index.md`
-4. **Planeja** — identifica arquivos, verifica budget e anti-escopo, mapeia DoD → código
-5. **Implementa** — segue padrões, minimum change, budget hard limit, sem decisões arquiteturais
-6. **Roda testes** — detecta test runner, fixa falhas próprias (máx 2 tentativas)
-7. **Refina (simplify no escopo)** — limpa o diff que escreveu (reuso, nomes, dead code) sobre baseline verde e re-roda os testes; reverte se quebrar
-8. **Self-verifica DoD** — checa cada item com evidência, sugere `/vibeflow:audit`
+**Fluxo (fases 0 a 8, a mesma numeração dos cabeçalhos da skill):**
+
+0. **Encontra e valida** a spec (resolve caminho ou nome, valida seções obrigatórias)
+1. **Extrai guardrails** — DoD, escopo, anti-escopo, budget, decisões técnicas
+2. **Carrega contexto** — `conventions.md`, pattern docs aplicáveis, `index.md`
+3. **Planeja** — identifica arquivos, verifica budget e anti-escopo, mapeia DoD → código
+4. **Implementa** — segue padrões, minimum change, budget hard limit, sem decisões arquiteturais
+5. **Roda testes** — detecta test runner, fixa falhas próprias (máx 2 tentativas)
+6. **Refina (simplify no escopo)** — limpa o diff que escreveu (reuso, nomes, dead code) sobre baseline verde e re-roda os testes; reverte se quebrar
+7. **Self-verifica DoD** — checa cada item com evidência
+8. **Finaliza** — resume DoD, budget e testes e sugere `/vibeflow:audit` como próximo passo
 
 **Papel:** Coding Agent. Segue a spec, NÃO faz decisões arquiteturais. Se a spec for ambígua, para e pergunta ao invés de assumir.
 
 **Input:** caminho da spec (`vibeflow/specs/minha-feature.md`) ou nome da feature.
+
+**Modo loop (`--loop`):** com `--loop`, ou `loop: true` no front matter de `.vibeflow/loop/config.md`, as fases 0 a 3 rodam como acima e, no lugar das fases 4 a 8, a sessão vira a orquestradora do loop de execução: o executor implementa numa sessão nova e a auditoria independente roda em outra. `--no-loop` desliga o loop numa rodada mesmo com o config ligado. Sem o kit ou sem Node.js 18 ou mais novo, o comando para antes da fase 0, diz o que instalar e lembra que `implement` sem `--loop` continua rodando. Veja [O loop de execução](#o-loop-de-execução).
 
 ---
 
@@ -259,7 +274,7 @@ Fast-track para tarefas pequenas. Pula discover, gera spec efêmera (em memória
 
 ### `vibeflow-audit`
 
-Audita a implementação contra o DoD da spec e os padrões do projeto. Roda os testes automaticamente e passa o diff pelo Critical Gate (scan de operações destrutivas).
+Audita a implementação contra o DoD da spec e os padrões do projeto. Roda os testes automaticamente e passa o diff pelo Critical Gate (scan de operações destrutivas). Funciona melhor numa sessão que não implementou o trabalho.
 
 **Quando usar:**
 - Implementação feita, hora de validar
@@ -278,11 +293,25 @@ filtragem acontece no veredicto — é lá que severidade e confiança decidem o
 bloqueia, o que limita a PARTIAL e o que fica só como nota. O audit não decide
 por você o que era importante o bastante para mencionar.
 
+**Pacote de revisão:** o audit lê a mudança de um arquivo só, para que a revisão e o Critical Gate julguem o mesmo diff. Com `--package <caminho>`, lê esse pacote; sem ele, monta um em `.vibeflow/reviews/<slug>-round-0.md` com o `review-package.mjs` do kit, a partir de `--base <ref>` quando dado, senão do merge-base com a branch padrão (ou de `HEAD`, para trabalho não commitado na branch padrão). As pastas do próprio loop em `.vibeflow/` (`loop/`, `briefings/`, `progress/`, `reviews/`, `audits/`) nunca contam como mudança. Pacote vazio onde se espera mudança (parte do loop, `--package`, `--base` ou re-audit) termina em FAIL, "nothing to audit", nunca PASS. Os casos sem pacote ficam registrados no relatório:
+- trabalho já commitado na branch padrão, num audit à mão sem `--base`: o audit roda sobre o código como antes e grava `Review package: none (no uncommitted or branch change; --base <ref> audits committed work)`; o Critical Gate diz que nenhum diff foi escaneado;
+- kit ausente: `Review package: none (kit not installed)`, com o comando que instala;
+- Node.js ausente ou abaixo de 18: `Review package: none (Node.js 18+ not found)`.
+Nesses dois últimos, o diff é calculado como antes (`git diff HEAD` ou `git diff <base>...HEAD`).
+
+**Cabeçalho do relatório:** `Independence: fresh session | same session`, `Round: audit | reaudit <n>`, `Stage: <k>/<total> <nome> | final`, `Review package: <caminho> | none (<motivo>)` e `Base: <sha>`. O relatório é regravado a cada etapa com `Verdict: pending` até a última escrita, que põe `Stage: final` e o veredicto, então um relatório parcial nunca se passa por pronto. Rodado na sessão que fez o trabalho, o audit grava `Independence: same session` em vez de recusar. Esses rótulos ficam em inglês em qualquer idioma, porque scripts os leem.
+
+**Severidade e causa:** todo finding é uma linha com severidade (`defect`, comportamento errado; `risk-gap`, código certo sem prova em código de risco; `low`, o resto), causa (`spec`, `implementation`, `proof`, `fix`), confiança, evidência e sonda. `defect` ou `risk-gap` aberto segura o veredicto abaixo de PASS; `low` vai para `### Follow-ups` e não bloqueia; causa `spec` vai para você ou para uma emenda registrada da spec antes de qualquer conserto. Uma lacuna de prova que a própria sonda do auditor já fecha sai como `closed-by-probe` e não segura o veredicto sozinha.
+
+**Sabotagem e sondas (`--probes`):** o auditor lê o código e testa cenários; a sabotagem roda só em código de risco (a lista `Risk code:` da spec, ou as quatro categorias quando ela não existe), cada uma desfeita a partir de uma cópia conferida por hash, nunca com `git checkout`, `restore`, `stash` ou `reset`. Sondas de comportamento viram testes em `<pasta de testes>/audit/<feature>-<parte>.test.<ext>`, cada uma com três respostas no relatório (o contrato que protege, a regressão que a quebra, por que os testes do implementador não pegam); sonda que reproduz finding aberto leva o marcador de falha esperada do framework (`todo`, `xfail`, `test.failing`), para o audit nunca deixar a suíte vermelha. Sonda de estado (diff contra base, versão de hoje, frase de doc, número de linha, relógio real) fica no relatório. Num audit à mão, fora do loop, o arquivo de sondas e a sabotagem só rodam com `--probes`; sem a flag, o relatório lista as sondas que escreveria, como código, e grava `Sabotage: skipped (standalone audit; --probes runs it)`, e o audit só escreve em `.vibeflow/`. Dentro do loop, o briefing do auditor roda os dois.
+
+**Re-audit (`--reaudit <commit da rodada>`):** confere uma rodada de conserto lendo só o diff do conserto: roda a suíte e as sondas do audit, fecha ou mantém cada finding aberto com a prova, procura defeito novo só no diff do conserto (causa `fix` quando o conserto o introduziu) e só refaz o audit inteiro quando o conserto saiu do escopo dos findings, dizendo por quê. Salva em `.vibeflow/audits/<slug>-reaudit-<n>.md`; à mão, segue a mesma regra do `--probes`.
+
 **Se PARTIAL ou FAIL:** gera um prompt pack incremental cobrindo apenas os gaps.
 
 **Regra crítica:** testes falhando = FAIL automático. Finding CRITICAL/HIGH não-justificado do gate = FAIL automático.
 
-**Salva em:** `.vibeflow/audits/<slug>-audit.md`
+**Salva em:** `.vibeflow/audits/<slug>-audit.md` (numa parte do loop, `<feature>-<parte>-audit.md`)
 
 **Flag `--consolidate-hotfixes`:** o alvo da rodada vira `.vibeflow/hotfixes/` em vez de uma spec. Para cada doc, re-executa só o que o próprio doc carrega — os checks binários do `DoD` e o teste de regressão do `Regression` — contra o código atual, e classifica: `still-holds` (tudo verde, o fix se sustenta), `promote` (tudo verde + sinais de comportamento permanente → gera um stub de entrada para o gen-spec; quem decide é o humano), `regressed` (check ou teste quebrou → vira gap no prompt pack incremental, o mesmo mecanismo da rodada normal). Docs com `reproduction` abaixo de `real`, `status: partial` ou `halted(...)` entram na lista de débito prioritário mesmo verdes; doc halted não tem fix a re-executar — `test:` preenchido nomeia o oráculo vermelho que o HALT deixou na suíte, e a entrada registra seu estado atual. Classificação por doc, sem veredicto PASS/PARTIAL/FAIL; salva em `.vibeflow/audits/<YYYY-MM-DD>-hotfix-consolidation.md`.
 
@@ -340,7 +369,9 @@ Mostra estatísticas dos audits: taxa de pass/fail, padrões mais violados, gaps
 - Quer um overview de qualidade ao longo do tempo
 - Quer identificar padrões que o time erra mais
 
-**Requisito:** precisa de audits em `.vibeflow/audits/`.
+**Requisito:** precisa de audits em `.vibeflow/audits/` ou de ledgers do loop em `.vibeflow/loop/`.
+
+**Seção Loop:** quando `.vibeflow/loop/` tem ledgers, o relatório ganha `### Loop`: partes, taxa de PASS no primeiro audit, média de rodadas de conserto, mediana do relógio do despacho ao PASS, as rodadas de cada parte, findings por severidade e por causa, findings `closed-by-probe` e audits em sessão nova contra mesma sessão. Os números vêm do `loop-stats.mjs` do kit, que pula linha malformada com aviso em vez de adivinhar. Sem ledgers, o relatório é o de antes. O comando não escreve nada em disco.
 
 ---
 
@@ -370,6 +401,15 @@ Mostra estatísticas dos audits: taxa de pass/fail, padrões mais violados, gaps
 2. vibeflow-implement        # Implementa com guardrails
    ou vibeflow-prompt-pack   # Gera prompt para outro agente/sessão
 3. vibeflow-audit
+```
+
+### Feature com o loop de execução
+
+```
+1. vibeflow-gen-spec              # Spec com DoD, Risk code e cenários
+2. vibeflow-implement <spec> --loop
+   → executor, audit, até 2 consertos, PR com a evidência
+3. [você revisa e faz o merge do PR]
 ```
 
 ### Task pequena planejada
@@ -425,6 +465,44 @@ Aqui sim usa discover — porque o problema ainda não tá claro. O discover vai
 4. vibeflow-audit            # Rode de novo
 ```
 
+## O loop de execução
+
+Desligado por padrão. Sem `--loop`, o `implement` roda o pipeline de sempre (fases 0 a 8), as seções novas da spec são opcionais e o audit à mão só ganha campos no relatório (e o `--probes` acima). O loop existe porque quem implementou não deve aprovar: um auditor numa sessão que não viu o trabalho acha o que o implementador deixou passar.
+
+**Como liga:** `implement <spec> --loop` numa rodada, ou `loop: true` no front matter de `.vibeflow/loop/config.md` para o projeto (as chaves `loop` e `commit-rounds` são `false` por padrão); `--no-loop` desliga numa rodada.
+
+**Papéis:**
+- **Orquestradora:** a sessão onde você chamou o `implement`. Corta o trabalho em partes, escreve o briefing de cada rodada, despacha cada rodada para uma sessão nova, confere de fora e mantém o ledger. Não implementa.
+- **Executor:** implementa uma parte (ou uma rodada de conserto) numa sessão nova, vermelho antes do verde, com arquivo de progresso a cada marco; não commita nem chama outro agente. Responde em cinco linhas: estado (DONE, DONE WITH CAVEATS, NEEDS CONTEXT ou BLOCKED), arquivos, placar dos testes, ressalvas, caminho do progresso.
+- **Auditor e reauditor:** o audit e o re-audit, cada um numa sessão nova, escrevendo só o relatório e o arquivo de sondas; nunca consertam.
+
+**Sessão nova em cada host:** no Claude Code, os agentes `vibeflow:executor` e `vibeflow:auditor` do plugin; no Codex, o subagente nativo ou uma task nova com o caminho do briefing; no Cursor e no Copilot, um chat novo que você abre com a linha que a orquestradora escreve ("Read `<briefing>` and follow it."). Host que não abre sessão nova cai nesse chat aberto por você, e diz isso. Os papéis moram uma vez só, em `roles/executor.md` e `roles/auditor.md` do kit, e os agentes do Claude Code têm o mesmo texto.
+
+**O fluxo de uma parte:**
+1. Abertura: spec achada, branch de feature (nunca a branch padrão; nela o loop para e pede um nome), `git status` e `git stash list` lidos com dono para cada arquivo sujo, e o OK para commitar as rodadas, pedido uma vez por feature (ou `commit-rounds: true`). Antes de trabalho longo, `preflight.mjs`.
+2. Briefing do executor com todo check do DoD e todo critério que o auditor vai cobrar, o anti-escopo decidido com `who-reads.mjs`, e `check-briefing.mjs` (com `--pair` no briefing do auditor) antes do despacho.
+3. Conferência de fora depois de cada rodada: status e diff lidos, suíte e verificador de tipos rodados pela orquestradora, `perimeter.mjs` contra os globs do briefing. Suíte ou tipos vermelhos devolvem a rodada a um executor novo uma vez; da segunda vez, a parte para e vai para você.
+4. Audit numa sessão nova, a partir do pacote do `review-package.mjs`. PASS fecha a parte; abaixo de PASS abre o conserto.
+5. Conserto: cada finding é roteado (causa `spec` e mudança de escopo vão para você primeiro, `low` vira follow-up), o executor conserta numa sessão nova e o re-audit confere só o diff do conserto (`audit --reaudit <commit da rodada>`).
+
+**Tetos:** no máximo duas rodadas de conserto por parte; a terceira precisa do seu OK, pedido numa linha com o padrão declarado. O mesmo finding voltando pela mesma causa para a parte antes do teto. Rodada que termina acima de 400 mil tokens de contexto para a parte antes do próximo conserto, e a parte sai menor. Numa fronteira de parte, com o contexto da orquestradora acima de 50%, ela escreve a passagem no ledger e para; a próxima sessão retoma do ledger e do git.
+
+**Commits:** com o OK, cada rodada é commitada na branch de feature (`git add -- <caminhos>` e `git commit -- <caminhos>`, nunca `--no-verify`), então o último commit de uma parte é a base da próxima. Sem o OK, nada é commitado: o loop roda uma parte, para no primeiro veredicto e deixa o trabalho para você.
+
+**Artefatos no projeto:**
+- `.vibeflow/loop/<feature>.md`: o ledger (estado, tabela `## Rounds` que o `stats` lê, linhas `Decision:`, follow-ups, passagem) e `.vibeflow/loop/config.md`;
+- `.vibeflow/briefings/<feature>-<parte>-<papel>[-<n>].md`: um briefing por rodada;
+- `.vibeflow/progress/<feature>-<parte>.md`: o progresso do executor e de cada conserto, com a linha final `State: final` (ou `State: final · fix <n>`);
+- `.vibeflow/reviews/`: os pacotes de revisão e o corpo do PR;
+- `.vibeflow/audits/<feature>-<parte>-audit.md` e `-reaudit-<n>.md`;
+- as sondas, na pasta de testes do projeto, em `audit/`.
+
+**Fim no modo empresa:** com todas as partes em PASS, a orquestradora roda o `check-probes.mjs`, roda a suíte no ambiente da CI quando sua máquina é diferente (por exemplo um container da imagem da CI com a rede desligada, sobre um clone tão raso quanto o checkout da CI; quando não dá, o PR diz por quê), faz o push e abre o PR com `gh`, com o corpo preenchido do `pr-body.md` a partir do ledger, dos relatórios e dos progressos, nunca de memória. O PR sai em rascunho ou pronto conforme a convenção do repositório (template de PR, CONTRIBUTING ou sua resposta registrada); sem convenção, sai em rascunho, registrado como `Decision:`. Depois o `watch-pr.mjs` espera as checagens da CI, e o relatório final traz o link, os veredictos, o resultado das checagens, as decisões e os follow-ups.
+
+**Limites:** o PR é o fim do trabalho do agente. Ele nunca faz merge, nunca faz deploy, nunca aplica migração em ambiente compartilhado e nunca lê produção. Medição com dado real usa homologação ou dado anonimizado entregue pelo time.
+
+**O kit:** fica em `plugins/vibeflow/skills/implement/loop/` (no Cursor, `.cursor/skills/vibeflow-implement/loop/`; no Copilot, `.github/vibeflow/loop/`): os nove princípios do loop, os quatro modelos de briefing, o fluxo da orquestradora, o modelo do corpo do PR, os papéis e nove scripts Node sem dependência (`preflight`, `who-reads`, `check-briefing`, `perimeter`, `review-package`, `check-probes`, `watch-pr`, `watch-round`, `loop-stats`). O `README.md` do kit diz o que cada script faz e o que cada código de saída significa. Os scripts precisam de Node.js 18 ou mais novo e saem com 64 abaixo disso, todos sem exceção, e também quando não conseguem rodar, para um erro nunca se passar por veredicto, com as duas exceções que o `README.md` do kit dá: o `review-package.mjs` sai com 2 em todo erro, e o `preflight.mjs` sai com 2 (parar) num caminho que não é repositório git. O `preflight.mjs --power` (bateria, tampa e sono) é só do macOS. Plataformas: testado em macOS e Linux (os scripts do kit e a suíte de testes do repositório); Windows não foi medido.
+
 ## A pasta `.vibeflow/`
 
 Essa é a base de conhecimento do projeto. Tudo aqui é gerado e atualizado pelos comandos Vibeflow.
@@ -439,7 +517,11 @@ Essa é a base de conhecimento do projeto. Tudo aqui é gerado e atualizado pelo
 ├── specs/            # Specs do gen-spec
 ├── prompt-packs/     # Prompt packs prontos para uso
 ├── hotfixes/         # Docs de rastro do hotfix (um por bug)
-└── audits/           # Relatórios de auditoria
+├── audits/           # Relatórios de auditoria e re-auditoria
+├── loop/             # implement --loop: ledgers e config.md
+├── briefings/        # Um briefing por rodada do loop
+├── progress/         # Progresso do executor e dos consertos
+└── reviews/          # Pacotes de revisão e o corpo do PR
 ```
 
 **Commite no git.** Esses docs são feitos para serem versionados e evoluírem com o projeto.
