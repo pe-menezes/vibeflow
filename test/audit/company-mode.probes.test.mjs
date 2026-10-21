@@ -395,3 +395,58 @@ test('for a CI that tests the merge commit, the git commands step 2 writes give 
     assert.equal(run(['git', 'rev-parse', '--is-shallow-repository'], clone).stdout.trim(), 'true', 'and the clone is still as shallow as the CI\'s checkout');
   });
 });
+
+// ------------------------------------------------------------------ when gh cannot open the pull request
+
+// A sentence that ends or halts the loop.
+const STOPS = /\bstop(s|ped|ping)?\b|\babort|\bhalt|\bdo not (start|dispatch|run)\b/i;
+
+// Contract: a machine where gh cannot open the pull request still runs the loop to its ending: preflight reports it as attention, the opening's route for that exit code does not stop, and no sentence of orchestrator.md about the `pr ending:` line or a missing gh stops the loop.
+// Breaks when: the opening turns the `pr ending:` attention into a stop ("when gh cannot, stop and say what it found"), so a repository off GitHub, or a machine without gh logged in, never reaches the ending that pushes the branch and hands the pull request to the user.
+// Not covered by: company-mode-contracts pins the sentences of the ending's route, not what the opening does with the `pr ending:` line; the preflight tests check the script's line and exit code, never the orchestrator's route for them.
+test('a machine where gh cannot open the pull request passes the opening: preflight gives attention, and no sentence of orchestrator.md stops the loop for it', () => {
+  let status;
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    // An origin with no host for gh: no network call, and gh cannot open the pull request.
+    box.git('remote', 'add', 'origin', `file://${join(box.root, 'remote.git')}`);
+    const result = runScript('preflight.mjs', ['--repo', box.repo], box.env({ FAKE_GH_EXIT: '1' }));
+    const line = result.out.split('\n').find((text) => text.includes('pr ending:'));
+    assert.match(line ?? '', /^\[attention\] pr ending: .*by hand/, result.out);
+    assert.notEqual(result.status, 2, `gh unable to open the pull request is not a stop of preflight:\n${result.out}`);
+    status = result.status;
+  });
+
+  // The opening's route for the exit code preflight gave.
+  const whole = kit('orchestrator.md');
+  const start = whole.indexOf('\n## Opening\n');
+  assert.ok(start !== -1, 'orchestrator.md has "## Opening"');
+  const opening = flat(whole.slice(start + 1, whole.indexOf('\n## ', start + 1)));
+  const route = opening.split(/(?<=[.;])\s+(?=[A-Z0-9`*])/).filter((s) => s.startsWith(`Exit ${status}:`));
+  assert.equal(route.length, 1, `the opening routes preflight's exit ${status} once`);
+  assert.doesNotMatch(route[0], STOPS, `the opening's route for exit ${status} lets the loop run: "${route[0]}"`);
+
+  // Every sentence about the pr ending line or a gh that cannot open the pull request.
+  const named = fileSentences().filter((s) => /`pr ending:`|\bgh cannot\b|\bgh is missing\b|\bnot logged in\b/.test(s));
+  assert.ok(named.some((s) => s.includes('`pr ending:`')), 'orchestrator.md says what the `pr ending:` line means for the loop');
+  for (const s of named) assert.doesNotMatch(s, STOPS, `a sentence about gh unable to open the pull request stops the loop: "${s}"`);
+});
+
+// Contract: watch-pr.mjs's exit 64 is final (gh not logged in exits 64 at the first read, with no retry), so step 6 routes it to the user and no sentence of orchestrator.md sends exit 64 back to another watch.
+// Breaks when: a sentence is added that restarts the watch on 64 ("When it exits 64, start the watch again until it reads the PR"), turning an error that cannot fix itself into a loop the orchestrator never leaves.
+// Not covered by: company-mode-contracts pins the one sentence of the 64 route in step 6 and has no predicate over the other sentences that name 64; the watch-pr tests run the script, never the orchestrator's route.
+test('watch-pr.mjs exit 64 is final at the first read, and no sentence of orchestrator.md sends it back to another watch', () => {
+  const args = /run `watch-pr\.mjs` with `([^`]+)`/.exec(step(6));
+  assert.ok(args, 'step 6 writes watch-pr.mjs with its arguments');
+  withSandbox((box) => {
+    box.setGh('To get started with GitHub CLI, please run:  gh auth login\n');
+    const result = runScript('watch-pr.mjs', [...fill(args[1]), '--interval-sec', '0.05', '--timeout-min', '0.02'], box.env({ FAKE_GH_EXIT: '4' }));
+    assert.equal(result.status, 64, result.out);
+    assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 1, 'one read of the PR, no retry');
+  });
+  const named = fileSentences().filter((s) => /\b64\b/.test(s));
+  assert.ok(named.some((s) => s.startsWith('Exit 64:')), 'step 6 routes exit 64');
+  for (const s of named) {
+    assert.doesNotMatch(s, /\bagain\b|\bre-?(run|start|try)|\bretr(y|ies)\b|\buntil\b|\bwait/i, `a sentence sends exit 64 back to another watch: "${s}"`);
+  }
+});
