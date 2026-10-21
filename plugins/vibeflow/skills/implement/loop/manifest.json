@@ -1,0 +1,16 @@
+{
+  "description": "The loop kit's file list, relative to this folder.",
+  "files": [
+    "README.md",
+    "briefings.md",
+    "principles.md",
+    "scripts/check-briefing.mjs",
+    "scripts/check-probes.mjs",
+    "scripts/perimeter.mjs",
+    "scripts/preflight.mjs",
+    "scripts/review-package.mjs",
+    "scripts/watch-pr.mjs",
+    "scripts/watch-round.mjs",
+    "scripts/who-reads.mjs"
+  ]
+}
