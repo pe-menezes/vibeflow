@@ -2,9 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { SCRIPTS_DIR, hermeticEnv, runScript } from './loop-helpers.mjs';
+
+const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 const HEADER = '| Part | Role | Round | Started | Ended | Verdict |\n|---|---|---|---|---|---|';
 
@@ -318,4 +321,39 @@ test('--help says the ledger times are local time without a zone and a round acr
   assert.match(help.stdout, /without a (time )?zone/i);
   assert.match(help.stdout, /daylight[- ]saving/i);
   assert.match(help.stdout, /empty Ended/i);
+});
+
+// The loop's settings file sits beside the ledgers and is not one.
+
+test('config.md in .vibeflow/loop/ is not a ledger: alone it reads as no ledgers, beside a ledger it is not counted', () => {
+  scratch((dir) => {
+    writeLedgers(dir, { 'config.md': '---\nloop: true\ncommit-rounds: true\n---\n' });
+    const report = statsJson(dir);
+    assert.equal(report.ledgers, 0);
+    assert.deepEqual(report.parts, []);
+    assert.deepEqual(report.warnings, []);
+    const text = stats(dir);
+    assert.equal(text.status, 0, text.out);
+    assert.match(text.stdout, /no loop ledgers/i);
+    assert.doesNotMatch(text.stdout, /config\.md|warning/i);
+
+    writeLedgers(dir, { 'alpha.md': ALPHA });
+    const both = statsJson(dir);
+    assert.equal(both.ledgers, 1);
+    assert.ok(both.parts.every((entry) => entry.feature === 'alpha'), JSON.stringify(both.parts));
+    assert.ok(both.warnings.every((w) => w.file !== '.vibeflow/loop/config.md'), JSON.stringify(both.warnings));
+  });
+});
+
+test('the stats command in every edition says the ledgers are the .md files in .vibeflow/loop/ other than config.md', () => {
+  const editions = [
+    'plugins/vibeflow/skills/stats/SKILL.md',
+    'cursor/skills/vibeflow-stats/SKILL.md',
+    'copilot/github/prompts/vibeflow-stats.prompt.md',
+  ];
+  for (const path of editions) {
+    const text = readFileSync(join(REPO_ROOT, path), 'utf8').replace(/\s+/g, ' ');
+    assert.match(text, /the ledgers are the `\.md` files in `\.vibeflow\/loop\/` other than `config\.md`/i, path);
+    assert.match(text, /`config\.md`[^.]*is not a ledger/i, path);
+  }
 });

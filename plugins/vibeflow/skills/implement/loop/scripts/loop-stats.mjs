@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // The loop's own numbers, read from the rounds tables of the loop ledgers in
-// .vibeflow/loop/*.md: per feature and part, the rounds, the fix rounds, whether the
-// round-0 audit passed and the clock from the round-0 executor's start to the end of the
-// first PASS; then the totals. A row or table that does not follow the contract is a
+// .vibeflow/loop/*.md (config.md, the loop's settings, is not one): per feature and part,
+// the rounds, the fix rounds, whether the round-0 audit passed and the clock from the
+// round-0 executor's start to the end of the first PASS; then the totals. A row or table that does not follow the contract is a
 // warning and is skipped: a number built from a guessed row would read as a measurement.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -16,8 +16,9 @@ if (Number(process.versions.node.split('.')[0]) < 18) {
 
 const USAGE = `usage: loop-stats.mjs <repo> [--json]
 
-Reads every .vibeflow/loop/*.md ledger under <repo>. The rounds table sits under the heading
-"## Rounds" with the columns | Part | Role | Round | Started | Ended | Verdict |; Role is
+Reads every .vibeflow/loop/*.md ledger under <repo>; config.md there holds the loop's
+settings and is not a ledger. The rounds table sits under the heading "## Rounds" with
+the columns | Part | Role | Round | Started | Ended | Verdict |; Role is
 executor, audit, fix or reaudit; Round is 0 for the first executor and its audit and 1, 2, ...
 for fix rounds and their re-audits; times are YYYY-MM-DD HH:MM; Verdict is PASS, PARTIAL or
 FAIL on audit rows and - on executor and fix rows. An empty Ended is a round in progress: it
@@ -230,7 +231,7 @@ function main(argv) {
   let names = [];
   if (existsSync(loopDir)) {
     try {
-      names = readdirSync(loopDir).filter((name) => name.endsWith('.md')).sort();
+      names = readdirSync(loopDir).filter((name) => name.endsWith('.md') && name !== 'config.md').sort();
     } catch (error) {
       fail(`cannot read ${loopDir}: ${error.message}`);
     }

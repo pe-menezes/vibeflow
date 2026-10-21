@@ -38,8 +38,10 @@ Compile and report statistics from audit reports.
    A file in a different shape contributes what it can, noted as
    "Non-standard format detected in <file>."
 
-3. When `.vibeflow/loop/` holds `.md` ledgers, build the Loop section; with
-   none, leave the section out, since the loop is opt-in.
+3. The ledgers are the `.md` files in `.vibeflow/loop/` other than
+   `config.md`, which holds the loop's settings and is not a ledger. When
+   there is at least one ledger, build the Loop section; with none, leave the
+   section out, since the loop is opt-in.
    * Run `node ${CLAUDE_SKILL_DIR}/../implement/loop/scripts/loop-stats.mjs <project root> --json`
      (in Codex, the same path relative to the directory of this SKILL.md).
      Its parts, totals and warnings are the loop numbers: report them as

@@ -286,9 +286,9 @@ test('orchestrator.md: the extra executor and fix rows a red outside check adds 
 // ---- the loop config file
 
 // Contract: a project that turned the loop on through .vibeflow/loop/config.md and has no ledger yet gets the report it had without the loop ("without ledgers, the report is unchanged").
-// Breaks when: every .md file in .vibeflow/loop/ is read as a ledger, which is the current behavior.
-// Not covered by: test/loop-stats.test.mjs has no fixture with the config file.
-test('config: a project that turned the loop on in .vibeflow/loop/config.md and has no ledger yet reads as having no ledger', { todo: 'open gap: loop-stats counts config.md as a ledger and warns about it' }, () => {
+// Breaks when: the ledger filter goes back to every .md file in .vibeflow/loop/, config.md included.
+// Not covered by: test/loop-stats.test.mjs had only ledger fixtures, so the config file never sat beside them.
+test('config: a project that turned the loop on in .vibeflow/loop/config.md and has no ledger yet reads as having no ledger', () => {
   const dir = mkdtempSync(join(tmpdir(), 'vibeflow-probe-loop-stats-config-'));
   try {
     mkdirSync(join(dir, '.vibeflow/loop'), { recursive: true });

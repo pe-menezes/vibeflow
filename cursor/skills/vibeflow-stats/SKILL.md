@@ -33,16 +33,18 @@ Technical terms in English are acceptable regardless of the detected language.
    A file in a different shape contributes what it can, noted as
    "Non-standard format detected in <file>."
 
-3. When `.vibeflow/loop/` holds `.md` ledgers, build the Loop section; with
-   none, leave the section out, since the loop is opt-in.
+3. The ledgers are the `.md` files in `.vibeflow/loop/` other than
+   `config.md`, which holds the loop's settings and is not a ledger. When
+   there is at least one ledger, build the Loop section; with none, leave the
+   section out, since the loop is opt-in.
    * Run `node .cursor/skills/vibeflow-implement/loop/scripts/loop-stats.mjs <project root> --json`.
      Its parts, totals and warnings are the loop numbers: report them as
      they come rather than recounting the rounds tables, because the script
      skips a malformed row instead of guessing it. Exit 64 means it could not
      run; quote its message and leave the numbers out.
    * When `.cursor/skills/vibeflow-implement/loop/` is missing, the loop kit is not installed: say that
-     `npx setup-vibeflow@latest --cursor --force` installs it, and report
-     the rest.
+     `npx setup-vibeflow@latest --cursor --force` (setup-vibeflow 0.17.0 or
+     newer) installs it, and report the rest.
    * From the audit reports, count the finding lines
      (`- [<id>] <severity> · <cause> · confidence ...`) by severity
      (`defect`, `risk-gap`, `low`) and by cause (`spec`, `implementation`,

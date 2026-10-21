@@ -77,7 +77,7 @@ function makeWorkspace() {
   const fakeColors = join(cli, 'node_modules/picocolors');
   mkdirSync(fakeColors, { recursive: true });
   copyFileSync(join(ROOT, 'cli/index.js'), join(cli, 'index.js'));
-  writeFileSync(join(cli, 'package.json'), JSON.stringify({ type: 'module' }));
+  copyFileSync(join(ROOT, 'cli/package.json'), join(cli, 'package.json'));
   writeFileSync(join(fakeColors, 'package.json'), JSON.stringify({ name: 'picocolors', main: 'index.js' }));
   writeFileSync(join(fakeColors, 'index.js'), 'module.exports = new Proxy({}, { get: () => (s) => String(s) });\n');
   const project = join(root, 'project');
@@ -212,6 +212,58 @@ test('cli/package.json is 0.17.0 with no new dependency, and the lockfile agrees
   assert.equal(lock.version, '0.17.0');
   assert.equal(lock.packages[''].version, '0.17.0');
   assert.deepEqual(lock.packages[''].dependencies, { picocolors: '^1.1.0' });
+});
+
+// The version on screen: who runs an old CLI sees it, and the prompts name the one they need.
+
+function firstLine(out) {
+  return out.split('\n').find((line) => line.trim() !== '') ?? '';
+}
+
+test('the install log opens with setup-vibeflow and the version from the package.json beside the CLI', async () => {
+  const server = await startServer();
+  try {
+    const { version } = JSON.parse(readFileSync(join(ROOT, 'cli/package.json'), 'utf8'));
+    for (const edition of ['cursor', 'copilot']) {
+      const workspace = makeWorkspace();
+      try {
+        const result = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
+        assert.equal(result.status, 0, result.out);
+        assert.match(firstLine(result.out), new RegExp(`setup-vibeflow ${version.replace(/\./g, '\\.')}(\\s|\\)|$)`), result.out);
+      } finally {
+        workspace.cleanup();
+      }
+    }
+    // read from the file, not written into the code: another version there shows on screen
+    const workspace = makeWorkspace();
+    try {
+      const pkgPath = join(dirname(workspace.cliPath), 'package.json');
+      const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+      writeFileSync(pkgPath, JSON.stringify({ ...pkg, version: '9.8.7' }));
+      const result = await runCli(workspace, ['--cursor'], { [BASE_ENV]: server.url });
+      assert.equal(result.status, 0, result.out);
+      assert.match(firstLine(result.out), /setup-vibeflow 9\.8\.7\b/, result.out);
+    } finally {
+      workspace.cleanup();
+    }
+  } finally {
+    await server.close();
+  }
+});
+
+test('the stats command of Cursor and Copilot names setup-vibeflow 0.17.0 or newer wherever it says to install the kit', () => {
+  const prompts = {
+    cursor: 'cursor/skills/vibeflow-stats/SKILL.md',
+    copilot: 'copilot/github/prompts/vibeflow-stats.prompt.md',
+  };
+  for (const [edition, path] of Object.entries(prompts)) {
+    const text = readFileSync(join(ROOT, path), 'utf8').replace(/\s+/g, ' ');
+    const command = `\`npx setup-vibeflow@latest --${edition} --force\``;
+    const total = text.split(command).length - 1;
+    const named = text.split(`${command} (setup-vibeflow 0.17.0 or newer)`).length - 1;
+    assert.ok(total >= 1, `${path}: no install sentence`);
+    assert.equal(named, total, `${path}: ${total - named} install sentence(s) without the version`);
+  }
 });
 
 // Upgrading an older .gitignore block, and a base without the kit manifest.

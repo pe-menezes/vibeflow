@@ -10,6 +10,16 @@ const REPO = 'pe-menezes/vibeflow';
 const BRANCH = 'main';
 const PLUGIN_MARKETPLACE_REPO = 'pe-menezes/vibeflow';
 
+// The install log names this CLI's version, read from the package.json published beside it,
+// so whoever runs an older copy through a cached npx sees which one ran.
+const CLI_VERSION = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+})();
+
 // Every download starts from this base. The override exists for tests and mirrors.
 const BASE_URL_ENV = 'VIBEFLOW_BASE_URL';
 const DEFAULT_BASE_URL = `https://raw.githubusercontent.com/${REPO}/${BRANCH}`;
@@ -342,6 +352,7 @@ async function main() {
   const edition = EDITIONS[editionKey];
 
   console.log('');
+  console.log(`  ${pc.dim(`setup-vibeflow ${CLI_VERSION}`)}`);
   console.log(`  ${pc.bold(pc.cyan('Vibeflow'))} ${pc.dim(`— ${edition.name} Edition`)}`);
   console.log('');
 
