@@ -140,12 +140,13 @@ test('company mode: watch-pr.mjs waits for the checks a CI runs on the PR, its r
 const NO_GH_ROUTE = [
   'Before step 5, check that gh can open the pull request: `gh auth status --hostname <origin host>` exits 0, the same check as the `pr ending:` line of `preflight.mjs`.',
   'When gh is missing, is not logged in on that host, or the remote is on a host gh does not serve (GitLab, Bitbucket, Azure DevOps), the ending pushes the feature branch with the push command of step 5, keeps the body step 4 wrote in `.vibeflow/reviews/<feature>-pr-body.md`, skips steps 5 and 6 and `watch-pr.mjs`, and gives the user one line: the branch, the body file, and that they open the pull request or merge request by hand with that body.',
-  'The final report of step 7 carries that line in place of the PR link.',
 ];
 // With no remote to push to, the ending cannot push either, so it stops before the push.
 const NO_ORIGIN_ROUTE = 'With no `origin` remote there is nowhere to push: the ending stops before the push, skips steps 5 and 6, and gives the user one line: the branch, the body file in `.vibeflow/reviews/<feature>-pr-body.md`, and that they add a remote, push and open the pull request or merge request by hand.';
-// Both routes skip the watch, and the body says so.
-const BY_HAND_ROW = "The body's PR checks row then reads `not watched: opened by hand`.";
+// Both routes skip the watch, and the ledger line each one writes is the source of the body's row and of the final report.
+const BY_HAND_TAIL = "Both routes write a line to the ledger as they end, `Ending: by hand — <no origin remote, or no gh for that host> — <feature branch>`, the source of what follows: the body's PR checks row reads `not watched: opened by hand`, and the final report of step 7 carries the line given to the user in place of the PR link.";
+// The opening says what the ending does when gh cannot open the pull request, for a repository with and without an origin remote.
+const OPENING_PR_ENDING = 'Its `pr ending:` line says whether gh can open the pull request at the end; when gh cannot, the loop still runs, and the ending hands the pull request to the user: it pushes the branch when the repository has an `origin` remote, and with none it leaves the push to the user too ("Ending: company mode").';
 
 test('company mode: when gh cannot open the pull request, the ending pushes, keeps the body, skips the watch and hands the PR to the user', () => {
   const text = section();
@@ -162,7 +163,16 @@ test('company mode: when gh cannot open the pull request, the ending pushes, kee
   const after = routeText.slice(NO_GH_ROUTE[0].length).split(/(?<=[.;:])\s+(?=[A-Z0-9`])/).filter((s) => s.trim());
   assert.ok(after.length >= 2, 'the route has its steps after the check');
   for (const s of after) assert.doesNotMatch(s, /`gh /, `a step of the route runs gh: "${s}"`);
-  hasSentence(routeText, BY_HAND_ROW, 'the body says the checks were not watched');
+  hasSentence(routeText, BY_HAND_TAIL, 'the body says the checks were not watched, from the ledger');
+});
+
+test('company mode: the opening says the ending pushes only when there is an origin remote', () => {
+  const whole = read(`${KIT}/orchestrator.md`);
+  const start = whole.indexOf('\n## Opening\n');
+  assert.ok(start !== -1, 'orchestrator.md has "## Opening"');
+  const opening = flat(whole.slice(start + 1, whole.indexOf('\n## ', start + 1)));
+  hasSentence(opening, OPENING_PR_ENDING, 'the opening, with and without an origin remote');
+  assert.doesNotMatch(opening, /the ending pushes the branch and leaves/, 'no claim that the ending always pushes');
 });
 
 test('company mode: with no origin remote, the ending stops before the push and hands the branch and the body file to the user', () => {
@@ -171,10 +181,16 @@ test('company mode: with no origin remote, the ending stops before the push and 
   const at = text.indexOf(NO_ORIGIN_ROUTE);
   assert.ok(text.indexOf('Fill `pr-body.md`') < at && at < text.indexOf('5. Push the feature branch'), 'the route sits between the body (step 4) and the push (step 5)');
   assert.ok(at < text.indexOf(NO_GH_ROUTE[1]), 'the remote is checked before the route that pushes without gh');
+  // The tail after both routes names both, so the row and the final report hold without an origin remote too.
+  assert.ok(text.indexOf(NO_GH_ROUTE[1]) < text.indexOf(BY_HAND_TAIL), 'the tail follows both routes');
 });
 
-test('company mode: watch-pr.mjs exit 64 (gh missing or not logged in) says the checks are not watched and how to follow them', () => {
-  hasSentence(step(6), "Exit 64: gh is missing or not logged in, so nothing is watching the checks and `gh pr edit` cannot run: the body file's PR checks row reads `not watched: gh missing or not logged in`, the PR keeps the body step 4 wrote, and the final report says the checks were not watched and gives the user `gh pr checks <number> --watch` to follow them.", 'the route of exit 64');
+test('company mode: watch-pr.mjs exit 64 (a bad argument, or gh missing, not executable or not logged in) says the checks are not watched and how to follow them', () => {
+  // The route names every cause watch-pr.mjs gives for 64, so the body's row and the final report hold for each.
+  const usage = /· 64 ([^`\n]+)/.exec(read(`${KIT}/scripts/watch-pr.mjs`));
+  assert.equal(usage?.[1], 'bad arguments, or gh missing, not executable or not logged in', 'the causes of 64 in watch-pr.mjs, the ones the route below names');
+  hasSentence(step(6), "Exit 64: the watch could not start, from a bad argument or a gh that is missing, cannot be executed or is not logged in (its error line says which), so nothing is watching the checks and `gh pr edit` does not run: the ledger gets the line `Ending: checks not watched — watch-pr.mjs exit 64 — <its error line>`, the body file's PR checks row reads `not watched: watch-pr.mjs exit 64 (<its error line>)`, the PR keeps the body step 4 wrote, and the final report says the checks were not watched, with that error line, and gives the user `gh pr checks <number> --watch` to follow them.", 'the route of exit 64');
+  assert.doesNotMatch(step(6), /Exit 64: gh is missing or not logged in/, 'exit 64 is not read as gh alone');
   // Only a watch that read the PR rewrites the body with gh.
   const edits = sentences().filter((s) => /`gh pr edit`/.test(s) && /\breplace\b/.test(s));
   assert.equal(edits.length, 1, 'one sentence replaces the body with gh pr edit');
@@ -218,7 +234,7 @@ test('company mode: only the sentences that order the ending speak of pushing or
     'Before step 5, check that gh can open the pull request:',
     'With no `origin` remote there is nowhere to push:',
     'When gh is missing, is not logged in on that host,',
-    "The body's PR checks row then reads `not watched: opened by hand`.",
+    'Both routes write a line to the ledger as they end,',
     'Push the feature branch with `git push -u origin <feature branch>` and open the PR with',
     'A repository with no CI, or whose CI does not run on this PR (only on pushes to the default branch,',
     'On a restart the PR already exists:',
@@ -288,7 +304,10 @@ test('company mode: every row of the body\'s Commands has a file written before 
   const watchFile = /its output written to `\.vibeflow\/reviews\/<feature>(-pr-checks\.txt)`/.exec(text);
   assert.ok(watchFile, 'step 6 writes the watch output to a file');
   assert.ok(from[1].includes(`\`${watchFile[1]}\``) || from[1].includes(watchFile[1]), 'PR checks come from the file step 6 writes');
-  assert.match(from[1], /PR checks: [^;]*added with `gh pr edit` after the watch ends/, 'PR checks added after the watch');
+  assert.match(from[1], /PR checks: [^;]*added with `gh pr edit` after the watch ends with exit 0, 1, 2 or 3/, 'PR checks added after a watch that read the PR');
+  // The two not-watched values come from the ledger lines the ending writes, and the by-hand one holds with or without an origin remote.
+  assert.match(from[1], /`not watched: opened by hand`: the ledger's `Ending: by hand` line, written with or without an `origin` remote/, 'the by-hand value from the ledger, both routes');
+  assert.match(from[1], /`not watched: watch-pr\.mjs exit 64`: the ledger's `Ending: checks not watched` line/, 'the exit-64 value from the ledger');
 });
 
 test('pr-body.md: every section the reviewer reads before the diff', () => {
@@ -308,7 +327,7 @@ test('pr-body.md: every section the reviewer reads before the diff', () => {
   assert.match(get('Commands'), /not possible/, 'the CI-environment row can declare the impossibility');
   assert.match(get('Commands'), /no CI/, 'the PR can say the repository has no CI');
   assert.match(get('Commands'), /the CI does not run on this PR/, 'the PR can say the CI does not run on it');
-  assert.match(get('Commands'), /not watched: gh missing or not logged in/, 'the PR can say gh could not watch the checks');
+  assert.match(get('Commands'), /not watched: watch-pr\.mjs exit 64 \(<its error line>\)/, 'the PR can say the watch could not start, and why');
   assert.match(get('Commands'), /not watched: opened by hand/, 'the PR can say it was opened by hand');
   assert.ok(get('Decisions').includes('Decision: <what> — why: <reason> — cost if wrong: <cost>'), 'the Decision lines');
   assert.match(get('Follow-ups'), /follow-up/i, 'what became follow-up work');
