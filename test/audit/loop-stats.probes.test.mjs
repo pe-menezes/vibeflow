@@ -302,3 +302,19 @@ test('config: a project that turned the loop on in .vibeflow/loop/config.md and 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// Contract: only the file named exactly config.md is skipped; a feature ledger whose name merely contains "config" is still read and counted.
+// Breaks when: the ledger filter matches config.md loosely (a suffix, a prefix or a substring of the name) and drops real ledgers.
+// Not covered by: test/loop-stats.test.mjs and the case above put only the exact config.md beside ledgers whose names do not contain "config".
+test('config: a feature ledger whose name contains "config" (app-config.md, config-loader.md) is still a ledger', () => {
+  const pass = (part) => [
+    `| ${part} | executor | 0 | 2026-10-20 10:00 | 2026-10-20 10:40 | - |`,
+    `| ${part} | audit | 0 | 2026-10-20 10:41 | 2026-10-20 11:00 | PASS |`,
+  ];
+  const report = statsOf({ 'app-config.md': pass('one'), 'config-loader.md': pass('two') });
+  assert.equal(report.ledgers, 2, 'both files are ledgers');
+  assert.deepEqual(report.warnings, []);
+  assert.equal(partOf(report, 'app-config', 'one').clockMinutes, 60);
+  assert.equal(partOf(report, 'config-loader', 'two').clockMinutes, 60);
+  assert.equal(report.totals.parts, 2);
+});

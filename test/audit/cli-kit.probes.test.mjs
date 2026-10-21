@@ -585,3 +585,50 @@ test('kit path: each edition\'s implement Loop mode reads the kit where it is in
   }
   for (const { script } of orchestratorCommands()) assert.ok(manifest.includes(`scripts/${script}`), `the manifest installs scripts/${script}`);
 });
+
+// ---- the version line of the install log
+
+function withPackageJson(workspace, pkg) {
+  writeFileSync(join(dirname(workspace.cliPath), 'package.json'), JSON.stringify(pkg));
+}
+
+const firstLine = (out) => out.split('\n').find((line) => line.trim() !== '') ?? '';
+
+// Contract: whoever reruns an older cached CLI over a project that already has Vibeflow sees which CLI version ran, before the "already installed" stop.
+// Breaks when: the version line moves below the installed check, so the run that stops early never names its version.
+// Not covered by: test/cli-kit.test.mjs checks the version line only on fresh installs that go all the way.
+test('version: the install log opens with setup-vibeflow and its version also when the run stops at an existing install', async () => {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  try {
+    const version = '1.2.3';
+    withPackageJson(ws, { type: 'module', version });
+    mkdirSync(join(ws.project, '.cursor/rules'), { recursive: true });
+    writeFileSync(join(ws.project, '.cursor/rules/vibeflow.mdc'), 'installed\n');
+    const result = await runCli(ws, ['--cursor'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.out, /already installed/i, result.out);
+    assert.equal(firstLine(result.out).trim(), `setup-vibeflow ${version}`, result.out);
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
+
+// Contract: reading its own version never stops the installer; a package.json without a version installs as usual and names the version "unknown".
+// Breaks when: the fallback goes, and the log reads "setup-vibeflow undefined" or the CLI fails at start.
+// Not covered by: test/cli-kit.test.mjs always copies the real cli/package.json, which has a version.
+test('version: a CLI whose package.json has no version still installs, and the log names the version unknown', async () => {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  try {
+    withPackageJson(ws, { type: 'module' });
+    const result = await runCli(ws, ['--copilot'], { VIBEFLOW_BASE_URL: server.url });
+    assert.equal(result.status, 0, result.out);
+    assert.equal(firstLine(result.out).trim(), 'setup-vibeflow unknown', result.out);
+    assert.ok(existsSync(join(ws.project, '.github/vibeflow/loop', KIT_FILE)), result.out);
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+});
