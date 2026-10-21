@@ -3,8 +3,11 @@
   "files": [
     "README.md",
     "briefings.md",
+    "orchestrator.md",
+    "pr-body.md",
     "principles.md",
     "roles/auditor.md",
+    "roles/executor.md",
     "scripts/check-briefing.mjs",
     "scripts/check-probes.mjs",
     "scripts/perimeter.mjs",
