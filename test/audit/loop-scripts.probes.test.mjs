@@ -1,5 +1,5 @@
 // Behavior probes from independent audits of the loop kit's scripts: perimeter, review-package,
-// check-briefing --pair, watch-round, check-probes and the Node version guard. Behavior only,
+// check-briefing --pair, watch-round, check-probes, preflight and the Node version guard. Behavior only,
 // pinned by content. Each case states, as comments, the contract it protects, the plausible
 // regression that breaks it, and why the implementer's tests did not catch it. A case marked
 // `todo` asserts what a known open gap asks for: it runs and prints without failing the suite.
@@ -10,11 +10,12 @@ import { spawn, spawnSync } from 'node:child_process';
 import {
   appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, utimesSync, writeFileSync,
 } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LOOP_DIR, SCRIPTS_DIR, hermeticEnv, runScript, withSandbox } from '../loop-helpers.mjs';
+import { LOOP_DIR, SCRIPTS_DIR, hermeticEnv, makeSandbox, runScript, withSandbox } from '../loop-helpers.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -487,4 +488,110 @@ test('Node guard: every script the kit manifest installs, on a Node below 18, ex
     assert.equal(result.stdout, '', `${script}: nothing ran before the guard`);
     assert.match(result.stderr, /needs Node\.js 18 or later; found 17\.9\.1/, `${script}: ${result.stderr}`);
   }
+});
+
+// --- preflight.mjs: the origin remote, the network line and the pr ending line ---
+
+// No case reaches the real network: the origin and every probe live on 127.0.0.1, and any
+// other host goes through a proxy on a closed local port, so a regression that probes a
+// public host fails fast instead of leaving the machine.
+const offline = (env) => ({
+  ...env,
+  NODE_USE_ENV_PROXY: '1',
+  NODE_NO_WARNINGS: '1',
+  HTTP_PROXY: 'http://127.0.0.1:9',
+  HTTPS_PROXY: 'http://127.0.0.1:9',
+  http_proxy: 'http://127.0.0.1:9',
+  https_proxy: 'http://127.0.0.1:9',
+  NO_PROXY: '127.0.0.1',
+  no_proxy: '127.0.0.1',
+});
+
+const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const ghCalls = (box) => (existsSync(box.ghLog) ? readFileSync(box.ghLog, 'utf8') : '');
+
+// A local HTTP server that answers every request and records it.
+async function withServer(run) {
+  const hits = [];
+  const server = createServer((request, response) => {
+    hits.push(`${request.method} ${request.url}`);
+    response.end();
+  });
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  try {
+    return await run(`http://127.0.0.1:${server.address().port}`, hits);
+  } finally {
+    await new Promise((done) => server.close(done));
+  }
+}
+
+// A local port nobody listens on.
+async function closedPort() {
+  const server = createServer();
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  const { port } = server.address();
+  await new Promise((done) => server.close(done));
+  return port;
+}
+
+async function withSandboxAsync(run) {
+  const box = makeSandbox();
+  try {
+    return await run(box);
+  } finally {
+    box.cleanup();
+  }
+}
+
+// Contract: an origin with no network host (a local path, a file:// URL, a Windows drive path) is attention twice, with nothing to probe and the pull request opened by hand, and gh is never asked about a host.
+// Breaks when: the guard for an origin without a host goes (gh is asked about a host named "null"), the scp-style pattern takes "file:" or a drive letter for a host, or the drive-letter exclusion goes.
+// Not covered by: the implementer's preflight tests use only http, scp-style and ssh:// origins, or no origin at all.
+test('preflight: an origin with no network host is nothing to probe and a pull request opened by hand, without asking gh about a host', () => {
+  for (const remote of ['/srv/git/repo.git', 'file:///srv/git/repo.git', 'C:/work/repo.git']) {
+    withSandbox((box) => {
+      box.git('switch', '-q', '-c', 'feat/x');
+      box.git('remote', 'add', 'origin', remote);
+      const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+      assert.equal(result.status, 1, `${remote}: ${result.out}`);
+      const url = escaped(remote);
+      assert.match(result.stdout, new RegExp(`^\\[attention\\] network: nothing to probe \\(origin ${url} is not an http or ssh remote, no --probe-url\\)$`, 'm'), remote);
+      assert.match(result.stdout, new RegExp(`^\\[attention\\] pr ending: origin ${url} has no host for gh; .*by hand$`, 'm'), remote);
+      assert.doesNotMatch(ghCalls(box), /^auth /m, `${remote}: gh was asked about a host`);
+    });
+  }
+});
+
+// Contract: the credentials written in an http(s) origin URL never reach preflight's output, whether the origin host answers or not.
+// Breaks when: a network or pr ending line prints the origin URL instead of the probe built from its scheme and host.
+// Not covered by: the implementer's tests use origins without credentials, so the printed URL and the probe are the same text.
+test('preflight: the credentials in an http origin URL stay out of the output, with the origin answering or not', async () => {
+  const secret = 's3cret-token';
+  await withSandboxAsync((box) => withServer(async (live, hits) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `${live.replace('http://', `http://user:${secret}@`)}/owner/repo.git`);
+    const answering = await watchWhile('preflight.mjs', ['--repo', box.repo], offline(box.env()), {});
+    assert.ok(hits.length > 0, `the origin host was not probed: ${answering.out}`);
+    assert.match(answering.out, new RegExp(`^\\[ok\\] network: ${escaped(live)} answer$`, 'm'));
+    assert.ok(!answering.out.includes(secret), answering.out);
+  }));
+  const port = await closedPort();
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `http://user:${secret}@127.0.0.1:${port}/owner/repo.git`);
+    const silent = await watchWhile('preflight.mjs', ['--repo', box.repo], offline(box.env()), {});
+    assert.match(silent.out, /^\[attention\] network: no answer from http:\/\/127\.0\.0\.1:/m);
+    assert.ok(!silent.out.includes(secret), silent.out);
+  });
+});
+
+// Contract: an origin URL that does not parse as a URL is never printed with the credentials it carries.
+// Breaks when: the fallback for an origin without a host prints the remote URL as git returns it.
+// Not covered by: the implementer's tests use only origins that parse and carry no credentials.
+test('preflight: an origin URL that does not parse is not printed with its credentials', { todo: 'open gap: an origin URL that does not parse is printed whole, credentials included' }, () => {
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', 'https://user:s3cret-token@127.0.0.1:99999/owner/repo.git');
+    const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+    assert.ok(!result.out.includes('s3cret-token'), result.out);
+  });
 });
