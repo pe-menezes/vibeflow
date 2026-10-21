@@ -21,4 +21,4 @@ jobs:
           node-version: 22
 
       - name: Validate workflow contracts and smoke assertions
-        run: node --test test/*.test.mjs
+        run: node --test test/*.test.mjs test/audit/*.test.mjs

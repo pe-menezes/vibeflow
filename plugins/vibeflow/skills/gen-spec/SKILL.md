@@ -24,8 +24,11 @@ allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 Detect the language of the user's current request or conversation.
 Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
-One heading is exempt: `## References` stays literally in English in any
-output language — prompt-pack's propagation matches that exact heading.
+A few literals are exempt and stay in English in any output language, because
+other commands match them byte for byte: the `## References` and
+`## Clarifications` headings, the `Scenarios:` and `Risk code:` labels, the
+`[NEEDS CLARIFICATION: …]` marker, and the EARS keywords `WHEN` and
+`THE SYSTEM SHALL`.
 
 ## Web Search Policy
 
@@ -39,7 +42,9 @@ Generate a complete spec for the feature in the user's current request.
 1. Read the input. A path to a `.md` inside `.vibeflow/prds/` is a PRD:
    problem, audience, solution, scope, and anti-scope are already settled —
    your job is translating them into technical decisions, binary DoD checks,
-   and applicable patterns. Anything else is a feature description.
+   and applicable patterns. Anything else is a feature description. When the
+   PRD has a `## Clarifications` section, carry its entries into the spec's own
+   `## Clarifications`, so the answers travel with the contract.
 2. Load context from `.vibeflow/`, if it exists:
    - `index.md` — project context. Its `Suggested budget: ≤ N` line is this
      spec's budget; without it, ≤6 files.
@@ -83,12 +88,41 @@ questions about the failures, then generate with the answers. One round only.
   Where the project has a detectable test runner, at least one check names an
   executable test: one that already exists and has to pass, or one to write,
   named. With no runner, the checks stay as they are.
+
+  Two optional fields sharpen a functional check. Both are indented under the
+  check they belong to and are never extra checks, so the DoD stays 3–7 checks:
+  - `Scenarios:` — 1 to 3 lines in the EARS form
+    `WHEN <condition> THE SYSTEM SHALL <behavior>`. The implementer turns each
+    line into the red test, so write the behavior a test can observe.
+  - A property — "for any <input space>, <invariant>", naming the oracle that
+    decides it (a reference implementation, an inverse, a sum that must hold).
+    Offer it only when the project has a property-testing library (fast-check,
+    Hypothesis and the like) in its dependencies; one property explores the
+    input space that a handful of examples leaves open. Without the library,
+    write the check as examples.
+
+  ```
+  1. Deleting a task removes it from the store — `test/deleteTask.test.js` passes.
+     Scenarios:
+     WHEN the task exists THE SYSTEM SHALL remove it and return ok
+     WHEN the id is unknown THE SYSTEM SHALL return not-found and change nothing
+  ```
 - **Scope** — What's in.
 - **Anti-scope** — What's explicitly out. Be aggressive.
 - **Technical Decisions** — With trade-offs and justification.
 - **Applicable Patterns** — Which patterns from `.vibeflow/patterns/` the
   implementation must follow. Note it when the feature introduces a new one.
-- **Risks** — Premortem: what can go wrong, and the mitigation.
+- **Risks** — Premortem: what can go wrong, and the mitigation. End it with a
+  `Risk code:` list inside `## Risks`: the concrete paths or functions this
+  change touches in four categories — money and totals, credentials and
+  permissions, deleting or overwriting data, date and time boundaries. The
+  audit sabotages only there, so name the function, not the module. When the
+  change touches none, write `Risk code: none`.
+- **Clarifications** (optional) — `## Clarifications`: each question asked in
+  this session and its answer, one pair per item, plus those carried from the
+  PRD. Every question counts — the PRD gate's and the self-check's — at most 5
+  questions per session. Leave the section out when nothing was asked or
+  carried.
 - **References** (optional) — What the input pointed at: a test suite, a
   mockup, code to port, a reference implementation. One line each — the path or
   URL, then the role it plays ("the suite that defines the behavior", "the
@@ -98,9 +132,28 @@ questions about the failures, then generate with the answers. One round only.
   `- .vibeflow/specs/<feature>-part-N.md`. Used in multi-part splits.
 
 Be opinionated. Cut scope aggressively. Challenge vague requirements. Where
-something is unclear, state your assumption and flag it with a TODO. Match the
-spec's length to what the feature needs — the substance, without filler
-sections, redundant summaries, or boilerplate.
+something is unclear and an assumption is safe to state, state it. Where it is
+not, write `[NEEDS CLARIFICATION: <the question>]` at that point. Keep at most
+3 open markers: more than 3 means the spec rests on guesses, so ask before
+saving. Match the spec's length to what the feature needs — the substance,
+without filler sections, redundant summaries, or boilerplate.
+
+## Self-check
+
+Before saving, check the draft against three rules:
+
+1. Every DoD check is binary — a reader can say pass or fail without asking.
+2. Where the project has a detectable test runner, every functional check names
+   its test or carries a `Scenarios:` field.
+3. The open `[NEEDS CLARIFICATION]` markers are counted against the cap above.
+
+All three pass → save, without comment. A failure you can repair from the
+input and `.vibeflow/`, repair. What is left needs the user: ask up to 2
+targeted questions in one round, the PRD Validation Gate's rhythm, record them
+in `## Clarifications`, apply the answers and save. One question can cover more
+than one marker. The self-check never opens a second round: markers still open
+after it stay in the spec and are named in your reply, and with more than 3
+still open the reply also recommends running `discover` before `implement`.
 
 ## Spec splitting
 
