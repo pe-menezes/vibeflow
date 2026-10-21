@@ -108,7 +108,16 @@ agents; in Codex, in a native subagent or a new task given the briefing's path.
 The loop kit (principles, briefing templates, the orchestrator's flow, the PR
 body template, the role files and the scripts) lives in
 `skills/implement/loop/` and ships with the plugin. Its scripts need Node.js 18
-or later and exit 64 below it; `preflight.mjs --power` is macOS only.
+or later and exit 64 below it; `preflight.mjs --power` is macOS only. In
+Claude Code the loop needs version 2.1.69 or newer, the one that substitutes
+`${CLAUDE_SKILL_DIR}` in a skill's body.
+
+The pull request at the end is opened with `gh`, so it needs a remote on GitHub
+(or GitHub Enterprise) and `gh auth status` ok for its host; the `pr ending`
+line of `preflight.mjs` tells you before the first dispatch. Without it, the
+loop pushes the branch and writes the body to
+`.vibeflow/reviews/<feature>-pr-body.md`, for you to open the pull request or
+merge request by hand.
 
 A standalone `audit` writes the probe file and sabotages risk code only with
 `--probes`; without it, the report lists the probe cases as code and records

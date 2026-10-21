@@ -45,21 +45,32 @@ themselves: the session you call becomes the orchestrator, an executor
 implements each part in a fresh session, an independent audit checks it in
 another one, and at most two fix rounds follow, each re-audited on its own
 diff. With your OK, asked once per feature, every round is committed on the
-feature branch, and the loop ends in company mode: a pull request whose body carries the evidence (verdicts, DoD,
-findings, probes, commands run), opened after the suite runs in the CI's
-environment when your machine differs from it (when that run is not possible,
-the PR opens anyway and says why). The agent never merges, deploys, migrates a shared environment or
-reads production.
+feature branch, and the loop ends in company mode: a pull request whose body
+carries the evidence (verdicts, DoD, findings, probes, commands run), opened
+after the suite runs in the CI's environment when your machine differs from it
+(when that run is not possible, the PR opens anyway and says why). The agent
+never merges, deploys, migrates a shared environment or reads production.
 
 The loop is off by default, and nothing changes unless you turn it on:
 `implement --loop` for one run, or `loop: true` in `.vibeflow/loop/config.md`
-for the project (`--no-loop` turns it off for one run). It needs the loop kit,
-which ships inside the `implement` skill (`plugins/vibeflow/skills/implement/loop/`),
-and Node.js 18 or later for the kit's scripts.
+for the project (`--no-loop` turns it off for one run). Requirements:
+
+- The loop kit, which ships inside the `implement` skill
+  (`plugins/vibeflow/skills/implement/loop/`). Claude Code and Codex get it
+  with the plugin; the Cursor and Copilot installers copy it into the project.
+- Node.js 18 or later for the kit's scripts.
+- In Claude Code, version 2.1.69 or newer, the one that substitutes
+  `${CLAUDE_SKILL_DIR}` in a skill's body.
+- For the pull request at the end: a remote on GitHub (or GitHub Enterprise)
+  and `gh auth status` ok for its host. The `pr ending` line of
+  `preflight.mjs` tells you before the first dispatch. Without it, the loop
+  pushes the branch and writes the body to
+  `.vibeflow/reviews/<feature>-pr-body.md`, for you to open the pull request
+  or merge request by hand.
+
 Platforms: tested on macOS and Linux (the kit's scripts and the repository's
-test suite); Windows has not been measured. Claude Code and Codex get the kit with the plugin; the Cursor
-and Copilot installers copy it into the project. See
-[`MANUAL.md`](MANUAL.md) for the roles, the artifacts and the ceilings.
+test suite); Windows has not been measured. See [`MANUAL.md`](MANUAL.md) for
+the roles, the artifacts and the ceilings.
 
 ## Editions
 
