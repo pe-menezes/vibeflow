@@ -450,3 +450,41 @@ test('watch-pr.mjs exit 64 is final at the first read, and no sentence of orches
     assert.doesNotMatch(s, /\bagain\b|\bre-?(run|start|try)|\bretr(y|ies)\b|\buntil\b|\bwait/i, `a sentence sends exit 64 back to another watch: "${s}"`);
   }
 });
+
+// The sentences of the company-mode section, list items included.
+const sectionSentences = () => section().split(/(?<=[.;:])\s+(?=[A-Z0-9`*])/);
+
+// Contract: after watch-pr.mjs exits 64 (gh missing or not logged in) nothing in the rest of the ending runs `gh pr edit`: every later sentence that names it either says it does not run or names the watch exits it follows, and 64 is not one of them.
+// Breaks when: a sentence is added after the 64 route that runs the edit anyway without the word the contract test looks for ("Then run `gh pr edit <number> --body-file ...` so the PR carries that row"), so the ending calls a gh that cannot run.
+// Not covered by: company-mode-contracts counts only the sentences that name `gh pr edit` together with the word "replace", so an edit worded with "run" or "update" passes it.
+test('after watch-pr.mjs exits 64, no later sentence of the ending runs gh pr edit', () => {
+  const all = sectionSentences();
+  const at = all.findIndex((s) => s.startsWith('Exit 64:'));
+  assert.ok(at !== -1, 'step 6 routes exit 64');
+  const named = all.slice(at).filter((s) => /`gh pr edit\b/.test(s));
+  assert.ok(named.length >= 2, 'the 64 route and the copy of the watch result both name gh pr edit');
+  for (const s of named) {
+    if (/`gh pr edit[^`]*` (cannot|does not|will not|is not to) run\b/.test(s)) continue;
+    const gate = /\bexits? ((?:\d+|,|\s|or|and|to)+)/i.exec(s);
+    const exits = gate ? gate[1].match(/\d+/g) ?? [] : [];
+    assert.ok(exits.length > 0, `a sentence runs gh pr edit without naming the watch exits it follows: "${s}"`);
+    assert.ok(!exits.includes('64'), `a sentence runs gh pr edit after exit 64: "${s}"`);
+  }
+});
+
+// Contract: the route of the ending without gh, or without an origin remote, runs no gh command: after the check that chooses it, no sentence up to step 5 names a gh subcommand, written as a command or in prose.
+// Breaks when: a step that needs gh is added to the route in prose ("Then it runs gh pr view <feature branch> to read the state of the pull request"), so the route fails on the very machine it exists for.
+// Not covered by: company-mode-contracts looks only for a backticked "`gh " in the sentences of the route, so a gh command written without backticks passes it.
+test('the ending without gh or without an origin remote names no gh command after the check that chooses it', () => {
+  const text = section();
+  const check = text.indexOf('Before step 5, check that gh can open the pull request:');
+  const push = text.indexOf('5. Push the feature branch');
+  assert.ok(check !== -1 && push > check, 'the route sits before step 5');
+  // Split at a period or semicolon only, so the check stays one sentence with its command.
+  const route = text.slice(check, push).split(/(?<=[.;])\s+(?=[A-Z0-9`*])/).filter((s) => s.trim());
+  const steps = route.slice(1);
+  assert.ok(steps.some((s) => /nowhere to push/.test(s)) && steps.some((s) => /\bgh is missing\b/.test(s)), 'the route has the step without an origin remote and the step without gh');
+  for (const s of steps) {
+    assert.doesNotMatch(s, /\bgh (alias|api|auth|browse|codespace|extension|gist|issue|label|pr|project|release|repo|ruleset|run|search|secret|status|variable|workflow)\b/, `a step of the route runs gh: "${s}"`);
+  }
+});
