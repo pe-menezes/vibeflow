@@ -77,7 +77,7 @@ test('watch-pr.mjs with the arguments the section writes runs against gh, and ev
   const row = kit('README.md').split('\n').find((line) => line.startsWith('| `watch-pr.mjs'));
   assert.ok(row, 'README documents watch-pr.mjs');
   const codes = [...row.split('|').at(-2).matchAll(/(\d+) \w+/g)].map((m) => m[1]);
-  assert.deepEqual(codes, ['0', '1', '2', '3']);
+  assert.deepEqual(codes, ['0', '1', '2', '3', '64']);
   for (const code of codes) assert.match(six, new RegExp(`Exit ${code}:`), `step 6 routes exit ${code}`);
 
   withSandbox((box) => {

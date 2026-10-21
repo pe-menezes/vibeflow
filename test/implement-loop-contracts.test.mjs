@@ -5,7 +5,6 @@
 // instead of drifting silently.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,15 +21,6 @@ const EDITIONS = {
   copilot: 'copilot/github/prompts/vibeflow-implement.prompt.md',
 };
 
-// sha256 of each edition as it was before the Loop mode section existed. The CI
-// checks out with depth 1, so the base is pinned by content here, never read
-// from git.
-const BASE_SHA256 = {
-  shared: '23740c2dac8dc4e9c15ce43a58441d88989c9612ac10696be95c3229a0f4126d',
-  cursor: '2f47bcfbbc53401e34825e095685b1684a127672d0c59eef9dbb1842da7f6a15',
-  copilot: 'cae0ebd7387d87ed5d4801332a3c0d79174a7c234db6773f8c2734dc12a78e4d',
-};
-
 // Where each edition reaches the kit, and what installs it there.
 const KIT_PATH = {
   shared: '${CLAUDE_SKILL_DIR}/loop/',
@@ -39,8 +29,8 @@ const KIT_PATH = {
 };
 const INSTALL_HINT = {
   shared: /updating the Vibeflow plugin installs it/,
-  cursor: /`npx setup-vibeflow@latest --cursor --force`/,
-  copilot: /`npx setup-vibeflow@latest --copilot --force`/,
+  cursor: /`npx setup-vibeflow@latest --cursor --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
+  copilot: /`npx setup-vibeflow@latest --copilot --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
 };
 
 const SECTION = '## Loop mode\n';
@@ -54,7 +44,6 @@ function read(path) {
 // Prompts wrap prose at ~80 columns, so phrase contracts run on a copy with
 // every run of whitespace collapsed to one space.
 const flat = (text) => text.replace(/\s+/g, ' ');
-const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
 function count(haystack, needle) {
   let n = 0;
@@ -75,12 +64,13 @@ function splitSection(content) {
 // ------------------------------------------------------------------ Loop mode in the three editions
 
 for (const [edition, path] of Object.entries(EDITIONS)) {
-  test(`${edition}: one Loop mode section before Phase 0, every other byte as before the loop`, () => {
+  // Structure only: the text outside the section is free to change in later releases.
+  test(`${edition}: one Loop mode section, right before Phase 0, and short`, () => {
     const content = read(path);
     assert.equal(count(content, SECTION), 1, `${edition}: exactly one "## Loop mode" heading`);
+    assert.equal(count(content, `\n${PHASE_0}`), 1, `${edition}: exactly one "${PHASE_0}" heading`);
     const parts = splitSection(content);
     assert.ok(parts, `${edition}: the Loop mode section is followed by "${PHASE_0}"`);
-    assert.equal(sha256(parts.rest), BASE_SHA256[edition], `${edition}: outside the Loop mode section the file differs from the edition before the loop`);
     assert.ok(parts.section.split('\n').length <= 30, `${edition}: the section stays short (at most 30 lines)`);
   });
 
@@ -108,7 +98,7 @@ for (const [edition, path] of Object.entries(EDITIONS)) {
     const section = flat(splitSection(read(path)).section);
     assert.match(
       section,
-      /When the folder is missing, the kit is not installed: [^.]*installs it\. When Node\.js is missing or older, install Node\.js 18 or newer \([^)]*\)\. Either way, stop the loop before phase 0, say what to install, and say that `implement` without `--loop` still runs/,
+      /When the folder is missing, the kit is not installed: (?:[^.]|\d\.\d)*installs it\. When Node\.js is missing or older, install Node\.js 18 or newer \([^)]*\)\. Either way, stop the loop before phase 0, say what to install, and say that `implement` without `--loop` still runs/,
       `${edition}: no kit or no Node 18 stops the loop before phase 0`,
     );
     assert.doesNotMatch(section, /anyway|improvise|run the loop without/i, `${edition}: no path that runs the loop without the kit or Node 18`);

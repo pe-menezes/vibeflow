@@ -135,6 +135,31 @@ test('company mode: watch-pr.mjs waits for the checks a CI runs on the PR, its r
   assert.match(text, /final report[^.]*the checks' result from `watch-pr\.mjs`/, 'the checks\' result in the final report');
 });
 
+// The route without gh: a remote off GitHub, or a machine without gh logged in, still ends with the
+// branch pushed and the body written, and the pull request is handed to the user.
+const NO_GH_ROUTE = [
+  'Before step 5, check that gh can open the pull request: `gh auth status --hostname <origin host>` exits 0, the same check as the `pr ending:` line of `preflight.mjs`.',
+  'When gh is missing, is not logged in on that host, or the remote is on a host gh does not serve (GitLab, Bitbucket, Azure DevOps), the ending pushes the feature branch with the push command of step 5, keeps the body step 4 wrote in `.vibeflow/reviews/<feature>-pr-body.md`, skips steps 5 and 6 and `watch-pr.mjs`, and gives the user one line: the branch, the body file, and that they open the pull request or merge request by hand with that body.',
+  'The final report of step 7 carries that line in place of the PR link.',
+];
+
+test('company mode: when gh cannot open the pull request, the ending pushes, keeps the body, skips the watch and hands the PR to the user', () => {
+  const text = section();
+  for (const sentence of NO_GH_ROUTE) hasSentence(text, sentence, 'the route without gh');
+  // The route is decided after the body is written and before the push of step 5.
+  const body = text.indexOf('Fill `pr-body.md`');
+  const route = text.indexOf(NO_GH_ROUTE[0]);
+  const push = text.indexOf('5. Push the feature branch');
+  assert.ok(body !== -1 && push !== -1, 'the section has step 4 and step 5');
+  assert.ok(body < route && route < push, 'the route sits between the body (step 4) and the push (step 5)');
+  // No step of the route needs gh: gh appears only in the check that chooses it.
+  assert.doesNotMatch(NO_GH_ROUTE[1], /`gh /, 'the route runs no gh command');
+});
+
+test('company mode: watch-pr.mjs exit 64 (gh missing or not logged in) says the checks are not watched and how to follow them', () => {
+  hasSentence(step(6), 'Exit 64: gh is missing or not logged in, so nothing is watching the checks; the final report says so and gives the user `gh pr checks <number> --watch` to follow them.', 'the route of exit 64');
+});
+
 test('company mode: the ending runs in order, probes, CI-environment suite, body, push, PR, watch, body updated', () => {
   const text = section();
   const steps = [
@@ -169,6 +194,8 @@ test('company mode: only the sentences that order the ending speak of pushing or
     'When the CI tests the pull request\'s merge commit with the base,',
     'A red run there blocks the push and is a finding for a fix round',
     'With no convention found, the PR opens as a draft,',
+    'Before step 5, check that gh can open the pull request:',
+    'When gh is missing, is not logged in on that host,',
     'Push the feature branch with `git push -u origin <feature branch>` and open the PR with',
     'A repository with no CI, or whose CI does not run on this PR (only on pushes to the default branch,',
     'On a restart the PR already exists:',

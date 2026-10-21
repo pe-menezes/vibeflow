@@ -52,11 +52,12 @@ when the config turns it on.
 Before phase 0, check that the kit folder exists and that `node --version`
 shows Node.js 18 or newer, because the kit's scripts need it. When the folder
 is missing, the kit is not installed:
-`npx setup-vibeflow@latest --copilot --force` installs it. When Node.js is
-missing or older, install Node.js 18 or newer (from nodejs.org or the host's
-package manager). Either way, stop the loop before phase 0, say what to
-install, and say that `implement` without `--loop` still runs the pipeline
-below, with `--no-loop` when the config turns the loop on.
+`npx setup-vibeflow@latest --copilot --force` (setup-vibeflow 0.17.0 or newer)
+installs it. When Node.js is missing or older, install Node.js 18 or newer
+(from nodejs.org or the host's package manager). Either way, stop the loop
+before phase 0, say what to install, and say that `implement` without
+`--loop` still runs the pipeline below, with `--no-loop` when the config
+turns the loop on.
 
 ## Phase 0: Find and validate the spec
 
