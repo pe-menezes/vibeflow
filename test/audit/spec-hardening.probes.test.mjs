@@ -122,6 +122,30 @@ ${numbered + 2}. Every new module follows the naming pattern of its neighbours.
   }
 });
 
+// Contract: the counter's verdict holds the DoD limit at both ends of 3–7: seven checks, each with its fields, pass, and an eighth check fails.
+// Breaks when: the upper bound drifts (`<= 8`, `< 7`), or fields nested under the checks start counting and push a seven-check DoD over the limit.
+// Not covered by: test/assertions.test.mjs and the other DoD counter cases stop at three checks or fewer, so nothing reaches the upper bound.
+test('DoD counter: seven checks with nested fields pass, an eighth check fails', () => {
+  const checks = (n) => Array.from({ length: n }, (_, i) => [
+    `${i + 1}. Check number ${i + 1} holds — \`node --test test/check${i + 1}.test.js\` passes.`,
+    '   - Scenarios:',
+    `     - WHEN input ${i + 1} arrives THE SYSTEM SHALL record it`,
+  ].join('\n')).join('\n');
+  const spec = (n) => `
+## Definition of Done
+${checks(n)}
+
+## Scope
+- src/services/deleteTask.js
+`;
+  const seven = dodCount(spec(7));
+  assert.equal(seven.detail, '7 checks');
+  assert.equal(seven.ok, true);
+  const eight = dodCount(spec(8));
+  assert.equal(eight.detail, '8 checks');
+  assert.equal(eight.ok, false);
+});
+
 // ---- analyze: the incremental check ----
 
 function incrementalParagraph(raw) {
