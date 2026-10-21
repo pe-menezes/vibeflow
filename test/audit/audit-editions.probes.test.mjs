@@ -254,6 +254,24 @@ test('verdict: in the verdict rules, risk-gap appears only in the sentence that 
   }
 });
 
+// Contract: in every edition, an unresolved CRITICAL or HIGH Critical Gate finding fails the audit, an unresolved WARNING caps it at PARTIAL, INFO only informs, and overriding CRITICAL or HIGH needs a written justification.
+// Breaks when: one edit made in the three editions at once, as cross-edition sync asks, demotes HIGH or WARNING in the mapping table or in the verdict rule; the editions still match each other.
+// Not covered by: the contract tests hold the protected blocks identical across editions and well formed, which an identical edit in all three keeps, and the existing audit contracts only match the words "critical gate".
+test('critical gate: an unresolved CRITICAL or HIGH finding fails the audit and a WARNING caps it at PARTIAL, in every edition', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const mapping = section(text, 'c. **Honor overrides.**', '**Rules Catalog');
+    const effect = (severity) => new RegExp(`\\| ${severity.replace('/', '\\/')} \\| ([^|]+) \\|`).exec(mapping)?.[1].trim() ?? '';
+    assert.match(effect('CRITICAL / HIGH'), /^\*\*FAIL\*\*/, `${name}: CRITICAL and HIGH map to FAIL`);
+    assert.match(effect('WARNING'), /^caps the verdict at \*\*PARTIAL\*\*/, `${name}: WARNING caps the verdict at PARTIAL`);
+    assert.ok(effect('INFO') !== '' && !/FAIL|PARTIAL/.test(effect('INFO')), `${name}: INFO is a note, not a verdict`);
+    assert.match(mapping, /CRITICAL\/HIGH require a non-empty justification/, `${name}: a CRITICAL or HIGH override needs a reason`);
+    const rules = section(text, '## Verdict rules', '## Re-audit mode');
+    assert.match(rules, /Any unresolved CRITICAL or HIGH Critical Gate finding → FAIL, exactly like a failing test; an unresolved WARNING caps the verdict at PARTIAL\./,
+      `${name}: the verdict rule fails CRITICAL and HIGH and caps WARNING`);
+  }
+});
+
 // ------------------------------------------- committed work, artifacts, Node
 
 // Contract: work committed on the default branch gives the default base an empty package, the edition handles that case before the empty-package rule by running over the code (no FAIL), and `--base <ref>` puts the committed work in the package.
