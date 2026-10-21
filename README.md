@@ -47,7 +47,8 @@ another one, and at most two fix rounds follow, each re-audited on its own
 diff. With your OK, asked once per feature, every round is committed on the
 feature branch, and the loop ends in company mode: a pull request whose body carries the evidence (verdicts, DoD,
 findings, probes, commands run), opened after the suite runs in the CI's
-environment. The agent never merges, deploys, migrates a shared environment or
+environment when your machine differs from it (when that run is not possible,
+the PR opens anyway and says why). The agent never merges, deploys, migrates a shared environment or
 reads production.
 
 The loop is off by default, and nothing changes unless you turn it on:
