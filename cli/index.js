@@ -10,6 +10,19 @@ const REPO = 'pe-menezes/vibeflow';
 const BRANCH = 'main';
 const PLUGIN_MARKETPLACE_REPO = 'pe-menezes/vibeflow';
 
+// Every download starts from this base. The override exists for tests and mirrors.
+const BASE_URL_ENV = 'VIBEFLOW_BASE_URL';
+const DEFAULT_BASE_URL = `https://raw.githubusercontent.com/${REPO}/${BRANCH}`;
+const BASE_URL = (process.env[BASE_URL_ENV] || DEFAULT_BASE_URL).replace(/\/+$/, '');
+
+// The loop kit has one source, inside the plugin's implement skill; its manifest lists the
+// files, so a kit file added later needs no change here.
+const KIT_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills/implement/loop`;
+const KIT_MANIFEST = 'manifest.json';
+// A manifest entry is a plain relative path: no absolute path, no "..", no hidden segment,
+// so nothing it names can land outside the edition's kit folder.
+const KIT_PATH_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/;
+
 const COPILOT_FILES = [
   { src: 'github/prompts/vibeflow-analyze.prompt.md', dest: '.github/prompts/vibeflow-analyze.prompt.md' },
   { src: 'github/prompts/vibeflow-audit.prompt.md', dest: '.github/prompts/vibeflow-audit.prompt.md' },
@@ -43,8 +56,9 @@ const CURSOR_FILES = [
 const EDITIONS = {
   copilot: {
     name: 'Copilot',
-    baseUrl: `https://raw.githubusercontent.com/${REPO}/${BRANCH}/copilot`,
+    baseUrl: `${BASE_URL}/copilot`,
     files: COPILOT_FILES,
+    kitDest: '.github/vibeflow/loop',
     marker: '.github/prompts/vibeflow-analyze.prompt.md',
     markerLegacy: '.github/prompts/vibeflow/vibeflow-analyze.prompt.md',
     agentsSrc: 'AGENTS.md',
@@ -53,8 +67,9 @@ const EDITIONS = {
   },
   cursor: {
     name: 'Cursor',
-    baseUrl: `https://raw.githubusercontent.com/${REPO}/${BRANCH}/cursor`,
+    baseUrl: `${BASE_URL}/cursor`,
     files: CURSOR_FILES,
+    kitDest: '.cursor/skills/vibeflow-implement/loop',
     marker: '.cursor/rules/vibeflow.mdc',
     markerLegacy: null,
     agentsSrc: 'AGENTS.md',
@@ -75,6 +90,7 @@ const GITIGNORE_BLOCKS = {
 .github/prompts/vibeflow-*.prompt.md
 .github/agents/vibeflow-architect.agent.md
 .github/instructions/vibeflow/
+.github/vibeflow/
 `,
   cursor: `
 # Vibeflow — installed + generated (remove to track in git)
@@ -83,6 +99,22 @@ const GITIGNORE_BLOCKS = {
 .cursor/rules/vibeflow-architect.mdc
 .cursor/skills/vibeflow-*/
 `,
+};
+
+// What a reinstall may add to a Vibeflow block that is already in .gitignore. A line that an
+// older block already had is never added back: the user may have changed or deleted it on
+// purpose (the hotfix carve-out swaps `.vibeflow/` for `.vibeflow/*` + `!.vibeflow/hotfixes/`).
+// `shared` lines belong to every edition's block. `since` lists, per edition, the lines that
+// entered its block after its first release, each with the version that added it; a new
+// line in GITIGNORE_BLOCKS goes here too, or existing installs never get it.
+const GITIGNORE_UPDATES = {
+  shared: ['.vibeflow/'],
+  since: {
+    copilot: [
+      '.github/vibeflow/', // 0.17.0: the loop kit folder
+    ],
+    cursor: [],
+  },
 };
 
 // --- Helpers ---
@@ -101,9 +133,39 @@ async function downloadFile(baseUrl, srcPath) {
   const url = `${baseUrl}/${srcPath}`;
   const res = await fetch(url);
   if (!res.ok) {
-    throw new Error(`Failed to download ${url}: ${res.status} ${res.statusText}`);
+    const error = new Error(`Failed to download ${url}: ${res.status} ${res.statusText}`);
+    error.status = res.status;
+    throw error;
   }
   return res.text();
+}
+
+// The kit's files, or null when the base has no manifest (404): a base published before the
+// kit, or a mirror without it, still installs the edition. A manifest that is there but
+// malformed throws, so nothing is written from a list nobody can trust.
+async function loadKitFiles(kitDest) {
+  let raw;
+  try {
+    raw = await downloadFile(KIT_BASE_URL, KIT_MANIFEST);
+  } catch (err) {
+    if (err.status === 404) return null;
+    throw err;
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(raw);
+  } catch {
+    throw new Error(`loop kit ${KIT_MANIFEST} is not valid JSON`);
+  }
+  if (!manifest || !Array.isArray(manifest.files) || manifest.files.length === 0) {
+    throw new Error(`loop kit ${KIT_MANIFEST} has no "files" list`);
+  }
+  for (const path of manifest.files) {
+    if (typeof path !== 'string' || !KIT_PATH_PATTERN.test(path)) {
+      throw new Error(`loop kit ${KIT_MANIFEST} lists ${JSON.stringify(path)}, which is not a plain path inside the kit folder`);
+    }
+  }
+  return manifest.files.map((path) => ({ src: path, dest: `${kitDest}/${path}`, baseUrl: KIT_BASE_URL }));
 }
 
 function extractAgentsAppendContent(fullContent) {
@@ -142,6 +204,37 @@ function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
 
   const content = existing.trimEnd() + '\n\n' + delimited + '\n';
   return { content, action: 'appended' };
+}
+
+// The .gitignore block is a marker comment line followed by its paths, up to the first blank
+// line. Pure, like upsertDelimitedBlock: marker absent → the block is appended. Marker present
+// → the edition's lines listed in GITIGNORE_UPDATES.since that the file does not have yet
+// (anywhere, as a whole line) are inserted right after the block. When the file has none of
+// the edition's own lines, the block there is another edition's (they share the marker), and
+// all of this edition's lines except the shared ones are the candidates instead.
+function upsertGitignoreBlock(existing, block, edition) {
+  const marker = GITIGNORE_MARKER;
+  const paths = block.trim().split('\n').filter((line) => line !== marker);
+  const lines = existing.split('\n');
+  const bare = (line) => line.replace(/\r$/, '').trim();
+  const markerIdx = lines.findIndex((line) => bare(line) === marker);
+  if (markerIdx === -1) {
+    const content = (existing.trimEnd() ? existing.trimEnd() + '\n' : '') + block.trim() + '\n';
+    return { content, action: 'appended', added: paths };
+  }
+  const present = new Set(lines.map(bare));
+  const since = GITIGNORE_UPDATES.since[edition] || [];
+  const own = paths.filter((path) => !GITIGNORE_UPDATES.shared.includes(path));
+  const firstRelease = own.filter((path) => !since.includes(path));
+  const installed = firstRelease.some((path) => present.has(path));
+  const candidates = installed ? since : own;
+  const missing = candidates.filter((path) => !present.has(path));
+  if (missing.length === 0) return { content: existing, action: 'present', added: [] };
+  let end = markerIdx + 1;
+  while (end < lines.length && bare(lines[end]) !== '') end += 1;
+  const eol = lines[markerIdx].endsWith('\r') ? '\r' : '';
+  lines.splice(end, 0, ...missing.map((path) => path + eol));
+  return { content: lines.join('\n'), action: 'updated', added: missing };
 }
 
 function detectEdition() {
@@ -196,13 +289,17 @@ function printUsage() {
   console.log(`  ${pc.bold('Usage:')} npx setup-vibeflow@latest ${pc.cyan('<edition>')}`);
   console.log('');
   console.log(`  ${pc.bold('Editions:')}`);
-  console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions)')}`);
-  console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills)')}`);
+  console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions, vibeflow/loop)')}`);
+  console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills, the loop kit in skills/vibeflow-implement/loop)')}`);
   console.log(`    ${pc.cyan('--codex')}     Show install instructions for Codex ${pc.dim('(plugin system)')}`);
   console.log(`    ${pc.cyan('--claude')}    Show install instructions for Claude Code ${pc.dim('(plugin system)')}`);
   console.log('');
   console.log(`  ${pc.bold('Options:')}`);
   console.log(`    ${pc.cyan('--force')}     Overwrite existing files`);
+  console.log('');
+  console.log(`  ${pc.bold('Environment:')}`);
+  console.log(`    ${pc.cyan(BASE_URL_ENV)}   Download from this base instead of ${pc.dim(DEFAULT_BASE_URL)}`);
+  console.log(`    ${' '.repeat(BASE_URL_ENV.length)}   ${pc.dim('(for tests and mirrors; the layout below it must match the repository)')}`);
   console.log('');
   console.log(`  ${pc.bold('Examples:')}`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --copilot`);
@@ -264,11 +361,25 @@ async function main() {
     process.exit(0);
   }
 
+  // The loop kit's manifest is read and checked before anything is written
+  let kitFiles;
+  try {
+    kitFiles = await loadKitFiles(edition.kitDest);
+  } catch (err) {
+    log(pc.red('x'), `loop kit — ${err.message}`);
+    process.exit(1);
+  }
+  if (kitFiles === null) {
+    log(pc.yellow('!'), `loop kit — ${KIT_BASE_URL}/${KIT_MANIFEST} answered 404, so this base has no kit; installing ${edition.name} without it (implement --loop and stats need it: rerun with --force once the base has it)`);
+    kitFiles = [];
+  }
+  const files = [...edition.files.map((file) => ({ ...file, baseUrl: edition.baseUrl })), ...kitFiles];
+
   // Download and install files
   let created = 0;
   let skipped = 0;
 
-  for (const file of edition.files) {
+  for (const file of files) {
     const destPath = join(cwd, file.dest);
     const destDir = join(destPath, '..');
 
@@ -279,7 +390,7 @@ async function main() {
     }
 
     try {
-      const content = await downloadFile(edition.baseUrl, file.src);
+      const content = await downloadFile(file.baseUrl, file.src);
       ensureDir(destDir);
       writeFileSync(destPath, content, 'utf-8');
       log(pc.green('+'), file.dest);
@@ -351,12 +462,16 @@ async function main() {
       if (existsSync(gitignorePath)) {
         content = readFileSync(gitignorePath, 'utf-8');
       }
-      if (!content.includes(GITIGNORE_MARKER)) {
-        const updated = (content.trimEnd() ? content.trimEnd() + '\n' : '') + block.trim() + '\n';
-        writeFileSync(gitignorePath, updated, 'utf-8');
-        log(pc.green('+'), `.gitignore ${pc.dim('(Vibeflow paths added — remove that block to track in git)')}`);
-      } else {
+      const result = upsertGitignoreBlock(content, block, editionKey);
+      if (result.action === 'present') {
         log(pc.dim('-'), `${pc.dim('.gitignore')} ${pc.dim('(Vibeflow block already present)')}`);
+      } else {
+        writeFileSync(gitignorePath, result.content, 'utf-8');
+        if (result.action === 'appended') {
+          log(pc.green('+'), `.gitignore ${pc.dim('(Vibeflow paths added — remove that block to track in git)')}`);
+        } else {
+          log(pc.green('+'), `.gitignore ${pc.dim(`(Vibeflow block gained ${result.added.join(', ')})`)}`);
+        }
       }
     }
   } catch (err) {

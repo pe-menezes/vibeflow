@@ -9,7 +9,7 @@ The portable half of the execution loop, shipped inside the `implement` skill so
 * `roles/auditor.md`: the auditor's session discipline, which points at the audit workflow for the procedure; the Claude Code agent `agents/auditor.md` carries the same body.
 * `roles/executor.md`: the executor's session discipline for executor and fix rounds; the Claude Code agent `agents/executor.md` carries the same body.
 * `scripts/`: the checks that must run every time, as Node scripts.
-* `manifest.json`: the kit's file list, relative to this folder.
+* `manifest.json`: the kit's file list; `setup-vibeflow` installs exactly those files for Cursor and Copilot, and a test keeps the list equal to this folder.
 
 The commands that use the kit name the script and the moment; this file says what each script does and what its exit code means.
 
@@ -25,6 +25,7 @@ The commands that use the kit name the script and the moment; this file says wha
 | `check-probes.mjs <repo> [--base <ref>] [--dir <folder>]` | before the PR; pruning | audit probes that pin state: git against a base, today's version, a state sentence, a line number, the real clock, a document's text (details below) | 0 clean · 1 suspects · 64 a --dir that does not exist, is not a folder or is outside the repository |
 | `watch-pr.mjs --repo [<host>/]<owner/repo> --pr <n> [--timeout-min <m>]` | after the PR, in the background | waits for the PR's checks and exits, waking the orchestrator; a PR with no check yet keeps waiting; a check state outside its green, failed and pending lists is never green (details below) | 0 green · 1 failed · 2 closed · 3 ceiling · 64 bad arguments · 69 gh missing or not executable · 77 gh not logged in or credential refused |
 | `watch-round.mjs --file <progress-or-report> [--stale-min <m>] [--timeout-min <m>]` | while a round runs, in the background | watchdog by effect: ends on a final stage marker the file gains during the watch, or with the silence checklist when the file stays unchanged past the limit (details below) | 0 final · 1 silent · 3 ceiling |
+| `loop-stats.mjs <repo> [--json]` | `stats` | the loop's own numbers from the rounds tables of `.vibeflow/loop/*.md`: per feature and part the rounds, the fix rounds, the round-0 audit's verdict and the clock from dispatch to the first PASS, then the totals; a malformed row or table is a warning and is skipped | 0 report written |
 
 `preflight.mjs` in detail:
 

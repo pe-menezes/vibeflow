@@ -1,5 +1,5 @@
 {
-  "description": "The loop kit's file list, relative to this folder.",
+  "description": "The loop kit's file list, relative to this folder. setup-vibeflow installs exactly these files for Cursor and Copilot; test/cli-kit.test.mjs keeps the list equal to the folder.",
   "files": [
     "README.md",
     "briefings.md",
@@ -10,6 +10,7 @@
     "roles/executor.md",
     "scripts/check-briefing.mjs",
     "scripts/check-probes.mjs",
+    "scripts/loop-stats.mjs",
     "scripts/perimeter.mjs",
     "scripts/preflight.mjs",
     "scripts/review-package.mjs",

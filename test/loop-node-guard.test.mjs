@@ -21,6 +21,7 @@ const SCRIPTS = [
   'check-probes.mjs',
   'watch-pr.mjs',
   'watch-round.mjs',
+  'loop-stats.mjs',
 ];
 
 function asNode(version) {

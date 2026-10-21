@@ -17,6 +17,7 @@ const SCRIPTS = [
   'check-probes.mjs',
   'watch-pr.mjs',
   'watch-round.mjs',
+  'loop-stats.mjs',
 ];
 
 function scratch(run) {
@@ -95,6 +96,7 @@ test('the README documents each script with its exit codes', () => {
     'check-probes.mjs': ['0 clean', '1 suspects'],
     'watch-pr.mjs': ['0 green', '1 failed', '2 closed', '3 ceiling', '64 bad arguments', '69 gh missing or not executable', '77 gh not logged in'],
     'watch-round.mjs': ['0 final', '1 silent', '3 ceiling'],
+    'loop-stats.mjs': ['0 report written'],
   };
   for (const [name, expected] of Object.entries(codes)) {
     const row = readme.split('\n').find((line) => line.startsWith('|') && line.includes(`\`${name.replace('.mjs', '')}`));
