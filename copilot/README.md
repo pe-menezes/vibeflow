@@ -27,6 +27,8 @@ copilot/
     └── skills/                                       → (reserved for future use)
 ```
 
+O instalador também copia o kit do loop de execução para `.github/vibeflow/loop/`, baixando do plugin (`plugins/vibeflow/skills/implement/loop/`, a fonte única) os arquivos que o `manifest.json` do kit lista, e o bloco do `.gitignore` ganha `.github/vibeflow/`. Instalação feita antes do CLI 0.17.0 não tem o kit: `npx setup-vibeflow@latest --copilot --force` instala.
+
 Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos do projeto.
 Instructions ficam em subpasta `vibeflow/` (subdirectories suportados pelo Copilot).
 
@@ -41,6 +43,10 @@ npx setup-vibeflow@latest --copilot
 ```
 
 O instalador copia os arquivos, cria diretórios, e faz append no `AGENTS.md` e `copilot-instructions.md` automaticamente.
+
+## Loop de execução (opcional)
+
+Desligado por padrão. Com o prompt `vibeflow-implement` e `--loop` (ou `loop: true` em `.vibeflow/loop/config.md`; `--no-loop` desliga numa rodada), o chat vira o orquestrador: o executor implementa cada parte numa sessão nova, a auditoria independente roda em outra, e há no máximo duas rodadas de conserto, cada uma reauditada no próprio diff (`vibeflow-audit --reaudit <commit>`). No Copilot, cada sessão nova é um chat que você abre com a linha de uma frase que o orquestrador escreve ("Read `<briefing>` and follow it."). O loop termina num pull request com a evidência e nunca faz merge, deploy, migração em ambiente compartilhado nem leitura de produção. Os scripts do kit precisam de Node.js 18 ou mais novo (abaixo disso saem com código 64). Rodado à mão, o `vibeflow-audit` só escreve as sondas e sabota código de risco com `--probes`. Detalhes no [MANUAL.md](../MANUAL.md).
 
 ## Após a instalação
 

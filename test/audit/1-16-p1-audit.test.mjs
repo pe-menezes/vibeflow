@@ -9,7 +9,7 @@ import { appendFileSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { SCRIPTS_DIR, hermeticEnv, runScript, withSandbox } from './loop-helpers.mjs';
+import { SCRIPTS_DIR, hermeticEnv, runScript, withSandbox } from '../loop-helpers.mjs';
 
 function scratch(run) {
   const dir = mkdtempSync(join(tmpdir(), 'vibeflow-audit-p1-'));

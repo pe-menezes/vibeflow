@@ -95,11 +95,22 @@ test('the README documents each script with its exit codes', () => {
     'check-probes.mjs': ['0 clean', '1 suspects'],
     'watch-pr.mjs': ['0 green', '1 failed', '2 closed', '3 ceiling'],
     'watch-round.mjs': ['0 final', '1 silent', '3 ceiling'],
+    'loop-stats.mjs': ['0 report written'],
   };
   for (const [name, expected] of Object.entries(codes)) {
     const row = readme.split('\n').find((line) => line.startsWith('|') && line.includes(`\`${name.replace('.mjs', '')}`));
     assert.ok(row, `README has no table row for ${name}`);
     for (const code of expected) assert.ok(row.includes(code), `${name} row lacks "${code}"`);
+  }
+});
+
+test('the README names every file the kit ships', () => {
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
+  const { files } = JSON.parse(readFileSync(join(LOOP_DIR, 'manifest.json'), 'utf8'));
+  for (const file of [...files, 'manifest.json']) {
+    if (file === 'README.md') continue;
+    const name = file.startsWith('scripts/') ? file.slice('scripts/'.length) : file;
+    assert.ok(readme.includes(`\`${name}`), `README does not name ${file}`);
   }
 });
 

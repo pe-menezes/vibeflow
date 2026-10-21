@@ -4,7 +4,9 @@
 // weaker wording in one edition fails here instead of drifting silently.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -204,5 +206,58 @@ test('analyze measures the suite only when the block is new or its inputs change
       `${label}: measurement gated on the block's inputs and on local and safe`);
     assert.match(content, /otherwise keep the measured time and date already recorded/i,
       `${label}: other incremental runs keep the last measurement`);
+  });
+});
+
+// Part 6b, DoD 4 (risk code: a date boundary). `git log --since` with a bare
+// date counts from the current time of day on that date, not from midnight
+// (measured 2026-10-20 on git 2.50.1 by the part 5 re-audit, finding G2), so
+// the incremental check would miss the commits made earlier that day. The
+// command is taken from each edition and run against a repository whose two
+// commits sit one minute on each side of midnight of a fixed date, so the
+// answer depends on the text and never on the clock.
+test('analyze incremental: git log --since starts at midnight of the Analyzed date', () => {
+  const date = '2020-01-15';
+  forEachEdition('analyze', (content, label, raw) => {
+    const phase0 = paragraph(raw, '**Incremental mode.**');
+    const command = /`(git log --since=[^`]*)`/.exec(phase0);
+    assert.ok(command, `${label}: the incremental check names its git log command`);
+    const repo = mkdtempSync(join(tmpdir(), 'vibeflow-since-'));
+    try {
+      const env = { PATH: process.env.PATH, HOME: repo, TZ: 'UTC', GIT_CONFIG_NOSYSTEM: '1' };
+      const git = (args, extra = {}) => {
+        const result = spawnSync('git', args, { cwd: repo, env: { ...env, ...extra }, encoding: 'utf8' });
+        assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
+        return result.stdout;
+      };
+      git(['init', '-q']);
+      const commit = (file, when) => {
+        writeFileSync(join(repo, file), `${file}\n`);
+        git(['add', file]);
+        git(['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qm', file],
+          { GIT_AUTHOR_DATE: when, GIT_COMMITTER_DATE: when });
+      };
+      commit('before-midnight.txt', '2020-01-14 23:59:00');
+      commit('after-midnight.txt', `${date} 00:01:00`);
+      const result = spawnSync('sh', ['-c', command[1].replaceAll('<date>', date)], { cwd: repo, env, encoding: 'utf8' });
+      assert.equal(result.status, 0, `${label}: ${result.stderr}`);
+      const files = result.stdout.split('\n').filter(Boolean);
+      assert.deepEqual(files, ['after-midnight.txt'], `${label}: a commit at 00:01 of the Analyzed date counts, one at 23:59 the day before does not`);
+      assert.match(command[1], /--since="<date> 00:00"/, `${label}: the date goes with an explicit time`);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+});
+
+// Part 6b, DoD 4, finding G1 of the part 5 re-audit: in the block-only clause
+// `<date>` read as the old date; the clause itself says Analyzed moves to today.
+test('analyze block-only run says in its own clause that Analyzed moves to today', () => {
+  forEachEdition('analyze', (content, label, raw) => {
+    const phase0 = flat(paragraph(raw, '**Incremental mode.**'));
+    const clause = /block is due but nothing else changed → (.*?) report "/i.exec(phase0);
+    assert.ok(clause, `${label}: a block-only path in Phase 0`);
+    assert.match(clause[1], /`Analyzed:`[^,;]*today's date/, `${label}: the clause moves Analyzed to today's date`);
+    assert.doesNotMatch(clause[1], /`Analyzed: <date>`/, `${label}: no <date> that reads as the old date`);
   });
 });

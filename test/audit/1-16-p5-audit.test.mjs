@@ -11,9 +11,9 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { assertGenSpec } from './assertions.mjs';
+import { assertGenSpec } from '../assertions.mjs';
 
-const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
 function dodCount(body) {
   const fixture = mkdtempSync(join(tmpdir(), 'vibeflow-audit-p5-'));

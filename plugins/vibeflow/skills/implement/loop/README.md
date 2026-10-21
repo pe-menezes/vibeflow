@@ -9,6 +9,7 @@ The portable half of the execution loop, shipped inside the `implement` skill so
 * `roles/auditor.md`: the auditor's session discipline, which points at the audit workflow for the procedure; the Claude Code agent `agents/auditor.md` carries the same body.
 * `roles/executor.md`: the executor's session discipline for executor and fix rounds; the Claude Code agent `agents/executor.md` carries the same body.
 * `scripts/`: the checks that must run every time, as Node scripts.
+* `manifest.json`: the kit's file list; `setup-vibeflow` installs exactly those files for Cursor and Copilot, and a test keeps the list equal to this folder.
 
 The commands that use the kit name the script and the moment; this file says what each script does and what its exit code means.
 
@@ -24,6 +25,7 @@ The commands that use the kit name the script and the moment; this file says wha
 | `check-probes.mjs <repo> [--base <ref>] [--dir <folder>]` | before the PR; pruning | audit probes that pin state: git against a base, today's version, a state sentence, a line number, the real clock, a document's text | 0 clean · 1 suspects |
 | `watch-pr.mjs --repo <owner/repo> --pr <n> [--timeout-min <m>]` | after the PR, in the background | waits for the PR's checks and exits, waking the orchestrator; a PR with no check yet keeps waiting | 0 green · 1 failed · 2 closed · 3 ceiling |
 | `watch-round.mjs --file <progress-or-report> [--stale-min <m>] [--timeout-min <m>]` | while a round runs, in the background | watchdog by effect: the end signal is a line `Stage: final` (report) or `State: final` (progress file) that the file gains during the watch; a file the watch sees unchanged past the limit exits with the silence checklist | 0 final · 1 silent · 3 ceiling |
+| `loop-stats.mjs <repo> [--json]` | `stats` | the loop's own numbers from the rounds tables of `.vibeflow/loop/*.md`: per feature and part the rounds, the fix rounds, the round-0 audit's verdict and the clock from dispatch to the first PASS, then the totals; a malformed row or table is a warning and is skipped | 0 report written |
 
 Every script also exits 64 when it cannot run (bad arguments, an unreadable file, a path that is not a git repository, an unknown base), with two exceptions. `review-package.mjs` exits 2 for every error, because its 2 already means error. `preflight.mjs` exits 64 only for bad arguments; a path that is not a git repository is one of its findings and exits 2, stop. On a Node.js older than 18, every script exits 64 before anything else, those two included, and says on stderr that it needs Node.js 18 or later, with the version it found. Each one answers `--help` with its full usage.
 

@@ -53,7 +53,10 @@ Then read the flags in the input (`--fresh`, `--scope <path>`, `--interactive`,
   changes nothing else about which phases run.
 
 **Incremental mode.** Read `Analyzed: <date>` from `index.md`, then
-`git log --since="<date>" --name-only --pretty=format:""` to find what changed.
+`git log --since="<date> 00:00" --name-only --pretty=format:""` to find what
+changed. The explicit time matters: with a date alone, git counts from the
+current time of day on that date, so commits made earlier that day would be
+missed.
 Filter out tests, docs, and config that doesn't affect source structure
 (`*.test.*`, `*.spec.*`, `docs/`, `README.md`, `.env.*`), then map what's left to
 modules — those are the affected structural units. The Tests and Pitfalls block
@@ -62,8 +65,9 @@ when a test file, the CI configuration or the test runner's configuration
 changed since <date>, even when those changes need no pattern reanalysis.
 Nothing changed and the block is not due → report "No changes detected since
 <date>. .vibeflow/ is up to date." and stop. The block is due but nothing else
-changed → regenerate only the block and `Analyzed: <date>` (Phase 4), report
-"Tests and Pitfalls refreshed; no structural changes since <date>." and stop.
+changed → regenerate only the block and move `Analyzed:` to today's date
+(Phase 4), report "Tests and Pitfalls refreshed; no structural changes since
+<date>." and stop.
 No git → warn "Git not available. Falling back to full analysis." and run
 phases 1–5. Otherwise report "Incremental mode: X affected modules: [list]" and
 continue.

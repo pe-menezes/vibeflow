@@ -13,6 +13,7 @@ cursor/
 └── skills/
     ├── vibeflow-analyze/SKILL.md                 → .cursor/skills/ (deep-analyze codebase)
     ├── vibeflow-gen-spec/SKILL.md                → .cursor/skills/ (feature/PRD → spec)
+    ├── vibeflow-implement/SKILL.md               → .cursor/skills/ (spec → code with guardrails; --loop)
     ├── vibeflow-prompt-pack/SKILL.md             → .cursor/skills/ (spec → prompt pack)
     ├── vibeflow-audit/SKILL.md                   → .cursor/skills/ (verify DoD + patterns)
     ├── vibeflow-discover/SKILL.md                → .cursor/skills/ (idea → PRD)
@@ -23,6 +24,8 @@ cursor/
 ```
 
 Todos os arquivos usam o prefixo `vibeflow-` para evitar conflitos com arquivos do projeto.
+
+O instalador também copia o kit do loop de execução para `.cursor/skills/vibeflow-implement/loop/`, baixando do plugin (`plugins/vibeflow/skills/implement/loop/`, a fonte única) os arquivos que o `manifest.json` do kit lista. Instalação feita antes do CLI 0.17.0 não tem o kit: `npx setup-vibeflow@latest --cursor --force` instala.
 
 **Git:** Por padrão, o instalador (`npx setup-vibeflow@latest --cursor`) adiciona ao `.gitignore` os arquivos instalados e a pasta `.vibeflow/` (gerada pelo analyze). Assim eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
 
@@ -49,18 +52,22 @@ Digite `/` no Agent chat e busque pelo nome do skill:
 **Core:**
 - `/vibeflow-analyze` — analisa o codebase, gera `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
 - `/vibeflow-gen-spec` — gera spec com DoD, scope, anti-scope e patterns aplicáveis
-- `/vibeflow-implement` — implementa a spec com guardrails (budget, DoD, padrões)
+- `/vibeflow-implement`: implementa a spec com guardrails (budget, DoD, padrões); `--loop` liga o loop de execução (abaixo), `--no-loop` desliga numa rodada
 - `/vibeflow-prompt-pack` — gera prompt pack autocontido com patterns embarcados
 
 **Secundários:**
-- `/vibeflow-audit` — audita implementação contra DoD + patterns + testes + Critical Gate (PASS / PARTIAL / FAIL)
+- `/vibeflow-audit`: audita implementação contra DoD + patterns + testes + Critical Gate (PASS / PARTIAL / FAIL), a partir de um pacote de revisão do diff (`--package`, `--base <ref>`); `--reaudit <commit>` confere uma rodada de conserto; à mão, só escreve as sondas e sabota código de risco com `--probes`
 - `/vibeflow-discover` — diálogo interativo (1–5 rounds) para transformar ideia vaga em PRD
 - `/vibeflow-hotfix` — defeito observado com evidência reproduzível: doc de rastro + fix + teste de regressão escrito antes do fix, em 1 chamada (path de doc halted retoma)
 
 **Utilitários:**
 - `/vibeflow-quick` — fast-track para tarefas pequenas (≤4 arquivos)
 - `/vibeflow-teach` — atualiza `.vibeflow/` com correções, convenções ou decisões. `--from <url|path>` importa padrões de repos externos
-- `/vibeflow-stats` — estatísticas de auditorias: taxas, violações, tendências
+- `/vibeflow-stats`: estatísticas de auditorias: taxas, violações, tendências, e os números do loop quando há ledgers em `.vibeflow/loop/`
+
+### Loop de execução (opcional)
+
+Desligado por padrão. Com `/vibeflow-implement <spec> --loop` (ou `loop: true` em `.vibeflow/loop/config.md`), a conversa vira a orquestradora: o executor implementa cada parte numa sessão nova, a auditoria independente roda em outra, e há no máximo duas rodadas de conserto. No Cursor, cada sessão nova é um chat que você abre com a linha de uma frase que a orquestradora escreve ("Read `<briefing>` and follow it."). O loop termina num pull request com a evidência e nunca faz merge, deploy, migração em ambiente compartilhado nem leitura de produção. Os scripts do kit precisam de Node.js 18 ou mais novo (abaixo disso saem com código 64). Detalhes no [MANUAL.md](../MANUAL.md).
 
 ### Rules
 

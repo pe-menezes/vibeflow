@@ -115,11 +115,18 @@ The dependency-free Node test suite also guards the static distribution
 contract for every host:
 
 ```
-node --test test/*.test.mjs
+node --test test/*.test.mjs test/audit/*.test.mjs
 ```
+
+`test/audit/` holds the probes that audits of this repository left behind:
+behavior tests pinned by content, one file per feature and part, each probe's
+three pruning answers in the audit report it came from. A probe that
+reproduces an open low finding is marked `todo`, so it runs without failing
+the suite.
 
 It requires the same ten workflows in the shared Claude/Codex plugin, Cursor
 skills, and Copilot prompt files; validates host-specific names and frontmatter;
 checks essential behavior anchors for each workflow; and verifies that the
-Claude and Codex catalogs resolve to the same versioned plugin. GitHub Actions
-runs these checks for every pull request and push to `main`.
+Claude and Codex catalogs resolve to the same versioned plugin. It also covers
+the loop kit's scripts, contracts and installer. GitHub Actions runs the same
+command for every pull request and push to `main`.
