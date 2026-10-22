@@ -555,10 +555,10 @@ test('the ending without gh or without an origin remote names no gh command afte
   }
 });
 
-// Contract: when watch-pr.mjs exits 64 because gh is not logged in, the cause it prints is one line, since step 6 copies that error line into the ledger's `Ending: checks not watched` line and into a row of the body's Commands table.
+// Contract: when watch-pr.mjs exits 77 because gh is not logged in, the cause it prints is one line, since step 6 copies that error line into the ledger's `Ending: checks not watched` line and into a row of the body's Commands table.
 // Breaks when: the message carries gh's own text as it comes, and gh writes it over several lines ("To get started with GitHub CLI, please run:  gh auth login", then "Alternatively, populate the GH_TOKEN environment variable ..."), so the copied line splits the table row in two.
-// Not covered by: company-mode-contracts pins the wording of the 64 route, and the watch-pr tests check the exit code and that the message names `gh auth login`; none counts the lines of the message the route copies.
-test('watch-pr.mjs exit 64 for gh not logged in prints its cause on one line, the error line the ending copies into a table row', { todo: 'open gap: the exit-64 message embeds the multi-line text gh prints when it is not logged in, so the error line step 6 copies spans two lines' }, () => {
+// Not covered by: company-mode-contracts pins the wording of the 77 route, and the watch-pr tests check the exit code and that the message names `gh auth login`; none counts the lines of the message the route copies.
+test('watch-pr.mjs exit 77 for gh not logged in prints its cause on one line, the error line the ending copies into a table row', { todo: 'open gap: the exit-77 message embeds the multi-line text gh prints when it is not logged in, so the error line step 6 copies spans two lines' }, () => {
   const args = /run `watch-pr\.mjs` with `([^`]+)`/.exec(step(6));
   assert.ok(args, 'step 6 writes watch-pr.mjs with its arguments');
   assert.ok(/its error line/.test(step(6)), 'step 6 copies the error line of the watch');
@@ -571,7 +571,7 @@ test('watch-pr.mjs exit 64 for gh not logged in prints its cause on one line, th
       '',
     ].join('\n'));
     const result = runScript('watch-pr.mjs', [...fill(args[1]), '--interval-sec', '0.05', '--timeout-min', '0.02'], box.env());
-    assert.equal(result.status, 64, result.out);
+    assert.equal(result.status, 77, result.out);
     const lines = result.stderr.trim().split('\n');
     assert.match(lines[0], /^watch-pr: gh is not logged in/, result.out);
     assert.equal(lines.length, 1, `the error line spans ${lines.length} lines: ${JSON.stringify(result.stderr)}`);

@@ -144,7 +144,9 @@ test('orchestrator.md: the opening', () => {
   const text = flatOrchestrator();
   assert.match(text, /`git status`/, 'reads git status');
   assert.match(text, /`git stash list`/, 'reads the stash list');
-  assert.match(text, /every dirty file[^.]*origin[^.]*ledger/i, 'every dirty file gets an origin in the ledger');
+  assert.match(text, /every dirty file and every stash[^.]*ledger[^.]*who made it \(this feature, the user, or unknown\)/i, 'every dirty file and every stash gets a ledger line saying who made it');
+  // The file uses `origin` for the git remote, so the sentence about who made a dirty file does not use the word.
+  assert.doesNotMatch(/every dirty file and every stash[^.]*/i.exec(text)?.[0] ?? '', /\borigin\b/i, 'the dirty-file sentence does not say "origin"');
   assert.ok(text.includes('`.vibeflow/loop/<feature>.md`'), 'the ledger path');
   assert.match(text, /never the default branch/i, 'never the default branch');
   assert.match(text, /on the default branch[^.]*stop and ask for a branch name/i, 'the default branch stops and asks');
