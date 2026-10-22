@@ -25,6 +25,7 @@ const NEEDS_KNOWLEDGE = new Set(['executor', 'fix', 'auditor']);
 const MAX_LINES = 200;
 const MIN_COPIED_WORDS = 14;
 
+// The same detector as review-package.mjs: a test keeps the two blocks identical.
 // The patterns are split so secret scanners do not flag this file.
 const SECRET = new RegExp([
   'sk-' + 'proj-', 'sk-' + 'ant-', 'gh' + '[pousr]_[A-Za-z0-9]{20,}', 'github' + '_pat_',

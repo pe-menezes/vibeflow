@@ -35,12 +35,12 @@ The checks that must always run are scripts in `scripts/` (see `README.md`); the
    * A state probe pins the repository instead of a behavior: a diff against the base, the list of files touched, today's version, a sentence of a document, "still pending", a line number, the real clock. It stays out of the test directory, and `check-probes.mjs` lists the suspects before the PR.
    * A probe pins by content. The executor does not shape code to please a probe; it records the conflict and the re-audit decides.
    * An old probe that the part makes false (a defect now fixed, a sentence rewritten) is rewritten only with written permission in the briefing, by the fact and with equal strength.
-   * A rule over a space of inputs (a date window, an amount, a time zone) becomes a property test when the repository has fast-check or Hypothesis, with the oracle written in the test. One property found a money bug that 38 example probes had let through.
+   * A rule over a space of inputs (a date window, an amount, a time zone) becomes a property test when the repository has fast-check or Hypothesis, with the oracle written in the test.
    * In an operational runbook, a new instruction is a command with its expected output and a stop condition, proven in a temporary directory.
 
 8. **The ceiling is written, and it escalates.**
-   * Two fix rounds per part. A fix round leaves without asking up to the second; a finding that changes scope or product goes to the owner before any fix.
-   * A third round asks the owner for a one-line OK, with the orchestrator's default declared, and leaves the moment it is given.
+   * Two fix rounds per part. A fix round leaves without asking up to the second; a finding that changes scope or product goes to the user before any fix.
+   * A third round asks the user for a one-line OK, with the orchestrator's default declared, and leaves the moment it is given.
    * The same finding returning for the same cause stops the loop before the ceiling.
    * A round above 400k tokens of context stops before the next fix.
    * A headless executor runs with a spending cap of three to five times the measured cost of the part's first round. Turn limits in agent definitions are a safety net, not a budget.
@@ -57,7 +57,7 @@ A friction is whatever cost clock time, tokens or a round. It enters in this ord
 4. If it belongs to one repository, it goes to that repository's knowledge base (`teach`), not here.
 5. This file stays under 150 lines and 3,000 words, and a test fails above either. A new line without room removes another: the one no part of the last two weeks used. A superseded rule leaves in the same change; struck-through text does not live next to the rule that holds.
 
-Signals to measure when the owner asks for a review: new lines and principles per week, and frictions that came back after admission (a rule that exists and does not hold should become a script).
+Signals to measure when the user asks for a review: new lines and principles per week, and frictions that came back after admission (a rule that exists and does not hold should become a script).
 
 ## Pruning rule for audit probes
 

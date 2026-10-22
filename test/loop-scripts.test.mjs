@@ -93,7 +93,7 @@ test('the README documents each script with its exit codes', () => {
     'perimeter.mjs': ['0 inside', '1 outside'],
     'review-package.mjs': ['0 written', '1 empty', '2 error'],
     'check-probes.mjs': ['0 clean', '1 suspects'],
-    'watch-pr.mjs': ['0 green', '1 failed', '2 closed', '3 ceiling'],
+    'watch-pr.mjs': ['0 green', '1 failed', '2 closed', '3 ceiling', '64 bad arguments', '69 gh missing or not executable', '77 gh not logged in'],
     'watch-round.mjs': ['0 final', '1 silent', '3 ceiling'],
   };
   for (const [name, expected] of Object.entries(codes)) {
@@ -101,6 +101,29 @@ test('the README documents each script with its exit codes', () => {
     assert.ok(row, `README has no table row for ${name}`);
     for (const code of expected) assert.ok(row.includes(code), `${name} row lacks "${code}"`);
   }
+});
+
+test('the README scripts table keeps every cell under 300 characters, and the exit departures are a list', () => {
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
+  const rows = readme.split('\n').filter((line) => line.startsWith('| `'));
+  assert.ok(rows.length >= 8, `the scripts table (${rows.length} rows)`);
+  for (const row of rows) {
+    for (const cell of row.split(/(?<!\\)\|/).slice(1, -1)) {
+      assert.ok(cell.trim().length <= 300, `a cell of ${cell.trim().length} characters: ${cell.trim().slice(0, 80)}...`);
+    }
+  }
+  const block = readme.split(/\n\s*\n/).find((text) => text.startsWith('Every script also exits 64'));
+  assert.ok(block, 'the exit-code block');
+  assert.ok(block.split('\n').filter((line) => /^\* /.test(line)).length >= 3, `the departures are list items:\n${block}`);
+});
+
+test('review-package usage and README say what stays out: what looks like a secret, and .vibeflow/ alone', () => {
+  const usage = runScript('review-package.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
+  assert.match(usage, /WITHHELD/);
+  assert.match(usage, /only under \.vibeflow\/ is empty/);
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.match(readme, /`WITHHELD`/);
+  assert.match(readme, /only under `\.vibeflow\/` is an empty package/);
 });
 
 test('the README names every file the kit ships', () => {
@@ -347,6 +370,146 @@ test('review package refuses an unknown base with exit 2', () => {
     const result = runScript('review-package.mjs', [box.repo, 'no-such-ref', join(box.root, 'x.md')], box.env());
     assert.equal(result.status, 2, result.out);
     assert.equal(existsSync(join(box.root, 'x.md')), false);
+  });
+});
+
+// --- review package: .vibeflow/ alone is not a change ---
+
+test('a change only under .vibeflow/ is an empty package that counts the .vibeflow/ paths', () => {
+  withSandbox((box) => {
+    box.git('checkout', '-q', '-b', 'feat');
+    box.write('.vibeflow/index.md', 'project knowledge\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'knowledge only');
+    box.write('.vibeflow/specs/rules.md', 'a new spec, not yet tracked\n');
+    box.write('.vibeflow/audits/rules-audit.md', '**Verdict: pending**\n');
+    const out = join(box.repo, '.vibeflow/reviews/rules-round-0.md');
+    const result = runScript('review-package.mjs', [box.repo, 'main', out], box.env());
+    assert.equal(result.status, 1, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.match(text, /^EMPTY PACKAGE: .*\b3 path\(s\) under \.vibeflow\//m);
+    assert.match(text, /^Loop artifacts left out: 1 path\(s\)/m);
+    assert.match(result.stdout, /empty package.*\b3 path\(s\) under \.vibeflow\//);
+    assert.doesNotMatch(text, /^## New file:/m);
+  });
+});
+
+test('with a change outside .vibeflow/, the rest of .vibeflow/ is in the package as context and the artifact folders stay out', () => {
+  withSandbox((box) => {
+    box.git('checkout', '-q', '-b', 'feat');
+    box.write('.vibeflow/index.md', 'project knowledge\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'knowledge');
+    box.write('.vibeflow/specs/rules.md', 'a new spec, not yet tracked\n');
+    box.write('.vibeflow/progress/rules.md', 'State: final\n');
+    box.write('src/rules.ts', 'export const x = 9\n');
+    const out = join(box.repo, '.vibeflow/reviews/rules-round-0.md');
+    const result = runScript('review-package.mjs', [box.repo, 'main', out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.match(text, /^\+export const x = 9$/m);
+    assert.match(text, /^\+project knowledge$/m);
+    assert.match(text, /^## New file: \.vibeflow\/specs\/rules\.md$/m);
+    assert.match(text, /^Loop artifacts left out: 1 path\(s\)/m);
+    assert.doesNotMatch(text, /\.vibeflow\/progress\//);
+  });
+});
+
+// --- review package: what looks like a secret stays out ---
+
+// Every sample is assembled at run time, so no secret scanner flags this file and no real
+// credential is written anywhere. One sample per kind the kit's detector names.
+const SECRET_SAMPLES = {
+  'OpenAI project key': `${'sk-'}${'proj-'}${'a1b2c3d4e5'}`,
+  'Anthropic key': `${'sk-'}${'ant-'}${'a1b2c3d4e5'}`,
+  'GitHub token': `${'gh'}${'p_'}${'A1b2C3d4'.repeat(3)}`,
+  'GitHub fine-grained token': `${'github'}${'_pat_'}${'a1b2c3'}`,
+  'AWS access key': `${'AK'}${'IA'}${'ABCDEFGHIJ234567'}`,
+  'Slack token': `${'xox'}${'b-'}${'1234567890-abc'}`,
+  'private key': `${'-----BEGIN RSA PRIVATE '}${'KEY-----'}`,
+  'database URL with a password': `${'post'}${'gres'}://app:${'x'.repeat(6)}@127.0.0.1:5432/app_test`,
+};
+
+const WITHHELD_HEADER = /^WITHHELD: (\d+) file diff\(s\) left out because a line looks like a secret or credential\. Read them with git before judging:$/m;
+
+test('review package leaves out a new file and a tracked file diff whose line looks like a secret, and keeps a clean new file whole', () => {
+  withSandbox((box) => {
+    const url = SECRET_SAMPLES['database URL with a password'];
+    const key = SECRET_SAMPLES['AWS access key'];
+    box.write('src/rules.ts', `export const x = 1\nexport const y = 2\nconst url = '${url}'\n`);
+    box.write('notes/local.txt', `local notes\nAWS_ACCESS_KEY_ID=${key}\n`);
+    box.write('src/clean.ts', 'export const clean = 1\nexport const also = 2\n');
+    const out = join(box.root, 'reviews', 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(url), 'the database URL stays out of the package');
+    assert.ok(!text.includes(key), 'the access key stays out of the package');
+    assert.ok(!text.includes('const url ='), 'the whole tracked file diff stays out, not just the line');
+    assert.ok(!text.includes('local notes'), 'the whole new file stays out, not just the line');
+    assert.equal(text.match(WITHHELD_HEADER)?.[1], '2', text.slice(0, 800));
+    assert.match(text, /^- src\/rules\.ts \(\d+ bytes, line 3\)$/m);
+    assert.match(text, /^- notes\/local\.txt \(\d+ bytes, line 2\)$/m);
+    assert.ok(text.indexOf('WITHHELD:') < text.indexOf('## Commits since the base'), 'the list is at the top');
+    assert.match(text, /^## New file: src\/clean\.ts$/m);
+    assert.match(text, /^\+export const clean = 1$/m);
+    assert.match(text, /^\+export const also = 2$/m);
+    assert.match(result.stdout, /withheld: 2 file diff\(s\) left out/);
+  });
+});
+
+test('review package leaves out a diff that removes a secret, naming the line in the base', () => {
+  withSandbox((box) => {
+    const token = SECRET_SAMPLES['GitHub token'];
+    box.write('config/app.env', `NAME=app\nPORT=80\nTOKEN=${token}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'config');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    box.write('config/app.env', 'NAME=app\nPORT=80\n');
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(token), 'the removed token stays out of the package');
+    assert.match(text, /^- config\/app\.env \(\d+ bytes, line 3\)$/m);
+  });
+});
+
+test('a review package with nothing that looks like a secret has no WITHHELD list', () => {
+  withSandbox((box) => {
+    box.write('src/rules.ts', 'export const x = 3\n');
+    box.write('src/new.ts', 'export const token = process.env.API_TOKEN\n');
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    assert.doesNotMatch(readFileSync(out, 'utf8'), /WITHHELD/);
+    assert.doesNotMatch(result.stdout, /withheld/);
+  });
+});
+
+// check-briefing.mjs and review-package.mjs each carry the detector, because a kit script
+// imports only node: modules; this test keeps the two copies one detector.
+test('check-briefing and review-package carry the same secret detector, and each catches every kind it names', () => {
+  const block = (name) => readFileSync(join(SCRIPTS_DIR, name), 'utf8').match(/^const SECRET = new RegExp\(\[[\s\S]*?\]\.join\('\|'\)\);$/m)?.[0];
+  const inBriefing = block('check-briefing.mjs');
+  assert.ok(inBriefing, 'check-briefing.mjs defines SECRET');
+  assert.equal(block('review-package.mjs'), inBriefing, 'review-package.mjs carries the same SECRET block');
+
+  withSandbox((box) => {
+    for (const [kind, sample] of Object.entries(SECRET_SAMPLES)) {
+      const path = join(box.root, 'feature-rules-executor.md');
+      writeFileSync(path, `${EXECUTOR_OK}\nvalue: ${sample}\n`);
+      const briefed = runScript('check-briefing.mjs', [path], box.env());
+      assert.equal(briefed.status, 2, `check-briefing, ${kind}: ${briefed.out}`);
+
+      box.write('notes/sample.txt', `value: ${sample}\n`);
+      const out = join(box.root, 'package.md');
+      const packaged = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+      assert.equal(packaged.status, 0, `review-package, ${kind}: ${packaged.out}`);
+      const text = readFileSync(out, 'utf8');
+      assert.ok(!text.includes(sample), `review-package, ${kind}: the sample stays out`);
+      assert.match(text, /^- notes\/sample\.txt \(\d+ bytes, line 1\)$/m, `review-package, ${kind}`);
+    }
   });
 });
 
@@ -686,24 +849,25 @@ test('watch-pr stops at the ceiling, not an interval after it, with checks pendi
 });
 
 // gh missing, not executable or not logged in is permanent: retrying it only burns the ceiling (480 min by default).
-test('watch-pr exits 64 at the first read when gh is not installed, and says what to do', () => {
+// Each has its own exit code (sysexits), so a caller routes by the code and never by the error text.
+test('watch-pr exits 69 at the first read when gh is not installed, and says what to do', () => {
   withSandbox((box) => {
     const empty = join(box.root, 'empty-bin');
     mkdirSync(empty);
     const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '60', '--timeout-min', '0.01'];
     const result = runScript('watch-pr.mjs', args, box.env({ PATH: empty }));
-    assert.equal(result.status, 64, result.out);
+    assert.equal(result.status, 69, result.out);
     assert.match(result.stderr, /gh is not installed/);
     assert.doesNotMatch(result.out, /attempt|ceiling/);
   });
 });
 
-test('watch-pr exits 64 at the first read when gh is not logged in (gh exit 4), and says what to do', () => {
+test('watch-pr exits 77 at the first read when gh is not logged in (gh exit 4), and says what to do', () => {
   withSandbox((box) => {
     box.setGh('');
     const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
     const result = runScript('watch-pr.mjs', args, box.env({ FAKE_GH_EXIT: '4' }));
-    assert.equal(result.status, 64, result.out);
+    assert.equal(result.status, 77, result.out);
     assert.match(result.stderr, /gh auth login/);
     assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 1, 'gh was read more than once');
   });
@@ -730,7 +894,7 @@ test('watch-pr keeps reading after any other gh failure until the ceiling', () =
     assert.match(recovering.stdout, /read failed \(gh exited 1: HTTP 502: Bad Gateway\); attempt 1/);
     assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 2, recovering.out);
 
-    // A failure that never clears ends at the ceiling with exit 3, not with 64.
+    // A failure that never clears ends at the ceiling with exit 3, not with 69 or 77.
     box.writeExecutable('gh', "#!/bin/sh\necho 'HTTP 502: Bad Gateway' >&2\nexit 1\n");
     const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
     const stuck = runScript('watch-pr.mjs', args, box.env());
@@ -739,7 +903,7 @@ test('watch-pr keeps reading after any other gh failure until the ceiling', () =
   });
 });
 
-test('watch-pr exits 64 at the first read when gh cannot be executed, and says what to do', () => {
+test('watch-pr exits 69 at the first read when gh cannot be executed, and says what to do', () => {
   withSandbox((box) => {
     // Only this folder on PATH: a gh found without the execute bit, and no other gh behind it.
     const locked = join(box.root, 'locked-bin');
@@ -747,20 +911,31 @@ test('watch-pr exits 64 at the first read when gh cannot be executed, and says w
     writeFileSync(join(locked, 'gh'), '#!/bin/sh\nexit 0\n', { mode: 0o644 });
     const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.05'];
     const result = runScript('watch-pr.mjs', args, box.env({ PATH: locked }));
-    assert.equal(result.status, 64, result.out);
+    assert.equal(result.status, 69, result.out);
     assert.match(result.stderr, /gh cannot be executed/);
     assert.doesNotMatch(result.out, /attempt|ceiling/);
   });
 });
 
-test('watch-pr usage and README row name exit 64 for gh missing, not executable or not logged in', () => {
+test('watch-pr exits 64 for bad arguments without calling gh', () => {
+  withSandbox((box) => {
+    for (const args of [['--repo', 'not-a-repo', '--pr', '7'], ['--repo', 'owner/repo', '--pr', 'seven'], ['--repo', 'owner/repo', '--pr', '7', '--bogus', '1']]) {
+      const result = runScript('watch-pr.mjs', args, box.env());
+      assert.equal(result.status, 64, `${args.join(' ')}: ${result.out}`);
+    }
+    assert.equal(existsSync(box.ghLog), false, 'gh was called');
+  });
+});
+
+test('watch-pr usage and README name 64 for bad arguments, 69 for gh missing or not executable, 77 for gh not logged in', () => {
   const usage = runScript('watch-pr.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
-  assert.match(usage, /64 bad arguments, or gh missing, not executable or not logged in/);
+  assert.match(usage, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in/);
+  assert.match(usage, /gh missing, not executable or not logged in cannot fix itself/);
   const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
   const row = readme.split('\n').find((line) => line.startsWith('| `watch-pr'));
-  assert.match(row, /64 gh missing, not executable or not logged in/);
-  assert.match(readme, /`watch-pr\.mjs` .*exits 64 at its first read when `gh` is not installed, cannot be executed or is not logged in/);
-  assert.match(usage, /gh missing, not executable or not logged in cannot fix itself/);
+  assert.match(row, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in/);
+  const flat = readme.replace(/\s+/g, ' ');
+  assert.match(flat, /`watch-pr\.mjs` exits 69 at its first read when `gh` is not installed or cannot be executed, and 77 when it is not logged in/);
 });
 
 // --- watch-round ---

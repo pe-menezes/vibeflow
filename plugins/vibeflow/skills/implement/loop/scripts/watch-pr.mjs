@@ -21,15 +21,27 @@ finished, then exits. A PR with no check reported yet keeps the watch going, so 
 reads as green before CI starts. Gives up at --timeout-min minutes (default 480), and never
 sleeps past that ceiling: each wait is cut to the time left. Limits take fractions.
 
-gh missing, not executable or not logged in cannot fix itself, so it exits 64 at the first read
-with what to do; any other failed read (gh exit 1, network, a 5xx) is retried until the ceiling.
+gh missing, not executable or not logged in cannot fix itself, so it exits at the first read
+with a line that says what to do: 69 when gh is missing or cannot be executed, 77 when it is
+not logged in. Any other failed read (gh exit 1, network, a 5xx) is retried until the ceiling.
+64 is only for bad arguments (and a Node.js older than 18), so a caller can tell its own
+mistake from a gh it cannot use by the code alone.
 
-exit 0 green · 1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments, or gh missing, not executable or not logged in`;
+exit 0 green · 1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments · 69 gh missing or not executable · 77 gh not logged in`;
 
 // gh exits 4 when it needs authentication.
 const GH_AUTH_EXIT = 4;
+// sysexits: the service is unavailable, and the permission is missing.
+const EX_UNAVAILABLE = 69;
+const EX_NOPERM = 77;
 
-class Permanent extends Error {}
+// A failure that waiting cannot fix, with the exit code that names it.
+class Permanent extends Error {
+  constructor(message, code) {
+    super(message);
+    this.code = code;
+  }
+}
 
 function fail(message) {
   console.error(`watch-pr: ${message}`);
@@ -59,14 +71,14 @@ function readPr(repo, pr) {
     timeout: 60_000,
   });
   if (result.error?.code === 'ENOENT') {
-    throw new Permanent('gh is not installed; install the GitHub CLI, or watch the checks on the pull request page');
+    throw new Permanent('gh is not installed; install the GitHub CLI, or watch the checks on the pull request page', EX_UNAVAILABLE);
   }
   if (result.error?.code === 'EACCES') {
-    throw new Permanent('gh cannot be executed (permission denied); fix the permissions of the gh on PATH, or watch the checks on the pull request page');
+    throw new Permanent('gh cannot be executed (permission denied); fix the permissions of the gh on PATH, or watch the checks on the pull request page', EX_UNAVAILABLE);
   }
   if (result.error) throw new Error(`gh could not run: ${result.error.message}`);
   if (result.status === GH_AUTH_EXIT) {
-    throw new Permanent(`gh is not logged in; run \`gh auth login\`, then start the watch again (${result.stderr.trim().slice(0, 200)})`);
+    throw new Permanent(`gh is not logged in; run \`gh auth login\`, then start the watch again (${result.stderr.trim().slice(0, 200)})`, EX_NOPERM);
   }
   if (result.status !== 0) throw new Error(`gh exited ${result.status}: ${result.stderr.trim().slice(0, 200)}`);
   return JSON.parse(result.stdout);
@@ -104,7 +116,7 @@ async function main(argv) {
     } catch (error) {
       if (error instanceof Permanent) {
         console.error(`watch-pr: ${error.message}`);
-        return 64;
+        return error.code;
       }
       failures += 1;
       console.log(`${clock()} read failed (${error.message}); attempt ${failures}`);

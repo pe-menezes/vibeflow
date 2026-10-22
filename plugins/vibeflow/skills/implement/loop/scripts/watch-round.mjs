@@ -33,7 +33,7 @@ const FINAL = /^(stage|state):\s*final\b/i;
 
 const SILENCE_CHECKLIST = [
   'Before assuming the session hung, check in this order:',
-  '1. Is the session waiting for an answer from its owner (a permission prompt, a question)?',
+  '1. Is the session waiting for an answer from the user (a permission prompt, a question)?',
   '2. Is its process alive and using CPU (ps or pgrep, reading the line that matched)?',
   '3. Is the network up, and did the machine sleep?',
   '4. Then re-dispatch from the file in a fresh session, after reading what the dead attempt left in the worktree.',

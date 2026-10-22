@@ -2,8 +2,10 @@
 // Review package: the round's diff in one file, for the auditor and the re-auditor to read at once.
 // Commits since the base, status, stat, the diff with 10 lines of context (committed and not) and
 // every new file. For a re-audit the base is the commit of the audited round, so the package is
-// the fix diff only. A package over the cap names what it left out; an empty one says so. The
-// loop's own artifact folders under .vibeflow/ never count as a change: they stay out, counted.
+// the fix diff only. A package over the cap names what it left out; an empty one says so. A file
+// diff with a line that looks like a secret stays out whole, named with its size and that line.
+// Nothing under .vibeflow/ counts as a change on its own; the loop's artifact folders there stay
+// out, counted, and the rest (specs, the knowledge base) comes in as context.
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
@@ -23,14 +25,31 @@ const DEFAULT_MAX_BYTES = 400_000;
 const ARTIFACT_FOLDERS = ['loop', 'briefings', 'progress', 'reviews', 'audits'];
 const isArtifact = (path) => ARTIFACT_FOLDERS.some((folder) => path.startsWith(`.vibeflow/${folder}/`));
 const ARTIFACT_PATHSPEC = ['--', '.', ...ARTIFACT_FOLDERS.map((folder) => `:(exclude).vibeflow/${folder}/`)];
+// Specs, PRDs and the knowledge base are context for a change, never a change by themselves.
+const isVibeflow = (path) => path.startsWith('.vibeflow/');
+const OUTSIDE_VIBEFLOW = ['--', '.', ':(exclude).vibeflow/'];
+
+// The same detector as check-briefing.mjs: a test keeps the two blocks identical.
+// The patterns are split so secret scanners do not flag this file.
+const SECRET = new RegExp([
+  'sk-' + 'proj-', 'sk-' + 'ant-', 'gh' + '[pousr]_[A-Za-z0-9]{20,}', 'github' + '_pat_',
+  'AK' + 'IA[0-9A-Z]{16}', 'xox' + '[baprs]-[A-Za-z0-9-]{10,}',
+  '-----BEGIN [A-Z ]*PRIVATE ' + 'KEY-----',
+  '(postgres(ql)?|mysql|mongodb(\\+srv)?|redis|amqp)://[^:\\s/]+:[^@\\s]+@',
+].join('|'));
 
 const USAGE = `usage: review-package.mjs <dir> <base> <out> [--max-bytes <n>]
 
 Writes to <out> the commits since <base>, git status, the stat, the diff from <base> to the
 worktree with 10 lines of context, and every untracked, not ignored file. File diffs that do
 not fit under --max-bytes (default ${DEFAULT_MAX_BYTES}) are left out and listed at the top.
-The loop's artifact folders under .vibeflow/ (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}) are left
-out and counted at the top; a package that would hold only them is empty.
+A file diff with a line that looks like a secret or credential (the detector of
+check-briefing.mjs) is left out whole and listed under WITHHELD at the top, with its size and
+the number of the first line that matched (in the base, for a removed line): read it with git.
+Nothing under .vibeflow/ counts as a change: a change only under .vibeflow/ is empty, and the
+message counts its paths. The loop's artifact folders there (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')})
+are always left out and counted at the top; the rest of .vibeflow/ (specs, PRDs, index.md,
+patterns) is in the package as context when something changed outside it.
 
 exit 0 written · 1 empty (nothing changed; the file says so) · 2 error`;
 
@@ -78,6 +97,30 @@ function realDir(path) {
   }
 }
 
+// The file line of the first diff line that looks like a secret, or 0 when none does. Only the
+// hunks are read: a path is in the package anyway. An added or context line counts in the new
+// file, a removed line in the base.
+function secretLine(chunk) {
+  let oldLine = 0;
+  let newLine = 0;
+  let inHunk = false;
+  for (const line of chunk.split('\n')) {
+    const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (hunk) {
+      [oldLine, newLine] = [Number(hunk[1]), Number(hunk[2])];
+      inHunk = true;
+    } else if (inHunk && line.startsWith('-')) {
+      if (SECRET.test(line)) return oldLine;
+      oldLine += 1;
+    } else if (inHunk && (line.startsWith('+') || line.startsWith(' '))) {
+      if (SECRET.test(line)) return newLine;
+      newLine += 1;
+      if (line.startsWith(' ')) oldLine += 1;
+    }
+  }
+  return 0;
+}
+
 // One chunk per file, so the cap can leave out whole files and name them.
 function splitDiff(diff) {
   return diff
@@ -108,16 +151,25 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     .filter((path) => path && isArtifact(path));
   const artifactCount = trackedArtifacts.length + allUntracked.length - untracked.length;
   const artifactLine = `Loop artifacts left out: ${artifactCount} path(s) under .vibeflow/ (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}); they never count as a change.`;
+  const vibeflowCount = git(dir, ['diff', '--name-only', '-z', base, '--'])
+    .split('\0')
+    .filter((path) => path && isVibeflow(path)).length + allUntracked.filter(isVibeflow).length;
   // A commit that touches only loop artifacts is not part of the round either.
   const commits = git(dir, ['log', '--oneline', `${base}..HEAD`, ...ARTIFACT_PATHSPEC]);
   // Explicit prefixes: splitDiff reads `a/<path>`, and diff.noprefix or diff.mnemonicPrefix in
   // the user's config would otherwise change them and leave the cap naming files as "?".
   const diff = git(dir, ['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U10', base, ...ARTIFACT_PATHSPEC]);
 
-  if (!commits.trim() && !diff.trim() && untracked.length === 0) {
+  // Empty means nothing changed outside .vibeflow/: a new spec alone is not work to audit.
+  const changedOutside = git(dir, ['log', '--oneline', `${base}..HEAD`, ...OUTSIDE_VIBEFLOW]).trim()
+    || git(dir, ['diff', '--name-only', base, ...OUTSIDE_VIBEFLOW]).trim()
+    || untracked.some((path) => !isVibeflow(path));
+  if (!changedOutside) {
+    const vibeflowNote = `${vibeflowCount} path(s) under .vibeflow/ changed, and .vibeflow/ alone never counts as a change`;
     return {
       empty: true,
-      text: `${title}\n\n${artifactLine}\n\nEMPTY PACKAGE: nothing changed between base ${base} and the worktree (no commit, no diff, no new file). An audit over this file has nothing to read; check the base.\n`,
+      vibeflowNote,
+      text: `${title}\n\n${artifactLine}\n\nEMPTY PACKAGE: nothing changed outside .vibeflow/ between base ${base} and the worktree (no commit, no diff, no new file); ${vibeflowNote}. An audit over this file has nothing to read; check the base.\n`,
     };
   }
 
@@ -136,10 +188,19 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     }),
   ];
 
+  // What looks like a secret leaves first and whole, so the cap never weighs it.
+  const withheld = [];
+  const candidates = [];
+  for (const chunk of chunks) {
+    const line = secretLine(chunk.text);
+    if (line) withheld.push({ path: chunk.path, bytes: Buffer.byteLength(chunk.text), line });
+    else candidates.push(chunk);
+  }
+
   let size = Buffer.byteLength(`${title}\n\n${artifactLine}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
   const kept = [];
   const leftOut = [];
-  for (const chunk of chunks) {
+  for (const chunk of candidates) {
     const piece = chunk.heading ? `\n${chunk.heading}\n\n${chunk.text}` : chunk.text;
     const bytes = Buffer.byteLength(piece);
     if (size + bytes <= maxBytes) {
@@ -150,13 +211,17 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     }
   }
 
-  const notice = leftOut.length
-    ? `TRUNCATED: ${leftOut.length} of ${chunks.length} file diff(s) left out to stay under ${maxBytes} bytes. Read them with git before judging:\n${leftOut.map((item) => `- ${item.path} (${item.bytes} bytes)`).join('\n')}\n\n`
+  const withheldNotice = withheld.length
+    ? `WITHHELD: ${withheld.length} file diff(s) left out because a line looks like a secret or credential. Read them with git before judging:\n${withheld.map((item) => `- ${item.path} (${item.bytes} bytes, line ${item.line})`).join('\n')}\n\n`
     : '';
+  const truncatedNotice = leftOut.length
+    ? `TRUNCATED: ${leftOut.length} of ${candidates.length} file diff(s) left out to stay under ${maxBytes} bytes. Read them with git before judging:\n${leftOut.map((item) => `- ${item.path} (${item.bytes} bytes)`).join('\n')}\n\n`
+    : '';
+  const notice = `${withheldNotice}${truncatedNotice}`;
   const tracked = kept.filter((chunk) => !chunk.heading).map((chunk) => chunk.piece).join('');
   const added = kept.filter((chunk) => chunk.heading).map((chunk) => chunk.piece).join('');
   const text = `${title}\n\n${artifactLine}\n\n${notice}${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n${tracked || '(no tracked change)\n'}${added}`;
-  return { empty: false, text, leftOut, newFiles: untracked.length };
+  return { empty: false, text, leftOut, withheld, newFiles: untracked.length };
 }
 
 function main(argv) {
@@ -170,11 +235,14 @@ function main(argv) {
     mkdirSync(dirname(args.out), { recursive: true });
     writeFileSync(args.out, result.text);
     if (result.empty) {
-      console.log(`${args.out}: empty package, nothing changed since ${args.base}`);
+      console.log(`${args.out}: empty package, nothing changed outside .vibeflow/ since ${args.base}; ${result.vibeflowNote}`);
       return 1;
     }
     const lines = result.text.split('\n').length;
     console.log(`${args.out}: ${Buffer.byteLength(result.text)} bytes, ${lines} lines, ${result.newFiles} new file(s)`);
+    if (result.withheld.length) {
+      console.log(`withheld: ${result.withheld.length} file diff(s) left out because a line looks like a secret, listed at the top of the package`);
+    }
     if (result.leftOut.length) {
       console.log(`truncated: ${result.leftOut.length} file diff(s) left out, listed at the top of the package`);
     }

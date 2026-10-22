@@ -69,6 +69,17 @@ test('every Markdown file of the kit keeps out machine paths, MCP tool names, e-
   }
 });
 
+// The person who decides is "the user" across the kit, in text and in script output alike.
+test('the kit calls the person who decides "the user", never "the owner" or "the human"', () => {
+  const files = [...markdownUnder(LOOP_DIR), ...readdirSync(SCRIPTS_DIR).filter((name) => name.endsWith('.mjs')).map((name) => join(SCRIPTS_DIR, name))];
+  for (const path of files) {
+    // `<owner/repo>` is GitHub's name for a repository slug, not a person.
+    const text = readFileSync(path, 'utf8').replace(/owner\/repo/g, '');
+    assert.doesNotMatch(text, /\b(owner|owners|human|humans)\b/i, relative(LOOP_DIR, path));
+  }
+  assert.match(read('principles.md'), /\bthe user\b/);
+});
+
 test('every script named in the kit text exists under loop/scripts/', () => {
   for (const name of ['principles.md', 'briefings.md', 'README.md']) {
     const named = [...read(name).matchAll(/(?<![\w.-])([a-z][a-z0-9-]*\.mjs)\b/g)].map((match) => match[1]);
