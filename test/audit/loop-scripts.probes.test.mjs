@@ -297,7 +297,7 @@ test('review-package: a secret in a later hunk\'s function context is named by t
 
 // Contract: a name that looks like a secret set to a literal value is withheld whatever line ending the file uses.
 // Breaks when: the end of the value is matched only before "\n" or the end of the text, so the "\r" of a CRLF line hides it.
-// Not covered by: every implementer and probe sample is written with "\n" line endings.
+// Not covered by: no other probe; the implementer's CRLF test checks the same new and tracked files with its own sample.
 test('review-package: a password line in a file with CRLF line endings stays out of the package', () => {
   withSandbox((box) => {
     box.write('config/app.env', `DEBUG=1\r\nDB_PASSWORD=${FAKE_PASSWORD}\r\nPORT=80\r\n`);
@@ -350,6 +350,68 @@ test('review-package: a carriage return inside a hunk\'s function context line d
     assert.equal(result.status, 0, result.out);
     assert.ok(!result.text.includes(FAKE_ACCESS_KEY), 'the access key on the added line stays out');
     assert.match(result.text, /^- src\/doc\.py \(\d+ bytes, line 16\)$/m);
+  });
+});
+
+// Contract: the exception for an empty or boolean value covers the whole value only; a literal that merely begins with true, null, none or undefined is still withheld.
+// Breaks when: the exception stops checking what follows the word, so every value that begins with one of those words passes as empty.
+// Not covered by: the implementer's not-a-secret list holds the bare words and paths only, and none of its secret samples begins with one of those words.
+test('review-package: a value that only begins with true, null, none or undefined is still withheld', () => {
+  withSandbox((box) => {
+    const samples = {
+      'keys/a.env': `${'API_KEY'}=${'true'}${'Blue2024x'}`,
+      'keys/b.yml': `${'pass'}${'word'}: "${'null'}${'able-secret-1'}"`,
+      'keys/c.env': `${'SECRET_KEY'}=${'None'}${'Such_42abc'}`,
+      'keys/d.yml': `${'api_token'}: ${'undefined'}${'_k9X2mQ7'}`,
+    };
+    for (const [path, line] of Object.entries(samples)) box.write(path, `${line}\n`);
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    for (const [path, line] of Object.entries(samples)) {
+      const value = line.split(/[=:] ?/).pop();
+      assert.ok(!result.text.includes(value), `${path}: the value stays out`);
+      assert.match(result.text, new RegExp(`^- ${path.replace('.', '\\.')} \\(\\d+ bytes, line 1\\)$`, 'm'), path);
+    }
+  });
+});
+
+// Contract: a quoted literal passes as empty or boolean only when the quotes hold that word and nothing else.
+// Breaks when: the exception reads the word and then accepts any character outside the bare-value set, so "!", "." or "&" after it ends the check.
+// Not covered by: no implementer sample, secret or not, is a quoted value that begins with one of those words.
+test('review-package: a quoted password that begins with true, none or null and goes on with punctuation is withheld', { todo: 'open gap: a quoted value that begins with true, null, none, nil, false or undefined and goes on with a character such as "!", "." or "&" is read as that word, so it reaches the package' }, () => {
+  withSandbox((box) => {
+    const samples = {
+      'conf/a.yml': `${'True'}${'!Love2024'}`,
+      'conf/b.yml': `${'None'}${'.Of.Your.Business'}`,
+      'conf/c.yml': `${'null'}${'&void#Secret9'}`,
+    };
+    for (const [path, value] of Object.entries(samples)) box.write(path, `db:\n  ${'pass'}${'word'}: "${value}"\n`);
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    for (const [path, value] of Object.entries(samples)) {
+      assert.ok(!result.text.includes(value), `${path}: the password stays out`);
+      assert.match(result.text, new RegExp(`^- ${path.replace('.', '\\.')} \\(\\d+ bytes, line 2\\)$`, 'm'), path);
+    }
+  });
+});
+
+// Contract: a long line of names that look like a secret, with or without "=", costs time in proportion to its length.
+// Breaks when: the characters after the word, or the bare value, lose their ceiling, so each name scans the rest of the line again.
+// Not covered by: the implementer's time test uses a line and a hex file with no word the detector looks for.
+test('review-package: a long line of repeated secret-like names ends well within the time limit', () => {
+  withSandbox((box) => {
+    const dotted = `${'tok'}${'en.'}`.repeat(50_000);
+    const assigned = `${'tok'}${'en='}`.repeat(50_000);
+    box.write('build/names.txt', `${dotted}\n${assigned}!\n`);
+    const out = join(box.root, 'package.md');
+    const result = spawnSync(process.execPath, [join(SCRIPTS_DIR, 'review-package.mjs'), box.repo, box.base, out, '--max-bytes', '2000000'], {
+      env: box.env(), encoding: 'utf8', timeout: 10_000, killSignal: 'SIGKILL',
+    });
+    assert.equal(result.signal, null, 'review-package ends within the limit');
+    assert.equal(result.status, 0, result.stderr);
+    const text = readFileSync(out, 'utf8');
+    assert.doesNotMatch(text, /WITHHELD/);
+    assert.ok(text.includes(`+${dotted}\n`), 'the file is in the package');
   });
 });
 
