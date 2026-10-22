@@ -4,7 +4,8 @@
 // as comments, the contract it protects, the plausible regression that breaks
 // it, and why the implementer's tests did not catch it. Dates are fixed in
 // fixtures and git's "now" is pinned with GIT_TEST_DATE_NOW, so nothing
-// depends on the real clock.
+// depends on the real clock. A case marked `todo` asserts what a known open
+// gap asks for: it runs and prints without failing the suite.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -270,3 +271,41 @@ test('analyze block-only run: each edition tells the agent, with no hedge, to mo
   assert.equal(clauses.cursor, clauses.shared, 'cursor carries the shared clause');
   assert.equal(clauses.copilot, clauses.shared, 'copilot carries the shared clause');
 });
+
+// ---- analyze: running the project's test commands ----
+
+// An instruction to run or time the test commands: "run each one", "run them",
+// "run the two test commands", "measure the suite". A description such as "the
+// command that runs the full suite" is not an instruction and does not match.
+const RUN_ORDER = /\b(run|execute|time|measure)\s+(it|them|each( one| command| test command)?|both( commands)?|the (two )?(test )?commands?|the (full )?suite)\b/i;
+const sentences = (raw) => flat(raw).split(/(?<=[.;])\s+/);
+
+// Contract: every instruction in analyze to run or time the project's test commands carries `--measure` in the same sentence, in the three editions, so no mode runs the suite unasked.
+// Breaks when: the measurement comes back in new words, such as a block-only path that says "regenerate only the block, run each test command once to time it", or one edition's Tests bullet drifts back to measuring when the block is new.
+// Not covered by: the --measure test in test/spec-contracts.test.mjs reads the positive rule only inside the Tests bullet and forbids only the two old phrases ("local and safe", "run it once") anywhere else.
+test('analyze: no instruction runs the test commands without --measure', () => {
+  for (const [edition, path] of Object.entries(ANALYZE)) {
+    const orders = sentences(read(path)).filter((s) => RUN_ORDER.test(s));
+    assert.ok(orders.length > 0, `${edition}: the --measure instruction itself is found`);
+    for (const order of orders) {
+      assert.match(order, /`--measure`/, `${edition}: runs the test commands without --measure: "${order}"`);
+    }
+  }
+});
+
+// Contract: Phase 0 says what `analyze --measure` does on a project where nothing changed and the Tests and Pitfalls block is not due (measure, or tell the user nothing was measured), in the three editions.
+// Breaks when: `--measure` stays tied to "when the block is due", so on an up-to-date project the run stops at "No changes detected" and the commands the user asked to measure are silently not run.
+// Not covered by: the --measure test in test/spec-contracts.test.mjs pins "changes nothing else about which phases run or when the block is due" and never reads the no-change stop path.
+test('analyze --measure on an up-to-date project: Phase 0 says whether the commands are measured',
+  { todo: 'open gap: analyze --measure on a project with no changes stops at "No changes detected" and measures nothing, without saying so' }, () => {
+    for (const [edition, path] of Object.entries(ANALYZE)) {
+      const raw = read(path);
+      const from = raw.indexOf('## Phase 0');
+      const to = raw.indexOf('## Phase 1', from);
+      assert.ok(from !== -1 && to > from, `${edition}: a Phase 0 section`);
+      const segments = raw.slice(from, to).split(/\n\s*\n|\n(?=- )/).map(flat);
+      const answered = segments.some((s) => s.includes('`--measure`')
+        && /No changes detected|is not due|nothing (else )?changed|up to date/i.test(s));
+      assert.ok(answered, `${edition}: the no-change path says what --measure does`);
+    }
+  });
