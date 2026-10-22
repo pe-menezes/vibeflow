@@ -81,14 +81,20 @@ progress (step 6) before anything else, from its copy, comparing the hash.
      the default branch. The script leaves the loop's own artifact folders
      under `.vibeflow/` (`loop/`, `briefings/`, `progress/`, `reviews/`,
      `audits/`) out of the package and counts them at its top: they never
-     count as a change. Exit 1 reads as empty only when the file it wrote
-     carries the EMPTY PACKAGE marker; exit 2, or any other failure (exit 1
-     without the marker, 127 when `node` is missing), is an error, not a
-     verdict: quote it as an error and fix the base, the path or the install.
+     count as a change. Neither does the rest of `.vibeflow/` (specs, PRDs,
+     the knowledge base), which the package shows as context when something
+     changed outside it. A change only under `.vibeflow/` is an EMPTY
+     PACKAGE, so work committed on the default branch plus a new spec left
+     untracked takes the committed-work case below. Exit 1 reads as empty
+     only when the file it wrote carries the EMPTY PACKAGE marker; exit 2, or
+     any other failure (exit 1 without the marker, 127 when `node` is
+     missing), is an error, not a verdict: quote it as an error and fix the
+     base, the path or the install.
    - Kit not installed, or `node --version` shows no Node 18 or newer:
      compute the diff as before — `git diff HEAD` for uncommitted work,
      `git diff <base>...HEAD` for a branch, leaving the same artifact folders
-     out — and record `Review package: none (kit not installed)` with the
+     out and reading a change only under `.vibeflow/` as no change — and
+     record `Review package: none (kit not installed)` with the
      install hint above, or `Review package: none (Node.js 18+ not found)`
      with what to install (Node.js 18 or newer, from nodejs.org or the
      host's package manager).
@@ -128,7 +134,16 @@ progress (step 6) before anything else, from its copy, comparing the hash.
 
    a. **Read the diff from the review package** (step 1) — added and removed
       lines are both required, because the highest-value rules detect
-      *removed* protections.
+      *removed* protections. When the package carries a `TRUNCATED` or
+      `WITHHELD` list at its top, it left those file diffs out (over its size
+      cap, or with a line that looks like a secret): read each listed file
+      with git before matching the catalog — `git diff <base> -- <path>`
+      (`<base>` is the package's base) for a tracked file, the file itself
+      for an untracked one (the package's `## New files` names those) — and
+      match its lines as if they were in the package. The `### Critical Gate`
+      section then carries the line
+      `Left out of the package: <n> file(s), read with git`, or
+      `Left out of the package: none` when the package has no such list.
    b. **Match each changed line against the Rules Catalog below.** A rule fires
       only when the diff line's direction matches its `scope` (a=added, r=removed,
       b=both) AND the file matches the rule's target types.
@@ -333,6 +348,7 @@ Base: <sha>
 - <file> — <violation> — <what the convention says>
 
 ### Critical Gate
+Left out of the package: <n> file(s), read with git | none
 - 🔴 CRITICAL [DS102] db/migrate/003.sql:12 — DROP TABLE in migration (blocks)
 - 🟠 HIGH [SEC101] api/auth.ts:1 — auth middleware removed (blocks)
 - 🟡 WARNING [CFG102] config/app.yml:4 — debug mode enabled

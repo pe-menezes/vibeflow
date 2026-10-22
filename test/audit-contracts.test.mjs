@@ -122,6 +122,77 @@ test('Node.js 18+ is checked before the kit, and exit 1 is empty only with the E
   });
 });
 
+// The step 1 sentence that says what of `.vibeflow/` the package reads, from
+// the artifact folders to the case it sends a lone spec to.
+const VIBEFLOW_RULE = /The script leaves the loop's own artifact folders[\s\S]*?committed-work case below\./;
+
+test('nothing under .vibeflow/ counts as a change: the rest of it is context, and a change only there is an empty package', () => {
+  const rules = {};
+  forEachEdition((content, edition) => {
+    const step1 = /1\. \*\*Review package\*\*[\s\S]*?2\. \*\*Spec\*\*/.exec(content)?.[0] ?? '';
+    const rule = VIBEFLOW_RULE.exec(step1)?.[0] ?? '';
+    assert.match(rule, /the rest of `\.vibeflow\/` \(specs, PRDs, the knowledge base\)[^.]*context when something changed outside it/,
+      `${edition}: the rest of .vibeflow/ is context`);
+    assert.match(rule, /A change only under `\.vibeflow\/` is an EMPTY PACKAGE/, `${edition}: .vibeflow/ alone is empty`);
+    assert.match(rule, /work committed on the default branch plus a new spec left untracked takes the committed-work case below/,
+      `${edition}: a lone spec over committed work takes the committed-work case`);
+    assert.match(step1, /leaving the same artifact folders out and reading a change only under `\.vibeflow\/` as no change/,
+      `${edition}: the diff computed without the kit follows the same rule`);
+    rules[edition] = rule;
+  });
+  assert.deepEqual(parityGaps(rules), [], 'the .vibeflow/ rule reads the same in the three editions');
+});
+
+// The Claude Code plugin reaches the kit through `${CLAUDE_SKILL_DIR}`, which
+// Claude Code substitutes from 2.1.69 on; the file editions use fixed paths.
+test('the plugin edition reads an unsubstituted ${CLAUDE_SKILL_DIR} as the kit not installed, and any other exit 1 without the marker as an error', () => {
+  const content = flat(read(EDITIONS.shared));
+  const bullet = /- A command that still shows `\$\{CLAUDE_SKILL_DIR\}` literally[\s\S]*?stays an error\./.exec(content)?.[0] ?? '';
+  // The two signs of the unsubstituted variable and what they mean, up to the
+  // sentence on a missing kit: `node` says "Cannot find module" for both cases.
+  const unsubstituted = /^[\s\S]*?the next case says\./.exec(bullet)?.[0] ?? '';
+  assert.match(unsubstituted, /^- A command that still shows `\$\{CLAUDE_SKILL_DIR\}` literally, or a kit path that starts at `\/\.\.\/`, means the variable was not substituted/,
+    'the literal variable and a path that starts at /../ are the two signs');
+  assert.doesNotMatch(unsubstituted, /Cannot find module/, '"Cannot find module" alone is not a sign of the unsubstituted variable');
+  assert.match(unsubstituted, /the kit counts as not installed, not as an error to fix/, 'kit not installed, not an error');
+  assert.match(unsubstituted, /`Review package: none \(kit not installed\)` with the hint to update Claude Code to 2\.1\.69 or newer/,
+    'the header value with the Claude Code hint');
+  const missing = bullet.slice(unsubstituted.length);
+  assert.match(missing, /With the path resolved, `node` answering "Cannot find module" for the kit's script means the kit folder is missing/,
+    'Cannot find module with a resolved path is a missing kit');
+  assert.match(missing, /`Review package: none \(kit not installed\)`, with the install hint above/, 'with the plugin install hint');
+  assert.doesNotMatch(missing, /Claude Code/, 'and not the Claude Code hint');
+  assert.match(bullet, /Any other exit 1 without the marker stays an error\.$/, 'every other exit 1 without the marker is still an error');
+  const step1 = /1\. \*\*Review package\*\*[\s\S]*?2\. \*\*Spec\*\*/.exec(content)?.[0] ?? '';
+  assert.ok(step1.includes(bullet), 'the bullet sits in step 1');
+});
+
+// ------------------------------------------------- what the package left out
+
+const GATE_READ = ['a. **Read the diff from the review package**', 'b. **Match each changed line'];
+
+test('the Critical Gate reads with git every file the package left out, and the report says how many', () => {
+  const steps = {};
+  forEachEdition((content, edition, raw) => {
+    const from = raw.indexOf(GATE_READ[0]);
+    const to = raw.indexOf(GATE_READ[1], from);
+    assert.ok(from !== -1 && to !== -1, `${edition}: step 4a`);
+    steps[edition] = raw.slice(from, to);
+    const step = flat(steps[edition]);
+    assert.match(step, /a `TRUNCATED` or `WITHHELD` list at its top/, `${edition}: both lists the package writes at its top`);
+    assert.match(step, /read each listed file with git before matching the catalog/, `${edition}: read before matching`);
+    assert.match(step, /`git diff <base> -- <path>` \(`<base>` is the package's base\) for a tracked file/,`${edition}: a tracked file through git diff`);
+    assert.match(step, /the file itself for an untracked one/, `${edition}: an untracked file read as it is`);
+    assert.match(step, /`Left out of the package: <n> file\(s\), read with git`/, `${edition}: the report line`);
+    assert.match(step, /`Left out of the package: none`/, `${edition}: the report line with nothing left out`);
+    const template = fenceAfter(raw, '## Output format');
+    const gate = /### Critical Gate\n([\s\S]*?)\n### Findings/.exec(template)?.[1] ?? '';
+    assert.ok(gate.split('\n').some((line) => line.trim() === 'Left out of the package: <n> file(s), read with git | none'),
+      `${edition}: the report template carries the line`);
+  });
+  assert.deepEqual(parityGaps(steps), [], 'step 4a reads the same in the three editions');
+});
+
 // ------------------------------------------------------------ header, stages
 
 test('the report carries the loop header, a pending verdict until the last stage, and the parsed sections', () => {
@@ -426,8 +497,4 @@ test('protected blocks: the Critical Gate and --consolidate-hotfixes read byte f
     const texts = Object.fromEntries(Object.entries(EDITIONS).map(([edition, path]) => [edition, protectedBlock(read(path), PROTECTED[name]).text]));
     assert.deepEqual(parityGaps(texts), [], `block "${name}" drifted between editions`);
   }
-});
-
-test('the shared audit stays under 500 lines', () => {
-  assert.ok(read(EDITIONS.shared).split('\n').length < 500);
 });

@@ -324,24 +324,42 @@ test('artifacts: an earlier audit report left untracked does not turn an empty p
   });
 });
 
-// Contract: a kit command that fails before the script runs exits 1 without the EMPTY PACKAGE marker, and the editions read exit 1 as empty only with the marker, after checking for Node.js 18.
-// Breaks when: an edition reads exit 1 alone as an empty package, so a missing kit, an unexpanded `${CLAUDE_SKILL_DIR}` or an old Node reads as "nothing to audit".
-// Not covered by: the contract test checks the sentences, not that a failed launch really exits 1 with no file written.
-test('node: a kit command that fails before the script runs exits 1 without the EMPTY PACKAGE marker, which the editions read as an error', () => {
+// Contract: a kit command that fails before the script runs exits 1 without the EMPTY PACKAGE marker, and the editions read exit 1 as empty only with the marker, after checking for Node.js 18; when the failure is a `${CLAUDE_SKILL_DIR}` the host did not substitute, the command's path starts at `/../`, the sign the plugin edition reads as the kit not installed with the Claude Code hint; "Cannot find module", which `node` also prints for a resolved path to a missing kit, is read as a missing kit with the plugin's install hint.
+// Breaks when: an edition reads exit 1 alone as an empty package, so an old Node reads as "nothing to audit"; or the plugin edition reads the unsubstituted variable as an error to fix again, names a sign the shell does not show, or takes "Cannot find module" alone as the unsubstituted variable, so a missing kit gets the Claude Code hint.
+// Not covered by: the contract tests check the sentences, not what a failed launch really prints and writes.
+test('node: a kit command that fails before the script runs exits 1 without the EMPTY PACKAGE marker; an unsubstituted ${CLAUDE_SKILL_DIR} shows the signs the plugin edition reads as the kit not installed', () => {
   for (const [name, path] of Object.entries(EDITIONS)) {
     const flatText = edition(path).replace(/\s+/g, ' ');
     assert.match(flatText, /Exit 1 reads as empty only when the file it wrote carries the EMPTY PACKAGE marker/, `${name}: exit 1 alone is not empty`);
     assert.match(flatText, /`node --version`[^.]*Node\.js 18/, `${name}: Node 18 checked before the kit`);
   }
+  const shared = edition(EDITIONS.shared);
+  const bullet = section(shared, '- A command that still shows `${CLAUDE_SKILL_DIR}` literally', '- Kit not installed');
+  const unsubstituted = /^[\s\S]*?the next case says\./.exec(bullet)?.[0] ?? '';
+  assert.match(unsubstituted, /the kit counts as not installed, not as an error to fix/, 'plugin: the unsubstituted variable is the kit not installed');
+  assert.match(unsubstituted, /update Claude Code to 2\.1\.69 or newer/, 'plugin: with the Claude Code hint');
+  assert.match(bullet, /`Review package: none \(kit not installed\)`/, 'plugin: and records the kit-not-installed header');
+  assert.match(bullet, /Any other exit 1 without the marker stays an error/, 'plugin: every other exit 1 without the marker is an error');
+  const { kitPrefix } = commandOf(shared, ...STEP1);
   withSandbox((box) => {
     const out = join(box.root, 'pkg.md');
-    const unexpanded = spawnSync('sh', ['-c', `node "\${CLAUDE_SKILL_DIR}/../implement/loop/scripts/review-package.mjs" . main '${out}'`], {
-      cwd: box.repo,
-      env: box.env({ CLAUDE_SKILL_DIR: undefined }),
-      encoding: 'utf8',
-    });
+    const script = `${kitPrefix}scripts/review-package.mjs`;
+    const shell = (line) => spawnSync('sh', ['-c', line], { cwd: box.repo, env: box.env({ CLAUDE_SKILL_DIR: undefined }), encoding: 'utf8' });
+    const unexpanded = shell(`node "${script}" . main '${out}'`);
     assert.equal(unexpanded.status, 1, 'the literal ${CLAUDE_SKILL_DIR} expands to nothing and node exits 1');
-    assert.equal(existsSync(out), false, 'no file, so no EMPTY PACKAGE marker: an error, not an empty package');
+    assert.equal(existsSync(out), false, 'no file, so no EMPTY PACKAGE marker');
+    const path = shell(`printf '%s' "${script}"`).stdout;
+    assert.ok(path.startsWith('/../') && unsubstituted.includes('`/../`'), `the path the shell runs starts at /../, as the plugin edition says: ${path}`);
+    // A resolved path to a kit that is not there fails the same way in node, so only the path tells the two apart.
+    const missingKit = join(box.root, 'skills', 'audit', '..', 'implement', 'loop', 'scripts', 'review-package.mjs');
+    const missing = shell(`node "${missingKit}" . main '${out}'`);
+    assert.equal(missing.status, 1, 'a missing kit exits 1 too');
+    assert.ok(unexpanded.stderr.includes('Cannot find module') && missing.stderr.includes('Cannot find module'),
+      `node says "Cannot find module" in both cases: ${missing.stderr.split('\n')[0]}`);
+    assert.ok(!missingKit.startsWith('/../') && !missingKit.includes('${CLAUDE_SKILL_DIR}'), 'the resolved path shows neither sign of the unsubstituted variable');
+    assert.doesNotMatch(unsubstituted, /Cannot find module/, 'plugin: "Cannot find module" is not a sign of the unsubstituted variable');
+    assert.match(bullet.slice(unsubstituted.length), /With the path resolved, `node` answering "Cannot find module" for the kit's script means the kit folder is missing[^]*with the install hint above/,
+      'plugin: with a resolved path it is a missing kit, with the plugin install hint');
     const syntax = spawnSync(process.execPath, ['-e', 'const a = {}; a?.b; syntax error('], { encoding: 'utf8' });
     assert.equal(syntax.status, 1, 'a syntax error (what Node 12 sees in `?.`) exits 1, with no marker either');
   });
@@ -373,10 +391,10 @@ test('re-audit: an empty fix stays empty when the first package and the audit re
   }
 });
 
-// Contract: the line between artifact and change: a rewritten tracked report and an empty commit do not count; a source moved into an artifact folder, a mixed commit and a sibling folder such as `audits-old/` do.
-// Breaks when: the folder pathspec matches by prefix without the slash and swallows a real path, or the log and the diff filter artifacts differently.
+// Contract: the line between artifact and change: a rewritten tracked report and an empty commit do not count; a source moved into an artifact folder and a mixed commit do; a sibling folder such as `.vibeflow/audits-old/` is not a change on its own, and next to a real change it is in the package as context, not left out as an artifact.
+// Breaks when: the folder pathspec matches by prefix without the slash and swallows a path that is not an artifact, or the log and the diff filter artifacts differently.
 // Not covered by: the implementer's tests cover untracked artifacts and an artifact-only commit, not a moved source, a sibling folder or a rewritten tracked report.
-test('artifacts: what counts as a change: a modified tracked report and an empty commit do not; a source moved into an artifact folder, a mixed commit and a sibling folder do', () => {
+test('artifacts: what counts as a change: a modified tracked report and an empty commit do not; a source moved into an artifact folder and a mixed commit do; a sibling folder under .vibeflow/ is context, not a change', () => {
   const command = commandOf(edition(EDITIONS.shared), ...STEP1);
   const pack = (box, base) => {
     const out = join(box.root, 'pkg.md');
@@ -423,9 +441,14 @@ test('artifacts: what counts as a change: a modified tracked report and an empty
   });
   withSandbox((box) => {
     box.write('.vibeflow/audits-old/x.md', 'x\n');
+    const alone = pack(box, 'HEAD');
+    assert.equal(alone.status, 1, alone.out);
+    assert.match(alone.text, /EMPTY PACKAGE/, 'a sibling folder under .vibeflow/ is not a change on its own');
+    box.write('src/other.ts', 'export const y = 1\n');
     const sibling = pack(box, 'HEAD');
     assert.equal(sibling.status, 0, sibling.out);
     assert.match(sibling.text, /^- \.vibeflow\/audits-old\/x\.md$/m, 'only the named folders are artifacts, not a folder that starts with the same name');
+    assert.match(sibling.text, /^Loop artifacts left out: 0 path\(s\)/m, 'and the sibling is not counted as an artifact');
   });
 });
 
@@ -477,23 +500,78 @@ test('probes: check-probes reads the probe folder whether --dir is given relativ
   });
 });
 
-// Contract: only the five loop artifact folders the editions list stay out of the package, so a new spec left untracked in `.vibeflow/specs/` counts as a change: with the work committed on the default branch, the package holds the spec alone.
-// Breaks when: the package script starts leaving more of `.vibeflow/` out than the editions list, or stops counting an untracked spec, without the editions saying so.
-// Not covered by: the kit test shows a spec in the package next to a source change, never a spec as the only change, the case where the standalone exit for committed work stops applying.
-test('artifacts: a new spec left untracked counts as a change, so work committed on the default branch plus that spec gives a package of the spec alone', () => {
-  const command = commandOf(edition(EDITIONS.shared), ...STEP1);
-  withSandbox((box) => {
-    box.write('src/rules.ts', 'export const x = 2\n');
-    box.git('add', 'src');
-    box.git('commit', '-q', '-m', 'the work, committed on main');
-    box.write('.vibeflow/specs/feat.md', '# spec\n');
-    const out = join(box.root, 'pkg.md');
-    const result = run(command, STEP1[0], { root: box.repo, '<base>': 'HEAD', '<out>': out }, box.env());
-    assert.equal(result.status, 0, result.out);
-    const pkg = readFileSync(out, 'utf8');
-    assert.match(pkg, /## New files\n\n- \.vibeflow\/specs\/feat\.md\n\n/, 'the spec is the only change');
-    assert.doesNotMatch(pkg, /export const x = 2/, 'and the committed work is not in the package');
-  });
+// Contract: nothing under `.vibeflow/` counts as a change, so a new spec left untracked over work committed on the default branch gives an empty package (exit 1, EMPTY PACKAGE, the `.vibeflow/` path counted), and each edition sends that case to the committed-work rule, which audits the code; next to a real change the spec is in the package as context.
+// Breaks when: the package script counts a spec as a change again, so the audit reads a package of the spec alone and reviews nothing, or an edition stops saying where a lone spec goes, or the spec leaves the package when there is a real change.
+// Not covered by: the kit test runs the script without the editions, and the contract tests check the editions' sentence without running the script on this case.
+test('artifacts: a new spec left untracked is not a change, so work committed on the default branch plus that spec is an empty package that the editions send to the committed-work rule', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const step1 = section(text, '1. **Review package**', '2. **Spec**');
+    assert.match(step1, /A change only under `\.vibeflow\/` is an EMPTY PACKAGE, so work committed on the default branch plus a new spec left untracked takes the committed-work case below\./,
+      `${name}: a lone spec over committed work takes the committed-work case`);
+    assert.ok(step1.indexOf('takes the committed-work case below') < step1.indexOf('already committed on the default branch runs over the code as before'),
+      `${name}: the committed-work case comes after the sentence that points at it`);
+    const command = commandOf(text, ...STEP1);
+    withSandbox((box) => {
+      box.write('src/rules.ts', 'export const x = 2\n');
+      box.git('add', 'src');
+      box.git('commit', '-q', '-m', 'the work, committed on main');
+      box.write('.vibeflow/specs/feat.md', '# spec\n');
+      const out = join(box.root, 'pkg.md');
+      const result = run(command, STEP1[0], { root: box.repo, '<base>': 'HEAD', '<out>': out }, box.env());
+      assert.equal(result.status, 1, `${name}: ${result.out}`);
+      const pkg = readFileSync(out, 'utf8');
+      assert.match(pkg, /EMPTY PACKAGE/, `${name}: the spec alone is not a change`);
+      assert.match(pkg, /1 path\(s\) under \.vibeflow\/ changed/, `${name}: and the package counts it`);
+      box.write('src/other.ts', 'export const y = 1\n');
+      const withChange = run(command, STEP1[0], { root: box.repo, '<base>': 'HEAD', '<out>': out }, box.env());
+      assert.equal(withChange.status, 0, `${name}: ${withChange.out}`);
+      assert.match(readFileSync(out, 'utf8'), /^## New file: \.vibeflow\/specs\/feat\.md$/m, `${name}: next to a real change, the spec is context in the package`);
+    });
+  }
+});
+
+// Contract: the lists the package script writes at its top when it leaves file diffs out (over the size cap, or with a line that looks like a secret) are the ones step 4a of each edition tells the Critical Gate to read, and the git command the step names for a tracked file, with the file itself for an untracked one, brings back what the package left out.
+// Breaks when: the script renames `TRUNCATED` or `WITHHELD` or changes the list lines, or an edition names another marker or another command, so the gate scans less than the change and the report says "Clean".
+// Not covered by: the kit tests check the lists without the editions, and the contract tests check the editions' words without running the script.
+test('left out: the lists the package writes when it leaves file diffs out are the ones each edition tells the gate to read, and the commands it names bring them back', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const step = section(text, 'a. **Read the diff from the review package**', 'b. **Match each changed line');
+    const markers = [...new Set([...step.matchAll(/`(TRUNCATED|WITHHELD)`/g)].map((match) => match[1]))].sort();
+    assert.deepEqual(markers, ['TRUNCATED', 'WITHHELD'], `${name}: step 4a names both lists`);
+    const gitCommand = /`(git diff <base> -- <path>)` \(`<base>` is the package's base\) for a tracked file/.exec(step)?.[1];
+    assert.ok(gitCommand, `${name}: step 4a names the git command for a tracked file`);
+    assert.match(step, /the file itself for an untracked one/, `${name}: and the file itself for an untracked one`);
+    const command = commandOf(text, ...STEP1);
+    withSandbox((box) => {
+      box.write('db/migrate/003.sql', 'SELECT 1;\n');
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'a migration');
+      const base = box.git('rev-parse', 'HEAD').trim();
+      box.write('db/migrate/003.sql', `${'-- a long generated migration\n'.repeat(200)}DROP TABLE accounts;\n`);
+      box.write('src/rules.ts', 'export const x = 2\n');
+      // Assembled, so no scanner reads this file as holding a credential.
+      const credential = ['postgres', '://app:', 'not-a-real-password', '@db.local/app'].join('');
+      box.write('config/app.env', `DATABASE_URL=${credential}\n`);
+      const out = join(box.root, 'pkg.md');
+      const result = run({ ...command, args: `${command.args} --max-bytes 3000` }, STEP1[0], { root: box.repo, '<base>': base, '<out>': out }, box.env());
+      assert.equal(result.status, 0, `${name}: ${result.out}`);
+      const pkg = readFileSync(out, 'utf8');
+      for (const marker of markers) assert.match(pkg, new RegExp(`^${marker}: 1 `, 'm'), `${name}: the package writes ${marker} as the edition names it`);
+      assert.match(pkg, /^- db\/migrate\/003\.sql \(\d+ bytes\)$/m, `${name}: the migration is listed as left out`);
+      assert.match(pkg, /^- config\/app\.env \(\d+ bytes, line 1\)$/m, `${name}: the credential file is listed as withheld`);
+      assert.doesNotMatch(pkg, /DROP TABLE|not-a-real-password/, `${name}: neither is in the package`);
+      assert.match(pkg, /^\+export const x = 2$/m, `${name}: what fits stays in the package`);
+      const newFiles = /## New files\n\n([\s\S]*?)\n\n/.exec(pkg)?.[1] ?? '';
+      assert.match(newFiles, /^- config\/app\.env$/m, `${name}: the package says which listed file is untracked`);
+      assert.doesNotMatch(newFiles, /003\.sql/, `${name}: and that the migration is tracked`);
+      const argv = gitCommand.split(' ').slice(1).map((token) => ({ '<base>': base, '<path>': 'db/migrate/003.sql' })[token] ?? token);
+      const tracked = spawnSync('git', argv, { cwd: box.repo, env: box.env(), encoding: 'utf8' });
+      assert.match(tracked.stdout, /^\+DROP TABLE accounts;$/m, `${name}: the edition's git command brings back the line the gate must see`);
+      assert.ok(readFileSync(join(box.repo, 'config/app.env'), 'utf8').includes(credential), `${name}: the untracked file read as it is`);
+    });
+  }
 });
 
 // ------------------------------------------------------------ --probes gate
