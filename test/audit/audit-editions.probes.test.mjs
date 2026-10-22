@@ -631,6 +631,43 @@ test('left out: each file under TRUNCATED or WITHHELD, tracked or untracked, com
   }
 });
 
+// Contract: a line of a WITHHELD file is cited by path and line number alone, so the line number the package each edition builds gives for a tracked file is the file line of the secret, also when the secret sits in a later hunk, after a removed line of the same hunk.
+// Breaks when: the package counts a removed line into the new file's numbering, or keeps counting from the first hunk instead of the hunk header, so the report cites a line that is not the secret and the auditor cannot find what the gate matched.
+// Not covered by: the kit test names line 3 of a single hunk with no removed line, the left-out probes drop the number, and the contract test checks only the citation sentence.
+test('left out: the line number a WITHHELD entry gives for a tracked file is the file line of the secret, in a later hunk and after a removed line, so the citation by path and line points at it', () => {
+  // Assembled, so no secret scanner reads this file as holding a token.
+  const token = ['gh', 'p_', 'A1b2C3d4'.repeat(3)].join('');
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const command = commandOf(edition(path), ...STEP1);
+    withSandbox((box) => {
+      const before = Array.from({ length: 80 }, (_, i) => `KEY_${i + 1}=value_${i + 1}`);
+      box.write('config/app.env', `${before.join('\n')}\n`);
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'config');
+      const base = box.git('rev-parse', 'HEAD').trim();
+      const after = [...before];
+      after[1] = 'KEY_2=changed';
+      after.splice(after.indexOf('KEY_40=value_40'), 1);
+      after.splice(after.indexOf('KEY_44=value_44') + 1, 0, `API_TOKEN=${token}`);
+      box.write('config/app.env', `${after.join('\n')}\n`);
+      const fileLine = readFileSync(join(box.repo, 'config/app.env'), 'utf8').split('\n').indexOf(`API_TOKEN=${token}`) + 1;
+      const diff = spawnSync('git', ['diff', base, '--', 'config/app.env'], { cwd: box.repo, env: box.env(), encoding: 'utf8' }).stdout;
+      const hunks = diff.split(/^(?=@@ )/m).slice(1);
+      const secretHunk = hunks.findIndex((hunk) => hunk.includes(`+API_TOKEN=${token}`));
+      assert.ok(secretHunk > 0, `${name}: the secret sits in a later hunk`);
+      const hunk = hunks[secretHunk];
+      assert.ok(hunk.indexOf('\n-KEY_40=value_40') < hunk.indexOf(`\n+API_TOKEN=${token}`), `${name}: after a removed line of the same hunk`);
+      const out = join(box.root, 'pkg.md');
+      const result = run(command, STEP1[0], { root: box.repo, '<base>': base, '<out>': out }, box.env());
+      assert.equal(result.status, 0, `${name}: ${result.out}`);
+      const pkg = readFileSync(out, 'utf8');
+      assert.ok(!pkg.includes(token) && !pkg.includes('API_TOKEN'), `${name}: the line is not in the package`);
+      const listed = /^- config\/app\.env \(\d+ bytes, line (\d+)\)$/m.exec(pkg)?.[1];
+      assert.equal(Number(listed), fileLine, `${name}: the WITHHELD entry names the file line of the secret`);
+    });
+  }
+});
+
 // ------------------------------------------------------------ --probes gate
 
 // Contract: every clause that makes probes or sabotage wait for `--probes` names a standalone audit, and the one loop-part clause runs both as written.
