@@ -127,6 +127,13 @@ test('review-package usage and README say what stays out: what looks like a secr
   assert.match(readme, /only under `\.vibeflow\/` is an empty package/);
 });
 
+test('review-package --help keeps every line within 100 characters', () => {
+  const usage = runScript('review-package.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
+  for (const line of usage.split('\n')) {
+    assert.ok(line.length <= 100, `a usage line of ${line.length} characters: ${line}`);
+  }
+});
+
 test('the README names every file the kit ships', () => {
   const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
   const { files } = JSON.parse(readFileSync(join(LOOP_DIR, 'manifest.json'), 'utf8'));
@@ -456,6 +463,22 @@ const READS_A_SECRET = [
   '"password": "${PASSWORD}"',
 ];
 
+// A name that looks like a secret set to a value that is not one: an empty or boolean value in
+// JavaScript, Python, Ruby or YAML, or the path of the file that holds the secret.
+const NOT_A_SECRET = [
+  'refreshToken: undefined,',
+  `${'POSTGRES_PASS'}${'WORD'}_FILE=/run/secrets/db_password`,
+  'SECRET_KEY=UNDEFINED',
+  'password: "undefined"',
+  'api_token: None',
+  'access_key = nil',
+  'password: null',
+  'API_KEY=false',
+  'auth_token: True',
+  'TOKEN_PATH="./secrets/token.txt"',
+  "PRIVATE_KEY_FILE='/etc/app/private.pem'",
+];
+
 const WITHHELD_HEADER = /^WITHHELD: (\d+) file diff\(s\) left out because a line looks like a secret or credential\. Read them with git before judging:$/m;
 
 test('review package leaves out a new file and a tracked file diff whose line looks like a secret, and keeps a clean new file whole', () => {
@@ -550,6 +573,23 @@ test('code that reads a secret from a header, the environment or a call is neith
   });
 });
 
+test('a name that looks like a secret set to undefined, null, true, false, none, nil or a path is neither withheld nor a stop', () => {
+  withSandbox((box) => {
+    box.write('src/settings.txt', `${NOT_A_SECRET.join('\n')}\n`);
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const packaged = readFileSync(out, 'utf8');
+    assert.doesNotMatch(packaged, /WITHHELD/);
+    for (const line of NOT_A_SECRET) assert.ok(packaged.includes(`+${line}\n`), `in the package: ${line}`);
+
+    for (const line of NOT_A_SECRET) {
+      const briefed = runScript('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${line}\n`)], box.env());
+      assert.doesNotMatch(briefed.stdout, /secret or credential/, `check-briefing: ${line}`);
+    }
+  });
+});
+
 test('a secret on the line git prints after a hunk header as its function context keeps the file diff out', () => {
   withSandbox((box) => {
     // Every line of an env file starts with a letter, so git names the line above the hunk.
@@ -596,6 +636,116 @@ test('check-briefing and review-package carry the same secret detector, and each
       assert.ok(!text.includes(sample), `review-package, ${kind}: the sample stays out`);
       assert.match(text, /^- notes\/sample\.txt \(\d+ bytes, line 1\)$/m, `review-package, ${kind}`);
     }
+  });
+});
+
+// After each hunk header git prints a line of the file above the hunk, its function context, cut at
+// 80 bytes. It is no part of the change, and a secret cut there no longer looks like one.
+test('every hunk header in the package is its line numbers only, without the function context git prints after it', () => {
+  withSandbox((box) => {
+    const view = ['def handler(request):', ...Array.from({ length: 40 }, (_, i) => `    v${i + 2} = ${i + 2}`)];
+    const model = ['class Account:', ...Array.from({ length: 20 }, (_, i) => `    f${i + 2} = ${i + 2}`)];
+    box.write('app/view.py', `${view.join('\n')}\n`);
+    box.write('app/model.py', `${model.join('\n')}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'app');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    view[15] = '    v16 = 1600';
+    view[39] = '    v40 = 4000';
+    model[17] = '    f18 = 1800';
+    box.write('app/view.py', `${view.join('\n')}\n`);
+    box.write('app/model.py', `${model.join('\n')}\n`);
+    const raw = box.git('diff', '-U10', base).split('\n').filter((line) => line.startsWith('@@'));
+    assert.equal(raw.filter((line) => line.endsWith(' @@ def handler(request):')).length, 2, `git names the function in both hunks: ${raw.join(' | ')}`);
+    assert.equal(raw.filter((line) => line.endsWith(' @@ class Account:')).length, 1, raw.join(' | '));
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    const headers = text.split('\n').filter((line) => line.startsWith('@@'));
+    assert.deepEqual(headers, raw.map((line) => line.match(/^@@ \S+ \S+ @@/)[0]), 'each header, in order, with its numbers only');
+    assert.ok(!text.includes('def handler') && !text.includes('class Account'), 'no function context in the package');
+    assert.match(text, /^\+ {4}v16 = 1600$/m, 'the change is in the package');
+    assert.match(text, /^\+ {4}v40 = 4000$/m, 'the change is in the package');
+    assert.match(text, /^\+ {4}f18 = 1800$/m, 'the change is in the package');
+  });
+});
+
+// A carriage return, a line separator or a paragraph separator ends a "." or a "$" in a pattern,
+// so the header is read from its start only, whatever the function context holds.
+test('a hunk whose function context holds a carriage return or a Unicode line separator is still read for secrets', () => {
+  const key = SECRET_SAMPLES['AWS access key'];
+  for (const [name, mark] of [['carriage return', '\r'], ['line separator', '\u2028'], ['paragraph separator', '\u2029']]) {
+    withSandbox((box) => {
+      const lines = [`title = "a${mark}b"`, ...Array.from({ length: 14 }, (_, i) => `# filler ${i + 2}`), 'x = 1'];
+      box.write('src/doc.py', `${lines.join('\n')}\n`);
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'doc');
+      const base = box.git('rev-parse', 'HEAD').trim();
+      lines[15] = `x = '${key}'`;
+      box.write('src/doc.py', `${lines.join('\n')}\n`);
+      assert.ok(box.git('diff', '-U10', base).includes(`@@ title = "a${mark}b"\n`), `${name}: git prints the line as the hunk's context`);
+      const out = join(box.root, 'package.md');
+      const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+      assert.equal(result.status, 0, `${name}: ${result.out}`);
+      const text = readFileSync(out, 'utf8');
+      assert.ok(!text.includes(key), `${name}: the access key on the added line stays out`);
+      assert.match(text, /^- src\/doc\.py \(\d+ bytes, line 16\)$/m, name);
+    });
+  }
+});
+
+// An editor on Windows writes CRLF, and git keeps the "\r" at the end of every line it prints.
+test('a password line in a CRLF file is withheld, new or tracked, and stops check-briefing at the end of the text', () => {
+  const password = SECRET_SAMPLES['password set to a literal value'];
+  withSandbox((box) => {
+    box.write('config/app.env', `NAME=app\r\n${password}\r\nPORT=80\r\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'config');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    box.write('config/app.env', `NAME=app\r\n${password}\r\nPORT=81\r\n`);
+    box.write('.env', `DEBUG=1\r\n${password}\r\n`);
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(password), 'the password stays out of the package');
+    assert.equal(text.match(WITHHELD_HEADER)?.[1], '2', text.slice(0, 800));
+    assert.match(text, /^- config\/app\.env \(\d+ bytes, line 2\)$/m, 'the tracked file, where the password is a context line');
+    assert.match(text, /^- \.env \(\d+ bytes, line 2\)$/m, 'the new file');
+
+    const briefed = runScript('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\r\n${password}\r`)], box.env());
+    assert.equal(briefed.status, 2, briefed.out);
+    assert.match(briefed.stdout, /^\[stop\] .*secret/m);
+  });
+});
+
+// Every repeat in the detector has a ceiling, so a long line costs time in proportion to its length.
+// Before the ceilings (measured on Node 22): one detector test took 7.7 s on 100,000 letters and
+// did not end within 120 s on this million-character line; check-briefing on this briefing was
+// stopped after 60 s without ending; review-package took 4.4 s on the 100 KB hex file. Each run
+// here gets 10 s, for work that takes milliseconds; a run killed at the limit fails the test.
+test('a million-character line and a 100 KB hex file pass check-briefing and review-package within the time limit', () => {
+  const line = 'a1B2_c3.D4-e5'.repeat(Math.ceil(1_000_000 / 13)).slice(0, 1_000_000);
+  const hex = '6080604052348015600f57600080fd'.repeat(Math.ceil(100_000 / 30)).slice(0, 100_000);
+  const run = (name, args, env) => spawnSync(process.execPath, [join(SCRIPTS_DIR, name), ...args], {
+    env, encoding: 'utf8', timeout: 10_000, killSignal: 'SIGKILL',
+  });
+  withSandbox((box) => {
+    const briefed = run('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${line}\n"bytecode": "0x${hex}"\n`)], box.env());
+    assert.equal(briefed.signal, null, 'check-briefing ends within the limit');
+    assert.equal(briefed.status, 0, briefed.stdout);
+
+    box.write('build/long.txt', `${line}\n`);
+    box.write('artifacts/Pool.json', `{\n  "bytecode": "0x${hex}"\n}\n`);
+    const out = join(box.root, 'package.md');
+    const packaged = run('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(packaged.signal, null, 'review-package ends within the limit');
+    assert.equal(packaged.status, 0, packaged.stderr);
+    const text = readFileSync(out, 'utf8');
+    assert.doesNotMatch(text, /WITHHELD/);
+    assert.ok(text.includes(`+  "bytecode": "0x${hex}"\n`), 'the hex file is in the package');
+    assert.match(text, /^- build\/long\.txt \(\d+ bytes\)$/m, 'the long file is over the size cap, listed as left out');
   });
 });
 

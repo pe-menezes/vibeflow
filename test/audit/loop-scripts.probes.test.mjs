@@ -245,16 +245,17 @@ test('review-package: under diff.suppressBlankEmpty the WITHHELD line is still t
 });
 
 // Contract: a scratch file with a password line next to an access key leaves whole, the password line included.
-// Breaks when: only the matching line is cut out of the file, leaving the password the detector does not name.
+// Breaks when: only the matching line (the access key, line 3) is cut out of the file, leaving the password line, whose bare value holding "!" the detector does not name.
 // Not covered by: the implementer's new-file secret test has no other credential-like line in the file.
 test('review-package: a scratch notes file with a password line and an access key stays out whole', () => {
   withSandbox((box) => {
-    box.write('local-notes.txt', `scratch notes, never meant for git\nDB_PASSWORD=${FAKE_PASSWORD}\nAWS key for the staging box: ${FAKE_ACCESS_KEY}\n`);
+    const password = `${'not-a-real-'}${'secret!ABC123'}`;
+    box.write('local-notes.txt', `scratch notes, never meant for git\nDB_PASSWORD=${password}\nAWS key for the staging box: ${FAKE_ACCESS_KEY}\n`);
     const result = packageOf(box, box.base);
     assert.equal(result.status, 0, result.out);
-    assert.ok(!result.text.includes(FAKE_PASSWORD), 'the password stays out');
+    assert.ok(!result.text.includes(password), 'the password stays out');
     assert.ok(!result.text.includes(FAKE_ACCESS_KEY), 'the access key stays out');
-    assert.match(result.text, /^- local-notes\.txt \(\d+ bytes, line 2\)$/m);
+    assert.match(result.text, /^- local-notes\.txt \(\d+ bytes, line 3\)$/m);
   });
 });
 
@@ -297,20 +298,26 @@ test('review-package: a secret in a later hunk\'s function context is named by t
 // Contract: a name that looks like a secret set to a literal value is withheld whatever line ending the file uses.
 // Breaks when: the end of the value is matched only before "\n" or the end of the text, so the "\r" of a CRLF line hides it.
 // Not covered by: every implementer and probe sample is written with "\n" line endings.
-test('review-package: a password line in a file with CRLF line endings stays out of the package', { todo: 'open gap: a bare value must end right before "\\n", so the "\\r" of a CRLF line lets the password through' }, () => {
+test('review-package: a password line in a file with CRLF line endings stays out of the package', () => {
   withSandbox((box) => {
+    box.write('config/app.env', `DEBUG=1\r\nDB_PASSWORD=${FAKE_PASSWORD}\r\nPORT=80\r\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'config');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    box.write('config/app.env', `DEBUG=1\r\nDB_PASSWORD=${FAKE_PASSWORD}\r\nPORT=81\r\n`);
     box.write('.env', `DEBUG=1\r\nDB_PASSWORD=${FAKE_PASSWORD}\r\n`);
-    const result = packageOf(box, box.base);
+    const result = packageOf(box, base);
     assert.equal(result.status, 0, result.out);
     assert.ok(!result.text.includes(FAKE_PASSWORD), 'the password stays out');
-    assert.match(result.text, /^- \.env \(\d+ bytes, line 2\)$/m);
+    assert.match(result.text, /^- \.env \(\d+ bytes, line 2\)$/m, 'a new file');
+    assert.match(result.text, /^- config\/app\.env \(\d+ bytes, line 2\)$/m, 'a tracked file');
   });
 });
 
 // Contract: no part of a secret on a hunk's function context line reaches the package, however long the line.
 // Breaks when: only the text git prints is checked, and git cuts the function context at 80 bytes, before the secret is complete.
 // Not covered by: the function-context tests use a short line, which git prints whole.
-test('review-package: a long secret line that git cuts short as a hunk\'s function context leaves no part of the secret in the package', { todo: 'open gap: git prints at most 80 bytes of the function context, and a secret cut there no longer looks like one' }, () => {
+test('review-package: a long secret line that git cuts short as a hunk\'s function context leaves no part of the secret in the package', () => {
   withSandbox((box) => {
     const password = `${'Very-Long-Pass'}${'word-Value-1234567890abcdefghijklmnop'}`;
     const url = `${'post'}${'gres'}://application_user:${password}@db.internal:5432/app`;
@@ -330,7 +337,7 @@ test('review-package: a long secret line that git cuts short as a hunk\'s functi
 // Contract: every hunk of a tracked file diff is read for secrets, whatever characters its function context line holds.
 // Breaks when: the hunk header pattern stops at a carriage return inside that line, so the header is not seen and the hunk below goes unread.
 // Not covered by: the implementer's hunk headers carry plain text or no function context at all.
-test('review-package: a carriage return inside a hunk\'s function context line does not stop the hunk from being read', { todo: 'open gap: the hunk header pattern ends at a line terminator, so a function context holding one hides the hunk from the detector' }, () => {
+test('review-package: a carriage return inside a hunk\'s function context line does not stop the hunk from being read', () => {
   withSandbox((box) => {
     const lines = ['title = "a\rb"', ...Array.from({ length: 14 }, (_, i) => `# filler ${i + 2}`), 'x = 1'];
     box.write('src/doc.py', `${lines.join('\n')}\n`);

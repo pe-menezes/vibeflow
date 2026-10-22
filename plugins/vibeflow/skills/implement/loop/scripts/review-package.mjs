@@ -3,7 +3,8 @@
 // Commits since the base, status, stat, the diff with 10 lines of context (committed and not) and
 // every new file. For a re-audit the base is the commit of the audited round, so the package is
 // the fix diff only. A package over the cap names what it left out; an empty one says so. A file
-// diff with a line that looks like a secret stays out whole, named with its size and that line.
+// diff with a line that looks like a secret stays out whole, named with its size and that line,
+// and every hunk header comes in as its line numbers only, without the function context.
 // Nothing under .vibeflow/ counts as a change on its own; the loop's artifact folders there stay
 // out, counted, and the rest (specs, the knowledge base) comes in as context.
 
@@ -37,12 +38,17 @@ const SECRET = new RegExp([
   '-----BEGIN [A-Z ]*PRIVATE ' + 'KEY-----',
   '(postgres(ql)?|mysql|mongodb(\\+srv)?|redis|amqp)://[^:\\s/]+:[^@\\s]+@',
   '[sr]k' + '_live_[A-Za-z0-9]{10,}', 'AI' + 'za[0-9A-Za-z_-]{35}',
-  // A name that says it holds a secret (any case), set with = or : to a literal value: quoted, 8 or
-  // more characters with no space and no $; or bare, 8 or more characters running to the end of the
-  // line (a ; or , and a comment may follow). A value read from a call or the environment is not one.
-  '[\\w.-]*(' + ['PASSWORD', 'PASSWD', 'SECRET', 'TOKEN', 'API[_-]?KEY', 'PRIVATE[_-]KEY', 'ACCESS[_-]KEY']
-    .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')[\\w.-]*["\']?[ \\t]*[=:][ \\t]*'
-    + '("[^\\s"$]{8,}"|\'[^\\s\'$]{8,}\'|[A-Za-z0-9_+/=@:-]{8,}(?=[ \\t]*[;,]?[ \\t]*((#|//).*)?(\\r?\\n|$)))',
+  // A name that says it holds a secret (any case; it starts at a word boundary and has at most 64
+  // characters on each side of the word), set with = or : to a literal value of 8 to 256
+  // characters: quoted, with no space and no $; or bare, running to the end of the line (a ; or ,
+  // and a comment may follow, and a \r may end the line). Not a literal value: one read from a call
+  // or the environment, undefined, null, true, false, none or nil (any case), or a path (it starts
+  // with / or .). Every repeat has a ceiling, so a long line costs time in proportion to its length.
+  '\\b[\\w.-]{0,64}(' + ['PASSWORD', 'PASSWD', 'SECRET', 'TOKEN', 'API[_-]?KEY', 'PRIVATE[_-]KEY', 'ACCESS[_-]KEY']
+    .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')[\\w.-]{0,64}["\']?[ \\t]{0,64}[=:][ \\t]{0,64}'
+    + '(?!["\']?([/.]|(' + ['UNDEFINED', 'NULL', 'TRUE', 'FALSE', 'NONE', 'NIL']
+      .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')["\']?(?![A-Za-z0-9_+/=@:-])))'
+    + '("[^\\s"$]{8,256}"|\'[^\\s\'$]{8,256}\'|[A-Za-z0-9_+/=@:-]{8,256}(?=[ \\t]{0,64}[;,]?[ \\t]{0,64}(#|//|\\r?\\n|\\r?$)))',
 ].join('|'));
 
 const USAGE = `usage: review-package.mjs <dir> <base> <out> [--max-bytes <n>]
@@ -52,12 +58,15 @@ worktree with 10 lines of context, and every untracked, not ignored file. File d
 not fit under --max-bytes (default ${DEFAULT_MAX_BYTES}) are left out and listed at the top.
 A file diff with a line that looks like a secret or credential (the detector of
 check-briefing.mjs: a known key or token format, a database URL with a password, or a name
-such as PASSWORD, SECRET or TOKEN set to a literal value) is left out whole and listed under WITHHELD at the top, with its size and
-the number of the first line that matched (in the base, for a removed line): read it with git.
+such as PASSWORD, SECRET or TOKEN set to a literal value) is left out whole and listed under
+WITHHELD at the top, with its size and the number of the first line that matched (in the base,
+for a removed line): read it with git. Each hunk header comes in as its line numbers only,
+without the function context git prints after it.
 Nothing under .vibeflow/ counts as a change: a change only under .vibeflow/ is empty, and the
-message counts its paths. The loop's artifact folders there (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')})
-are always left out and counted at the top; the rest of .vibeflow/ (specs, PRDs, index.md,
-patterns) is in the package as context when something changed outside it.
+message counts its paths. The loop's artifact folders there
+(${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}) are always left out and counted
+at the top; the rest of .vibeflow/ (specs, PRDs, index.md, patterns) is in the package as
+context when something changed outside it.
 
 exit 0 written · 1 empty (nothing changed outside .vibeflow/) · 2 error`;
 
@@ -105,19 +114,26 @@ function realDir(path) {
   }
 }
 
+// A hunk header, `@@ -a,b +c,d @@`, read from the start of the line only. After it git prints a
+// line of the file above the hunk (its function context), cut at 80 bytes; whatever that text
+// holds, a carriage return or a line separator included, it never hides the header.
+const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+
 // The file line of the first diff line that looks like a secret, or 0 when none does. Only the
 // hunks are read: a path is in the package anyway. An added or context line counts in the new
-// file, a removed line in the base. The text git prints after a hunk header is a line of the file
-// (its function context): git gives no number for it, so the hunk's first line is named.
+// file, a removed line in the base; a line of a CRLF file is tested without its "\r". The function
+// context after a hunk header is a line of the file: git gives no number for it, so the hunk's
+// first line is named.
 function secretLine(chunk) {
   let oldLine = 0;
   let newLine = 0;
   let inHunk = false;
-  for (const line of chunk.split('\n')) {
-    const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
+  for (const printed of chunk.split('\n')) {
+    const line = printed.endsWith('\r') ? printed.slice(0, -1) : printed;
+    const hunk = HUNK_HEADER.exec(line);
     if (hunk) {
       [oldLine, newLine] = [Number(hunk[1]), Number(hunk[2])];
-      if (SECRET.test(hunk[3])) return newLine || oldLine || 1;
+      if (SECRET.test(line.slice(hunk[0].length))) return newLine || oldLine || 1;
       inHunk = true;
     } else if (inHunk && line.startsWith('-')) {
       if (SECRET.test(line)) return oldLine;
@@ -129,6 +145,12 @@ function secretLine(chunk) {
     }
   }
   return 0;
+}
+
+// The package carries each hunk header as its line numbers only: the function context is no part
+// of the change, and a secret git cut short there no longer looks like one.
+function withoutFunctionContext(chunk) {
+  return chunk.split('\n').map((line) => HUNK_HEADER.exec(line)?.[0] ?? line).join('\n');
 }
 
 // One chunk per file, so the cap can leave out whole files and name them.
@@ -208,7 +230,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   for (const chunk of chunks) {
     const line = secretLine(chunk.text);
     if (line) withheld.push({ path: chunk.path, bytes: Buffer.byteLength(chunk.text), line });
-    else candidates.push(chunk);
+    else candidates.push({ ...chunk, text: withoutFunctionContext(chunk.text) });
   }
 
   let size = Buffer.byteLength(`${title}\n\n${artifactLine}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);

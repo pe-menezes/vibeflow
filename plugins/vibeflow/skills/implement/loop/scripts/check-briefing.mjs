@@ -33,12 +33,17 @@ const SECRET = new RegExp([
   '-----BEGIN [A-Z ]*PRIVATE ' + 'KEY-----',
   '(postgres(ql)?|mysql|mongodb(\\+srv)?|redis|amqp)://[^:\\s/]+:[^@\\s]+@',
   '[sr]k' + '_live_[A-Za-z0-9]{10,}', 'AI' + 'za[0-9A-Za-z_-]{35}',
-  // A name that says it holds a secret (any case), set with = or : to a literal value: quoted, 8 or
-  // more characters with no space and no $; or bare, 8 or more characters running to the end of the
-  // line (a ; or , and a comment may follow). A value read from a call or the environment is not one.
-  '[\\w.-]*(' + ['PASSWORD', 'PASSWD', 'SECRET', 'TOKEN', 'API[_-]?KEY', 'PRIVATE[_-]KEY', 'ACCESS[_-]KEY']
-    .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')[\\w.-]*["\']?[ \\t]*[=:][ \\t]*'
-    + '("[^\\s"$]{8,}"|\'[^\\s\'$]{8,}\'|[A-Za-z0-9_+/=@:-]{8,}(?=[ \\t]*[;,]?[ \\t]*((#|//).*)?(\\r?\\n|$)))',
+  // A name that says it holds a secret (any case; it starts at a word boundary and has at most 64
+  // characters on each side of the word), set with = or : to a literal value of 8 to 256
+  // characters: quoted, with no space and no $; or bare, running to the end of the line (a ; or ,
+  // and a comment may follow, and a \r may end the line). Not a literal value: one read from a call
+  // or the environment, undefined, null, true, false, none or nil (any case), or a path (it starts
+  // with / or .). Every repeat has a ceiling, so a long line costs time in proportion to its length.
+  '\\b[\\w.-]{0,64}(' + ['PASSWORD', 'PASSWD', 'SECRET', 'TOKEN', 'API[_-]?KEY', 'PRIVATE[_-]KEY', 'ACCESS[_-]KEY']
+    .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')[\\w.-]{0,64}["\']?[ \\t]{0,64}[=:][ \\t]{0,64}'
+    + '(?!["\']?([/.]|(' + ['UNDEFINED', 'NULL', 'TRUE', 'FALSE', 'NONE', 'NIL']
+      .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')["\']?(?![A-Za-z0-9_+/=@:-])))'
+    + '("[^\\s"$]{8,256}"|\'[^\\s\'$]{8,256}\'|[A-Za-z0-9_+/=@:-]{8,256}(?=[ \\t]{0,64}[;,]?[ \\t]{0,64}(#|//|\\r?\\n|\\r?$)))',
 ].join('|'));
 const TIME = /\b([01]\d|2[0-3])[:h][0-5]\d\b/;
 const SOURCE = /\b(measured|read|run|ran|checked|counted|source)\b/i;
