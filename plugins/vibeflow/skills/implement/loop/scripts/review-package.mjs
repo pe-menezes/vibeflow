@@ -36,6 +36,13 @@ const SECRET = new RegExp([
   'AK' + 'IA[0-9A-Z]{16}', 'xox' + '[baprs]-[A-Za-z0-9-]{10,}',
   '-----BEGIN [A-Z ]*PRIVATE ' + 'KEY-----',
   '(postgres(ql)?|mysql|mongodb(\\+srv)?|redis|amqp)://[^:\\s/]+:[^@\\s]+@',
+  '[sr]k' + '_live_[A-Za-z0-9]{10,}', 'AI' + 'za[0-9A-Za-z_-]{35}',
+  // A name that says it holds a secret (any case), set with = or : to a literal value: quoted, 8 or
+  // more characters with no space and no $; or bare, 8 or more characters running to the end of the
+  // line (a ; or , and a comment may follow). A value read from a call or the environment is not one.
+  '[\\w.-]*(' + ['PASSWORD', 'PASSWD', 'SECRET', 'TOKEN', 'API[_-]?KEY', 'PRIVATE[_-]KEY', 'ACCESS[_-]KEY']
+    .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')[\\w.-]*["\']?[ \\t]*[=:][ \\t]*'
+    + '("[^\\s"$]{8,}"|\'[^\\s\'$]{8,}\'|[A-Za-z0-9_+/=@:-]{8,}(?=[ \\t]*[;,]?[ \\t]*((#|//).*)?(\\r?\\n|$)))',
 ].join('|'));
 
 const USAGE = `usage: review-package.mjs <dir> <base> <out> [--max-bytes <n>]
@@ -44,14 +51,15 @@ Writes to <out> the commits since <base>, git status, the stat, the diff from <b
 worktree with 10 lines of context, and every untracked, not ignored file. File diffs that do
 not fit under --max-bytes (default ${DEFAULT_MAX_BYTES}) are left out and listed at the top.
 A file diff with a line that looks like a secret or credential (the detector of
-check-briefing.mjs) is left out whole and listed under WITHHELD at the top, with its size and
+check-briefing.mjs: a known key or token format, a database URL with a password, or a name
+such as PASSWORD, SECRET or TOKEN set to a literal value) is left out whole and listed under WITHHELD at the top, with its size and
 the number of the first line that matched (in the base, for a removed line): read it with git.
 Nothing under .vibeflow/ counts as a change: a change only under .vibeflow/ is empty, and the
 message counts its paths. The loop's artifact folders there (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')})
 are always left out and counted at the top; the rest of .vibeflow/ (specs, PRDs, index.md,
 patterns) is in the package as context when something changed outside it.
 
-exit 0 written · 1 empty (nothing changed; the file says so) · 2 error`;
+exit 0 written · 1 empty (nothing changed outside .vibeflow/) · 2 error`;
 
 class PackageError extends Error {}
 
@@ -99,15 +107,17 @@ function realDir(path) {
 
 // The file line of the first diff line that looks like a secret, or 0 when none does. Only the
 // hunks are read: a path is in the package anyway. An added or context line counts in the new
-// file, a removed line in the base.
+// file, a removed line in the base. The text git prints after a hunk header is a line of the file
+// (its function context): git gives no number for it, so the hunk's first line is named.
 function secretLine(chunk) {
   let oldLine = 0;
   let newLine = 0;
   let inHunk = false;
   for (const line of chunk.split('\n')) {
-    const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)$/);
     if (hunk) {
       [oldLine, newLine] = [Number(hunk[1]), Number(hunk[2])];
+      if (SECRET.test(hunk[3])) return newLine || oldLine || 1;
       inHunk = true;
     } else if (inHunk && line.startsWith('-')) {
       if (SECRET.test(line)) return oldLine;
@@ -166,10 +176,14 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     || untracked.some((path) => !isVibeflow(path));
   if (!changedOutside) {
     const vibeflowNote = `${vibeflowCount} path(s) under .vibeflow/ changed, and .vibeflow/ alone never counts as a change`;
+    // With nothing changed at all the base may be the wrong one; with .vibeflow/ changed it is right.
+    const advice = vibeflowCount
+      ? 'An audit over this file has nothing to read: the work since the base is only under .vibeflow/.'
+      : 'An audit over this file has nothing to read; check the base.';
     return {
       empty: true,
       vibeflowNote,
-      text: `${title}\n\n${artifactLine}\n\nEMPTY PACKAGE: nothing changed outside .vibeflow/ between base ${base} and the worktree (no commit, no diff, no new file); ${vibeflowNote}. An audit over this file has nothing to read; check the base.\n`,
+      text: `${title}\n\n${artifactLine}\n\nEMPTY PACKAGE: nothing changed outside .vibeflow/ between base ${base} and the worktree (no commit, no diff, no new file); ${vibeflowNote}. ${advice}\n`,
     };
   }
 

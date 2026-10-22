@@ -32,6 +32,13 @@ const SECRET = new RegExp([
   'AK' + 'IA[0-9A-Z]{16}', 'xox' + '[baprs]-[A-Za-z0-9-]{10,}',
   '-----BEGIN [A-Z ]*PRIVATE ' + 'KEY-----',
   '(postgres(ql)?|mysql|mongodb(\\+srv)?|redis|amqp)://[^:\\s/]+:[^@\\s]+@',
+  '[sr]k' + '_live_[A-Za-z0-9]{10,}', 'AI' + 'za[0-9A-Za-z_-]{35}',
+  // A name that says it holds a secret (any case), set with = or : to a literal value: quoted, 8 or
+  // more characters with no space and no $; or bare, 8 or more characters running to the end of the
+  // line (a ; or , and a comment may follow). A value read from a call or the environment is not one.
+  '[\\w.-]*(' + ['PASSWORD', 'PASSWD', 'SECRET', 'TOKEN', 'API[_-]?KEY', 'PRIVATE[_-]KEY', 'ACCESS[_-]KEY']
+    .map((word) => word.replace(/[A-Z]/g, (c) => `[${c}${c.toLowerCase()}]`)).join('|') + ')[\\w.-]*["\']?[ \\t]*[=:][ \\t]*'
+    + '("[^\\s"$]{8,}"|\'[^\\s\'$]{8,}\'|[A-Za-z0-9_+/=@:-]{8,}(?=[ \\t]*[;,]?[ \\t]*((#|//).*)?(\\r?\\n|$)))',
 ].join('|'));
 const TIME = /\b([01]\d|2[0-3])[:h][0-5]\d\b/;
 const SOURCE = /\b(measured|read|run|ran|checked|counted|source)\b/i;

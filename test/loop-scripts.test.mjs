@@ -121,6 +121,7 @@ test('review-package usage and README say what stays out: what looks like a secr
   const usage = runScript('review-package.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
   assert.match(usage, /WITHHELD/);
   assert.match(usage, /only under \.vibeflow\/ is empty/);
+  assert.match(usage, /1 empty \(nothing changed outside \.vibeflow\/\)/);
   const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8').replace(/\s+/g, ' ');
   assert.match(readme, /`WITHHELD`/);
   assert.match(readme, /only under `\.vibeflow\/` is an empty package/);
@@ -273,6 +274,7 @@ test('an empty review package exits 1 and says so in the file', () => {
     assert.equal(result.status, 1, result.out);
     assert.match(result.out, /empty/i);
     assert.match(readFileSync(out, 'utf8'), /EMPTY PACKAGE/);
+    assert.match(readFileSync(out, 'utf8'), /check the base/, 'with nothing changed at all, the base may be the wrong one');
   });
 });
 
@@ -391,6 +393,7 @@ test('a change only under .vibeflow/ is an empty package that counts the .vibefl
     assert.match(text, /^Loop artifacts left out: 1 path\(s\)/m);
     assert.match(result.stdout, /empty package.*\b3 path\(s\) under \.vibeflow\//);
     assert.doesNotMatch(text, /^## New file:/m);
+    assert.doesNotMatch(text, /check the base/, 'the base is right: only .vibeflow/ changed since it');
   });
 });
 
@@ -428,7 +431,30 @@ const SECRET_SAMPLES = {
   'Slack token': `${'xox'}${'b-'}${'1234567890-abc'}`,
   'private key': `${'-----BEGIN RSA PRIVATE '}${'KEY-----'}`,
   'database URL with a password': `${'post'}${'gres'}://app:${'x'.repeat(6)}@127.0.0.1:5432/app_test`,
+  'Stripe live key': `${'sk'}${'_live_'}${'A1b2C3d4E5f6G7h8'}`,
+  'Stripe restricted key': `${'rk'}${'_live_'}${'A1b2C3d4E5f6G7h8'}`,
+  'Google API key': `${'AI'}${'za'}${'A1b2C3d4E5'.repeat(3)}${'A1b2C'}`,
+  'password set to a literal value': `${'DB_PASS'}${'WORD'}=${'not-a-real-'}${'secret-ABC123'}`,
 };
+
+// A name that looks like it holds a secret, set to a literal value, in the shapes a project
+// keeps one: an env line on its own, a .env file nobody ignores, YAML, and a live payment key.
+// Each value is assembled at run time and is not a real credential.
+const ASSIGNED_SECRETS = [
+  { path: 'notes.txt', text: `scratch notes\n${'DB_PASS'}${'WORD'}=${'not-a-real-'}${'secret-ABC123'}\n`, line: 2 },
+  { path: '.env', text: `DEBUG=1\n${'SECRET'}${'_KEY'}=${'f4ke'}${'Va1ue9x7Q'}\n`, line: 2 },
+  { path: 'config/app.yaml', text: `db:\n  host: db\n  ${'pass'}${'word'}: "${'not-a-real-'}${'secret-XYZ'}"\n`, line: 3 },
+  { path: 'src/pay.ts', text: `const key = '${'sk'}${'_live_'}${'Z9y8X7w6V5u4T3s2'}'\n`, line: 1 },
+];
+
+// Ordinary code that names a secret but reads it from somewhere: never withheld, never a stop.
+const READS_A_SECRET = [
+  'token = request.headers.get("x")',
+  'API_TOKEN = os.environ["API_TOKEN"]',
+  'const apiToken = process.env.API_TOKEN;',
+  'SECRET_KEY = get_secret()',
+  '"password": "${PASSWORD}"',
+];
 
 const WITHHELD_HEADER = /^WITHHELD: (\d+) file diff\(s\) left out because a line looks like a secret or credential\. Read them with git before judging:$/m;
 
@@ -484,6 +510,66 @@ test('a review package with nothing that looks like a secret has no WITHHELD lis
     assert.equal(result.status, 0, result.out);
     assert.doesNotMatch(readFileSync(out, 'utf8'), /WITHHELD/);
     assert.doesNotMatch(result.stdout, /withheld/);
+  });
+});
+
+test('a name that looks like a secret set to a literal value is withheld by review-package and stops check-briefing', () => {
+  withSandbox((box) => {
+    for (const { path, text } of ASSIGNED_SECRETS) box.write(path, text);
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const packaged = readFileSync(out, 'utf8');
+    assert.equal(packaged.match(WITHHELD_HEADER)?.[1], String(ASSIGNED_SECRETS.length), packaged.slice(0, 800));
+    for (const { path, text, line } of ASSIGNED_SECRETS) {
+      const secretLine = text.split('\n')[line - 1];
+      assert.ok(!packaged.includes(secretLine.trim()), `${path}: the line stays out of the package`);
+      assert.match(packaged, new RegExp(`^- ${path.replace(/\./g, '\\.')} \\(\\d+ bytes, line ${line}\\)$`, 'm'), path);
+
+      const briefed = runScript('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${text}`)], box.env());
+      assert.equal(briefed.status, 2, `check-briefing, ${path}: ${briefed.out}`);
+      assert.match(briefed.stdout, /^\[stop\] .*secret/m, path);
+    }
+  });
+});
+
+test('code that reads a secret from a header, the environment or a call is neither withheld nor a stop', () => {
+  withSandbox((box) => {
+    box.write('src/reads.txt', `${READS_A_SECRET.join('\n')}\n`);
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const packaged = readFileSync(out, 'utf8');
+    assert.doesNotMatch(packaged, /WITHHELD/);
+    for (const line of READS_A_SECRET) assert.ok(packaged.includes(`+${line}\n`), `in the package: ${line}`);
+
+    for (const line of READS_A_SECRET) {
+      const briefed = runScript('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${line}\n`)], box.env());
+      assert.doesNotMatch(briefed.stdout, /secret or credential/, `check-briefing: ${line}`);
+    }
+  });
+});
+
+test('a secret on the line git prints after a hunk header as its function context keeps the file diff out', () => {
+  withSandbox((box) => {
+    // Every line of an env file starts with a letter, so git names the line above the hunk.
+    const url = SECRET_SAMPLES['database URL with a password'];
+    const lines = ['NAME=app', `DATABASE_URL=${url}`, ...Array.from({ length: 18 }, (_, i) => `KEY_${i + 3}=${i + 3}`)];
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'config');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    lines[12] = 'KEY_13=changed';
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    const raw = box.git('diff', '-U10', base, '--', 'config/app.env');
+    assert.match(raw, /^@@ -3,18 \+3,18 @@ DATABASE_URL=/m, 'git prints the secret line as the hunk context');
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(url), 'the database URL stays out of the package');
+    assert.ok(!text.includes('KEY_13=changed'), 'the whole file diff stays out');
+    assert.match(text, /^- config\/app\.env \(\d+ bytes, line 3\)$/m, 'git gives no line for the context, so the hunk\'s first line is named');
   });
 });
 

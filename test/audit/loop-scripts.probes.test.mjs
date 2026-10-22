@@ -191,7 +191,7 @@ test('review-package: a tracked file whose unchanged context line looks like a s
 // Contract: a secret shown anywhere in a tracked file diff keeps that diff out of the package, the hunk header included.
 // Breaks when: the hunk header is read only for its line numbers, so the line git prints after it as function context is never checked.
 // Not covered by: the implementer's tracked-file tests change lines near the top, where git prints no function context.
-test('review-package: a secret on the line git prints as a hunk\'s function context stays out of the package', { todo: 'open gap: the text git prints after a hunk header is not checked, so a secret more than 10 lines above a change reaches the package' }, () => {
+test('review-package: a secret on the line git prints as a hunk\'s function context stays out of the package', () => {
   withSandbox((box) => {
     // An env-style file: every line starts with a letter, so git names the line just above the hunk as its context.
     const lines = ['NAME=app', `DATABASE_URL=${FAKE_DB_URL}`, ...Array.from({ length: 18 }, (_, i) => `KEY_${i + 3}=${i + 3}`)];
@@ -254,7 +254,7 @@ test('review-package: a scratch notes file with a password line and an access ke
     assert.equal(result.status, 0, result.out);
     assert.ok(!result.text.includes(FAKE_PASSWORD), 'the password stays out');
     assert.ok(!result.text.includes(FAKE_ACCESS_KEY), 'the access key stays out');
-    assert.match(result.text, /^- local-notes\.txt \(\d+ bytes, line 3\)$/m);
+    assert.match(result.text, /^- local-notes\.txt \(\d+ bytes, line 2\)$/m);
   });
 });
 
