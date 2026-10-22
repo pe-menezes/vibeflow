@@ -88,3 +88,17 @@ test(
     assert.match(output, /skill stats/);
   },
 );
+
+// Contract: the lock compares a Bash scoped to one command by its whole specifier, so a skill whose list expects `Bash(node:*)` and that declares `Bash(*)` fails, naming both.
+// Breaks when: the comparison folds every `Bash(...)` into one key (to absorb a change in how a specifier is written, say), which lets a skill widen `Bash(node:*)` to `Bash(*)` with the lock green.
+// Not covered by: the lock's own scoped case compares `Bash(node:*)` with the bare `Bash`, which such a fold still tells apart; no case puts two scoped forms side by side.
+test('permission lock: a skill that widens Bash(node:*) to Bash(*) fails', () => {
+  const { status, output } = runLockOnCopy((root) => {
+    rewrite(root, LOCK, (text) => text.replace(/^(\s+)stats: \[.*\],$/m, "$1stats: ['Glob', 'Bash(node:*)'],"));
+    rewrite(root, `${PLUGIN}/skills/stats/SKILL.md`, (text) =>
+      text.replace(/^allowed-tools: .*$/m, 'allowed-tools: Glob, Bash(*)'),
+    );
+  });
+  assert.notEqual(status, 0, output);
+  assert.match(output, /skill stats: allowed-tools gains Bash\(\*\); loses Bash\(node:\*\)/);
+});
