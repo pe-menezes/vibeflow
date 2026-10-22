@@ -20,6 +20,7 @@ allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 - `analyze --interactive` — Run analysis with interactive review: validate patterns, remove false positives, add tribal knowledge before saving.
 - `analyze --fresh --interactive` — Full rebuild with interactive review.
 - `analyze --satellite https://github.com/org/design-system` — Analyze a dependency repo, keep only patterns your code uses, merge into `.vibeflow/patterns/satellite-<name>/`.
+- `analyze --measure` — Also run the full-suite and affected-tests commands once each and record their time; without it they are recorded but not run, because a project's suite can start containers, call services or take many minutes.
 
 ---
 
@@ -47,7 +48,7 @@ Read `.vibeflow/index.md` directly by its path. Search, grep, and glob respect
 `.gitignore`, so they miss the directory and report it as absent.
 
 Then read any flags in the user's current request (`--fresh`, `--scope <path>`, `--interactive`,
-`--satellite <url>`) and check whether git is available here.
+`--satellite <url>`, `--measure`) and check whether git is available here.
 
 **Decision tree:**
 
@@ -61,6 +62,9 @@ Then read any flags in the user's current request (`--fresh`, `--scope <path>`, 
 - `.vibeflow/` exists and no `--fresh` → incremental analysis.
 - `--interactive` composes with every mode: it adds Phase 3.5 before saving and
   changes nothing else about which phases run.
+- `--measure` composes with every mode that writes the Tests and Pitfalls block:
+  it runs the two test commands once (Tests and Pitfalls, in Phase 4) and
+  changes nothing else about which phases run or when the block is due.
 
 **Incremental mode.** Read `Analyzed: <date>` from `index.md`, then
 `git log --since="<date> 00:00" --name-only --pretty=format:""` to find what
@@ -380,12 +384,11 @@ stay factual.
 
 - *Tests* — from the manifests, scripts and CI configuration, the command that
   runs the full suite and the narrowest command that runs only the tests
-  affected by a change: by file, package or tag, as the stack allows. Measure
-  only when the block is new or a test file, the CI configuration or the test
-  runner's configuration changed, and when running a command is local and safe
-  (no paid service, no deploy): run it once and record the measured time and
-  the date. Otherwise keep the measured time and date already recorded; a
-  command never run is marked `unmeasured`. No test runner → say so in one line.
+  affected by a change: by file, package or tag, as the stack allows. Record
+  both commands without running them. Only with `--measure`, run each one once
+  and record the measured time and the date. Without it, keep the measured time
+  and date already recorded; a command never measured is marked `unmeasured`.
+  No test runner → say so in one line.
 - *Pitfalls* — mistakes that already cost this project time, each with its
   source: an entry in `decisions.md`, a line of the CI configuration that exists
   to catch it, or a reverted or fix commit (`git log -i --grep='^revert'

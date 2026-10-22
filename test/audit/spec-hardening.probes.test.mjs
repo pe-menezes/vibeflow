@@ -156,7 +156,7 @@ function incrementalParagraph(raw) {
 }
 
 // Contract: the block-only incremental run writes `Analyzed:`, and the date it writes is today, in the clause itself or through the Phase 4 index.md rule it follows, in the three editions.
-// Breaks when: the clause is "simplified" to "regenerate only the block", or Phase 4 drops "update `Analyzed: <date>` to today"; the same test or CI change then keeps the block due and the suite is measured again on every run.
+// Breaks when: the clause is "simplified" to "regenerate only the block", or Phase 4 drops "update `Analyzed: <date>` to today"; the same test or CI change then keeps the block due and the block is regenerated (and, with `--measure`, the suite measured) again on every run.
 // Not covered by: the tests-only refresh test in test/spec-contracts.test.mjs stops at "regenerate only the block", and the own-clause test there reads the clause alone, never the Phase 4 rule it points at.
 test('analyze block-only run: advances Analyzed, so the same change is not due again', () => {
   for (const path of Object.values(ANALYZE)) {

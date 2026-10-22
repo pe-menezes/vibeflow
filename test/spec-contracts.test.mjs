@@ -200,13 +200,39 @@ test('analyze incremental: an upgrade or a tests-only change refreshes the Tests
   });
 });
 
-test('analyze measures the suite only when the block is new or its inputs changed', () => {
-  forEachEdition('analyze', (content, label) => {
-    assert.match(content, /measure only when the block is new or a test file, the CI configuration or the test runner's configuration changed[^.]*local and safe/i,
-      `${label}: measurement gated on the block's inputs and on local and safe`);
-    assert.match(content, /otherwise keep the measured time and date already recorded/i,
-      `${label}: other incremental runs keep the last measurement`);
+// A project's suite can start containers, call services or run for many
+// minutes, so analyze records the two test commands and runs them only when
+// the user passes --measure. The Tests bullet is the same text in every
+// edition.
+test('analyze runs the test commands only with --measure', () => {
+  const bullets = [];
+  forEachEdition('analyze', (content, label, raw) => {
+    const from = raw.indexOf('- *Tests* —');
+    const to = raw.indexOf('- *Pitfalls* —', from);
+    assert.ok(from !== -1 && to > from, `${label}: a Tests bullet followed by a Pitfalls bullet`);
+    const tests = flat(raw.slice(from, to));
+    bullets.push(tests);
+    assert.match(tests, /Record both commands without running them\./,
+      `${label}: the commands are recorded, not run`);
+    assert.match(tests, /Only with `--measure`, run each one once and record the measured time and the date\./,
+      `${label}: --measure runs each command once and records time and date`);
+    assert.match(tests, /Without it, keep the measured time and date already recorded; a command never measured is marked `unmeasured`\./,
+      `${label}: without --measure the last measurement stays and a never-measured command is unmeasured`);
+    assert.doesNotMatch(content, /local and safe/i, `${label}: no judgment call on whether a run is safe`);
+    assert.doesNotMatch(content, /run it once/i, `${label}: no unconditional run`);
+
+    // The flag is listed with the other flags, with its reason.
+    const listing = label.startsWith('shared/')
+      ? flat(section(raw, '## Description and examples'))
+      : flat(paragraph(raw, '**Usage:**'));
+    assert.match(listing, /`(analyze )?--measure`[^.]*recorded[^.]*container[^.]*service[^.]*many minutes/i,
+      `${label}: --measure listed with the other flags, with why it is opt-in`);
+    assert.match(content, /flags in the [^(]*\(`--fresh`[^)]*`--measure`[^)]*\)/,
+      `${label}: Phase 0 reads --measure with the other flags`);
+    assert.match(content, /`--measure` composes with every mode[^.]*changes nothing else about which phases run or when the block is due/i,
+      `${label}: --measure does not change which phases run or when the block is due`);
   });
+  assert.equal(new Set(bullets).size, 1, 'the Tests bullet is the same text in the three editions');
 });
 
 // A date boundary. `git log --since` with a bare date counts from the current
