@@ -12,7 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { LOOP_DIR, runScript, withSandbox } from '../loop-helpers.mjs';
@@ -77,7 +77,7 @@ test('watch-pr.mjs with the arguments the section writes runs against gh, and ev
   const row = kit('README.md').split('\n').find((line) => line.startsWith('| `watch-pr.mjs'));
   assert.ok(row, 'README documents watch-pr.mjs');
   const codes = [...row.split('|').at(-2).matchAll(/(\d+) \w+/g)].map((m) => m[1]);
-  assert.deepEqual(codes, ['0', '1', '2', '3', '64']);
+  assert.deepEqual(codes, ['0', '1', '2', '3', '64', '69', '77']);
   for (const code of codes) assert.match(six, new RegExp(`Exit ${code}:`), `step 6 routes exit ${code}`);
 
   withSandbox((box) => {
@@ -223,7 +223,7 @@ test('the gh pr create command of step 5 passes gh\'s check for a non-interactiv
 // ------------------------------------------------------------------ the limits
 
 // Contract: no sentence of the company-mode section permits a merge, a deploy, a migration or a production read, and the prohibition names all four, whatever its wording.
-// Breaks when: a sentence that opens an exception is added ("the orchestrator may merge when the human asks", for example).
+// Breaks when: a sentence that opens an exception is added ("the orchestrator may merge when the user asks", for example).
 // Not covered by: company-mode-contracts counts one exact sentence and uses a short list of exception words, so a reworded permission passes it.
 test('no sentence of the company-mode section permits a merge, a deploy, a migration or a production read', () => {
   const sentences = section().split(/(?<=[.;:])\s+(?=[A-Z0-9`])/);
@@ -432,43 +432,68 @@ test('a machine where gh cannot open the pull request passes the opening: prefli
   for (const s of named) assert.doesNotMatch(s, STOPS, `a sentence about gh unable to open the pull request stops the loop: "${s}"`);
 });
 
-// Contract: watch-pr.mjs's exit 64 is final (gh not logged in exits 64 at the first read, with no retry), so step 6 routes it to the user and no sentence of orchestrator.md sends exit 64 back to another watch.
-// Breaks when: a sentence is added that restarts the watch on 64 ("When it exits 64, start the watch again until it reads the PR"), turning an error that cannot fix itself into a loop the orchestrator never leaves.
-// Not covered by: company-mode-contracts pins the one sentence of the 64 route in step 6 and has no predicate over the other sentences that name 64; the watch-pr tests run the script, never the orchestrator's route.
-test('watch-pr.mjs exit 64 is final at the first read, and no sentence of orchestrator.md sends it back to another watch', () => {
+// Contract: watch-pr.mjs's exits 69 (gh missing or not executable) and 77 (gh not logged in) are final at the first read, so no sentence of orchestrator.md sends them back to another watch; only exit 64, a bad argument of the orchestrator's own call, goes back to the watch, and every sentence that does so bounds it to once.
+// Breaks when: a sentence restarts the watch on 69 or 77 ("When gh is not logged in, start the watch again until it reads the PR"), or the 64 route loses its bound ("correct the call and start the watch again until it runs"), turning an error that cannot fix itself into a loop the orchestrator never leaves.
+// Not covered by: company-mode-contracts pins the sentences of the route in step 6 and has no predicate over the other sentences that name these codes; the watch-pr tests run the script, never the orchestrator's route.
+test('watch-pr.mjs exits 69 and 77 at the first read, and orchestrator.md sends only exit 64 back to the watch, once', () => {
   const args = /run `watch-pr\.mjs` with `([^`]+)`/.exec(step(6));
   assert.ok(args, 'step 6 writes watch-pr.mjs with its arguments');
   withSandbox((box) => {
+    const argv = [...fill(args[1]), '--interval-sec', '0.05', '--timeout-min', '0.02'];
+    // gh not logged in: gh exits 4, and the watch reads the PR once.
     box.setGh('To get started with GitHub CLI, please run:  gh auth login\n');
-    const result = runScript('watch-pr.mjs', [...fill(args[1]), '--interval-sec', '0.05', '--timeout-min', '0.02'], box.env({ FAKE_GH_EXIT: '4' }));
-    assert.equal(result.status, 64, result.out);
+    const out = runScript('watch-pr.mjs', argv, box.env({ FAKE_GH_EXIT: '4' }));
+    assert.equal(out.status, 77, out.out);
     assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 1, 'one read of the PR, no retry');
+    // gh missing: a PATH with no gh on it. A retry would run to the ceiling and exit 3.
+    const empty = join(box.root, 'empty');
+    mkdirSync(empty);
+    const missing = runScript('watch-pr.mjs', argv, box.env({ PATH: empty }));
+    assert.equal(missing.status, 69, missing.out);
+    // gh found without the execute bit, and no other gh behind it.
+    const locked = join(box.root, 'locked');
+    mkdirSync(locked);
+    writeFileSync(join(locked, 'gh'), '#!/bin/sh\nexit 0\n');
+    chmodSync(join(locked, 'gh'), 0o644);
+    const denied = runScript('watch-pr.mjs', argv, box.env({ PATH: locked }));
+    assert.equal(denied.status, 69, denied.out);
   });
-  const named = fileSentences().filter((s) => /\b64\b/.test(s));
-  assert.ok(named.some((s) => s.startsWith('Exit 64:')), 'step 6 routes exit 64');
-  for (const s of named) {
-    assert.doesNotMatch(s, /\bagain\b|\bre-?(run|start|try)|\bretr(y|ies)\b|\buntil\b|\bwait/i, `a sentence sends exit 64 back to another watch: "${s}"`);
+  const RETRY = /\bagain\b|\bre-?(run|start|try)|\bretr(y|ies)\b|\buntil\b|\bwait/i;
+  const sentences = fileSentences();
+  for (const code of ['69', '77']) {
+    const named = sentences.filter((s) => new RegExp(`\\b${code}\\b`).test(s));
+    assert.ok(named.some((s) => s.startsWith(`Exit ${code}:`)), `step 6 routes exit ${code}`);
+    for (const s of named) assert.doesNotMatch(s, RETRY, `a sentence sends exit ${code} back to another watch: "${s}"`);
   }
+  const back = sentences.filter((s) => /\b64\b/.test(s) && RETRY.test(s));
+  assert.ok(back.some((s) => s.startsWith('Exit 64:')), 'step 6 sends exit 64 back to the watch');
+  for (const s of back) {
+    assert.match(s, /\bonce\b/, `a sentence sends exit 64 back with no bound of once: "${s}"`);
+    assert.doesNotMatch(s, /\buntil\b|\bretries\b|\btwice\b|\bevery time\b/i, `a sentence sends exit 64 back more than once: "${s}"`);
+  }
+  // The second 64 joins 69 and 77 as checks not watched.
+  assert.ok(sentences.some((s) => /\bsecond exit 64\b/.test(s) && /\b69\b/.test(s) && /\b77\b/.test(s) && /\bnot watched\b/.test(s)), 'a second exit 64, like 69 and 77, leaves the checks not watched');
 });
 
 // The sentences of the company-mode section, list items included.
 const sectionSentences = () => section().split(/(?<=[.;:])\s+(?=[A-Z0-9`*])/);
 
-// Contract: after watch-pr.mjs exits 64 (gh missing or not logged in) nothing in the rest of the ending runs `gh pr edit`: every later sentence that names it either says it does not run or names the watch exits it follows, and 64 is not one of them.
-// Breaks when: a sentence is added after the 64 route that runs the edit anyway without the word the contract test looks for ("Then run `gh pr edit <number> --body-file ...` so the PR carries that row"), so the ending calls a gh that cannot run.
+// Contract: after a watch-pr.mjs exit that leaves the checks not watched (69, 77, or 64 once the corrected call fails again) nothing in the rest of the ending runs `gh pr edit`: every later sentence that names it either says it does not run or names the watch exits it follows, and none of 64, 69 or 77 is one of them.
+// Breaks when: a sentence is added after those routes that runs the edit anyway without the word the contract test looks for ("Then run `gh pr edit <number> --body-file ...` so the PR carries that row"), so the ending calls a gh that cannot run.
 // Not covered by: company-mode-contracts counts only the sentences that name `gh pr edit` together with the word "replace", so an edit worded with "run" or "update" passes it.
-test('after watch-pr.mjs exits 64, no later sentence of the ending runs gh pr edit', () => {
+test('after a watch-pr.mjs exit that leaves the checks not watched (69, 77 or a second 64), no later sentence of the ending runs gh pr edit', () => {
   const all = sectionSentences();
-  const at = all.findIndex((s) => s.startsWith('Exit 64:'));
-  assert.ok(at !== -1, 'step 6 routes exit 64');
+  const NOT_WATCHED = ['64', '69', '77'];
+  for (const code of NOT_WATCHED) assert.ok(all.some((s) => s.startsWith(`Exit ${code}:`)), `step 6 routes exit ${code}`);
+  const at = all.findIndex((s) => /^Exit (64|69|77):/.test(s));
   const named = all.slice(at).filter((s) => /`gh pr edit\b/.test(s));
-  assert.ok(named.length >= 2, 'the 64 route and the copy of the watch result both name gh pr edit');
+  assert.ok(named.length >= 2, 'the not-watched route and the copy of the watch result both name gh pr edit');
   for (const s of named) {
     if (/`gh pr edit[^`]*` (cannot|does not|will not|is not to) run\b/.test(s)) continue;
     const gate = /\bexits? ((?:\d+|,|\s|or|and|to)+)/i.exec(s);
     const exits = gate ? gate[1].match(/\d+/g) ?? [] : [];
     assert.ok(exits.length > 0, `a sentence runs gh pr edit without naming the watch exits it follows: "${s}"`);
-    assert.ok(!exits.includes('64'), `a sentence runs gh pr edit after exit 64: "${s}"`);
+    for (const code of NOT_WATCHED) assert.ok(!exits.includes(code), `a sentence runs gh pr edit after exit ${code}: "${s}"`);
   }
 });
 

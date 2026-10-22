@@ -118,11 +118,11 @@ test('company mode: the shallow clone the section writes is shallow, and a plain
 
 test('company mode: draft or ready by the repository\'s convention, a declared draft default when there is none', () => {
   const text = section();
-  hasSentence(text, "Draft or ready, by the repository's convention: its pull request template, its CONTRIBUTING file, or the human's answer recorded as a `Decision:` line.", 'the three sources of the convention');
+  hasSentence(text, "Draft or ready, by the repository's convention: its pull request template, its CONTRIBUTING file, or the user's answer recorded as a `Decision:` line.", 'the three sources of the convention');
   hasSentence(text, 'With no convention found, the PR opens as a draft, the declared default because a draft cannot be merged by accident, recorded as a `Decision:` line, and the ending waits for no one.', 'the draft default, recorded, waiting for no one');
   assert.match(text, /`gh pr create [^`]*`, adding `--draft` when the convention says draft/, 'gh pr create, --draft by convention');
-  // No sentence about a missing convention or an absent human opens the PR ready.
-  const absent = sentences().filter((s) => /\bno convention\b|\bhuman\b[^.]*\b(away|absent|out)\b/i.test(s));
+  // No sentence about a missing convention or an absent user opens the PR ready.
+  const absent = sentences().filter((s) => /\bno convention\b|\buser\b[^.]*\b(away|absent|out)\b/i.test(s));
   assert.ok(absent.length >= 1);
   for (const s of absent) assert.doesNotMatch(s, /\bready\b/i, `a missing convention never opens the PR ready: "${s}"`);
 });
@@ -131,7 +131,7 @@ test('company mode: watch-pr.mjs waits for the checks a CI runs on the PR, its r
   const text = section();
   hasSentence(text, 'With CI that runs on the PR, run `watch-pr.mjs` with `--repo <owner/repo> --pr <number>` in the background, its output written to `.vibeflow/reviews/<feature>-pr-checks.txt`.', 'watch-pr with its arguments and its output in a file');
   hasSentence(text, 'A repository with no CI, or whose CI does not run on this PR (only on pushes to the default branch, or only once a draft is marked ready), skips `watch-pr.mjs`, because on a PR with no check it waits until its ceiling; the PR body says which.', 'the skip, its reason, and the PR says which');
-  hasSentence(text, 'a failure the change did not cause (the same check failing on the default branch, a cancelled run) goes to the human as a note in the final report and opens no round.', 'a failure the change did not cause is a note, not a round');
+  hasSentence(text, 'a failure the change did not cause (the same check failing on the default branch, a cancelled run) goes to the user as a note in the final report and opens no round.', 'a failure the change did not cause is a note, not a round');
   assert.match(text, /final report[^.]*the checks' result from `watch-pr\.mjs`/, 'the checks\' result in the final report');
 });
 
@@ -185,12 +185,19 @@ test('company mode: with no origin remote, the ending stops before the push and 
   assert.ok(text.indexOf(NO_GH_ROUTE[1]) < text.indexOf(BY_HAND_TAIL), 'the tail follows both routes');
 });
 
-test('company mode: watch-pr.mjs exit 64 (a bad argument, or gh missing, not executable or not logged in) says the checks are not watched and how to follow them', () => {
-  // The route names every cause watch-pr.mjs gives for 64, so the body's row and the final report hold for each.
-  const usage = /· 64 ([^`\n]+)/.exec(read(`${KIT}/scripts/watch-pr.mjs`));
-  assert.equal(usage?.[1], 'bad arguments, or gh missing, not executable or not logged in', 'the causes of 64 in watch-pr.mjs, the ones the route below names');
-  hasSentence(step(6), "Exit 64: the watch could not start, from a bad argument or a gh that is missing, cannot be executed or is not logged in (its error line says which), so nothing is watching the checks and `gh pr edit` does not run: the ledger gets the line `Ending: checks not watched — watch-pr.mjs exit 64 — <its error line>`, the body file's PR checks row reads `not watched: watch-pr.mjs exit 64 (<its error line>)`, the PR keeps the body step 4 wrote, and the final report says the checks were not watched, with that error line, and gives the user `gh pr checks <number> --watch` to follow them.", 'the route of exit 64');
-  assert.doesNotMatch(step(6), /Exit 64: gh is missing or not logged in/, 'exit 64 is not read as gh alone');
+test('company mode: watch-pr.mjs exit 64 goes back to the watch once, and 69, 77 or a second 64 say the checks are not watched and how to follow them', () => {
+  // The route reads the exit code, never the error text: 64 is the orchestrator's own bad argument, 69 and 77 a gh it cannot use.
+  const usage = /exit 0 green · ([^`\n]+)/.exec(read(`${KIT}/scripts/watch-pr.mjs`));
+  assert.equal(usage?.[1], '1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments · 69 gh missing or not executable · 77 gh not logged in', 'the exits of watch-pr.mjs, the ones the route below names');
+  hasSentence(step(6), 'Exit 64: watch-pr.mjs refused the call itself (a bad argument, the orchestrator\'s own mistake, or a Node.js older than 18), so correct the call from its error line and start the watch again, once; a second exit 64 is not watched, as below.', 'exit 64 goes back to the watch once');
+  hasSentence(step(6), 'Exit 69: gh is missing or cannot be executed.', 'the route of exit 69');
+  hasSentence(step(6), 'Exit 77: gh is not logged in.', 'the route of exit 77');
+  hasSentence(step(6), "On exit 69, exit 77 or a second exit 64 the watch could not start, so nothing is watching the checks and `gh pr edit` does not run: the ledger gets the line `Ending: checks not watched — watch-pr.mjs exit <code> — <its error line>`, the body file's PR checks row reads `not watched: watch-pr.mjs exit <code> (<its error line>)`, the PR keeps the body step 4 wrote, and the final report says the checks were not watched, with that error line, and gives the user `gh pr checks <number> --watch` to follow them.", 'the route of the checks not watched');
+  hasSentence(step(6), 'The route reads the exit code, never the wording of the error line.', 'the route is by code');
+  // The kit-wide rule for 64 at the top of orchestrator.md says what step 6 does.
+  hasSentence(flat(read(`${KIT}/orchestrator.md`)), 'an exit of 64 is an error in the call, never a verdict: fix the call and run it again, once, and a second 64 goes to the user with its error line.', 'the rule for 64 that every script follows');
+  assert.doesNotMatch(flat(read(`${KIT}/orchestrator.md`)), /an exit of 64 is an error to fix/, 'the old rule left no copy behind');
+  assert.doesNotMatch(step(6), /Exit 64: gh is missing or not logged in/, 'exit 64 is not read as gh');
   // Only a watch that read the PR rewrites the body with gh.
   const edits = sentences().filter((s) => /`gh pr edit`/.test(s) && /\breplace\b/.test(s));
   assert.equal(edits.length, 1, 'one sentence replaces the body with gh pr edit');
@@ -307,7 +314,7 @@ test('company mode: every row of the body\'s Commands has a file written before 
   assert.match(from[1], /PR checks: [^;]*added with `gh pr edit` after the watch ends with exit 0, 1, 2 or 3/, 'PR checks added after a watch that read the PR');
   // The two not-watched values come from the ledger lines the ending writes, and the by-hand one holds with or without an origin remote.
   assert.match(from[1], /`not watched: opened by hand`: the ledger's `Ending: by hand` line, written with or without an `origin` remote/, 'the by-hand value from the ledger, both routes');
-  assert.match(from[1], /`not watched: watch-pr\.mjs exit 64`: the ledger's `Ending: checks not watched` line/, 'the exit-64 value from the ledger');
+  assert.match(from[1], /`not watched: watch-pr\.mjs exit` and the code: the ledger's `Ending: checks not watched` line, with the code and the error line it carries/, 'the not-watched value from the ledger, with the code that was not watched');
 });
 
 test('pr-body.md: every section the reviewer reads before the diff', () => {
@@ -327,7 +334,7 @@ test('pr-body.md: every section the reviewer reads before the diff', () => {
   assert.match(get('Commands'), /not possible/, 'the CI-environment row can declare the impossibility');
   assert.match(get('Commands'), /no CI/, 'the PR can say the repository has no CI');
   assert.match(get('Commands'), /the CI does not run on this PR/, 'the PR can say the CI does not run on it');
-  assert.match(get('Commands'), /not watched: watch-pr\.mjs exit 64 \(<its error line>\)/, 'the PR can say the watch could not start, and why');
+  assert.match(get('Commands'), /not watched: watch-pr\.mjs exit <code> \(<its error line>\)/, 'the PR can say the watch could not start, with its code and why');
   assert.match(get('Commands'), /not watched: opened by hand/, 'the PR can say it was opened by hand');
   assert.ok(get('Decisions').includes('Decision: <what> — why: <reason> — cost if wrong: <cost>'), 'the Decision lines');
   assert.match(get('Follow-ups'), /follow-up/i, 'what became follow-up work');

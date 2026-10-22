@@ -22,5 +22,5 @@ Five lines, in the user's language:
 1. state: DONE, DONE WITH CAVEATS, NEEDS CONTEXT or BLOCKED
 2. files changed
 3. the test score seen run, or that tests were not run and why
-4. caveats, and any decision the owner must take
+4. caveats, and any decision the user must take
 5. the progress file's path

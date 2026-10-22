@@ -144,7 +144,7 @@ test('orchestrator.md: the opening', () => {
   const text = flatOrchestrator();
   assert.match(text, /`git status`/, 'reads git status');
   assert.match(text, /`git stash list`/, 'reads the stash list');
-  assert.match(text, /every dirty file[^.]*owner[^.]*ledger/i, 'every dirty file gets an owner in the ledger');
+  assert.match(text, /every dirty file[^.]*origin[^.]*ledger/i, 'every dirty file gets an origin in the ledger');
   assert.ok(text.includes('`.vibeflow/loop/<feature>.md`'), 'the ledger path');
   assert.match(text, /never the default branch/i, 'never the default branch');
   assert.match(text, /on the default branch[^.]*stop and ask for a branch name/i, 'the default branch stops and asks');
@@ -199,7 +199,7 @@ test('orchestrator.md: every round is committed once it passes, by explicit path
   assert.match(commits, /A hook that refuses the commit stops the part: report it, never commit with `--no-verify`/, 'a refused hook stops the part');
   assert.doesNotMatch(text, /(retry|retried|again) with `--no-verify`/i, 'no retry that bypasses the hook');
   // Without the OK nothing is committed, said once, here.
-  assert.match(commits, /Without the OK to commit, nothing is committed: the loop runs one part and stops at its first verdict, leaving the work uncommitted for the human/, 'without the OK, one part and stop at the first verdict');
+  assert.match(commits, /Without the OK to commit, nothing is committed: the loop runs one part and stops at its first verdict, leaving the work uncommitted for the user/, 'without the OK, one part and stop at the first verdict');
   assert.equal(count(text, 'Without the OK'), 1, 'the no-OK rule is said once');
   assert.doesNotMatch(text, /commits the rounds anyway|commit[^.]*without the OK/i, 'no path that commits without the OK');
   // The audit step does not end a part without its commit.
@@ -210,7 +210,7 @@ test('orchestrator.md: a red outside check goes back to a fresh executor session
   const check = orchestratorSection('Outside check');
   assert.match(check, /After every executor or fix round, and before its audit or re-audit/, 'the outside check runs after every executor and fix round');
   assert.match(check, /A red suite or type check sends the round back to a fresh executor session with the failure/, 'red goes back to the executor');
-  assert.match(check, /another `executor` row of round 0[^.]*at most once; a second red check stops the part and asks the human/, 'once, then the human');
+  assert.match(check, /another `executor` row of round 0[^.]*at most once; a second red check stops the part and asks the user/, 'once, then the user');
   assert.match(check, /not a fix round and calls no `--reaudit`: the audit always reads a round that passed the outside check, and every fix round follows an audit or re-audit report/, 'not a fix round, no re-audit');
   assert.doesNotMatch(flatOrchestrator(), /becomes a fix round with the failure/, 'a red check never becomes a fix round');
 });
@@ -218,8 +218,8 @@ test('orchestrator.md: a red outside check goes back to a fresh executor session
 test('orchestrator.md: every executor answer has a route', () => {
   const watching = orchestratorSection('Watching a round');
   assert.match(watching, /`DONE` or `DONE WITH CAVEATS`: the outside check/, 'DONE goes to the outside check');
-  assert.match(watching, /`NEEDS CONTEXT`: answer from the repository's files, or ask the human when the files do not say, and reopen the round in a fresh session with the answer/, 'NEEDS CONTEXT is answered and the round reopened');
-  assert.match(watching, /`BLOCKED`: stop the part and take it to the human with the progress file/, 'BLOCKED stops the part');
+  assert.match(watching, /`NEEDS CONTEXT`: answer from the repository's files, or ask the user when the files do not say, and reopen the round in a fresh session with the answer/, 'NEEDS CONTEXT is answered and the round reopened');
+  assert.match(watching, /`BLOCKED`: stop the part and take it to the user with the progress file/, 'BLOCKED stops the part');
 });
 
 test('orchestrator.md: the fix loop, the round commit and the ceiling', () => {
@@ -230,15 +230,15 @@ test('orchestrator.md: the fix loop, the round commit and the ceiling', () => {
   assert.match(fix, /re-auditor briefing from the Re-auditor template into `[^`]+`; it passes `check-briefing\.mjs`[^.]*before the dispatch/, 'the re-auditor briefing is checked before dispatch');
   assert.match(text, /`git commit -- <paths>`/, 'commit by explicit path');
   assert.match(text, /`--no-verify`/, 'never bypasses a hook');
-  assert.match(text, /`spec`[^.]*human[^.]*spec amendment/i, 'spec-cause findings go to the human or a recorded amendment');
+  assert.match(text, /`spec`[^.]*user[^.]*spec amendment/i, 'spec-cause findings go to the user or a recorded amendment');
   assert.match(text, /`low`[^.]*follow-up/i, 'low becomes a follow-up');
   assert.ok(text.includes('`audit --reaudit <round commit>`'), 're-audit by round commit');
   assert.match(text, /re-audit[^.]*fresh session/i, 're-audit in a fresh session');
   assert.match(text, /two fix rounds per part/i, 'two fix rounds');
   assert.match(text, /third[^.]*OK[^.]*one line[^.]*declared default/i, 'a third round asks in one line with a default');
   // The predicate of each stop, not only its words.
-  assert.match(text, /A third needs the human's OK, asked in one line/, 'a third round waits for the OK');
-  assert.doesNotMatch(text, /without (waiting for )?the human's OK/i, 'no third round without the OK');
+  assert.match(text, /A third needs the user's OK, asked in one line/, 'a third round waits for the OK');
+  assert.doesNotMatch(text, /without (waiting for )?the user's OK/i, 'no third round without the OK');
   assert.match(text, /same finding returning for the same cause stops the part before the ceiling/i, 'same cause stops before the ceiling');
   assert.doesNotMatch(text, /only after the ceiling/i, 'same cause does not wait for the ceiling');
   assert.match(text, /above 400k tokens of context[^.]*stops the part before the next fix/, 'a round above 400k stops the part before the next fix');
@@ -260,7 +260,7 @@ test('orchestrator.md: the orchestrator discipline and the company-mode section'
   assert.match(text, /scope (freezes|is frozen) at dispatch/i, 'scope frozen');
   assert.match(text, /new part with its own audit/i, 'an addition becomes a new part or a follow-up');
   assert.ok(text.includes('`Decision: <what> — why: <reason> — cost if wrong: <cost>`'), 'the Decision line');
-  assert.match(text, /declared default[^.]*`Decision:`[^.]*away/i, 'a declared default is followed as a Decision when the human is away');
+  assert.match(text, /declared default[^.]*`Decision:`[^.]*away/i, 'a declared default is followed as a Decision when the user is away');
   assert.match(text, /leaves the scope or cannot be undone/i, 'only what leaves the scope or cannot be undone waits');
   assert.match(text, /above 50%[^.]*handoff[^.]*ledger/i, 'the 50% handoff to the ledger');
   assert.match(text, /resumes from the ledger and git/i, 'the next session resumes from the ledger and git');
