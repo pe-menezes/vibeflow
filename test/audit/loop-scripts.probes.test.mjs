@@ -378,7 +378,7 @@ test('review-package: a value that only begins with true, null, none or undefine
 // Contract: a quoted literal passes as empty or boolean only when the quotes hold that word and nothing else.
 // Breaks when: the exception reads the word and then accepts any character outside the bare-value set, so "!", "." or "&" after it ends the check.
 // Not covered by: no implementer sample, secret or not, is a quoted value that begins with one of those words.
-test('review-package: a quoted password that begins with true, none or null and goes on with punctuation is withheld', { todo: 'open gap: a quoted value that begins with true, null, none, nil, false or undefined and goes on with a character such as "!", "." or "&" is read as that word, so it reaches the package' }, () => {
+test('review-package: a quoted password that begins with true, none or null and goes on with punctuation is withheld', () => {
   withSandbox((box) => {
     const samples = {
       'conf/a.yml': `${'True'}${'!Love2024'}`,

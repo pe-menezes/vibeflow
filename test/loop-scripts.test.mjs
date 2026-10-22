@@ -479,6 +479,19 @@ const NOT_A_SECRET = [
   "PRIVATE_KEY_FILE='/etc/app/private.pem'",
 ];
 
+// A quoted value that begins with one of those words and goes on, with "!", ".", "&", "*" or "%"
+// after the word, is a literal like any other: the word alone is no secret, the quoted value is.
+// Each value is assembled at run time and is not a real credential.
+const quotedLiteral = (path, assign, quote, value) => ({ path, value, line: `${assign}${quote}${value}${quote}` });
+const QUOTED_FROM_A_WORD = [
+  quotedLiteral('config/true.yml', `${'pass'}${'word'}: `, '"', `${'True'}${'!Love2024'}`),
+  quotedLiteral('config/none.yml', `${'pass'}${'word'}: `, '"', `${'None'}${'.Of.Your.Business'}`),
+  quotedLiteral('config/null.env', `${'SECRET'}${'_KEY'}=`, '"', `${'null'}${'&void#Secret9'}`),
+  quotedLiteral('config/false.env', `${'DB_PASS'}${'WORD'}=`, '"', `${'false'}${'*Hope77'}`),
+  quotedLiteral('config/nil.rb', `${'API'}${'_TOKEN'} = `, "'", `${'nil'}${'%4fXk9QzR2'}`),
+  quotedLiteral('config/undefined.json', `"${'api'}${'_key'}": `, '"', `${'undefined'}${'.k9X2mQ7rT'}`),
+];
+
 const WITHHELD_HEADER = /^WITHHELD: (\d+) file diff\(s\) left out because a line looks like a secret or credential\. Read them with git before judging:$/m;
 
 test('review package leaves out a new file and a tracked file diff whose line looks like a secret, and keeps a clean new file whole', () => {
@@ -584,6 +597,34 @@ test('a name that looks like a secret set to undefined, null, true, false, none,
     for (const line of NOT_A_SECRET) assert.ok(packaged.includes(`+${line}\n`), `in the package: ${line}`);
 
     for (const line of NOT_A_SECRET) {
+      const briefed = runScript('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${line}\n`)], box.env());
+      assert.doesNotMatch(briefed.stdout, /secret or credential/, `check-briefing: ${line}`);
+    }
+  });
+});
+
+test('a quoted value that begins with undefined, null, true, false, none or nil and goes on is withheld and stops check-briefing, while the word alone is not', () => {
+  withSandbox((box) => {
+    for (const { path, line } of QUOTED_FROM_A_WORD) box.write(path, `${line}\n`);
+    const plain = ['refreshToken: undefined,', 'enabled: true'];
+    box.write('src/session.ts', `${plain.join('\n')}\n`);
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const packaged = readFileSync(out, 'utf8');
+    assert.equal(packaged.match(WITHHELD_HEADER)?.[1], String(QUOTED_FROM_A_WORD.length), packaged.slice(0, 800));
+    for (const { path, value } of QUOTED_FROM_A_WORD) {
+      assert.ok(!packaged.includes(value), `${path}: the value stays out of the package`);
+      assert.match(packaged, new RegExp(`^- ${path.replace(/\./g, '\\.')} \\(\\d+ bytes, line 1\\)$`, 'm'), path);
+    }
+    for (const line of plain) assert.ok(packaged.includes(`+${line}\n`), `in the package: ${line}`);
+
+    for (const { path, line } of QUOTED_FROM_A_WORD) {
+      const briefed = runScript('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${line}\n`)], box.env());
+      assert.equal(briefed.status, 2, `check-briefing, ${path}: ${briefed.out}`);
+      assert.match(briefed.stdout, /^\[stop\] .*secret/m, path);
+    }
+    for (const line of plain) {
       const briefed = runScript('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${line}\n`)], box.env());
       assert.doesNotMatch(briefed.stdout, /secret or credential/, `check-briefing: ${line}`);
     }
@@ -746,6 +787,32 @@ test('a million-character line and a 100 KB hex file pass check-briefing and rev
     assert.doesNotMatch(text, /WITHHELD/);
     assert.ok(text.includes(`+  "bytecode": "0x${hex}"\n`), 'the hex file is in the package');
     assert.match(text, /^- build\/long\.txt \(\d+ bytes\)$/m, 'the long file is over the size cap, listed as left out');
+  });
+});
+
+// The database URL pattern has a ceiling on each side as well, so a line that repeats a URL up to
+// its password, with no "@" anywhere to end one, costs time in proportion to its length. Before
+// that ceiling (measured on Node 22): one detector test took 39.9 s on this million-character
+// line; check-briefing took 39.5 s on this briefing and review-package 40.6 s on this file, both
+// ending with the result asserted here. Each run here gets 10 s; a run killed at the limit fails.
+test('a million-character line that repeats a database URL up to its password passes check-briefing and review-package within the time limit', () => {
+  const line = `${'post'}${'gres'}://a:`.repeat(Math.ceil(1_000_000 / 13)).slice(0, 1_000_000);
+  const run = (name, args, env) => spawnSync(process.execPath, [join(SCRIPTS_DIR, name), ...args], {
+    env, encoding: 'utf8', timeout: 10_000, killSignal: 'SIGKILL',
+  });
+  withSandbox((box) => {
+    const briefed = run('check-briefing.mjs', [briefing(box.root, 'feature-rules-executor.md', `${EXECUTOR_OK}\n${line}\n`)], box.env());
+    assert.equal(briefed.signal, null, 'check-briefing ends within the limit');
+    assert.equal(briefed.status, 0, briefed.stdout);
+
+    box.write('build/urls.txt', `${line}\n`);
+    const out = join(box.root, 'package.md');
+    const packaged = run('review-package.mjs', [box.repo, box.base, out, '--max-bytes', '2000000'], box.env());
+    assert.equal(packaged.signal, null, 'review-package ends within the limit');
+    assert.equal(packaged.status, 0, packaged.stderr);
+    const text = readFileSync(out, 'utf8');
+    assert.doesNotMatch(text, /WITHHELD/);
+    assert.ok(text.includes(`+${line}\n`), 'the file is in the package');
   });
 });
 
