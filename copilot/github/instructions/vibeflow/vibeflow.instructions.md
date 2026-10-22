@@ -73,11 +73,11 @@ Technical terms in English are acceptable (endpoint, middleware, deploy, etc.).
 
 See `.github/prompts/` for the full set of Vibeflow prompts:
 - `vibeflow-discover` — Turn a vague idea into a PRD
-- `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
+- `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`, `--measure`)
 - `vibeflow-gen-spec` — Generate grounded spec with DoD
 - `vibeflow-prompt-pack` — Self-contained prompt for any coding agent
-- `vibeflow-implement` — Implement a feature from its spec with guardrails
-- `vibeflow-audit` — Verify DoD + pattern + test compliance
+- `vibeflow-implement` — Implement a feature from its spec with guardrails (flags: `--loop`, `--no-loop`)
+- `vibeflow-audit` — Verify DoD + pattern + test compliance (flags: `--package`, `--base`, `--reaudit`, `--probes`)
 - `vibeflow-quick` — Fast-track for small tasks
 - `vibeflow-hotfix` — Fix an observed defect with a trace doc and a regression test
 - `vibeflow-teach` — Update `.vibeflow/` with feedback

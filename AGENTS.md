@@ -72,8 +72,8 @@ For a shared plugin release, keep these values aligned:
 Change `cli/package.json` only when the CLI changes.
 
 When a release changes the CLI, publish the CLI to npm when the release
-reaches `main`: the published CLI downloads the prompts
-from `main`, and the Cursor and Copilot prompts name the CLI version they need.
+reaches `main`: the published CLI downloads the prompts from `main`, and the
+Cursor and Copilot prompts name the CLI version they need.
 
 ## Platform notes
 

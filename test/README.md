@@ -136,10 +136,11 @@ this repository, not a contradiction of the kit's principle 7, which keeps
 state probes (a probe that pins a sentence of a document to watch the
 repository's state) out of a project's test folder: these tests pin the
 editions' wording as their contract, and the probes in `test/audit/` that read
-a document do so to check it against what a script does. When the behavior changes on purpose, rewrite the sentence and its
-test together, in the same commit and with the same strength (the new
-sentence pinned as whole as the old one, the old one asserted gone when it
-must not come back); never loosen a test just to let a reworded sentence pass.
+a document do so to check it against what a script does. When the behavior
+changes on purpose, rewrite the sentence and its test together, in the same
+commit and with the same strength (the new sentence pinned as whole as the old
+one, the old one asserted gone when it must not come back); never loosen a test
+just to let a reworded sentence pass.
 
 It requires the same ten workflows in the shared Claude/Codex plugin, Cursor
 skills, and Copilot prompt files; validates host-specific names and frontmatter;

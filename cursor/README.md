@@ -50,7 +50,7 @@ Cursor detects which skill is relevant from the conversation's context. For exam
 Type `/` in the Agent chat and search for the skill's name:
 
 **Core:**
-- `/vibeflow-analyze` — analyzes the codebase and generates `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
+- `/vibeflow-analyze` — analyzes the codebase and generates `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`, `--measure`)
 - `/vibeflow-gen-spec` — generates a spec with DoD, scope, anti-scope and applicable patterns
 - `/vibeflow-implement` — implements the spec with guardrails (budget, DoD, patterns); `--loop` turns on the execution loop (below), `--no-loop` turns it off for one run
 - `/vibeflow-prompt-pack` — generates a self-contained prompt pack with embedded patterns
