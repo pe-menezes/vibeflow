@@ -12,7 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { LOOP_DIR, runScript, withSandbox } from '../loop-helpers.mjs';
@@ -494,6 +494,47 @@ test('after a watch-pr.mjs exit that leaves the checks not watched (69, 77 or a 
     const exits = gate ? gate[1].match(/\d+/g) ?? [] : [];
     assert.ok(exits.length > 0, `a sentence runs gh pr edit without naming the watch exits it follows: "${s}"`);
     for (const code of NOT_WATCHED) assert.ok(!exits.includes(code), `a sentence runs gh pr edit after exit ${code}: "${s}"`);
+  }
+});
+
+// Contract: the exit 64 that step 6 sends back to the watch once is the orchestrator's own call: the watch-pr.mjs command step 6 writes, with a placeholder left unfilled or the PR written as "#7", exits 64 before gh is called at all, and the same command filled in reads the PR through gh; so correcting the call is the repair the route promises.
+// Breaks when: watch-pr.mjs starts reading gh before it checks its arguments, or a gh failure exits 64 again, so the route "corrects" a call that was right and a second 64 hides a gh problem behind a bad argument.
+// Not covered by: the watch-pr tests feed bad arguments from a hand-made list, and the other company-mode probes run step 6's command only filled in; none gives the script the route's own command as a hurried orchestrator would write it.
+test('the watch-pr.mjs command step 6 writes, called with a placeholder unfilled or a malformed PR number, exits 64 without calling gh', () => {
+  const args = /run `watch-pr\.mjs` with `([^`]+)`/.exec(step(6));
+  assert.ok(args, 'step 6 writes watch-pr.mjs with its arguments');
+  const limits = ['--interval-sec', '0.05', '--timeout-min', '0.02'];
+  withSandbox((box) => {
+    const unfilled = runScript('watch-pr.mjs', [...args[1].split(' '), ...limits], box.env());
+    assert.equal(unfilled.status, 64, unfilled.out);
+    const filled = fill(args[1]);
+    const hashPr = filled.map((token, i) => (filled[i - 1] === '--pr' ? `#${token}` : token));
+    const malformed = runScript('watch-pr.mjs', [...hashPr, ...limits], box.env());
+    assert.equal(malformed.status, 64, malformed.out);
+    assert.equal(existsSync(box.ghLog), false, 'a refused call never reaches gh');
+    box.setGh(PR('OPEN', [{ name: 'ci', status: 'COMPLETED', conclusion: 'SUCCESS' }]));
+    const right = runScript('watch-pr.mjs', [...filled, ...limits], box.env());
+    assert.equal(right.status, 0, right.out);
+    assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 1, 'the corrected call reads the PR through gh');
+  });
+});
+
+// Contract: exits 69 and 77 of watch-pr.mjs, and a second exit 64, leave the checks not watched; no sentence anywhere in orchestrator.md that names one of them sends the orchestrator back to the watch, whatever the verb, and the one bounded retry of a first 64 ("again, once") is the only re-run the file allows.
+// Breaks when: a sentence is added that resumes the watch after 77 ("When watch-pr.mjs exits 77, ask the user to run `gh auth login` and resume the watch") or corrects a second 64 like the first ("A second exit 64 of watch-pr.mjs is corrected the same way, and the watch is started a further time"), so the ending watches a PR it was told to leave or retries its own bad call without end.
+// Not covered by: the probe on exits 69 and 77 looks only for a fixed list of retry words (again, rerun, restart, retry, until, wait), which "resume", "correct" and "started a further time" escape; company-mode-contracts pins the sentences of step 6 and says nothing of a sentence added elsewhere.
+test('no sentence of orchestrator.md sends watch-pr.mjs exit 69, exit 77 or a second exit 64 back to the watch, whatever the verb', () => {
+  // The words that send someone back to the watch, once the phrases that say it is over are masked.
+  const BACK = /\bwatch(es|ing)?\b|\bresum|\bcorrect|\bagain\b|\bre-?(run|start|try)|\bretr(y|ies)\b|\buntil\b|\bwait|\bfurther\b|\banother\b|\brepeat|\bstart(s|ed)?\b/i;
+  // The bounded retry of a first 64 is masked only in a sentence that names neither 69 nor 77.
+  const mask = (s) => (/\b(69|77)\b/.test(s) ? s : s.replace(/[^,;:]*\bagain\b,? once\b/g, ' '))
+    .replace(/`gh pr checks [^`]*`/g, ' ')
+    .replace(/`?watch-pr\.mjs`?/g, ' ')
+    .replace(/\bthe watch could not start\b|\bnothing is watching\b|\b(were |is )?not watched\b|\bgoes to the user\b/g, ' ');
+  const targets = fileSentences().filter((s) => /\b(69|77)\b|\bsecond (exit )?64\b/.test(s));
+  assert.ok(targets.some((s) => s.startsWith('Exit 69:')) && targets.some((s) => s.startsWith('Exit 77:')), 'step 6 routes exits 69 and 77');
+  assert.ok(targets.some((s) => /\bsecond exit 64\b/.test(s)), 'step 6 routes a second exit 64');
+  for (const s of targets) {
+    assert.doesNotMatch(mask(s), BACK, `a sentence sends exit 69, exit 77 or a second exit 64 back to the watch: "${s}"`);
   }
 });
 
