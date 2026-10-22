@@ -83,8 +83,9 @@ Nothing changed and the block is not due → report "No changes detected since
 <date>. .vibeflow/ is up to date." and stop. The block is due but nothing else
 changed → regenerate only the block and move `Analyzed:` to today's date
 (Phase 4), report "Tests and Pitfalls refreshed; no structural changes since
-<date>." and stop. With `--measure`, the report also says that both commands
-were measured, with their times.
+<date>." and stop. With `--measure`, the report also says which commands were
+measured, with their times, or that the project has no test runner and nothing
+was measured.
 No git → warn "Git not available. Falling back to full analysis." and run
 phases 1–5. Otherwise report "Incremental mode: X affected modules: [list]" and
 continue.

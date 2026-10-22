@@ -247,8 +247,10 @@ test('analyze runs the test commands only with --measure', () => {
       `${label}: --measure is one of the reasons the block is due`);
     assert.match(incremental, /Nothing changed and the block is not due → report "No changes detected since <date>\. \.vibeflow\/ is up to date\." and stop\./,
       `${label}: without the flag the no-change path stays as it was`);
-    assert.match(incremental, /With `--measure`, the report also says that both commands were measured, with their times\./,
-      `${label}: the block-only report says it measured`);
+    assert.match(incremental, /With `--measure`, the report also says which commands were measured, with their times, or that the project has no test runner and nothing was measured\./,
+      `${label}: the block-only report says what it measured, or that there was nothing to measure`);
+    assert.doesNotMatch(content, /both commands were measured/i,
+      `${label}: the report never claims two measurements it may not have made`);
   });
   assert.equal(new Set(bullets).size, 1, 'the Tests bullet is the same text in the three editions');
   assert.equal(new Set(trees).size, 1, 'the --measure decision-tree line is the same text in the three editions');

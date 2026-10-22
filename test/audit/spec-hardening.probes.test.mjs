@@ -295,16 +295,16 @@ test('analyze: no instruction runs the test commands without --measure', () => {
 
 // Contract: Phase 0 says what `analyze --measure` does on a project where nothing changed and the Tests and Pitfalls block is not due (measure, or tell the user nothing was measured), in the three editions.
 // Breaks when: `--measure` stays tied to "when the block is due", so on an up-to-date project the run stops at "No changes detected" and the commands the user asked to measure are silently not run.
-// Not covered by: the --measure test in test/spec-contracts.test.mjs pins "changes nothing else about which phases run or when the block is due" and never reads the no-change stop path.
+// Not covered by: the --measure test in test/spec-contracts.test.mjs pins the exact sentences, so it fails on any rewording and has to be rewritten with it; this case keeps asking, in any wording, that Phase 0 answer the no-change path for --measure.
 test('analyze --measure on an up-to-date project: Phase 0 says whether the commands are measured', () => {
-    for (const [edition, path] of Object.entries(ANALYZE)) {
-      const raw = read(path);
-      const from = raw.indexOf('## Phase 0');
-      const to = raw.indexOf('## Phase 1', from);
-      assert.ok(from !== -1 && to > from, `${edition}: a Phase 0 section`);
-      const segments = raw.slice(from, to).split(/\n\s*\n|\n(?=- )/).map(flat);
-      const answered = segments.some((s) => s.includes('`--measure`')
-        && /No changes detected|is not due|nothing (else )?changed|up to date/i.test(s));
-      assert.ok(answered, `${edition}: the no-change path says what --measure does`);
-    }
-  });
+  for (const [edition, path] of Object.entries(ANALYZE)) {
+    const raw = read(path);
+    const from = raw.indexOf('## Phase 0');
+    const to = raw.indexOf('## Phase 1', from);
+    assert.ok(from !== -1 && to > from, `${edition}: a Phase 0 section`);
+    const segments = raw.slice(from, to).split(/\n\s*\n|\n(?=- )/).map(flat);
+    const answered = segments.some((s) => s.includes('`--measure`')
+      && /No changes detected|is not due|nothing (else )?changed|up to date/i.test(s));
+    assert.ok(answered, `${edition}: the no-change path says what --measure does`);
+  }
+});
