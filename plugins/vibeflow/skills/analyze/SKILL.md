@@ -63,8 +63,9 @@ Then read any flags in the user's current request (`--fresh`, `--scope <path>`, 
 - `--interactive` composes with every mode: it adds Phase 3.5 before saving and
   changes nothing else about which phases run.
 - `--measure` composes with every mode that writes the Tests and Pitfalls block:
-  it runs the two test commands once (Tests and Pitfalls, in Phase 4) and
-  changes nothing else about which phases run or when the block is due.
+  it makes the block due even when nothing else changed, so the commands are
+  measured on an up-to-date project too (the block-only path below), and it
+  runs the two test commands once (Tests and Pitfalls, in Phase 4).
 
 **Incremental mode.** Read `Analyzed: <date>` from `index.md`, then
 `git log --since="<date> 00:00" --name-only --pretty=format:""` to find what
@@ -76,12 +77,14 @@ Filter out tests, docs, and config that doesn't affect source structure
 modules — those are the affected structural units. The Tests and Pitfalls block
 is due when `index.md` lacks it (an index written before the block existed) or
 when a test file, the CI configuration or the test runner's configuration
-changed since <date>, even when those changes need no pattern reanalysis.
+changed since <date>, even when those changes need no pattern reanalysis, or
+when the user passed `--measure`.
 Nothing changed and the block is not due → report "No changes detected since
 <date>. .vibeflow/ is up to date." and stop. The block is due but nothing else
 changed → regenerate only the block and move `Analyzed:` to today's date
 (Phase 4), report "Tests and Pitfalls refreshed; no structural changes since
-<date>." and stop.
+<date>." and stop. With `--measure`, the report also says that both commands
+were measured, with their times.
 No git → warn "Git not available. Falling back to full analysis." and run
 phases 1–5. Otherwise report "Incremental mode: X affected modules: [list]" and
 continue.
@@ -388,7 +391,9 @@ stay factual.
   both commands without running them. Only with `--measure`, run each one once
   and record the measured time and the date. Without it, keep the measured time
   and date already recorded; a command never measured is marked `unmeasured`.
-  No test runner → say so in one line.
+  A recorded time holds only for the command it was measured with: when that
+  command changes (another runner or script), drop its old time and mark it
+  `unmeasured` until the next run with `--measure`. No test runner → say so in one line.
 - *Pitfalls* — mistakes that already cost this project time, each with its
   source: an entry in `decisions.md`, a line of the CI configuration that exists
   to catch it, or a reverted or fix commit (`git log -i --grep='^revert'

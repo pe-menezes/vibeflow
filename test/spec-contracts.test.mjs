@@ -206,6 +206,7 @@ test('analyze incremental: an upgrade or a tests-only change refreshes the Tests
 // edition.
 test('analyze runs the test commands only with --measure', () => {
   const bullets = [];
+  const trees = [];
   forEachEdition('analyze', (content, label, raw) => {
     const from = raw.indexOf('- *Tests* —');
     const to = raw.indexOf('- *Pitfalls* —', from);
@@ -229,10 +230,28 @@ test('analyze runs the test commands only with --measure', () => {
       `${label}: --measure listed with the other flags, with why it is opt-in`);
     assert.match(content, /flags in the [^(]*\(`--fresh`[^)]*`--measure`[^)]*\)/,
       `${label}: Phase 0 reads --measure with the other flags`);
-    assert.match(content, /`--measure` composes with every mode[^.]*changes nothing else about which phases run or when the block is due/i,
-      `${label}: --measure does not change which phases run or when the block is due`);
+    // A time holds only for the command it was measured with.
+    assert.match(tests, /A recorded time holds only for the command it was measured with: when that command changes \(another runner or script\), drop its old time and mark it `unmeasured` until the next run with `--measure`\./,
+      `${label}: a changed command loses its old time and is unmeasured`);
+
+    // --measure makes the block due, so an up-to-date project measures too;
+    // without the flag the no-change path is untouched.
+    const tree = flat(raw.slice(raw.indexOf('- `--measure` composes'), raw.indexOf('**Incremental mode.**')));
+    trees.push(tree);
+    assert.match(tree, /`--measure` composes with every mode that writes the Tests and Pitfalls block: it makes the block due even when nothing else changed, so the commands are measured on an up-to-date project too/,
+      `${label}: --measure makes the block due`);
+    assert.doesNotMatch(content, /changes nothing else about which phases run or when the block is due/i,
+      `${label}: the old rule that --measure leaves the block not due is gone`);
+    const incremental = flat(paragraph(raw, '**Incremental mode.**'));
+    assert.match(incremental, /The Tests and Pitfalls block is due when `index\.md` lacks it[^→]*, or when the user passed `--measure`\. Nothing changed/,
+      `${label}: --measure is one of the reasons the block is due`);
+    assert.match(incremental, /Nothing changed and the block is not due → report "No changes detected since <date>\. \.vibeflow\/ is up to date\." and stop\./,
+      `${label}: without the flag the no-change path stays as it was`);
+    assert.match(incremental, /With `--measure`, the report also says that both commands were measured, with their times\./,
+      `${label}: the block-only report says it measured`);
   });
   assert.equal(new Set(bullets).size, 1, 'the Tests bullet is the same text in the three editions');
+  assert.equal(new Set(trees).size, 1, 'the --measure decision-tree line is the same text in the three editions');
 });
 
 // A date boundary. `git log --since` with a bare date counts from the current
