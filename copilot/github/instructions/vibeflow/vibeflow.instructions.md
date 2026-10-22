@@ -77,7 +77,7 @@ See `.github/prompts/` for the full set of Vibeflow prompts:
 - `vibeflow-gen-spec` — Generate grounded spec with DoD
 - `vibeflow-prompt-pack` — Self-contained prompt for any coding agent
 - `vibeflow-implement` — Implement a feature from its spec with guardrails (flags: `--loop`, `--no-loop`)
-- `vibeflow-audit` — Verify DoD + pattern + test compliance (flags: `--package`, `--base`, `--reaudit`, `--probes`)
+- `vibeflow-audit` — Verify DoD + pattern + test compliance (flags: `--package`, `--base`, `--reaudit`, `--probes`, `--consolidate-hotfixes`)
 - `vibeflow-quick` — Fast-track for small tasks
 - `vibeflow-hotfix` — Fix an observed defect with a trace doc and a regression test
 - `vibeflow-teach` — Update `.vibeflow/` with feedback
