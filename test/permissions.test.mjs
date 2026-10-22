@@ -23,7 +23,7 @@ const EXPECTED = {
     implement: ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write'],
     'prompt-pack': ['Read', 'Grep', 'Glob'],
     quick: ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'],
-    stats: ['Read', 'Grep', 'Glob', 'Bash'],
+    stats: ['Read', 'Grep', 'Glob', 'Bash(node:*)'],
     teach: ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write'],
   },
   agents: {
@@ -158,6 +158,18 @@ test('the permission lock catches an agent that gains or loses a tool', () => {
       assert.match(problems[0], /loses Grep/);
     },
   );
+});
+
+test('the permission lock tells Bash scoped to one command from the whole of Bash', () => {
+  const scoped = { skills: { stats: ['Read', 'Bash(node:*)'] }, agents: {} };
+  withSample({ skills: { stats: 'allowed-tools: Read, Bash(node:*)' } }, (root) =>
+    assert.deepEqual(permissionProblems(root, scoped), []),
+  );
+  withSample({ skills: { stats: 'allowed-tools: Read, Bash' } }, (root) => {
+    const problems = permissionProblems(root, scoped);
+    assert.equal(problems.length, 1, problems.join('\n'));
+    assert.match(problems[0], /skill stats: allowed-tools gains Bash; loses Bash\(node:\*\)/);
+  });
 });
 
 test('the permission lock catches a skill or agent with no entry in its list', () => {

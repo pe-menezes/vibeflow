@@ -1,6 +1,6 @@
 ---
 name: vibeflow-implement
-description: "Implements a feature from its spec with guardrails: budget, DoD, anti-scope, and pattern compliance. Runs an 8-phase pipeline (find spec → extract guardrails → load patterns → plan → implement → test → refine → self-verify DoD). Use after gen-spec when ready to implement."
+description: "Implements a feature from its spec with guardrails: budget, DoD, anti-scope, and pattern compliance. Runs a 9-phase pipeline, phases 0 to 8 (find spec → extract guardrails → load patterns → plan → implement → test → refine → self-verify DoD → finish). Use after gen-spec when ready to implement."
 ---
 
 # Vibeflow: Implement

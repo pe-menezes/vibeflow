@@ -2,9 +2,9 @@
 name: implement
 description: >
   Implements a feature from its spec following all guardrails: budget, DoD,
-  anti-scope, and pattern compliance. Runs an 8-phase pipeline (find spec →
-  extract guardrails → load patterns → plan → implement → test → refine →
-  self-verify DoD).
+  anti-scope, and pattern compliance. Runs a 9-phase pipeline, phases 0 to 8
+  (find spec → extract guardrails → load patterns → plan → implement → test →
+  refine → self-verify DoD → finish).
   Use after gen-spec when you're ready to code. The agent
   has filesystem access and acts as Coding Agent.
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write

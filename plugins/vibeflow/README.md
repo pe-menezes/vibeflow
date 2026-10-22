@@ -144,8 +144,13 @@ Vibeflow stores its durable project context in one directory:
 ├── loop/          # implement --loop: ledgers and config.md
 ├── briefings/     # one briefing per round
 ├── progress/      # executor and fix rounds' progress files
-└── reviews/       # review packages and the PR body
+└── reviews/       # review packages and the PR body (working copies, not versioned)
 ```
+
+Commit `.vibeflow/` with the project, except `reviews/`: it holds working
+material, the review packages (copies of the diff and of the new files each
+audit reads, rewritten on every audit) and the PR body, so add
+`.vibeflow/reviews/` to your `.gitignore`.
 
 The knowledge is adaptive: it is grounded in code that actually exists in the
 project, and it compounds as specs, decisions, fixes, and audits are added.

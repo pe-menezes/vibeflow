@@ -127,6 +127,20 @@ implementer's tests did not catch it (`Not covered by:`). A probe that
 reproduces a known open gap is marked `todo` with a plain description of the
 gap, so it runs and prints without failing the suite.
 
+Some contract tests (`*-contracts.test.mjs`, and a few probes that check the
+editions agree with the scripts) pin whole sentences of a skill, a prompt or a
+kit file, word for word. They exist because in a product made of prompts the
+sentence is the behavior: a limit, an exit-code route or a stop condition
+reworded loosely changes what the agent does. This is a declared choice of
+this repository, not a contradiction of the kit's principle 7, which keeps
+state probes (a probe that pins a sentence of a document to watch the
+repository's state) out of a project's test folder: these tests pin the
+editions' wording as their contract, and the probes in `test/audit/` that read
+a document do so to check it against what a script does. When the behavior changes on purpose, rewrite the sentence and its
+test together, in the same commit and with the same strength (the new
+sentence pinned as whole as the old one, the old one asserted gone when it
+must not come back); never loosen a test just to let a reworded sentence pass.
+
 It requires the same ten workflows in the shared Claude/Codex plugin, Cursor
 skills, and Copilot prompt files; validates host-specific names and frontmatter;
 checks essential behavior anchors for each workflow; and verifies that the

@@ -28,6 +28,10 @@ prompt regardless of size.
 | `.vibeflow/prompt-packs/` | Prompt packs (self-contained, agent-agnostic) |
 | `.vibeflow/audits/` | Audit reports |
 | `.vibeflow/hotfixes/` | Hotfix trace docs (one file per bug, resumable) |
+| `.vibeflow/loop/` | Execution loop: one ledger per feature, and `config.md` |
+| `.vibeflow/briefings/` | One briefing per loop round |
+| `.vibeflow/progress/` | Progress files of the loop's executor and fix rounds |
+| `.vibeflow/reviews/` | Review packages and the PR body: working material, not versioned |
 | `.github/prompts/vibeflow-*.prompt.md` | Reusable prompt files (the "commands") |
 | `.github/agents/vibeflow-architect.agent.md` | Agent persona (architect) |
 
