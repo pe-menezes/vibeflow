@@ -574,6 +574,63 @@ test('left out: the lists the package writes when it leaves file diffs out are t
   }
 });
 
+// Contract: every file the package lists under TRUNCATED or WITHHELD comes back by the step 4a rule for its kind: a tracked one through the git command the edition names (an added line and a removed line alike), an untracked one from disk, and the package's `## New files` is what tells the two kinds apart.
+// Breaks when: `## New files` stops naming an untracked file whose diff the package left out, so the auditor takes it for tracked, runs the git command, gets nothing back and the gate scans less than the change; or a WITHHELD entry for a removed or added secret stops pointing at a diff the git command shows.
+// Not covered by: the implementer's probe leaves out one tracked file over the cap and one untracked file with a secret, never an untracked file over the cap, nor a tracked file whose secret line was added or removed.
+test('left out: each file under TRUNCATED or WITHHELD, tracked or untracked, comes back by the rule step 4a gives for its kind, and the list of new files in the package tells the kinds apart', () => {
+  // Assembled, with the scheme split, so no secret scanner reads this file as holding a credential.
+  const credential = ['post', 'gres', '://app:', 'not-a-real-', 'password@db.local/app'].join('');
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const step = section(text, 'a. **Read the diff from the review package**', 'b. **Match each changed line');
+    const gitCommand = /`(git diff <base> -- <path>)`/.exec(step)?.[1];
+    assert.ok(gitCommand, `${name}: step 4a names the git command for a tracked file`);
+    assert.match(step, /the file itself for an untracked one \(the package's `## New files` names those\)/, `${name}: and how to tell an untracked file`);
+    const command = commandOf(text, ...STEP1);
+    withSandbox((box) => {
+      box.write('db/migrate/003.sql', 'SELECT 1;\n');
+      box.write('config/old.env', `DATABASE_URL=${credential}\n`);
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'before the change');
+      const base = box.git('rev-parse', 'HEAD').trim();
+      box.write('db/migrate/003.sql', `${'-- generated\n'.repeat(400)}DROP TABLE accounts;\n`);
+      box.write('config/old.env', 'DATABASE_URL=\n');
+      box.write('src/rules.ts', `export const x = 1\nexport const url = '${credential}'\n`);
+      box.write('config/app.env', `DATABASE_URL=${credential}\n`);
+      box.write('db/seed.sql', `${'INSERT INTO t VALUES (1);\n'.repeat(300)}DROP TABLE seed;\n`);
+      box.write('src/small.ts', 'export const y = 2\n');
+      // What the gate must see in each left-out file, as a diff line.
+      const mustSee = {
+        'db/migrate/003.sql': '+DROP TABLE accounts;',
+        'config/old.env': `-DATABASE_URL=${credential}`,
+        'src/rules.ts': `+export const url = '${credential}'`,
+        'config/app.env': `+DATABASE_URL=${credential}`,
+        'db/seed.sql': '+DROP TABLE seed;',
+      };
+      const out = join(box.root, 'pkg.md');
+      const result = run({ ...command, args: `${command.args} --max-bytes 3000` }, STEP1[0], { root: box.repo, '<base>': base, '<out>': out }, box.env());
+      assert.equal(result.status, 0, `${name}: ${result.out}`);
+      const pkg = readFileSync(out, 'utf8');
+      const listed = (marker) => (new RegExp(`^${marker}: [^\\n]*\\n((?:- [^\\n]*\\n)*)`, 'm').exec(pkg)?.[1] ?? '')
+        .split('\n').filter(Boolean).map((line) => line.slice(2).replace(/ \(\d+ bytes(, line \d+)?\)$/, ''));
+      assert.deepEqual([...listed('TRUNCATED'), ...listed('WITHHELD')].sort(), Object.keys(mustSee).sort(), `${name}: the five files are left out and listed`);
+      assert.ok(!pkg.includes(credential) && !/DROP TABLE/.test(pkg), `${name}: none of their lines is in the package`);
+      const newFiles = (/## New files\n\n([\s\S]*?)\n\n/.exec(pkg)?.[1] ?? '').split('\n').map((line) => line.replace(/^- /, ''));
+      assert.deepEqual(Object.keys(mustSee).filter((file) => newFiles.includes(file)).sort(), ['config/app.env', 'db/seed.sql'], `${name}: ## New files names the two untracked ones, and only them`);
+      for (const [file, line] of Object.entries(mustSee)) {
+        const argv = gitCommand.split(' ').slice(1).map((token) => ({ '<base>': base, '<path>': file })[token] ?? token);
+        const viaGit = spawnSync('git', argv, { cwd: box.repo, env: box.env(), encoding: 'utf8' }).stdout;
+        if (newFiles.includes(file)) {
+          assert.equal(viaGit, '', `${name}: ${file} is untracked, so the git command alone brings nothing back`);
+          assert.ok(readFileSync(join(box.repo, file), 'utf8').split('\n').includes(line.slice(1)), `${name}: ${file} read from disk has the line`);
+        } else {
+          assert.ok(viaGit.split('\n').includes(line), `${name}: the git command brings back ${file}'s line`);
+        }
+      }
+    });
+  }
+});
+
 // ------------------------------------------------------------ --probes gate
 
 // Contract: every clause that makes probes or sabotage wait for `--probes` names a standalone audit, and the one loop-part clause runs both as written.
