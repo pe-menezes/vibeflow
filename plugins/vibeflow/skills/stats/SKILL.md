@@ -40,8 +40,10 @@ Compile and report statistics from audit reports.
    "Non-standard format detected in <file>."
    A report with `**Verdict: pending**` is an audit in progress or
    interrupted: count it apart, as "N audits in progress or interrupted",
-   and leave it out of the PASS, PARTIAL and FAIL counts and of the DoD and
-   pattern counts.
+   and leave it out of every other count in this report: Audits analyzed,
+   the PASS, PARTIAL and FAIL counts and their percentages, the DoD, pattern
+   and convention counts, the Trend, and the finding, `closed-by-probe` and
+   `Independence:` counts of step 3.
 
 3. The ledgers are the `.md` files in `.vibeflow/loop/` other than
    `config.md`, which holds the loop's settings and is not a ledger. When
@@ -53,8 +55,14 @@ Compile and report statistics from audit reports.
      they come rather than recounting the rounds tables, because the script
      skips a malformed row instead of guessing it. Exit 64 means it could not
      run; quote its message and leave the numbers out.
-   * When the script is missing, the loop kit is not installed: say that
-     updating the Vibeflow plugin installs it, and report the rest.
+   * When the command still shows `${CLAUDE_SKILL_DIR}` literally, or its
+     path starts at `/../`, the variable was not substituted (Claude Code
+     older than 2.1.69): say that updating Claude Code fixes it, rather than
+     updating the plugin, and report the rest.
+   * Otherwise, when the script is missing (`node` answers "Cannot find
+     module" for it on a normal absolute path), the loop kit is not
+     installed: say that updating the Vibeflow plugin installs it, and
+     report the rest.
    * From the audit reports, count the finding lines
      (`- [<id>] <severity> · <cause> · confidence ...`) by severity
      (`defect`, `risk-gap`, `low`) and by cause (`spec`, `implementation`,

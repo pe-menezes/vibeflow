@@ -35,8 +35,10 @@ Technical terms in English are acceptable regardless of the detected language.
    "Non-standard format detected in <file>."
    A report with `**Verdict: pending**` is an audit in progress or
    interrupted: count it apart, as "N audits in progress or interrupted",
-   and leave it out of the PASS, PARTIAL and FAIL counts and of the DoD and
-   pattern counts.
+   and leave it out of every other count in this report: Audits analyzed,
+   the PASS, PARTIAL and FAIL counts and their percentages, the DoD, pattern
+   and convention counts, the Trend, and the finding, `closed-by-probe` and
+   `Independence:` counts of step 3.
 
 3. The ledgers are the `.md` files in `.vibeflow/loop/` other than
    `config.md`, which holds the loop's settings and is not a ledger. When

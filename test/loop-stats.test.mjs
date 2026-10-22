@@ -371,12 +371,20 @@ function pendingRule(path) {
   return found[0];
 }
 
-test('the stats command in every edition counts a pending report apart and keeps it out of the verdict, DoD and pattern counts', () => {
+test('the stats command in every edition counts a pending report apart and keeps it out of every other count of the report', () => {
+  const everyOtherCount = [
+    /leave it out of every other count/,
+    /Audits analyzed/,
+    /the PASS, PARTIAL and FAIL counts and their percentages/,
+    /the DoD, pattern and convention counts/,
+    /the Trend/,
+    /the finding, `closed-by-probe` and `Independence:` counts of step 3/,
+  ];
   for (const path of STATS_EDITIONS) {
     const rule = pendingRule(path);
     assert.match(rule, /an audit in progress or interrupted/, path);
     assert.match(rule, /"N audits in progress or interrupted"/, path);
-    assert.match(rule, /out of the PASS, PARTIAL and FAIL counts and of the DoD and pattern counts/, path);
+    for (const count of everyOtherCount) assert.match(rule, count, `${path}: ${rule}`);
     const text = readFileSync(join(REPO_ROOT, path), 'utf8');
     const format = text.slice(text.indexOf('## Vibeflow Stats'));
     assert.match(format, /N audits in progress or interrupted/, `${path}: the report format has no line for them`);
@@ -395,4 +403,25 @@ test('the plugin stats command may run node and nothing else in Bash, and the lo
   const commands = [...text.matchAll(/`([^`]*loop-stats\.mjs[^`]*)`/g)].map((m) => m[1]);
   assert.ok(commands.length > 0, 'the command never says how to run loop-stats.mjs');
   for (const command of commands) assert.match(command, /^node /, command);
+});
+
+test('the plugin stats command blames an older Claude Code, not the plugin, when the skill directory variable was not substituted', () => {
+  const text = readFileSync(join(REPO_ROOT, 'plugins/vibeflow/skills/stats/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  const found = text.match(/\* When the command still shows `\$\{CLAUDE_SKILL_DIR\}`[^*]*/);
+  assert.ok(found, 'no rule for a command that still shows ${CLAUDE_SKILL_DIR}');
+  const rule = found[0];
+  assert.match(rule, /its path starts at `\/\.\.\/`/, rule);
+  assert.match(rule, /the variable was not substituted \(Claude Code older than 2\.1\.69\)/, rule);
+  assert.match(rule, /updating Claude Code fixes it/, rule);
+  assert.match(rule, /rather than updating the plugin/, rule);
+  assert.match(rule, /report the rest/, rule);
+  // node answers "Cannot find module" both for an unsubstituted path and for a
+  // missing kit, so that answer alone must not be read as an older Claude Code.
+  assert.doesNotMatch(rule, /Cannot find module/, rule);
+  const missing = text.match(/\* Otherwise, when the script is missing[^*]*/);
+  assert.ok(missing, 'no missing-kit rule after the substitution check');
+  assert.ok(text.indexOf(rule) < text.indexOf(missing[0]), 'the substitution check must come before the missing-kit advice');
+  assert.match(missing[0], /`node` answers "Cannot find module" for it on a normal absolute path/, missing[0]);
+  assert.match(missing[0], /the loop kit is not installed: say that updating the Vibeflow plugin installs it/, missing[0]);
+  assert.doesNotMatch(missing[0], /Claude Code/, missing[0]);
 });
