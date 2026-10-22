@@ -273,6 +273,79 @@ test('review-package: Python that reads a token from a header or from the enviro
   });
 });
 
+// Contract: a secret git prints as a hunk's function context is named by that hunk's first line in the new file.
+// Breaks when: the number is taken from the base side of the hunk header, which differs once an earlier hunk adds lines.
+// Not covered by: the implementer's function-context test has one hunk, where both sides start on the same line.
+test('review-package: a secret in a later hunk\'s function context is named by the hunk\'s first line in the new file', () => {
+  withSandbox((box) => {
+    // Comment lines start with "#", so git takes the DATABASE_URL line as the second hunk's context.
+    const lines = ['NAME=app', 'PORT=80', ...Array.from({ length: 12 }, (_, i) => `# note ${i + 3}`), `DATABASE_URL=${FAKE_DB_URL}`, ...Array.from({ length: 25 }, (_, i) => `# note ${i + 16}`)];
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'config');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    lines[29] = '# note 30, changed';
+    lines.splice(1, 0, 'EXTRA=1');
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(FAKE_DB_URL), 'the database URL stays out of the package');
+    assert.match(result.text, /^- config\/app\.env \(\d+ bytes, line 21\)$/m, result.text.slice(0, 600));
+  });
+});
+
+// Contract: a name that looks like a secret set to a literal value is withheld whatever line ending the file uses.
+// Breaks when: the end of the value is matched only before "\n" or the end of the text, so the "\r" of a CRLF line hides it.
+// Not covered by: every implementer and probe sample is written with "\n" line endings.
+test('review-package: a password line in a file with CRLF line endings stays out of the package', { todo: 'open gap: a bare value must end right before "\\n", so the "\\r" of a CRLF line lets the password through' }, () => {
+  withSandbox((box) => {
+    box.write('.env', `DEBUG=1\r\nDB_PASSWORD=${FAKE_PASSWORD}\r\n`);
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(FAKE_PASSWORD), 'the password stays out');
+    assert.match(result.text, /^- \.env \(\d+ bytes, line 2\)$/m);
+  });
+});
+
+// Contract: no part of a secret on a hunk's function context line reaches the package, however long the line.
+// Breaks when: only the text git prints is checked, and git cuts the function context at 80 bytes, before the secret is complete.
+// Not covered by: the function-context tests use a short line, which git prints whole.
+test('review-package: a long secret line that git cuts short as a hunk\'s function context leaves no part of the secret in the package', { todo: 'open gap: git prints at most 80 bytes of the function context, and a secret cut there no longer looks like one' }, () => {
+  withSandbox((box) => {
+    const password = `${'Very-Long-Pass'}${'word-Value-1234567890abcdefghijklmnop'}`;
+    const url = `${'post'}${'gres'}://application_user:${password}@db.internal:5432/app`;
+    const lines = ['NAME=app', `DATABASE_URL=${url}`, ...Array.from({ length: 18 }, (_, i) => `KEY_${i + 3}=${i + 3}`)];
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'config');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    lines[12] = 'KEY_13=changed';
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(password.slice(0, 16)), `no part of the password in the package:\n${result.text.match(/^@@.*$/m)?.[0]}`);
+  });
+});
+
+// Contract: every hunk of a tracked file diff is read for secrets, whatever characters its function context line holds.
+// Breaks when: the hunk header pattern stops at a carriage return inside that line, so the header is not seen and the hunk below goes unread.
+// Not covered by: the implementer's hunk headers carry plain text or no function context at all.
+test('review-package: a carriage return inside a hunk\'s function context line does not stop the hunk from being read', { todo: 'open gap: the hunk header pattern ends at a line terminator, so a function context holding one hides the hunk from the detector' }, () => {
+  withSandbox((box) => {
+    const lines = ['title = "a\rb"', ...Array.from({ length: 14 }, (_, i) => `# filler ${i + 2}`), 'x = 1'];
+    box.write('src/doc.py', `${lines.join('\n')}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'doc');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    lines[15] = `x = '${FAKE_ACCESS_KEY}'`;
+    box.write('src/doc.py', `${lines.join('\n')}\n`);
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(FAKE_ACCESS_KEY), 'the access key on the added line stays out');
+    assert.match(result.text, /^- src\/doc\.py \(\d+ bytes, line 16\)$/m);
+  });
+});
+
 // Contract: only the top-level .vibeflow/ folder is set aside; a deleted file, a staged file, a look-alike name or a nested folder is a change.
 // Breaks when: the .vibeflow/ test drops the slash, or matches the folder at any depth, or the empty check reads only untracked files.
 // Not covered by: the implementer's .vibeflow/ tests change files only under the top-level .vibeflow/ or in src/ by an edit.
