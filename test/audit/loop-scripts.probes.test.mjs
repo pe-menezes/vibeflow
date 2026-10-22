@@ -377,7 +377,7 @@ test('review-package: a value that only begins with true, null, none or undefine
 
 // Contract: a quoted literal passes as empty or boolean only when the quotes hold that word and nothing else.
 // Breaks when: the exception reads the word and then accepts any character outside the bare-value set, so "!", "." or "&" after it ends the check.
-// Not covered by: no implementer sample, secret or not, is a quoted value that begins with one of those words.
+// Not covered by: the implementer's test of these quoted values writes each one alone on a file's first line; here the value sits under a key, on line 2.
 test('review-package: a quoted password that begins with true, none or null and goes on with punctuation is withheld', () => {
   withSandbox((box) => {
     const samples = {
@@ -412,6 +412,30 @@ test('review-package: a long line of repeated secret-like names ends well within
     const text = readFileSync(out, 'utf8');
     assert.doesNotMatch(text, /WITHHELD/);
     assert.ok(text.includes(`+${dotted}\n`), 'the file is in the package');
+  });
+});
+
+// Contract: a database URL is withheld with a user name and a password of up to 256 characters each, the same ceiling as a literal value of the name rule.
+// Breaks when: the ceiling that keeps the URL rule linear on a long line is set below the length of real generated credentials, so a password of a few dozen characters reaches the package.
+// Not covered by: every database URL the implementer's tests withhold has a six-character password, and the URL time test checks only that a long line ends in time.
+test('review-package: a database URL with a long generated user name or password is withheld', () => {
+  withSandbox((box) => {
+    const scheme = `${'post'}${'gres'}://`;
+    const samples = {
+      'config/a.env': { user: `${'svc_'}${'u'.repeat(59)}`, password: `${'Gen3rated'}${'Pw'}${'a1B2c3D4'.repeat(7)}-x` },
+      'config/b.env': { user: 'app', password: `${'Long'}${'Pass'}${'Q9w8E7r6'.repeat(31)}` },
+      'config/c.env': { user: `${'iam_'}${'n'.repeat(252)}`, password: `${'Short'}${'Pw-'}${'k4m2'}` },
+    };
+    for (const [path, { user, password }] of Object.entries(samples)) {
+      box.write(path, `DATABASE_URL=${scheme}${user}:${password}@db.internal:5432/app\n`);
+    }
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    for (const [path, { user, password }] of Object.entries(samples)) {
+      assert.ok(user.length <= 256 && password.length <= 256, `${path}: the sample stays within the ceiling`);
+      assert.ok(!result.text.includes(password), `${path}: the password stays out`);
+      assert.match(result.text, new RegExp(`^- ${path.replace('.', '\\.')} \\(\\d+ bytes, line 1\\)$`, 'm'), path);
+    }
   });
 });
 
