@@ -157,6 +157,146 @@ test('review-package: names the file it left out under diff.srcPrefix and diff.d
   });
 });
 
+// --- review-package.mjs: what looks like a secret, and what .vibeflow/ alone is ---
+
+// Samples are assembled at run time, so no secret scanner flags this file.
+const FAKE_DB_URL = `${'post'}${'gres'}://app:${'s3cr3t'}@db:5432/app`;
+const FAKE_ACCESS_KEY = `${'AK'}${'IA'}${'FAKEFAKEFAKEFAKE'}`;
+const FAKE_PASSWORD = `${'not-a-real-'}${'secret-ABC123'}`;
+
+function packageOf(box, base) {
+  const out = join(box.root, 'package.md');
+  const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+  return { ...result, text: existsSync(out) ? readFileSync(out, 'utf8') : '' };
+}
+
+// Contract: a tracked file diff is withheld when a secret sits on an unchanged line the diff shows as context.
+// Breaks when: the detector reads only the added and removed lines of a hunk.
+// Not covered by: every implementer secret test puts the secret on an added or removed line.
+test('review-package: a tracked file whose unchanged context line looks like a secret stays out whole', () => {
+  withSandbox((box) => {
+    box.write('src/db.ts', `export const a = 1\nconst url = '${FAKE_DB_URL}'\nexport const b = 2\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'db');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    box.write('src/db.ts', `export const a = 1\nconst url = '${FAKE_DB_URL}'\nexport const b = 3\n`);
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(FAKE_DB_URL), 'the database URL stays out of the package');
+    assert.ok(!result.text.includes('export const b = 3'), 'the whole file diff stays out');
+    assert.match(result.text, /^- src\/db\.ts \(\d+ bytes, line 2\)$/m);
+  });
+});
+
+// Contract: a secret shown anywhere in a tracked file diff keeps that diff out of the package, the hunk header included.
+// Breaks when: the hunk header is read only for its line numbers, so the line git prints after it as function context is never checked.
+// Not covered by: the implementer's tracked-file tests change lines near the top, where git prints no function context.
+test('review-package: a secret on the line git prints as a hunk\'s function context stays out of the package', { todo: 'open gap: the text git prints after a hunk header is not checked, so a secret more than 10 lines above a change reaches the package' }, () => {
+  withSandbox((box) => {
+    // An env-style file: every line starts with a letter, so git names the line just above the hunk as its context.
+    const lines = ['NAME=app', `DATABASE_URL=${FAKE_DB_URL}`, ...Array.from({ length: 18 }, (_, i) => `KEY_${i + 3}=${i + 3}`)];
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'config');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    lines[12] = 'KEY_13=changed';
+    box.write('config/app.env', `${lines.join('\n')}\n`);
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(FAKE_DB_URL), `the database URL stays out of the package:\n${result.text.match(/^@@.*$/m)?.[0]}`);
+  });
+});
+
+// Contract: the line WITHHELD names is the file's line, in whichever hunk the secret sits.
+// Breaks when: the line counters are not reset at each hunk header, or count from the first hunk only.
+// Not covered by: every implementer secret test has a single hunk.
+test('review-package: a secret in the second hunk of a file diff is named by its own line', () => {
+  withSandbox((box) => {
+    const lines = Array.from({ length: 60 }, (_, i) => `export const v${i + 1} = ${i + 1}`);
+    box.write('src/many.ts', `${lines.join('\n')}\n`);
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'many');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    lines[2] = 'export const v3 = 300';
+    lines[49] = `export const v50 = '${FAKE_ACCESS_KEY}'`;
+    box.write('src/many.ts', `${lines.join('\n')}\n`);
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(FAKE_ACCESS_KEY));
+    assert.match(result.text, /^- src\/many\.ts \(\d+ bytes, line 50\)$/m);
+  });
+});
+
+// Contract: the line WITHHELD names does not depend on the user's diff configuration.
+// Breaks when: an empty context line, which diff.suppressBlankEmpty prints without its leading space, is not counted.
+// Not covered by: no implementer test sets a diff option that changes how a context line is printed.
+test('review-package: under diff.suppressBlankEmpty the WITHHELD line is still the file\'s line', { todo: 'open gap: a blank context line printed without its leading space is not counted, so the line named comes out short' }, () => {
+  withSandbox((box) => {
+    box.write('src/blank.py', 'a = 0\n\n\nb = 2\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'blank');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    box.write('src/blank.py', `a = 1\n\n\nb = 2\nc = '${FAKE_ACCESS_KEY}'\n`);
+    box.git('config', 'diff.suppressBlankEmpty', 'true');
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.text, /^- src\/blank\.py \(\d+ bytes, line 5\)$/m);
+  });
+});
+
+// Contract: a scratch file with a password line next to an access key leaves whole, the password line included.
+// Breaks when: only the matching line is cut out of the file, leaving the password the detector does not name.
+// Not covered by: the implementer's new-file secret test has no other credential-like line in the file.
+test('review-package: a scratch notes file with a password line and an access key stays out whole', () => {
+  withSandbox((box) => {
+    box.write('local-notes.txt', `scratch notes, never meant for git\nDB_PASSWORD=${FAKE_PASSWORD}\nAWS key for the staging box: ${FAKE_ACCESS_KEY}\n`);
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(FAKE_PASSWORD), 'the password stays out');
+    assert.ok(!result.text.includes(FAKE_ACCESS_KEY), 'the access key stays out');
+    assert.match(result.text, /^- local-notes\.txt \(\d+ bytes, line 3\)$/m);
+  });
+});
+
+// Contract: ordinary code that reads a token from a request or from the environment is not withheld.
+// Breaks when: the detector is widened to any assignment whose name mentions a token or a key.
+// Not covered by: the implementer's clean-package test has only a JavaScript read of process.env.
+test('review-package: Python that reads a token from a header or from the environment stays in the package', () => {
+  withSandbox((box) => {
+    box.write('app/auth.py', 'def auth(request):\n    token = request.headers.get("Authorization")\n    return token\n');
+    box.write('app/settings.py', 'import os\nAPI_TOKEN = os.environ["API_TOKEN"]\n');
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    assert.doesNotMatch(result.text, /WITHHELD/);
+    assert.match(result.text, /^\+ {4}token = request\.headers\.get\("Authorization"\)$/m);
+    assert.match(result.text, /^\+API_TOKEN = os\.environ\["API_TOKEN"\]$/m);
+  });
+});
+
+// Contract: only the top-level .vibeflow/ folder is set aside; a deleted file, a staged file, a look-alike name or a nested folder is a change.
+// Breaks when: the .vibeflow/ test drops the slash, or matches the folder at any depth, or the empty check reads only untracked files.
+// Not covered by: the implementer's .vibeflow/ tests change files only under the top-level .vibeflow/ or in src/ by an edit.
+test('review-package: next to a new spec, a deleted file, a staged new file, .vibeflowrc and a nested .vibeflow/ each count as a change', () => {
+  const cases = {
+    'a deleted file': (box) => box.git('rm', '-q', 'src/rules.ts'),
+    'a staged new file': (box) => {
+      box.write('src/staged.ts', 'export const s = 1\n');
+      box.git('add', 'src/staged.ts');
+    },
+    'a top-level .vibeflowrc': (box) => box.write('.vibeflowrc', 'settings\n'),
+    'a nested pkg/.vibeflow/ folder': (box) => box.write('pkg/.vibeflow/specs/a.md', 'nested\n'),
+  };
+  for (const [name, change] of Object.entries(cases)) {
+    withSandbox((box) => {
+      box.write('.vibeflow/specs/rules.md', 'a new spec\n');
+      change(box);
+      const result = packageOf(box, box.base);
+      assert.equal(result.status, 0, `${name}: ${result.out}`);
+      assert.doesNotMatch(result.text, /EMPTY PACKAGE/, name);
+    });
+  }
+});
+
 // --- check-briefing.mjs --pair: criterion matching ---
 
 const executorBriefing = ({ asked = 'Port the rules.', done = '* DoD 1: the rules load from the file' } = {}) => `# feature · rules · executor
