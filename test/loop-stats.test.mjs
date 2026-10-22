@@ -425,3 +425,18 @@ test('the plugin stats command blames an older Claude Code, not the plugin, when
   assert.match(missing[0], /the loop kit is not installed: say that updating the Vibeflow plugin installs it/, missing[0]);
   assert.doesNotMatch(missing[0], /Claude Code/, missing[0]);
 });
+
+test('the plugin stats command sends Codex to the relative kit path before blaming an older Claude Code', () => {
+  // The plugin skill is also the Codex edition, where the variable is never
+  // substituted: a Codex user must not be told to update Claude Code.
+  const text = readFileSync(join(REPO_ROOT, 'plugins/vibeflow/skills/stats/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
+  const found = text.match(/\* When the command still shows `\$\{CLAUDE_SKILL_DIR\}`[^*]*/);
+  assert.ok(found, 'no rule for a command that still shows ${CLAUDE_SKILL_DIR}');
+  const rule = found[0];
+  const codex = 'In Codex the variable is never substituted: resolve the kit path relative to the directory of this SKILL.md and run the command again.';
+  assert.ok(rule.includes(codex), `the substitution rule does not send Codex to the relative path: ${rule}`);
+  const update = rule.indexOf('updating Claude Code fixes it');
+  assert.ok(update > 0, rule);
+  assert.ok(rule.indexOf(codex) < update, 'the Codex case must come before the advice to update Claude Code');
+  assert.ok(rule.indexOf(codex) < rule.indexOf('older than 2.1.69'), 'the Codex case must come before the older Claude Code case');
+});

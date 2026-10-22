@@ -56,9 +56,11 @@ Compile and report statistics from audit reports.
      skips a malformed row instead of guessing it. Exit 64 means it could not
      run; quote its message and leave the numbers out.
    * When the command still shows `${CLAUDE_SKILL_DIR}` literally, or its
-     path starts at `/../`, the variable was not substituted (Claude Code
-     older than 2.1.69): say that updating Claude Code fixes it, rather than
-     updating the plugin, and report the rest.
+     path starts at `/../`, look at the host. In Codex the variable is never
+     substituted: resolve the kit path relative to the directory of this
+     SKILL.md and run the command again. In Claude Code the variable was not
+     substituted (Claude Code older than 2.1.69): say that updating Claude
+     Code fixes it, rather than updating the plugin, and report the rest.
    * Otherwise, when the script is missing (`node` answers "Cannot find
      module" for it on a normal absolute path), the loop kit is not
      installed: say that updating the Vibeflow plugin installs it, and
