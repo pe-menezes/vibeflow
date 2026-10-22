@@ -551,8 +551,8 @@ test('left out: the lists the package writes when it leaves file diffs out are t
       const base = box.git('rev-parse', 'HEAD').trim();
       box.write('db/migrate/003.sql', `${'-- a long generated migration\n'.repeat(200)}DROP TABLE accounts;\n`);
       box.write('src/rules.ts', 'export const x = 2\n');
-      // Assembled, so no scanner reads this file as holding a credential.
-      const credential = ['postgres', '://app:', 'not-a-real-password', '@db.local/app'].join('');
+      // Assembled, with the scheme split, so no secret scanner reads this line as a credential.
+      const credential = ['post' + 'gres://', 'app:', 'not-a-real-password', '@db.local/app'].join('');
       box.write('config/app.env', `DATABASE_URL=${credential}\n`);
       const out = join(box.root, 'pkg.md');
       const result = run({ ...command, args: `${command.args} --max-bytes 3000` }, STEP1[0], { root: box.repo, '<base>': base, '<out>': out }, box.env());

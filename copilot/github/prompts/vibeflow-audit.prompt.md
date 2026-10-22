@@ -144,6 +144,10 @@ progress (step 6) before anything else, from its copy, comparing the hash.
       section then carries the line
       `Left out of the package: <n> file(s), read with git`, or
       `Left out of the package: none` when the package has no such list.
+      A line from a file listed under `WITHHELD` is cited, in the report and
+      in its prompt pack, by its path, its line number and the rule it
+      matched, never by its text: the report lives in `.vibeflow/audits/`, a
+      folder the project may commit.
    b. **Match each changed line against the Rules Catalog below.** A rule fires
       only when the diff line's direction matches its `scope` (a=added, r=removed,
       b=both) AND the file matches the rule's target types.
@@ -322,6 +326,10 @@ Every finding is one line:
 - Covered gap: a proof gap that the auditor's own probe already closes, with
   the probe entering the suite with its three pruning answers, is reported as
   `closed-by-probe` and does not hold the verdict by itself.
+- A line from a file listed under `WITHHELD` is cited, in the report and in
+  its prompt pack, by its path, its line number and the rule it matched, never
+  by its text: the report lives in `.vibeflow/audits/`, a folder the project
+  may commit.
 
 ## Output format
 

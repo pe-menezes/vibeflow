@@ -167,6 +167,23 @@ test('the plugin edition reads an unsubstituted ${CLAUDE_SKILL_DIR} as the kit n
   assert.ok(step1.includes(bullet), 'the bullet sits in step 1');
 });
 
+// The same plugin serves Codex, which never substitutes the variable and
+// reaches the kit relative to the skill's own folder: there the literal
+// variable means "resolve the path and run again", not a missing kit.
+test('in Codex the unsubstituted variable means resolving the kit path from the skill folder and running again, not a missing kit', () => {
+  const content = flat(read(EDITIONS.shared));
+  const bullet = /- A command that still shows `\$\{CLAUDE_SKILL_DIR\}` literally[\s\S]*?stays an error\./.exec(content)?.[0] ?? '';
+  const unsubstituted = /^[\s\S]*?the next case says\./.exec(bullet)?.[0] ?? '';
+  const codex = unsubstituted.indexOf(
+    'In Codex the variable is never substituted: resolve the kit path relative to the directory of this SKILL.md and run the command again.');
+  assert.ok(codex !== -1, 'Codex resolves the path relative to this SKILL.md and runs the command again');
+  const notInstalled = unsubstituted.indexOf('the kit counts as not installed');
+  assert.ok(notInstalled > codex, 'the Codex rule comes before the kit is counted as not installed');
+  assert.match(unsubstituted.slice(codex, notInstalled), /run the command again\. In Claude Code before 2\.1\.69, or a host that does not know the variable, $/,
+    'only an old Claude Code or a host without the variable counts as the kit not installed');
+  assert.match(content, /\(in Codex, the same path relative to the directory of this SKILL\.md\)/, 'the kit paragraph names the same Codex path');
+});
+
 // ------------------------------------------------- what the package left out
 
 const GATE_READ = ['a. **Read the diff from the review package**', 'b. **Match each changed line'];
@@ -191,6 +208,24 @@ test('the Critical Gate reads with git every file the package left out, and the 
       `${edition}: the report template carries the line`);
   });
   assert.deepEqual(parityGaps(steps), [], 'step 4a reads the same in the three editions');
+});
+
+// A file under WITHHELD holds a line that looks like a secret, and the report
+// lands in `.vibeflow/audits/`, which a project may commit: the line is cited
+// by where it is and what matched, never by what it says.
+const WITHHELD_CITE =
+  'A line from a file listed under `WITHHELD` is cited, in the report and in its prompt pack, by its path, its line number and the rule it matched, never by its text: the report lives in `.vibeflow/audits/`, a folder the project may commit.';
+
+test('a withheld line is cited by path, line and rule, never by its text, in step 4a and where findings are written', () => {
+  forEachEdition((content, edition, raw) => {
+    const from = raw.indexOf(GATE_READ[0]);
+    const to = raw.indexOf(GATE_READ[1], from);
+    assert.ok(flat(raw.slice(from, to)).includes(WITHHELD_CITE), `${edition}: step 4a says how to cite a withheld line`);
+    const findings = /## Findings\n([\s\S]*?)\n## Output format/.exec(raw)?.[1] ?? '';
+    assert.ok(findings, `${edition}: the findings section`);
+    assert.ok(flat(findings).includes(WITHHELD_CITE), `${edition}: the findings rules say the same, word for word`);
+    assert.equal(count(content, WITHHELD_CITE), 2, `${edition}: the sentence, word for word, in those two places only`);
+  });
 });
 
 // ------------------------------------------------------------ header, stages
