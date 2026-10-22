@@ -357,3 +357,42 @@ test('the stats command in every edition says the ledgers are the .md files in .
     assert.match(text, /`config\.md`[^.]*is not a ledger/i, path);
   }
 });
+
+const STATS_EDITIONS = [
+  'plugins/vibeflow/skills/stats/SKILL.md',
+  'cursor/skills/vibeflow-stats/SKILL.md',
+  'copilot/github/prompts/vibeflow-stats.prompt.md',
+];
+
+function pendingRule(path) {
+  const text = readFileSync(join(REPO_ROOT, path), 'utf8').replace(/\s+/g, ' ');
+  const found = text.match(/A report with `\*\*Verdict: pending\*\*`[^"]*"[^"]*"[^.]*\./);
+  assert.ok(found, `${path} has no rule for a report with **Verdict: pending**`);
+  return found[0];
+}
+
+test('the stats command in every edition counts a pending report apart and keeps it out of the verdict, DoD and pattern counts', () => {
+  for (const path of STATS_EDITIONS) {
+    const rule = pendingRule(path);
+    assert.match(rule, /an audit in progress or interrupted/, path);
+    assert.match(rule, /"N audits in progress or interrupted"/, path);
+    assert.match(rule, /out of the PASS, PARTIAL and FAIL counts and of the DoD and pattern counts/, path);
+    const text = readFileSync(join(REPO_ROOT, path), 'utf8');
+    const format = text.slice(text.indexOf('## Vibeflow Stats'));
+    assert.match(format, /N audits in progress or interrupted/, `${path}: the report format has no line for them`);
+  }
+  const rules = STATS_EDITIONS.map(pendingRule);
+  assert.equal(rules[1], rules[0], 'Cursor differs from the shared plugin');
+  assert.equal(rules[2], rules[0], 'Copilot differs from the shared plugin');
+});
+
+test('the plugin stats command may run node and nothing else in Bash, and the loop-stats command it gives starts with node', () => {
+  const text = readFileSync(join(REPO_ROOT, 'plugins/vibeflow/skills/stats/SKILL.md'), 'utf8');
+  const frontmatter = text.split('\n---\n')[0];
+  const allowed = frontmatter.match(/^allowed-tools: (.*)$/m);
+  assert.ok(allowed, 'no allowed-tools line in the frontmatter');
+  assert.equal(allowed[1].trim(), 'Read, Grep, Glob, Bash(node:*)');
+  const commands = [...text.matchAll(/`([^`]*loop-stats\.mjs[^`]*)`/g)].map((m) => m[1]);
+  assert.ok(commands.length > 0, 'the command never says how to run loop-stats.mjs');
+  for (const command of commands) assert.match(command, /^node /, command);
+});

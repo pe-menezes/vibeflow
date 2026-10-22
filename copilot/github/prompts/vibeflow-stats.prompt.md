@@ -36,6 +36,10 @@ Technical terms in English are acceptable regardless of the detected language.
    `### Pattern Compliance`, and the items under `### Convention Violations`.
    A file in a different shape contributes what it can, noted as
    "Non-standard format detected in <file>."
+   A report with `**Verdict: pending**` is an audit in progress or
+   interrupted: count it apart, as "N audits in progress or interrupted",
+   and leave it out of the PASS, PARTIAL and FAIL counts and of the DoD and
+   pattern counts.
 
 3. The ledgers are the `.md` files in `.vibeflow/loop/` other than
    `config.md`, which holds the loop's settings and is not a ledger. When
@@ -66,6 +70,7 @@ Technical terms in English are acceptable regardless of the detected language.
 ## Vibeflow Stats
 
 **Audits analyzed:** N
+<N audits in progress or interrupted, when there are any>
 
 ### Verdicts
 - PASS: N (X%)
