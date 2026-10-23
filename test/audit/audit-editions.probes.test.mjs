@@ -702,6 +702,40 @@ test('sabotage copy: the report template records that the copies and their tempo
   }
 });
 
+// Contract: in the retry rule, every sentence that puts git's version back over a file does so only once its hash matches the one the report recorded, so a file with uncommitted work is never overwritten.
+// Breaks when: a sentence such as "When the file has uncommitted changes, write git's version over it first and compare after." or "restore it from git anyway" joins the retry rule, which brings back the overwrite of uncommitted work.
+// Not covered by: the contract test checks that the checked sentence is there and that one old sentence is gone, not that no other sentence writes git's version without the check.
+test('sabotage copy: in the retry rule, git\'s version goes over a file only after its hash matches the recorded one', () => {
+  const puts = /\b(write|writes|overwrite|overwrites)\b|\brestores? (it|them|the file|that version)\b/i;
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const retry = RETRY_RULE.exec(edition(path).replace(/\s+/g, ' '))?.[0] ?? '';
+    const fromGit = retry.split(/(?<=\.)\s/).filter((sentence) => /\bgit\b/.test(sentence) && puts.test(sentence));
+    assert.ok(fromGit.length > 0, `${name}: the retry rule has a sentence that restores from git`);
+    for (const sentence of fromGit) {
+      const check = sentence.search(/only when they match/);
+      assert.ok(check >= 0 && check < sentence.search(puts), `${name}: writes git's version before the hash matches: ${sentence}`);
+    }
+  }
+});
+
+// Contract: a sabotage recorded as in progress carries the wrong change it applies, so a retry that stops on a hash mismatch can tell the user which change to undo.
+// Breaks when: the in-progress line keeps only the file, the copy and the hash, so the retry promises a change the report never recorded and the user hunts for it in a diff mixed with uncommitted work.
+// Not covered by: the contract test checks the retry's sentence that names the change to undo, not that step 6 and the template record that change before it is applied.
+test('sabotage copy: a sabotage recorded as in progress carries the change it applies, which a stopped retry tells the user to undo', { todo: 'open gap: the in-progress line records the file, the copy and the hash, not the change' }, () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const flatText = text.replace(/\s+/g, ' ');
+    assert.match(RETRY_RULE.exec(flatText)?.[0] ?? '', /which change to undo, as the report records it/, `${name}: the retry tells the user the change to undo`);
+    const record = /Before applying a sabotage, write it into the report[^.]*\./.exec(SABOTAGE_STEP.exec(flatText)?.[0] ?? '')?.[0] ?? '';
+    assert.ok(record, `${name}: step 6 says what the in-progress record holds`);
+    assert.match(record, /\bchange\b/, `${name}: the in-progress record names the change: ${record}`);
+    const template = /## Output format\s*```[^\n]*\n([\s\S]*?)\n```/.exec(text)?.[1] ?? '';
+    const inProgress = template.split('\n').filter((line) => /— in progress —/.test(line));
+    assert.equal(inProgress.length, 1, `${name}: the template has one in-progress line`);
+    assert.match(inProgress[0], /\bchange\b/, `${name}: the in-progress line has a place for the change: ${inProgress[0]}`);
+  }
+});
+
 // ------------------------------------------------------------ --probes gate
 
 // Contract: every clause that makes probes or sabotage wait for `--probes` names a standalone audit, and the one loop-part clause runs both as written.
