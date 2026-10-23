@@ -848,6 +848,65 @@ test('check-briefing --pair: prose under a sub-heading of "Criteria" is not glue
   });
 });
 
+// --- check-briefing.mjs: no quoted text from a briefing that holds a secret ---
+
+// Contract: a secret anywhere in the briefing turns off the quoting of the facts without time and source, not only a secret inside a fact.
+// Breaks when: the facts gate tests the unsourced facts (or the Facts section) instead of the whole briefing.
+// Not covered by: the implementer's case puts the secret inside one of the facts, so a gate scoped to the facts still passes it.
+test('check-briefing: a secret outside "Facts" still keeps the facts without time and source out of the output', () => {
+  scratch((dir) => {
+    const text = executorBriefing({ asked: `Port the rules.\nDATABASE_URL=${FAKE_DB_URL}` })
+      .replace('## Facts\n', '## Facts\n* the deploy failed every night since 23/09\n');
+    const result = runScript('check-briefing.mjs', [write(dir, 'feature-rules-executor.md', text)], hermeticEnv(dir));
+    assert.equal(result.status, 2, result.out);
+    assert.match(result.stdout, /^\[attention\] 1 fact\(s\) without time and source .*not quoted/m, result.out);
+    assert.doesNotMatch(result.out, /deploy failed/, result.out);
+    assert.ok(!result.out.includes(FAKE_DB_URL), result.out);
+  });
+});
+
+// Contract: with --pair, a secret anywhere in the auditor briefing names a missing criterion by its position, not only a secret inside "Criteria".
+// Breaks when: the value check() passes to pairFindings is computed over the criteria instead of the whole briefing.
+// Not covered by: the implementer's case puts the secret inside a criterion, so a value scoped to "Criteria" still passes it.
+test('check-briefing --pair: a secret outside "Criteria" still names the missing criterion by its position', () => {
+  scratch((dir) => {
+    const result = pair(dir, executorBriefing(), auditorWith([
+      '## What to audit', `The rules port, against DATABASE_URL=${FAKE_DB_URL}`, '',
+      '## Criteria', '* DoD 1: the rules load from the file', '* DoD 2: a malformed file is refused', '',
+      '## Read first', '* `.vibeflow/index.md`',
+    ].join('\n')));
+    assert.equal(result.status, 2, result.out);
+    assert.match(result.stdout, /^\[attention\] criterion 2 of 2 not in the executor's "Done when"/m, result.out);
+    assert.doesNotMatch(result.out, /malformed file/, result.out);
+    assert.ok(!result.out.includes(FAKE_DB_URL), result.out);
+  });
+});
+
+// Contract: --pair prints no text of the executor briefing it compares against, so a secret in that file never reaches the output.
+// Breaks when: a missing-criterion line adds the executor's nearest "Done when" item, or another line quotes the --pair file.
+// Not covered by: the implementer's --pair cases with a secret put it in the auditor briefing only.
+test('check-briefing --pair: a secret in the executor briefing given to --pair never reaches the output', () => {
+  scratch((dir) => {
+    const result = pair(dir,
+      executorBriefing({ asked: `Port the rules with ${SECRET_NAME}`, done: `* DoD 1: the rules load from the file\n* DoD 7: the client sends ${SECRET_NAME}` }),
+      auditorBriefing('* DoD 1: the rules load from the file\n* DoD 2: a malformed file is refused'));
+    assert.match(result.stdout, /not in the executor's "Done when"/, result.out);
+    assert.ok(!result.out.includes(SECRET_NAME_VALUE), result.out);
+    assert.doesNotMatch(result.out, /the client sends|Port the rules with/, result.out);
+  });
+});
+
+// Contract: no line prints a value the detector flags, even when the briefing breaks it across a continuation line.
+// Breaks when: today's code, which tests the raw text (where "API_TOKEN=" ends a line) but quotes the item it joined with a space; the case turns green when the gap closes.
+// Not covered by: the implementer's secret cases keep the name and the value on one line.
+test('check-briefing: a value on the continuation line of a fact never reaches the output', { todo: 'open gap: the detector reads the raw lines, the facts line quotes the joined item' }, () => {
+  scratch((dir) => {
+    const text = executorBriefing().replace('## Facts\n', `## Facts\n* the service reads API_TOKEN=\n  ${SECRET_NAME_VALUE}\n`);
+    const result = runScript('check-briefing.mjs', [write(dir, 'feature-rules-executor.md', text)], hermeticEnv(dir));
+    assert.ok(!result.out.includes(SECRET_NAME_VALUE), result.out);
+  });
+});
+
 // --- watch-round.mjs: time limits and the final marker ---
 
 function aged(path, minutes) {
