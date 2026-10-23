@@ -554,6 +554,84 @@ test('review-package: a path holding a tab and looking like a secret stays out o
   });
 });
 
+// Contract: a committed path that git writes between quotes and that looks like a secret stays out of the package, the worktree clean.
+// Breaks when: the paths to keep out are read only from the worktree status and the new files, which a committed change no longer appears in.
+// Not covered by: the implementer's quoted-path cases leave the change uncommitted or untracked, so the status lists it.
+test('review-package: a committed new file and a committed rename to a quoted path that looks like a secret stay out of the package', () => {
+  const name = `notes\t${SECRET_NAME}`;
+  const cases = {
+    'a committed new file': (box) => {
+      box.write(name, 'harmless\n');
+      commitAll(box, 'notes');
+      return box.base;
+    },
+    'a committed rename': (box) => {
+      box.write('conf/plain.txt', 'kept\nkept\nkept\n');
+      const base = commitAll(box, 'add');
+      box.git('mv', 'conf/plain.txt', `conf/${name}`);
+      commitAll(box, 'rename');
+      return base;
+    },
+  };
+  for (const [what, setUp] of Object.entries(cases)) {
+    withSandbox((box) => {
+      const base = setUp(box);
+      const result = packageOf(box, base);
+      assert.equal(result.status, 0, `${what}: ${result.out}`);
+      assert.ok(!result.text.includes(SECRET_NAME_VALUE), `${what}: the path reached the package\n${result.text.slice(0, 1500)}`);
+    });
+  }
+});
+
+// Contract: a quoted path that looks like a secret and differs from the base only in the index stays out of the git status section.
+// Breaks when: the paths to keep out are read only from the diff against the base, which an edit staged and then undone in the worktree does not show, or a status entry is cut at the wrong column.
+// Not covered by: the implementer's quoted-path cases all change the worktree file, so the diff against the base lists it.
+test('review-package: a quoted path that looks like a secret, changed only in the index, stays out of the status', () => {
+  withSandbox((box) => {
+    const name = `notes\t${SECRET_NAME}`;
+    box.write(name, 'harmless\n');
+    const base = commitAll(box, 'add');
+    box.write(name, 'harmless, edited\n');
+    box.git('add', '-A');
+    box.write(name, 'harmless\n');
+    box.write('src/rules.ts', 'export const x = 15\n');
+    const result = packageOf(box, base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(box.git('status', '--short').includes(SECRET_NAME_VALUE), 'the status lists the file');
+    assert.ok(!result.text.includes(SECRET_NAME_VALUE), result.text.slice(0, 1500));
+  });
+});
+
+// Contract: a path that looks like a secret stays out of the package also when git writes a control character in it as an octal escape (ESC, DEL) or as \r.
+// Breaks when: the quoted form writes the octal escape without its leading zeros, leaves DEL unescaped, or misses a named escape, so the form searched for is not the one git prints.
+// Not covered by: the implementer's quoted-path cases are a tab, a line break, a quote and a backslash, all named escapes.
+test('review-package: a path holding ESC, DEL or a carriage return and looking like a secret stays out of the package', () => {
+  for (const [what, character] of Object.entries({ ESC: '\x1b', DEL: '\x7f', 'a carriage return': '\r' })) {
+    withSandbox((box) => {
+      const name = `notes${character}${SECRET_NAME}`;
+      box.write(name, 'harmless\n');
+      const base = commitAll(box, 'add');
+      box.write(name, 'harmless, edited\n');
+      const result = packageOf(box, base);
+      assert.equal(result.status, 0, `${what}: ${result.out}`);
+      assert.ok(!result.text.includes(SECRET_NAME_VALUE), `${what}: the path reached the package\n${result.text.slice(0, 1500)}`);
+    });
+  }
+});
+
+// Contract: a new folder whose name holds a line break and looks like a secret keeps its name out of the package, and the package is written.
+// Breaks when: the new-file list is checked line by line after joining, so the part of the path after the line break is a line of its own that neither the detector nor a quoted form matches, or the forms searched for leave out the path as it is.
+// Not covered by: the implementer's line-break case is a file at the top level, whose second half the detector matches alone.
+test('review-package: a new folder whose name holds a line break and looks like a secret keeps its name out of the package', () => {
+  withSandbox((box) => {
+    box.write(`notes\n${SECRET_NAME}/inner.txt`, 'harmless\n');
+    box.write('src/rules.ts', 'export const x = 15\n');
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(SECRET_NAME_VALUE), result.text.slice(0, 1500));
+  });
+});
+
 // Contract: a file diff with no added line (a deleted file, a mode change) on a path that looks like a secret stays out whole, its path in no section.
 // Breaks when: the path is read only from the `+++` line, which a deleted file prints as /dev/null, or only from a part of the diff a mode change does not have.
 // Not covered by: the implementer's path cases are a new file and an edit, which both print the path on a `+++` line.
