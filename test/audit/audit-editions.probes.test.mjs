@@ -668,6 +668,40 @@ test('left out: the line number a WITHHELD entry gives for a tracked file is the
   }
 });
 
+// ------------------------------------------------------------ sabotage copy
+
+const SABOTAGE_STEP = /6\. \*\*Sabotage, only in risk code\*\*.*?7\. \*\*Probes\*\*/;
+const RETRY_RULE = /When a report that a dead attempt left is already at that path.*?1\. \*\*Review package\*\*/;
+
+// Contract: the sabotage step and the retry rule name a folder under `.vibeflow/` only to forbid it, whatever word a sentence uses for the copy.
+// Breaks when: a sentence such as "keep a backup of each sabotaged file in `.vibeflow/audits/`" enters step 6, which brings a withheld file back into a folder the project may commit.
+// Not covered by: the contract test looks for `.vibeflow/` only in sentences that say "copy" or "copies", so the same instruction worded "backup" passes it.
+test('sabotage copy: the sabotage step and the retry rule name .vibeflow/ only to forbid it, whatever the word for the copy', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path).replace(/\s+/g, ' ');
+    const step = SABOTAGE_STEP.exec(text)?.[0] ?? '';
+    const retry = RETRY_RULE.exec(text)?.[0] ?? '';
+    assert.ok(step && retry, `${name}: step 6 and the retry rule are found`);
+    assert.deepEqual(step.match(/`\.vibeflow\/[^`]*`/g), ['`.vibeflow/`'], `${name}: step 6 names .vibeflow/ once`);
+    assert.match(step, /never to `\.vibeflow\/` or any other folder of the project/, `${name}: and only to forbid it`);
+    assert.equal(retry.match(/`\.vibeflow\/[^`]*`/g), null, `${name}: the retry rule names no folder under .vibeflow/`);
+  }
+});
+
+// Contract: the report template carries the line that says the copies and their temporary folder were deleted, as step 6 asks.
+// Breaks when: the line leaves the `### Sabotage` template, so a report that follows the template never says the copies are gone.
+// Not covered by: the contract test checks the step 6 sentence and the template's copy line, not the line that records the deletion.
+test('sabotage copy: the report template records that the copies and their temporary folder were deleted', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path);
+    const template = /## Output format\s*```[^\n]*\n([\s\S]*?)\n```/.exec(text)?.[1] ?? '';
+    const sabotage = /### Sabotage\n([\s\S]*?)\n### Probes/.exec(template)?.[1] ?? '';
+    assert.ok(sabotage, `${name}: the template has a Sabotage section`);
+    assert.match(sabotage, /^Copies: deleted, with their temporary folder$/m, `${name}: the template says the copies and the folder were deleted`);
+    assert.match(text.replace(/\s+/g, ' '), /the report says both were deleted/, `${name}: step 6 asks for that line`);
+  }
+});
+
 // ------------------------------------------------------------ --probes gate
 
 // Contract: every clause that makes probes or sabotage wait for `--probes` names a standalone audit, and the one loop-part clause runs both as written.
