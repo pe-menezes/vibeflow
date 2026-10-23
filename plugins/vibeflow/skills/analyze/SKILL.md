@@ -20,6 +20,7 @@ allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 - `analyze --interactive` — Run analysis with interactive review: validate patterns, remove false positives, add tribal knowledge before saving.
 - `analyze --fresh --interactive` — Full rebuild with interactive review.
 - `analyze --satellite https://github.com/org/design-system` — Analyze a dependency repo, keep only patterns your code uses, merge into `.vibeflow/patterns/satellite-<name>/`.
+- `analyze --measure` — Also run the full-suite and affected-tests commands once each and record their time; without it they are recorded but not run, because a project's suite can start containers, call services or take many minutes.
 
 ---
 
@@ -47,7 +48,7 @@ Read `.vibeflow/index.md` directly by its path. Search, grep, and glob respect
 `.gitignore`, so they miss the directory and report it as absent.
 
 Then read any flags in the user's current request (`--fresh`, `--scope <path>`, `--interactive`,
-`--satellite <url>`) and check whether git is available here.
+`--satellite <url>`, `--measure`) and check whether git is available here.
 
 **Decision tree:**
 
@@ -61,15 +62,33 @@ Then read any flags in the user's current request (`--fresh`, `--scope <path>`, 
 - `.vibeflow/` exists and no `--fresh` → incremental analysis.
 - `--interactive` composes with every mode: it adds Phase 3.5 before saving and
   changes nothing else about which phases run.
+- `--measure` composes with every mode that writes the Tests and Pitfalls block:
+  it makes the block due even when nothing else changed, so the commands are
+  measured on an up-to-date project too (the block-only path below), and it
+  runs the two test commands once (Tests and Pitfalls, in Phase 4).
 
 **Incremental mode.** Read `Analyzed: <date>` from `index.md`, then
-`git log --since="<date>" --name-only --pretty=format:""` to find what changed.
+`git log --since="<date> 00:00" --name-only --pretty=format:""` to find what
+changed. The explicit time matters: with a date alone, git counts from the
+current time of day on that date, so commits made earlier that day would be
+missed.
 Filter out tests, docs, and config that doesn't affect source structure
 (`*.test.*`, `*.spec.*`, `docs/`, `README.md`, `.env.*`), then map what's left to
-modules — those are the affected structural units. Nothing changed → report "No
-changes detected since <date>. .vibeflow/ is up to date." and stop. No git →
-warn "Git not available. Falling back to full analysis." and run phases 1–5.
-Otherwise report "Incremental mode: X affected modules: [list]" and continue.
+modules — those are the affected structural units. The Tests and Pitfalls block
+is due when `index.md` lacks it (an index written before the block existed) or
+when a test file, the CI configuration or the test runner's configuration
+changed since <date>, even when those changes need no pattern reanalysis, or
+when the user passed `--measure`.
+Nothing changed and the block is not due → report "No changes detected since
+<date>. .vibeflow/ is up to date." and stop. The block is due but nothing else
+changed → regenerate only the block and move `Analyzed:` to today's date
+(Phase 4), report "Tests and Pitfalls refreshed; no structural changes since
+<date>." and stop. With `--measure`, the report also says which commands were
+measured, with their times, or that the project has no test runner and nothing
+was measured.
+No git → warn "Git not available. Falling back to full analysis." and run
+phases 1–5. Otherwise report "Incremental mode: X affected modules: [list]" and
+continue.
 
 Through phases 1–4, incremental means: redo only what the affected modules
 touch, reuse what `index.md` already records for everything else, and preserve
@@ -290,7 +309,7 @@ adopted them. The third is optional and enriches the docs the most.
 
 Incremental specifics, on top of the general rule in Phase 0:
 
-- **index.md** — update `Analyzed: <date>` to today; update Structural Units and Key Files only where they changed; preserve any manually added Known Issues.
+- **index.md** — update `Analyzed: <date>` to today; update Structural Units and Key Files only where they changed; preserve any manually added Known Issues; the Tests and Pitfalls block, inside its `vibeflow:auto` markers, is regenerated whenever this phase runs and added when an older index.md lacks it.
 - **conventions.md** — update only inside the `<!-- vibeflow:auto:start/end -->` markers. A legacy file without markers gets rewritten with them added.
 - **decisions.md** — never modified in incremental mode.
 - **patterns/** — as stated in Phase 3.
@@ -345,6 +364,15 @@ patterns:
 
 ## Known Issues / Tech Debt
 <bullet list if anything was found>
+
+<!-- vibeflow:auto:start -->
+## Tests
+- Full suite: `<command>` — <measured time> on <date> | unmeasured
+- Affected only: `<command scoped to a file, package or tag>` — <measured time> on <date> | unmeasured
+
+## Pitfalls
+- <a mistake that already cost this project time> — source: <decisions.md entry | CI configuration path | commit sha>
+<!-- vibeflow:auto:end -->
 ```
 
 **Pattern Registry generation.** After all pattern docs are written, read each
@@ -353,6 +381,25 @@ the `<!-- vibeflow:patterns:start/end -->` markers, keeping the human-readable
 "Pattern Docs Available" list below it with links and 1-line descriptions. The
 registry is always regenerated from the frontmatters and never edited by hand —
 that is what keeps it in sync.
+
+**Tests and Pitfalls.** These two sections tell the implementer and the audit
+how to prove a change cheaply and what has already gone wrong here, so they
+stay factual.
+
+- *Tests* — from the manifests, scripts and CI configuration, the command that
+  runs the full suite and the narrowest command that runs only the tests
+  affected by a change: by file, package or tag, as the stack allows. Record
+  both commands without running them. Only with `--measure`, run each one once
+  and record the measured time and the date. Without it, keep the measured time
+  and date already recorded; a command never measured is marked `unmeasured`.
+  A recorded time holds only for the command it was measured with: when that
+  command changes (another runner or script), drop its old time and mark it
+  `unmeasured` until the next run with `--measure`. No test runner → say so in one line.
+- *Pitfalls* — mistakes that already cost this project time, each with its
+  source: an entry in `decisions.md`, a line of the CI configuration that exists
+  to catch it, or a reverted or fix commit (`git log -i --grep='^revert'
+  --grep='^fix'`). An item without a source stays out; prohibitions belong to
+  the Don'ts in conventions.md. No sourced pitfall → `None found.`
 
 **Budget calculation.** From the source files counted in Phase 2, suggest ~2-3%,
 clamped between 4 and 12:

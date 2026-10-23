@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { assertImplement, changedFilesFromPorcelainZ } from './assertions.mjs';
+import { assertGenSpec, assertImplement, changedFilesFromPorcelainZ } from './assertions.mjs';
 
 function withSpec(body, run) {
   const fixture = mkdtempSync(join(tmpdir(), 'vibeflow-assertions-'));
@@ -169,5 +169,25 @@ test('real porcelain rename records expose both old and new paths', () => {
     const antiScope = checks.find((check) => check.name === 'no path-naming anti-scope item violated');
     assert.equal(antiScope.ok, false);
     assert.equal(antiScope.detail, 'touched: config.json');
+  });
+});
+
+test('DoD counter reads scenario and property lines as fields of a check, not as checks', () => {
+  withSpec(`
+## Definition of Done
+1. Deleting a task removes it from the store — \`node --test test/deleteTask.test.js\` passes.
+   - Scenarios:
+     - WHEN the task exists THE SYSTEM SHALL remove it and return ok
+     - WHEN the id is unknown THE SYSTEM SHALL return a not-found error and change nothing
+2. Totals stay consistent.
+   - For any list of amounts, the total equals their sum — oracle: \`reduce\` over the inputs.
+3. No violations of the Don'ts in conventions.md.
+
+## Scope
+- src/services/deleteTask.js
+`, (fixture) => {
+    const dod = assertGenSpec(fixture).find((check) => check.name === 'DoD has 3–7 binary checks');
+    assert.equal(dod.ok, true);
+    assert.equal(dod.detail, '3 checks');
   });
 });
