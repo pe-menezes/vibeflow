@@ -522,6 +522,38 @@ test('review-package: the entry of a committed file withheld for its path points
   });
 });
 
+// Contract: the files section never carries a path that looks like a secret on its own, also when git writes that path between quotes everywhere else.
+// Breaks when: a files line goes out only when the whole line looks like a secret or names a withheld path, while a path holding a tab is quoted in the diff, never withheld, and the line's " | +1 -1" hides it from the detector.
+// Not covered by: the implementer's files-section cases use paths git prints without quotes.
+test('review-package: a path holding a tab and looking like a secret stays out of the files section', () => {
+  withSandbox((box) => {
+    const name = `notes\t${SECRET_NAME}`;
+    box.write(name, 'harmless\n');
+    const base = commitAll(box, 'add');
+    box.write(name, 'harmless, edited\n');
+    const result = packageOf(box, base);
+    assert.ok(result.status === 0 || result.status === 2, result.out);
+    const section = (result.text.split('## Files and lines\n\n')[1] ?? '').split('\n\n')[0];
+    assert.match(section, /^1 file\(s\) changed, /m, result.text.slice(0, 1500));
+    assert.ok(!section.includes(SECRET_NAME_VALUE), section);
+  });
+});
+
+// Contract: a path that looks like a secret never reaches the package, also when git writes it between quotes.
+// Breaks when: the path checks read the quoted form git prints for a path holding a tab, where the closing quote follows the value and the detector no longer matches it.
+// Not covered by: the implementer's path cases use paths git prints without quotes.
+test('review-package: a path holding a tab and looking like a secret stays out of the package', { todo: 'open gap: git quotes a path holding a tab, the detector does not match the quoted form, and the path reaches the status and diff lines' }, () => {
+  withSandbox((box) => {
+    const name = `notes\t${SECRET_NAME}`;
+    box.write(name, 'harmless\n');
+    const base = commitAll(box, 'add');
+    box.write(name, 'harmless, edited\n');
+    const result = packageOf(box, base);
+    assert.ok(result.status === 0 || result.status === 2, result.out);
+    assert.ok(!result.text.includes(SECRET_NAME_VALUE), result.text.slice(0, 1500));
+  });
+});
+
 // Contract: a file diff with no added line (a deleted file, a mode change) on a path that looks like a secret stays out whole, its path in no section.
 // Breaks when: the path is read only from the `+++` line, which a deleted file prints as /dev/null, or only from a part of the diff a mode change does not have.
 // Not covered by: the implementer's path cases are a new file and an edit, which both print the path on a `+++` line.
@@ -1098,6 +1130,21 @@ test('preflight: a --probe-url without a scheme is not printed with its password
   });
 });
 
+// Contract: a --probe-url given without a scheme loses everything up to its last "@", so a password holding an "@" leaves no part of itself on the network line.
+// Breaks when: the redaction without a scheme ends at the first "@", so the part of the password after its own "@" is printed with the host.
+// Not covered by: the other cases without a scheme have a single "@", where the first and the last are the same.
+test('preflight: a --probe-url without a scheme and with an "@" in the password is printed with no part of the password', async () => {
+  const port = await closedPort();
+  const password = `${'pr0'}@${'be'}/${'s3cr'}${'et'}`;
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    const result = await watchWhile('preflight.mjs', ['--repo', box.repo, '--probe-url', `user:${password}@127.0.0.1:${port}/v1`], offline(box.env()), {});
+    assert.match(result.out, new RegExp(`^\\[stop\\] network: no answer from 127\\.0\\.0\\.1:${port}/v1 `, 'm'), result.out);
+    assert.ok(!result.out.includes('s3cr'), result.out);
+    assert.ok(!result.out.includes(`${'be'}/`), result.out);
+  });
+});
+
 // Contract: a --probe-url with a scheme, in any letter case, is printed without its credentials, also when its path holds an "@".
 // Breaks when: the scheme test is case-sensitive, or the redaction ends at the authority and misses a password that an "@" in the path follows.
 // Not covered by: the implementer's --probe-url cases are lower-case http URLs with no "@" after the host.
@@ -1225,6 +1272,22 @@ test('watch-pr: a refused credential on an Enterprise host with GH_ENTERPRISE_TO
     assert.equal(result.status, 77, result.out);
     assert.ok(!result.out.includes(value), result.out);
     assert.match(result.stderr, /GH_ENTERPRISE_TOKEN/, result.out);
+  });
+});
+
+// Contract: on a refused credential, a host in --repo written in capitals is read as the host gh talks to, so github.com in any case is advised with GH_TOKEN and a plain gh auth login.
+// Breaks when: the host is compared to github.com without folding its case, so "GitHub.com" reads as an Enterprise Server host and the advice names the wrong variables and a --hostname.
+// Not covered by: the implementer's host cases are all written in lower case.
+test('watch-pr: a refused credential with --repo naming GitHub.com in capitals is advised as github.com', () => {
+  withSandbox((box) => {
+    box.writeExecutable('gh', REFUSING_GH);
+    const value = `${'not'}-${'a'}-${'real'}-${'value'}`;
+    const env = box.env({ GH_TOKEN: value, GITHUB_TOKEN: undefined, GH_ENTERPRISE_TOKEN: undefined, GITHUB_ENTERPRISE_TOKEN: undefined, GH_HOST: undefined });
+    const result = runScript('watch-pr.mjs', ['--repo', 'GitHub.com/owner/repo', '--pr', '7', '--timeout-min', '0.01'], env);
+    assert.equal(result.status, 77, result.out);
+    assert.ok(!result.out.includes(value), result.out);
+    assert.match(result.stderr, /replace the token in GH_TOKEN, /, result.out);
+    assert.doesNotMatch(result.stderr, /ENTERPRISE|--hostname/, result.out);
   });
 });
 
