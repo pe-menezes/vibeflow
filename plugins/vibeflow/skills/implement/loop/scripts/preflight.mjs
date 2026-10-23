@@ -39,7 +39,8 @@ network: a HEAD request to the host of the origin remote (<scheme>://<host[:port
 or https remote, https://<host> for git@host:... and ssh://) and to every --probe-url, such as
 the model provider's API. Every --probe-url failing is a stop; the origin host failing is
 attention (an http or https push goes through it; an ssh push does not need it); no origin and
-no --probe-url is attention. Credentials written in the origin URL are never printed.
+no --probe-url is attention. Credentials written in the origin URL or in a --probe-url are
+never printed.
 pr ending: gh auth status --hostname <origin host>. Without gh logged in to that host, the loop
 ends with the branch pushed and the pull request body written, for you to open the pull request
 or merge request by hand, and the open PRs are not listed.
@@ -111,10 +112,15 @@ function repository(repo, explicitDefault) {
   return { isRepo: true, lines };
 }
 
-// The origin URL as printed: without the credentials it may carry (user:password@ or token@).
-// Everything up to the last @ after the scheme goes, so a password holding a / cannot leak.
+// A URL as printed, the origin in any form and every --probe-url: without the credentials it
+// may carry (user:password@ or token@), worked on the text before any attempt to parse it.
+// With a scheme, everything between "<scheme>://" and the last @ goes, so a password holding a
+// space, a / or an @ cannot leak; a path holding an @ loses more than the credentials, which is
+// the safe side. Without a scheme (user@host:path), everything up to the last @ before the first
+// / goes.
 function shown(url) {
-  return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)\S*@/i, '$1');
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[\s\S]*@/i, '$1');
+  return url.replace(/^[^/]*@/, '');
 }
 
 // The origin remote: the URL the network probe uses and the host gh is asked about.
@@ -195,11 +201,12 @@ function pullRequests(repo, remote, ending) {
 }
 
 async function answers(url) {
+  const printed = shown(url);
   try {
     await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(6000) });
     return null;
   } catch (error) {
-    return `${url} (${error.cause?.code ?? error.name})`;
+    return `${printed} (${error.cause?.code ?? error.name})`;
   }
 }
 
@@ -218,7 +225,7 @@ async function network(remote, given) {
     const failure = await answers(url);
     if (failure) failures.push(failure);
   }
-  if (failures.length === 0) return [[GO, `network: ${probes.join(', ')} answer`]];
+  if (failures.length === 0) return [[GO, `network: ${probes.map(shown).join(', ')} answer`]];
   const givenFailures = failures.length - (fallback && failures[0].startsWith(`${fallback} `) ? 1 : 0);
   const level = given.length > 0 && givenFailures === given.length ? STOP : ATTENTION;
   const push = remote?.http ? 'the push to an http(s) origin goes through it' : 'a push over SSH does not need it';

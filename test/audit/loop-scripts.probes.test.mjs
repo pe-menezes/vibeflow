@@ -925,7 +925,7 @@ test('preflight: a password holding "/" or "@" in an origin URL that does not pa
 // Contract: a password holding a space, in an origin URL that does not parse, is not printed in any part.
 // Breaks when: the credential pattern does not cross whitespace, so the URL prints whole.
 // Not covered by: every credential case uses a password without whitespace.
-test('preflight: a password holding a space in an origin URL that does not parse is not printed', { todo: 'open gap: the credential pattern stops at whitespace, so a password with a space is printed whole' }, () => {
+test('preflight: a password holding a space in an origin URL that does not parse is not printed', () => {
   withSandbox((box) => {
     box.git('switch', '-q', '-c', 'feat/x');
     box.git('remote', 'add', 'origin', 'https://user:left-s3cret right-s3cret@127.0.0.1:99999/owner/repo.git');

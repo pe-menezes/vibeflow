@@ -25,7 +25,7 @@ The commands that use the kit name the script and the moment; this file says wha
 `preflight.mjs` in detail:
 
 * Git: the branch is not the default one; dirty files; stashes.
-* Network: the host of the `origin` remote plus every `--probe-url`. It stops only when every `--probe-url` given fails. A failing origin host is attention (an http or https push goes through it, an ssh push does not need it), and so is having nothing to probe. No credential from the origin URL is printed.
+* Network: the host of the `origin` remote plus every `--probe-url`. It stops only when every `--probe-url` given fails. A failing origin host is attention (an http or https push goes through it, an ssh push does not need it), and so is having nothing to probe. No credential written in the origin URL or in a `--probe-url` is printed: everything between `<scheme>://` and the last `@` goes (a path holding an `@` loses more than the credential), and so does the user part of a `user@host:path` remote.
 * CI of open PRs, through `gh` when it is installed and logged in to the origin host, with the check state lists of `watch-pr.mjs`: a PR with a check outside the green list is attention, never green.
 * `pr ending:` whether `gh` is logged in to the origin host; if not, attention that the loop ends with the branch pushed and the PR body written, for a pull request or merge request opened by hand.
 * `CLAUDE_CODE_EFFORT_LEVEL`, only when it is set. `--no-network` skips the probes and every `gh` call.

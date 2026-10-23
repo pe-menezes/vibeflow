@@ -1978,6 +1978,56 @@ test('preflight: no origin and no --probe-url is attention, with nothing to prob
   });
 });
 
+// Each password is assembled at run time and is not a real credential.
+const ORIGIN_PASSWORDS = {
+  'a space': `${'left-'}${'s3cret'} ${'right-'}${'s3cret'}`,
+  'a tab': `${'left-'}${'s3cret'}\t${'right-'}${'s3cret'}`,
+  'a "/"': `${'left-'}${'s3cret'}/${'right-'}${'s3cret'}`,
+  'an "@"': `${'left-'}${'s3cret'}@${'right-'}${'s3cret'}`,
+};
+
+test('preflight prints an origin URL that does not parse without its password, whatever the password holds, and keeps its host', () => {
+  for (const [holding, password] of Object.entries(ORIGIN_PASSWORDS)) {
+    withSandbox((box) => {
+      box.git('switch', '-q', '-c', 'feat/x');
+      box.git('remote', 'add', 'origin', `https://user:${password}@127.0.0.1:99999/owner/repo.git`);
+      const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+      assert.equal(result.status, 1, `${holding}: ${result.out}`);
+      assert.ok(!result.out.includes('s3cret'), `${holding}: ${result.out}`);
+      assert.ok(!result.out.includes('user:'), `${holding}: ${result.out}`);
+      assert.match(result.stdout, /^\[attention\] pr ending: origin https:\/\/127\.0\.0\.1:99999\/owner\/repo\.git has no host for gh; /m, `${holding}: ${result.out}`);
+    });
+  }
+});
+
+test('preflight prints a failing --probe-url without the credentials written in it, and keeps its host', async () => {
+  const port = await closedPort();
+  const password = `${'probe-'}${'s3cret'} ${'tail'}`;
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    for (const credentials of [`user:${password}@`, `${'tok'}${'en-s3cret'}@`]) {
+      const result = await preflight(['--repo', box.repo, '--probe-url', `http://${credentials}127.0.0.1:${port}/v1`], box.env());
+      assert.equal(result.status, 2, result.out);
+      assert.ok(!result.out.includes('s3cret'), result.out);
+      assert.ok(!result.out.includes('user:'), result.out);
+      assert.match(result.out, new RegExp(`^\\[stop\\] network: no answer from http://127\\.0\\.0\\.1:${port}/v1 \\(`, 'm'), result.out);
+    }
+  });
+});
+
+test('preflight never prints the user part of an scp-style origin, a password in it included', async () => {
+  const password = `${'scp-'}${'s3cret'} ${'tail'}`;
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    box.git('remote', 'add', 'origin', `user:${password}@localhost:owner/repo.git`);
+    const result = await preflight(['--repo', box.repo], box.env());
+    assert.ok(!result.out.includes('s3cret'), result.out);
+    assert.ok(!result.out.includes('user:'), result.out);
+    assert.match(result.out, /^\[attention\] network: no answer from https:\/\/localhost /m, result.out);
+    assert.match(readFileSync(box.ghLog, 'utf8'), /^auth status --hostname localhost$/m);
+  });
+});
+
 test('preflight --no-network never calls gh', () => {
   withSandbox((box) => {
     box.git('switch', '-q', '-c', 'feat/x');
