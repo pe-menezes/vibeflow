@@ -736,6 +736,25 @@ test('sabotage copy: a sabotage recorded as in progress carries the change it ap
   }
 });
 
+// Contract: the temporary folder that holds the sabotage copies is deleted only after the last restore, in step 6 and in the retry rule, so the copies of the other sabotages still in progress are there when their turn comes.
+// Breaks when: a clause such as "After each restore, delete the temporary folder too." joins the retry rule, which takes the other in-progress copies away with the first restore and sends those files to git, where a file with uncommitted work can only be undone by hand.
+// Not covered by: the contract test checks that the ordered sentence is there and that one old sentence is gone, not that no other clause deletes the folder sooner.
+test('sabotage copy: the temporary folder is deleted only after the last restore, in step 6 and in the retry rule', () => {
+  const deletesFolder = /\bdelete[sd]?\b[^;.]*\btemporary folder\b/i;
+  const afterLast = /\blast restore\b|\b(every|all)\b[^;]*\b(sabotages?|files?)\b[^;]*\brestored\b/i;
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const text = edition(path).replace(/\s+/g, ' ');
+    for (const [where, part] of [['step 6', SABOTAGE_STEP.exec(text)?.[0] ?? ''], ['retry rule', RETRY_RULE.exec(text)?.[0] ?? '']]) {
+      const clauses = part.split(/(?<=[.;])\s/).filter((clause) => deletesFolder.test(clause));
+      assert.ok(clauses.length > 0, `${name}: the ${where} deletes the temporary folder`);
+      for (const clause of clauses) {
+        const condition = clause.search(afterLast);
+        assert.ok(condition >= 0 && condition < clause.search(deletesFolder), `${name}: the ${where} deletes the temporary folder before the last restore: ${clause}`);
+      }
+    }
+  }
+});
+
 // ------------------------------------------------------------ --probes gate
 
 // Contract: every clause that makes probes or sabotage wait for `--probes` names a standalone audit, and the one loop-part clause runs both as written.
