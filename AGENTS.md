@@ -35,6 +35,17 @@ to Copilot and Cursor in the same pull request.
 | `skills/teach/SKILL.md` | `github/prompts/vibeflow-teach.prompt.md` | `skills/vibeflow-teach/SKILL.md` |
 | `skills/stats/SKILL.md` | `github/prompts/vibeflow-stats.prompt.md` | `skills/vibeflow-stats/SKILL.md` |
 | `agents/architect.md` | `github/agents/vibeflow-architect.agent.md` | `rules/vibeflow-architect.mdc` |
+| `skills/implement/loop/` (the loop kit) | installed by the CLI into `.github/vibeflow/loop/` | installed by the CLI into `.cursor/skills/vibeflow-implement/loop/` |
+| `agents/executor.md`, `agents/auditor.md` | the roles in the installed kit (`roles/executor.md`, `roles/auditor.md`), read by a chat the user opens | the same, from the installed kit |
+
+The loop kit has one source, `plugins/vibeflow/skills/implement/loop/`; the
+Copilot and Cursor editions never hold a copy, because `cli/index.js` downloads
+the files that `loop/manifest.json` lists. The executor and auditor roles live
+in `loop/roles/`; the Claude agents carry the same body after their front
+matter. Codex reaches the roles through its native subagent or a new task given
+the briefing's path; Cursor and Copilot through a new chat the user opens with
+the orchestrator's one-line instruction, whose briefing points at the role
+file. A change to a role changes both the role file and its agent.
 
 - Command logic changes affect the shared plugin, Copilot, and Cursor.
 - Claude and Codex packaging changes affect only their manifests or catalogs.
@@ -59,6 +70,10 @@ For a shared plugin release, keep these values aligned:
 - `.claude-plugin/marketplace.json` top-level, metadata, and plugin versions
 
 Change `cli/package.json` only when the CLI changes.
+
+When a release changes the CLI, publish the CLI to npm when the release
+reaches `main`: the published CLI downloads the prompts from `main`, and the
+Cursor and Copilot prompts name the CLI version they need.
 
 ## Platform notes
 

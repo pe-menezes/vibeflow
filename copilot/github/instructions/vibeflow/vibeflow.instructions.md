@@ -28,6 +28,10 @@ prompt regardless of size.
 | `.vibeflow/prompt-packs/` | Prompt packs (self-contained, agent-agnostic) |
 | `.vibeflow/audits/` | Audit reports |
 | `.vibeflow/hotfixes/` | Hotfix trace docs (one file per bug, resumable) |
+| `.vibeflow/loop/` | Execution loop: one ledger per feature, and `config.md` |
+| `.vibeflow/briefings/` | One briefing per loop round |
+| `.vibeflow/progress/` | Progress files of the loop's executor and fix rounds |
+| `.vibeflow/reviews/` | Review packages and the PR body: working material, not versioned |
 | `.github/prompts/vibeflow-*.prompt.md` | Reusable prompt files (the "commands") |
 | `.github/agents/vibeflow-architect.agent.md` | Agent persona (architect) |
 
@@ -69,11 +73,11 @@ Technical terms in English are acceptable (endpoint, middleware, deploy, etc.).
 
 See `.github/prompts/` for the full set of Vibeflow prompts:
 - `vibeflow-discover` — Turn a vague idea into a PRD
-- `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`)
+- `vibeflow-analyze` — Deep-analyze codebase, build `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`, `--measure`)
 - `vibeflow-gen-spec` — Generate grounded spec with DoD
 - `vibeflow-prompt-pack` — Self-contained prompt for any coding agent
-- `vibeflow-implement` — Implement a feature from its spec with guardrails
-- `vibeflow-audit` — Verify DoD + pattern + test compliance
+- `vibeflow-implement` — Implement a feature from its spec with guardrails (flags: `--loop`, `--no-loop`)
+- `vibeflow-audit` — Verify DoD + pattern + test compliance (flags: `--package`, `--base`, `--reaudit`, `--probes`, `--consolidate-hotfixes`)
 - `vibeflow-quick` — Fast-track for small tasks
 - `vibeflow-hotfix` — Fix an observed defect with a trace doc and a regression test
 - `vibeflow-teach` — Update `.vibeflow/` with feedback

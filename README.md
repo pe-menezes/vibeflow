@@ -31,12 +31,51 @@ Run `analyze` once, then `gen-spec` → `implement` for each feature. That's it.
 | **analyze** | Deep-scans codebase → `.vibeflow/` knowledge base | Setup, or after major changes |
 | **discover** | Dialogue that turns a vague idea into a PRD | Idea isn't clear yet |
 | **gen-spec** | Generates spec with binary DoD, scope, anti-scope | Ready to specify |
-| **implement** | Implements from spec with guardrails (budget, DoD, patterns) | Spec approved, ready to code |
+| **implement** | Implements from spec with guardrails (budget, DoD, patterns); `--loop` runs the execution loop below | Spec approved, ready to code |
 | **prompt-pack** | Self-contained prompt for another agent/session | Need to delegate |
-| **audit** | Verifies DoD + patterns + tests + destructive-op gate; `--consolidate-hotfixes` reclassifies hotfix trace docs | After implementation |
+| **audit** | Verifies DoD + patterns + tests + destructive-op gate from a review package of the diff, with a severity and a cause on every finding; `--reaudit` checks a fix round, `--probes` writes probe tests and sabotages risk code when run by hand, `--consolidate-hotfixes` reclassifies hotfix trace docs | After implementation |
 | **hotfix** | Traceable fix in one call: trace doc + fix + regression test written before the fix | Observed defect with reproducible evidence |
 
-**Utility:** `quick` (fast-track small tasks), `teach` (update knowledge base), `stats` (audit trends).
+**Utility:** `quick` (fast-track small tasks), `teach` (update knowledge base), `stats` (audit trends, plus the loop's numbers when you use it).
+
+## The execution loop (opt-in)
+
+`implement --loop` splits the work between sessions that cannot grade
+themselves: the session you call becomes the orchestrator, an executor
+implements each part in a fresh session, an independent audit checks it in
+another one, and at most two fix rounds follow, each re-audited on its own
+diff. With your OK, asked once per feature, every round is committed on the
+feature branch, and the loop ends in company mode: a pull request whose body
+carries the evidence (verdicts, DoD, findings, probes, commands run), opened
+after the suite runs in the CI's environment when your machine differs from it
+(when that run is not possible, the PR opens anyway and says why). The agent
+never merges, deploys, migrates a shared environment or reads production.
+
+The loop is off by default and runs only when you turn it on:
+`implement --loop` for one run, or `loop: true` in `.vibeflow/loop/config.md`
+for the project (`--no-loop` turns it off for one run). Requirements:
+
+- The loop kit, which ships inside the `implement` skill
+  (`plugins/vibeflow/skills/implement/loop/`). Claude Code and Codex get it
+  with the plugin; the Cursor and Copilot installers copy it into the project.
+- Node.js 18 or later for the kit's scripts.
+- In Claude Code, version 2.1.69 or newer, the one that substitutes
+  `${CLAUDE_SKILL_DIR}` in a skill's body. An `audit` run by hand needs it
+  too, to build its review package: on an older version it does not find the
+  kit, records `Review package: none (kit not installed)` and computes the
+  diff as before, and updating Claude Code, not the plugin, fixes it.
+- For the pull request at the end: a remote on GitHub (or GitHub Enterprise)
+  and `gh auth status` ok for its host. The `pr ending` line of
+  `preflight.mjs` tells you before the first dispatch. Without it, the loop
+  pushes the branch and writes the body to
+  `.vibeflow/reviews/<feature>-pr-body.md`, for you to open the pull request
+  or merge request by hand. On GitHub Enterprise, the watch of the checks
+  takes the `origin` host in `--repo`; that host form was checked only
+  against a fake `gh`, not against a real GitHub Enterprise.
+
+Platforms: tested on macOS and Linux (the kit's scripts and the repository's
+test suite); Windows has not been measured. See [`MANUAL.md`](MANUAL.md) for
+the roles, the artifacts and the ceilings.
 
 ## Editions
 
@@ -73,7 +112,7 @@ Claude Code uses its own **plugin system**, not file downloads.
 /plugin install vibeflow@vibeflow-marketplace
 ```
 
-Then run `/vibeflow:analyze` to get started.
+Then run `/vibeflow:analyze` to get started. The plugin also brings the `vibeflow:executor` and `vibeflow:auditor` agents that `implement --loop` dispatches.
 
 > **Source:** [`plugins/vibeflow/`](plugins/vibeflow/) in this repo. Existing users of [pe-menezes/vibeflow-claude](https://github.com/pe-menezes/vibeflow-claude) remain supported through an automatic compatibility mirror.
 
@@ -83,7 +122,7 @@ Then run `/vibeflow:analyze` to get started.
 npx setup-vibeflow@latest --cursor
 ```
 
-See [`cursor/README.md`](cursor/README.md) for details.
+The loop kit goes to `.cursor/skills/vibeflow-implement/loop/`. See [`cursor/README.md`](cursor/README.md) for details.
 
 ### GitHub Copilot
 
@@ -91,7 +130,7 @@ See [`cursor/README.md`](cursor/README.md) for details.
 npx setup-vibeflow@latest --copilot
 ```
 
-See [`copilot/README.md`](copilot/README.md) for details.
+The loop kit goes to `.github/vibeflow/loop/`. See [`copilot/README.md`](copilot/README.md) for details.
 
 > By default the installer adds installed files and the `.vibeflow/` folder to `.gitignore`. Remove the "Vibeflow" block from `.gitignore` if you want to track them in git.
 
