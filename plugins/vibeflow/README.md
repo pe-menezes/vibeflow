@@ -120,11 +120,16 @@ The pull request at the end is opened with `gh`, so it needs a remote on GitHub
 line of `preflight.mjs` tells you before the first dispatch. Without it, the
 loop pushes the branch and writes the body to
 `.vibeflow/reviews/<feature>-pr-body.md`, for you to open the pull request or
-merge request by hand.
+merge request by hand. On GitHub Enterprise, the watch of the checks takes the
+`origin` host in `--repo`; that host form was checked only against a fake
+`gh`, not against a real GitHub Enterprise.
 
 A standalone `audit` writes the probe file and sabotages risk code only with
 `--probes`; without it, the report lists the probe cases as code and records
-`Sabotage: skipped (standalone audit; --probes runs it)`.
+`Sabotage: skipped (standalone audit; --probes runs it)`. The copy each
+sabotage is undone from goes to a temporary folder outside the project, never
+to `.vibeflow/`, and is deleted with its folder once the file is restored and
+its hash checked.
 
 ## Project knowledge
 

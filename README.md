@@ -69,7 +69,9 @@ for the project (`--no-loop` turns it off for one run). Requirements:
   `preflight.mjs` tells you before the first dispatch. Without it, the loop
   pushes the branch and writes the body to
   `.vibeflow/reviews/<feature>-pr-body.md`, for you to open the pull request
-  or merge request by hand.
+  or merge request by hand. On GitHub Enterprise, the watch of the checks
+  takes the `origin` host in `--repo`; that host form was checked only
+  against a fake `gh`, not against a real GitHub Enterprise.
 
 Platforms: tested on macOS and Linux (the kit's scripts and the repository's
 test suite); Windows has not been measured. See [`MANUAL.md`](MANUAL.md) for
