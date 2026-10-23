@@ -74,6 +74,10 @@ attempt left. The last write sets `Stage: final` and the verdict; when the
 audit stops early, that stop is the last write. When a report that a dead
 attempt left is already at that path, restore every sabotage it records as in
 progress (step 6) before anything else, from its copy, comparing the hash.
+When the copy is gone (a restart empties the temporary folder), restore the
+file from git with `git show HEAD:<path>`, which is safe because a sabotaged
+file never has uncommitted changes, and compare the same hash. When the hash
+does not match, stop and tell the user.
 
 1. **Review package** (`1/7 package`). The audit reads the change from one
    file, so the Critical Gate and the review judge the same diff. Build or
@@ -282,13 +286,19 @@ progress (step 6) before anything else, from its copy, comparing the hash.
    express (SQL inside a string, a constant from another file, a domain rule).
    - Each sabotage is a small wrong change that a sound suite should catch,
      undone from a copy verified by hash: copy the file, record its hash,
-     restore from the copy and compare. `git checkout`, `git restore`,
-     `git stash` and `git reset` are forbidden while work is uncommitted,
-     because they throw away the implementer's work.
+     restore from the copy and compare. The copy goes to a temporary folder
+     created for this audit outside the project (`mktemp -d` on macOS and
+     Linux, a new folder under the user's `TEMP` folder on Windows), never to
+     `.vibeflow/` or any other folder of the project, so no `git add` reaches
+     it. `git checkout`, `git restore`, `git stash` and `git reset` are
+     forbidden while work is uncommitted, because they throw away the
+     implementer's work.
    - Before applying a sabotage, write it into the report under
-     `### Sabotage` as in progress: the file, the path of its copy under
-     `.vibeflow/audits/`, and the copy's hash; mark it restored once the
-     restored file matches the hash. With `--probes`, a standalone audit
+     `### Sabotage` as in progress: the file, the path of its copy in that
+     temporary folder, and the copy's hash. Once the restored file matches the
+     hash, mark it restored and delete the copy; after the last restore,
+     delete the temporary folder, and the report says both were deleted.
+     With `--probes`, a standalone audit
      sabotages only files without uncommitted changes and lists the others as
      not sabotaged, with the reason: for those, an interrupted sabotage would
      leave nothing in git to fall back on.
@@ -389,7 +399,8 @@ Left out of the package: <n> file(s), read with git | none
 
 ### Sabotage
 - <file:line> — <the wrong change> — killed by <test> | survived → <finding id>
-- <file> — in progress — copy: .vibeflow/audits/<copy> — sha256 <hash> (until restored)
+- <file> — in progress — copy: <temporary folder>/<copy> — sha256 <hash> (until restored)
+Copies: deleted, with their temporary folder
 - <file> — not sabotaged — <reason>
 Sabotage: skipped (standalone audit; --probes runs it)
 (or "No risk code in the diff.", with how it was classified)

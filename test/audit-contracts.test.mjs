@@ -303,13 +303,56 @@ test('proof scales with risk: scenarios, sabotage only in risk code, undone from
 
 test('a sabotage is recorded before it is applied, a retry restores it first, and a standalone audit spares uncommitted files', () => {
   forEachEdition((content, edition) => {
-    assert.match(content, /before applying a sabotage, write it into the report[^.]*the file, the path of its copy under `\.vibeflow\/audits\/`[^.]*hash/i,
+    assert.match(content, /before applying a sabotage, write it into the report[^.]*the file, the path of its copy in that temporary folder[^.]*hash/i,
       `${edition}: the sabotage is written in the report before it is applied`);
     assert.match(content, /restores? every sabotage (it|the report) records? as in progress[^.]*before anything else/i,
       `${edition}: a retry restores an in-progress sabotage first`);
     assert.match(content, /standalone audit sabotages only files without uncommitted changes[^.]*lists the others as not sabotaged, with the reason/i,
       `${edition}: a standalone audit spares files with uncommitted changes`);
   });
+});
+
+// A file the package lists under WITHHELD holds a line that looks like a
+// secret. A sabotage copy inside the project would bring that whole file back
+// into a folder a project may commit, so the copy lives outside the project.
+const SABOTAGE_STEP = /6\. \*\*Sabotage, only in risk code\*\*[\s\S]*?7\. \*\*Probes\*\*/;
+const RETRY_RULE = /When a report that a dead\s+attempt left is already at that path[\s\S]*?\n\n/;
+
+test('the sabotage copy lives in a temporary folder outside the project, is deleted once restored, and a retry without it restores from git by the same hash', () => {
+  const steps = {};
+  const retries = {};
+  forEachEdition((content, edition, raw) => {
+    const step6 = SABOTAGE_STEP.exec(content)?.[0] ?? '';
+    assert.match(step6, /The copy goes to a temporary folder created for this audit outside the project \(`mktemp -d` on macOS and Linux, a new folder under the user's `TEMP` folder on Windows\), never to `\.vibeflow\/` or any other folder of the project, so no `git add` reaches it/,
+      `${edition}: the copy goes to a temporary folder outside the project`);
+    assert.match(step6, /once the restored file matches the hash, mark it restored and delete the copy; after the last restore, delete the temporary folder, and the report says both were deleted/i,
+      `${edition}: the copy and its folder are deleted after the checked restore, and the report says so`);
+    const retry = flat(RETRY_RULE.exec(raw)?.[0] ?? '');
+    assert.match(retry, /restore every sabotage it records as in progress \(step 6\) before anything else, from its copy, comparing the hash/,
+      `${edition}: a retry restores from the copy first`);
+    assert.match(retry, /When the copy is gone \(a restart empties the temporary folder\), restore the file from git with `git show HEAD:<path>`[^.]*a sabotaged file never has uncommitted changes[^.]*compare the same hash/,
+      `${edition}: without the copy, the retry restores from git and checks the same hash`);
+    assert.match(retry, /When the hash does not match, stop and tell the user/, `${edition}: a hash that does not match stops the audit`);
+    const intoProject = content.split(/(?<=\.)\s+/)
+      .filter((sentence) => /\bcop(y|ies)\b/i.test(sentence) && /\.vibeflow\//.test(sentence))
+      .filter((sentence) => !/never to `\.vibeflow\/` or any other folder of the project/.test(sentence));
+    assert.deepEqual(intoProject, [], `${edition}: no sentence puts a sabotage copy under .vibeflow/`);
+    const template = fenceAfter(raw, '## Output format');
+    const sabotage = /### Sabotage\n([\s\S]*?)\n### Probes/.exec(template)?.[1] ?? '';
+    assert.ok(sabotage.split('\n').some((line) => line.includes('copy: <temporary folder>/<copy>')),
+      `${edition}: the template records the copy in the temporary folder`);
+    assert.ok(!/\.vibeflow\//.test(sabotage), `${edition}: the template puts no copy under .vibeflow/`);
+    steps[edition] = SABOTAGE_STEP.exec(raw)?.[0] ?? '';
+    retries[edition] = RETRY_RULE.exec(raw)?.[0] ?? '';
+  });
+  assert.deepEqual(parityGaps(steps), [], 'the sabotage step reads the same in the three editions');
+  assert.deepEqual(parityGaps(retries), [], 'the retry rule reads the same in the three editions');
+  for (const [name, path] of [['role', ROLE], ['agent', AGENT]]) {
+    const text = flat(read(path));
+    assert.doesNotMatch(text, /cop(y|ies)[^.]*`\.vibeflow\//i, `${name}: no sabotage copy under .vibeflow/`);
+    assert.match(text, /the sabotage copies go to a temporary folder outside the project and are deleted once restored/i,
+      `${name}: says where the sabotage copies go`);
+  }
 });
 
 // An audit run by hand keeps the 1.15 footprint plus the report's new fields.
