@@ -52,12 +52,24 @@ const GH_AUTH_EXIT = 4;
 // gh exits 1 with this in its error when GitHub refuses the token (invalid, revoked or expired).
 const REFUSED = /\bHTTP 401\b/;
 
-// gh reads GH_TOKEN, then GITHUB_TOKEN, before its stored login, so a token set in the
-// environment is the one to replace; gh auth login would not change what gh sends.
-function credentialFix() {
-  const set = ['GH_TOKEN', 'GITHUB_TOKEN'].filter((name) => process.env[name]);
-  if (set.length === 0) return 'run `gh auth login`';
-  return `replace the token in ${set.join(' and ')}, which gh uses before its stored login, or unset it and run \`gh auth login\``;
+// The host gh talks to: the one in --repo, or else GH_HOST, or else github.com.
+function hostOf(repo) {
+  const parts = repo.split('/');
+  return (parts.length === 3 ? parts[0] : process.env.GH_HOST || 'github.com').toLowerCase();
+}
+
+// gh reads a token from the environment before its stored login, so a token set there is the
+// one to replace; gh auth login would not change what gh sends. Which variables it reads depends
+// on the host (gh help environment): GH_TOKEN, then GITHUB_TOKEN, for github.com and a subdomain
+// of ghe.com; GH_ENTERPRISE_TOKEN, then GITHUB_ENTERPRISE_TOKEN, for a GitHub Enterprise Server host.
+function credentialFix(repo) {
+  const host = hostOf(repo);
+  const enterprise = host !== 'github.com' && !host.endsWith('.ghe.com');
+  const login = host === 'github.com' ? '`gh auth login`' : `\`gh auth login --hostname ${host}\``;
+  const set = (enterprise ? ['GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN'] : ['GH_TOKEN', 'GITHUB_TOKEN'])
+    .filter((name) => process.env[name]);
+  if (set.length === 0) return `run ${login}`;
+  return `replace the token in ${set.join(' and ')}, which gh uses before its stored login, or unset ${set.length === 1 ? 'it' : 'them'} and run ${login}`;
 }
 // sysexits: the service is unavailable, and the permission is missing.
 const EX_UNAVAILABLE = 69;
@@ -115,7 +127,7 @@ function readPr(repo, pr) {
     throw new Permanent(`gh is not logged in; run \`gh auth login\`, then start the watch again (${result.stderr.trim().slice(0, 200)})`, EX_NOPERM);
   }
   if (result.status === 1 && REFUSED.test(result.stderr)) {
-    throw new Permanent(`GitHub refused the credential gh uses; ${credentialFix()}, then start the watch again (${result.stderr.split('\n').find((line) => REFUSED.test(line)).trim().slice(0, 200)})`, EX_NOPERM);
+    throw new Permanent(`GitHub refused the credential gh uses; ${credentialFix(repo)}, then start the watch again (${result.stderr.split('\n').find((line) => REFUSED.test(line)).trim().slice(0, 200)})`, EX_NOPERM);
   }
   if (result.status !== 0) throw new Error(`gh exited ${result.status}: ${result.stderr.trim().slice(0, 200)}`);
   return JSON.parse(result.stdout);

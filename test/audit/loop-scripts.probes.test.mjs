@@ -454,7 +454,7 @@ function commitAll(box, title) {
 // Contract: a path that looks like a secret never reaches the package, in whatever form the stat prints it.
 // Breaks when: a stat line is matched only by the detector or by the whole path, while git prints a rename as "dir/{old => new}" and a long path cut short after ".../", so the path's literal reaches the "Files and lines" section.
 // Not covered by: the implementer's path cases use short top-level paths, which the stat prints whole and without a rename.
-test('review-package: a path that looks like a secret stays out of the stat when git prints it as a rename or cut short', { todo: 'open gap: the stat prints a withheld path as "dir/{old => new}" or after ".../", and neither form is recognized, so the path reaches the package' }, () => {
+test('review-package: a path that looks like a secret stays out of the stat when git prints it as a rename or cut short', () => {
   const deep = Array.from({ length: 8 }, (_, level) => `directory-level-${level}`).join('/');
   const cases = {
     'a committed rename inside a folder': (box) => {
@@ -487,7 +487,7 @@ test('review-package: a path that looks like a secret stays out of the stat when
 // Contract: a long file name holding a token leaves no piece of the token in the package.
 // Breaks when: the stat cuts the name from the left, and the piece it keeps has lost the token's prefix, so neither the detector nor the whole path matches the line.
 // Not covered by: the implementer's token path is short enough for the stat to print it whole, where the detector matches it.
-test('review-package: a long file name holding a token leaves no piece of the token in the stat', { todo: 'open gap: the stat cuts a long file name from the left, and the piece of the token it keeps no longer looks like one' }, () => {
+test('review-package: a long file name holding a token leaves no piece of the token in the stat', () => {
   const random = FAKE_GITHUB_TOKEN.slice(4);
   for (let after = 10; after <= 60; after += 10) {
     withSandbox((box) => {
@@ -507,7 +507,7 @@ test('review-package: a long file name holding a token leaves no piece of the to
 // Contract: the WITHHELD entry of a file left out for its path names a git command that lists that file.
 // Breaks when: the entry points only to the worktree status, while the withheld change is committed and the status is clean.
 // Not covered by: the implementer's path cases leave the change uncommitted, where git status --short lists it.
-test('review-package: the entry of a committed file withheld for its path points to a git command that lists it', { todo: 'open gap: the entry says to find the file with git status --short, which lists nothing once the change is committed' }, () => {
+test('review-package: the entry of a committed file withheld for its path points to a git command that lists it', () => {
   withSandbox((box) => {
     box.write(SECRET_NAME, 'harmless\n');
     commitAll(box, 'add');
@@ -1087,7 +1087,7 @@ test('preflight: a password holding a space in an origin URL that does not parse
 // Contract: a --probe-url given without a scheme is never printed with the password written before its "@", whatever the password holds.
 // Breaks when: the redaction without a scheme stops at the first "/", so a password holding one keeps the whole user part on the network line.
 // Not covered by: the implementer's case without a scheme is an scp-style origin whose password holds a space, never a "/".
-test('preflight: a --probe-url without a scheme is not printed with its password, a "/" in the password included', { todo: 'open gap: without a scheme, the redaction stops at the first "/", so a password holding one is printed whole' }, async () => {
+test('preflight: a --probe-url without a scheme is not printed with its password, a "/" in the password included', async () => {
   const port = await closedPort();
   const password = `${'pr0be'}/${'s3cr'}${'et'}`;
   await withSandboxAsync(async (box) => {
@@ -1216,7 +1216,7 @@ test('watch-pr: a refused credential with GH_TOKEN and GITHUB_TOKEN both set nam
 // Contract: on a refused credential, the advice names the token variable gh sends to the host given in --repo.
 // Breaks when: the advice reads only GH_TOKEN and GITHUB_TOKEN, while gh sends GH_ENTERPRISE_TOKEN or GITHUB_ENTERPRISE_TOKEN to a GitHub Enterprise Server host, so "gh auth login" changes nothing it sends.
 // Not covered by: the implementer's refused-credential cases use an <owner/repo> on github.com.
-test('watch-pr: a refused credential on an Enterprise host with GH_ENTERPRISE_TOKEN set says to replace that token', { todo: 'open gap: with GH_ENTERPRISE_TOKEN set for an Enterprise host, the advice is gh auth login, which does not change the token gh sends' }, () => {
+test('watch-pr: a refused credential on an Enterprise host with GH_ENTERPRISE_TOKEN set says to replace that token', () => {
   withSandbox((box) => {
     box.writeExecutable('gh', REFUSING_GH);
     const value = `${'not'}-${'a'}-${'real'}-${'value'}`;

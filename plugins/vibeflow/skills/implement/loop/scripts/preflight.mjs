@@ -116,11 +116,11 @@ function repository(repo, explicitDefault) {
 // may carry (user:password@ or token@), worked on the text before any attempt to parse it.
 // With a scheme, everything between "<scheme>://" and the last @ goes, so a password holding a
 // space, a / or an @ cannot leak; a path holding an @ loses more than the credentials, which is
-// the safe side. Without a scheme (user@host:path), everything up to the last @ before the first
-// / goes.
+// the safe side. Without a scheme (user@host:path, or user:password@host/path), everything up to
+// the last @ goes, the same way.
 function shown(url) {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) return url.replace(/^([a-z][a-z0-9+.-]*:\/\/)[\s\S]*@/i, '$1');
-  return url.replace(/^[^/]*@/, '');
+  return url.replace(/^[\s\S]*@/, '');
 }
 
 // The origin remote: the URL the network probe uses and the host gh is asked about.

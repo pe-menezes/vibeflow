@@ -673,7 +673,10 @@ test('a secret on the line git prints after a hunk header as its function contex
 // too: a token pasted in a commit title or in a file name must not reach the package.
 const HEADER_LEFT_OUT = /^HEADER LINES LEFT OUT: (\d+) line\(s\) /m;
 const LINE_NOTE = '(line left out: it looks like a secret or credential; see HEADER LINES LEFT OUT at the top)';
-const PATH_ENTRY = /^- a file whose path looks like a secret or credential \(\d+ bytes\): find it with git status --short$/gm;
+// The entry of a file withheld for its path names the git command that lists it, committed or
+// not: the files changed since the base for a tracked file, the untracked files for a new one.
+const CHANGED_PATH_ENTRY = /^- a file whose path looks like a secret or credential \(\d+ bytes\): find it with git diff --name-only [0-9a-f]{7,}$/gm;
+const NEW_PATH_ENTRY = /^- a file whose path looks like a secret or credential \(\d+ bytes\): find it with git ls-files --others --exclude-standard$/gm;
 
 test('a commit title that looks like a secret leaves only the short hash and a note in the package', () => {
   withSandbox((box) => {
@@ -711,7 +714,7 @@ test('a new file whose path looks like a secret is withheld whole, and its path 
     assert.ok(!text.includes(token), 'the token in the file name stays out of the package');
     assert.ok(!text.includes('harmless'), 'the whole new file stays out');
     assert.equal(text.match(WITHHELD_HEADER)?.[1], '1', text.slice(0, 800));
-    assert.equal(text.match(PATH_ENTRY)?.length, 1, text.slice(0, 800));
+    assert.equal(text.match(NEW_PATH_ENTRY)?.length, 1, text.slice(0, 800));
     assert.equal(text.match(HEADER_LEFT_OUT)?.[1], '2', 'the status line and the new-file line');
     assert.equal(text.split('\n').filter((line) => line === LINE_NOTE).length, 2, text.slice(0, 1200));
     assert.match(text, /^\+export const x = 13$/m, 'the clean change stays in the package');
@@ -732,9 +735,31 @@ test('a tracked file whose path looks like a secret is withheld whole, and its p
     for (const path of paths) assert.ok(!text.includes(path), `${path.slice(0, 9)}...: the path stays out of the package`);
     assert.ok(!text.includes('harmless'), 'the whole file diffs stay out');
     assert.equal(text.match(WITHHELD_HEADER)?.[1], '2', text.slice(0, 800));
-    assert.equal(text.match(PATH_ENTRY)?.length, 2, text.slice(0, 800));
+    assert.equal(text.match(CHANGED_PATH_ENTRY)?.length, 2, text.slice(0, 800));
     assert.equal(text.match(HEADER_LEFT_OUT)?.[1], '4', 'two status lines and two stat lines');
     assert.match(text, /^[0-9a-f]+ notes$/m, 'the clean commit title stays');
+  });
+});
+
+test('the files section prints every path whole, a long one and both sides of a rename inside a folder, with its line counts', () => {
+  withSandbox((box) => {
+    const deep = `${Array.from({ length: 8 }, (_, level) => `directory-level-${level}`).join('/')}/${'long-name-'.repeat(8)}notes.txt`;
+    box.write(deep, 'one\n');
+    box.write('conf/old-name.txt', 'kept\nkept\nkept\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'files');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    box.write(deep, 'one\ntwo\n');
+    box.git('mv', 'conf/old-name.txt', 'conf/new-name.txt');
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    const section = text.split('## Files and lines\n\n')[1].split('\n\n')[0];
+    assert.ok(section.split('\n').includes(`${deep} | +1 -0`), section);
+    assert.ok(section.split('\n').includes('conf/old-name.txt => conf/new-name.txt | +0 -0'), section);
+    assert.doesNotMatch(section, /\.\.\.\/|\{/, section);
+    assert.ok(section.split('\n').includes('2 file(s) changed, 1 line(s) added, 0 line(s) removed'), section);
   });
 });
 
@@ -1029,6 +1054,25 @@ test('check-probes exits 64 with the reason when --dir does not exist, is not a 
       assert.match(result.stderr, /^check-probes: --dir /m, dir);
       assert.match(result.stderr, reason, dir);
       assert.equal(result.stdout, '', dir);
+    }
+  });
+});
+
+test('check-probes reads a --dir written in another letter case as the folder on disk, or exits 64 where the case makes it another folder', () => {
+  withSandbox((box) => {
+    box.write('tests/probes/clock.test.ts', 'Date.now()\n');
+    for (const dir of ['TESTS/Probes', join(box.repo, 'Tests/PROBES')]) {
+      const result = runScript('check-probes.mjs', [box.repo, '--dir', dir], box.env());
+      // A file system that ignores letter case (the macOS default) finds the folder; one that
+      // does not has no such folder. Either way the probe folder is never read as empty.
+      if (existsSync(join(box.repo, 'TESTS/Probes'))) {
+        assert.equal(result.status, 1, `${dir}: ${result.out}`);
+        assert.match(result.stdout, /^tests\/probes\/clock\.test\.ts:1 \[real clock\]/m, dir);
+        assert.match(result.stdout, /^1 probe file\(s\) read; 1 suspect line\(s\)$/m, dir);
+      } else {
+        assert.equal(result.status, 64, `${dir}: ${result.out}`);
+        assert.match(result.stderr, /does not exist/, dir);
+      }
     }
   });
 });
@@ -1458,6 +1502,29 @@ test('watch-pr, on a refused credential, says to replace the token in the variab
       assert.match(result.stderr, /replace the token in/, what);
       assert.match(result.stderr, named, what);
       assert.doesNotMatch(result.stderr, unnamed, what);
+      assert.ok(!result.out.includes(token), `${what}: the token value reached the output`);
+    }
+  });
+});
+
+test('watch-pr, on a refused credential, names the token variables gh reads for the host of --repo, in the right number', () => {
+  withSandbox((box) => {
+    box.writeExecutable('gh', ghRefusingCredential(box.ghLog));
+    const token = `${'not'}-${'a'}-${'real'}-${'token'}`;
+    const none = { GH_TOKEN: undefined, GITHUB_TOKEN: undefined, GH_ENTERPRISE_TOKEN: undefined, GITHUB_ENTERPRISE_TOKEN: undefined, GH_HOST: undefined };
+    const cases = [
+      ['both github.com variables', 'owner/repo', { GH_TOKEN: token, GITHUB_TOKEN: token }, /replace the token in GH_TOKEN and GITHUB_TOKEN, .* or unset them and run `gh auth login`/, /ENTERPRISE/],
+      ['an Enterprise Server host', 'git.example.invalid/owner/repo', { GITHUB_ENTERPRISE_TOKEN: token }, /replace the token in GITHUB_ENTERPRISE_TOKEN, .* or unset it and run `gh auth login --hostname git\.example\.invalid`/, /\bGH_TOKEN|\bGITHUB_TOKEN/],
+      ['an Enterprise Server host with only GH_TOKEN set', 'git.example.invalid/owner/repo', { GH_TOKEN: token }, /run `gh auth login --hostname git\.example\.invalid`/, /replace|GH_TOKEN/],
+      ['GH_HOST naming an Enterprise Server host', 'owner/repo', { GH_HOST: 'git.example.invalid', GH_ENTERPRISE_TOKEN: token, GH_TOKEN: token }, /replace the token in GH_ENTERPRISE_TOKEN, /, /\bGH_TOKEN/],
+      ['a subdomain of ghe.com', 'acme.ghe.com/owner/repo', { GH_TOKEN: token, GH_ENTERPRISE_TOKEN: token }, /replace the token in GH_TOKEN, /, /ENTERPRISE/],
+    ];
+    for (const [what, repo, set, named, unnamed] of cases) {
+      const args = ['--repo', repo, '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
+      const result = runScript('watch-pr.mjs', args, box.env({ ...none, ...set }));
+      assert.equal(result.status, 77, `${what}: ${result.out}`);
+      assert.match(result.stderr, named, `${what}: ${result.stderr}`);
+      assert.doesNotMatch(result.stderr, unnamed, `${what}: ${result.stderr}`);
       assert.ok(!result.out.includes(token), `${what}: the token value reached the output`);
     }
   });

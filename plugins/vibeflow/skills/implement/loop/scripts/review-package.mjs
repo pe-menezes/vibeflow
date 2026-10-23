@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Review package: the round's diff in one file, for the auditor and the re-auditor to read at once.
-// Commits since the base, status, stat, the diff with 10 lines of context (committed and not) and
+// Commits since the base, status, changed files, the diff with 10 lines of context (committed and not) and
 // every new file. For a re-audit the base is the commit of the audited round, so the package is
 // the fix diff only. A package over the cap names what it left out; an empty one says so. A file
 // diff with a line that looks like a secret stays out whole, named with its size and that line,
@@ -59,16 +59,18 @@ const SECRET = new RegExp([
 
 const USAGE = `usage: review-package.mjs <dir> <base> <out> [--max-bytes <n>]
 
-Writes to <out> the commits since <base>, git status, the stat, the diff from <base> to the
-worktree with 10 lines of context, and every untracked, not ignored file. File diffs that do
+Writes to <out> the commits since <base>, git status, each changed file with its line counts
+(every path whole, a rename as both paths), the diff from <base> to the worktree with 10 lines
+of context, and every untracked, not ignored file. File diffs that do
 not fit under --max-bytes (default ${DEFAULT_MAX_BYTES}) are left out and listed at the top.
 A file diff with a line that looks like a secret or credential (the detector of
 check-briefing.mjs: a known key or token format, a database URL with a password, or a name
 such as PASSWORD, SECRET or TOKEN set to a literal value) is left out whole and listed under
 WITHHELD at the top, with its size and the number of the first line that matched (in the base,
 for a removed line): read it with git. A file whose path looks like a secret is withheld the
-same way, listed without its path. Every other line that looks like a secret (a commit title, a
-line of the status, the stat or the new-file list, the base or folder name) is replaced by a
+same way, listed without its path and with the git command that lists it. Every other line that
+looks like a secret (a commit title, a line of the status, the changed files or the new-file
+list, the base or folder name) is replaced by a
 note in its place, and a commit keeps its short hash; HEADER LINES LEFT OUT at the top counts
 them and says how to read them with git. The package is checked line by line before it is
 written: a line that still looks like a secret exits 2, with nothing written. Each hunk header
@@ -194,6 +196,22 @@ function splitDiff(diff) {
     .map((chunk) => ({ path: chunk.match(/^diff --git a\/(.*?) b\//)?.[1] ?? '?', text: chunk }));
 }
 
+// Each changed tracked file as `git diff --numstat -z` gives it: every path whole, never cut
+// short, and a rename as its two paths, never the `dir/{old => new}` form of --stat.
+function changedFiles(dir, base) {
+  const fields = git(dir, ['diff', '--numstat', '-z', base, ...ARTIFACT_PATHSPEC]).split('\0');
+  const files = [];
+  for (let i = 0; i < fields.length; i += 1) {
+    const counts = /^(-|\d+)\t(-|\d+)\t([\s\S]*)$/.exec(fields[i]);
+    if (!counts) continue;
+    // A rename leaves the path field empty, and its two paths follow as fields of their own.
+    const paths = counts[3] ? [counts[3]] : [fields[i + 1], fields[i + 2]];
+    if (!counts[3]) i += 2;
+    files.push({ added: counts[1], removed: counts[2], paths });
+  }
+  return files;
+}
+
 function build({ dir: dirArg, base, out, maxBytes }) {
   const dir = git(resolve(dirArg), ['rev-parse', '--show-toplevel']).trim();
   const baseShort = spawnSync('git', ['rev-parse', '--verify', '--quiet', '--short', `${base}^{commit}`], {
@@ -267,7 +285,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   for (const chunk of chunks) {
     const bytes = Buffer.byteLength(chunk.text);
     if (secretInPath(chunk)) {
-      withheld.push({ path: chunk.path, bytes, line: 0 });
+      withheld.push({ path: chunk.path, bytes, line: 0, untracked: Boolean(chunk.heading) });
       continue;
     }
     const line = secretLine(chunk.text);
@@ -275,8 +293,8 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     else candidates.push({ ...chunk, text: withoutFunctionContext(chunk.text) });
   }
 
-  // A header line goes out when it looks like a secret, or when it names a path that does, which
-  // the stat may print where the detector alone would not match it.
+  // A header line goes out when it looks like a secret, or when it names a path that does, where
+  // the detector alone may not match the line (the path is followed by more text).
   const secretPaths = withheld.filter((item) => !item.line).map((item) => item.path);
   const clean = (text) => text.split('\n').map((line) => {
     if (!looksSecret(line) && !secretPaths.some((path) => line.includes(path))) return line;
@@ -290,10 +308,21 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     leftOutOfHeader += 1;
     return `${hash} (title left out: it looks like a secret or credential; read it with git log -1 ${hash})`;
   });
+  // One line per changed file, with every path whole: a line goes out when one of its paths
+  // looks like a secret on its own, when the line does, or when it names a withheld path.
+  const files = changedFiles(dir, base);
+  const fileLines = files.map(({ added, removed, paths }) => {
+    const line = `${paths.join(' => ')} | ${added === '-' ? 'binary' : `+${added} -${removed}`}`;
+    if (!paths.some(looksSecret) && !looksSecret(line) && !secretPaths.some((path) => line.includes(path))) return line;
+    leftOutOfHeader += 1;
+    return LINE_NOTE;
+  });
+  const sum = (key) => files.reduce((total, file) => total + (Number(file[key]) || 0), 0);
+  if (files.length) fileLines.push(`${files.length} file(s) changed, ${sum('added')} line(s) added, ${sum('removed')} line(s) removed`);
   const headSections = [
     '## Commits since the base', commitLines.join('\n') || '(none: the round is not committed)',
     '## git status --short', clean(git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]).trim()) || '(clean)',
-    '## Files and lines', clean(git(dir, ['diff', '--stat', base, ...ARTIFACT_PATHSPEC]).trim()) || '(no tracked change)',
+    '## Files and lines', fileLines.join('\n') || '(no tracked change)',
     '## New files', untracked.length ? clean(untracked.map((path) => `- ${path}`).join('\n')) : '(none)',
   ].join('\n\n');
 
@@ -314,7 +343,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const withheldNotice = withheld.length
     ? `WITHHELD: ${withheld.length} file diff(s) left out because a line looks like a secret or credential. Read them with git before judging:\n${clean(withheld.map((item) => (item.line
       ? `- ${item.path} (${item.bytes} bytes, line ${item.line})`
-      : `- a file whose path looks like a secret or credential (${item.bytes} bytes): find it with git status --short`)).join('\n'))}\n\n`
+      : `- a file whose path looks like a secret or credential (${item.bytes} bytes): find it with ${item.untracked ? 'git ls-files --others --exclude-standard' : `git diff --name-only ${baseHash}`}`)).join('\n'))}\n\n`
     : '';
   const truncatedNotice = leftOut.length
     ? `TRUNCATED: ${leftOut.length} of ${candidates.length} file diff(s) left out to stay under ${maxBytes} bytes. Read them with git before judging:\n${clean(leftOut.map((item) => `- ${item.path} (${item.bytes} bytes)`).join('\n'))}\n\n`
@@ -330,7 +359,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
 // that print them.
 function headerNotice(count, baseHash) {
   if (!count) return '';
-  return `HEADER LINES LEFT OUT: ${count} line(s) of the header look like a secret or credential, each replaced by a note in its place (a commit keeps its short hash). Read them with git: git log --oneline ${baseHash}..HEAD, git status --short, git diff --stat ${baseHash}, git ls-files --others --exclude-standard.\n\n`;
+  return `HEADER LINES LEFT OUT: ${count} line(s) of the header look like a secret or credential, each replaced by a note in its place (a commit keeps its short hash). Read them with git: git log --oneline ${baseHash}..HEAD, git status --short, git diff --numstat ${baseHash}, git ls-files --others --exclude-standard.\n\n`;
 }
 
 // The last check before writing: the line number of the first line of the finished package that

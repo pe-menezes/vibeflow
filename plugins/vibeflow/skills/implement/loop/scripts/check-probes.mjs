@@ -71,16 +71,17 @@ function parseArgs(argv) {
 }
 
 // The --dir folder as a path from the repository's top level: relative to the top level, or
-// absolute as given; both through realpath, so a folder reached by a symbolic link matches git's paths.
+// absolute as given; both through the system's realpath, so a folder reached by a symbolic link,
+// or written in another letter case on a file system that ignores case, matches git's paths.
 function probeFolder(top, dir) {
   let real;
   try {
-    real = realpathSync(isAbsolute(dir) ? dir : join(top, dir));
+    real = realpathSync.native(isAbsolute(dir) ? dir : join(top, dir));
   } catch {
     fail(`--dir ${dir} does not exist`);
   }
   if (!statSync(real).isDirectory()) fail(`--dir ${dir} is not a folder`);
-  const inside = relative(realpathSync(top), real);
+  const inside = relative(realpathSync.native(top), real);
   if (inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) fail(`--dir ${dir} is outside the repository ${top}`);
   return inside.split(sep).join('/');
 }
