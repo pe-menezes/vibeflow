@@ -488,7 +488,7 @@ test('artifacts: a subproject\'s own .vibeflow/ artifacts stay out when the proj
 // Contract: check-probes reads the probe folder whether `--dir` is relative to the project or absolute.
 // Breaks when: the script compares `--dir` with paths relative to the root, so an absolute folder reads zero files and exits 0.
 // Not covered by: the implementer's tests and the editions only pass a relative `--dir`.
-test('probes: check-probes reads the probe folder whether --dir is given relative to the project or absolute', { todo: 'open gap: an absolute --dir reads no probe file and exits 0' }, () => {
+test('probes: check-probes reads the probe folder whether --dir is given relative to the project or absolute', () => {
   const command = commandOf(edition(EDITIONS.shared), ...PROBES);
   withSandbox((box) => {
     box.git('checkout', '-q', '-b', 'feat');
