@@ -228,6 +228,28 @@ test('a withheld line is cited by path, line and rule, never by its text, in ste
   });
 });
 
+// The package also takes out of its header a commit subject or a path that
+// looks like a secret, leaving a note in its place. An auditor who reads that
+// commit with git sees the subject, so the report names the commit by its
+// short hash and the path by the package section that carries the note.
+const HEADER_CITE =
+  'The same goes for what the package took out of its header: a commit it shows without a subject is cited by its short hash, never by its subject, and a path it took out is cited by the package section where the note in its place appears, never by its name.';
+
+test('a commit shown without its subject is cited by its short hash, and a path taken out by the package section of its note, in step 4a and where findings are written', () => {
+  forEachEdition((content, edition, raw) => {
+    const from = raw.indexOf(GATE_READ[0]);
+    const to = raw.indexOf(GATE_READ[1], from);
+    const step = flat(raw.slice(from, to));
+    const findings = flat(/## Findings\n([\s\S]*?)\n## Output format/.exec(raw)?.[1] ?? '');
+    for (const [where, text] of [['step 4a', step], ['the findings rules', findings]]) {
+      assert.match(text, /a commit it shows without a subject is cited by its short hash, never by its subject/, `${edition}: ${where} cites a commit by its short hash`);
+      assert.match(text, /a path it took out is cited by the package section where the note in its place appears, never by its name/, `${edition}: ${where} cites a path by the section of its note`);
+      assert.ok(text.includes(`${WITHHELD_CITE} ${HEADER_CITE}`), `${edition}: ${where} follows the withheld-line rule with the header rule, word for word`);
+    }
+    assert.equal(count(content, HEADER_CITE), 2, `${edition}: the sentence, word for word, in those two places only`);
+  });
+});
+
 // ------------------------------------------------------------ header, stages
 
 test('the report carries the loop header, a pending verdict until the last stage, and the parsed sections', () => {

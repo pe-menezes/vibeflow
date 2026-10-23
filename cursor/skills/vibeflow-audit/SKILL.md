@@ -148,7 +148,11 @@ does not match, stop and tell the user.
       A line from a file listed under `WITHHELD` is cited, in the report and
       in its prompt pack, by its path, its line number and the rule it
       matched, never by its text: the report lives in `.vibeflow/audits/`, a
-      folder the project may commit.
+      folder the project may commit. The same goes for what the package took
+      out of its header: a commit it shows without a subject is cited by its
+      short hash, never by its subject, and a path it took out is cited by
+      the package section where the note in its place appears, never by its
+      name.
    b. **Match each changed line against the Rules Catalog below.** A rule fires
       only when the diff line's direction matches its `scope` (a=added, r=removed,
       b=both) AND the file matches the rule's target types.
@@ -336,7 +340,10 @@ Every finding is one line:
 - A line from a file listed under `WITHHELD` is cited, in the report and in
   its prompt pack, by its path, its line number and the rule it matched, never
   by its text: the report lives in `.vibeflow/audits/`, a folder the project
-  may commit.
+  may commit. The same goes for what the package took out of its header: a
+  commit it shows without a subject is cited by its short hash, never by its
+  subject, and a path it took out is cited by the package section where the
+  note in its place appears, never by its name.
 
 ## Output format
 
