@@ -66,10 +66,15 @@ attempt left. The last write sets `Stage: final` and the verdict; when the
 audit stops early, that stop is the last write. When a report that a dead
 attempt left is already at that path, restore every sabotage it records as in
 progress (step 6) before anything else, from its copy, comparing the hash.
-When the copy is gone (a restart empties the temporary folder), restore the
-file from git with `git show HEAD:<path>`, which is safe because a sabotaged
-file never has uncommitted changes, and compare the same hash. When the hash
-does not match, stop and tell the user.
+When the copy is gone (a restart empties the temporary folder), read the
+file's version in git with `git show HEAD:<path>` and compare its hash with
+the hash the report recorded before writing anything: only when they match,
+write that version over the file. When the hash does not match, leave the
+file as it is, stop, and tell the user which file is still sabotaged and
+which change to undo, as the report records it. Once a file is restored and
+its hash checked, from the copy or from git, delete the copy and the
+temporary folder the dead attempt left, as step 6 does after its last
+restore.
 
 1. **Review package** (`1/7 package`). The audit reads the change from one
    file, so the Critical Gate and the review judge the same diff. Build or
@@ -155,7 +160,9 @@ does not match, stop and tell the user.
       out of its header: a commit it shows without a subject is cited by its
       short hash, never by its subject, and a path it took out is cited by
       the package section where the note in its place appears, never by its
-      name.
+      name. A line of a file whose path the package took out is cited by the
+      package section where the note on that path appears and by its line
+      number, never by its path.
    b. **Match each changed line against the Rules Catalog below.** A rule fires
       only when the diff line's direction matches its `scope` (a=added, r=removed,
       b=both) AND the file matches the rule's target types.
@@ -346,7 +353,9 @@ Every finding is one line:
   may commit. The same goes for what the package took out of its header: a
   commit it shows without a subject is cited by its short hash, never by its
   subject, and a path it took out is cited by the package section where the
-  note in its place appears, never by its name.
+  note in its place appears, never by its name. A line of a file whose path
+  the package took out is cited by the package section where the note on that
+  path appears and by its line number, never by its path.
 
 ## Output format
 

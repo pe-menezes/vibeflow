@@ -250,6 +250,25 @@ test('a commit shown without its subject is cited by its short hash, and a path 
   });
 });
 
+// A file whose path the package took out falls under both rules: the
+// withheld-line rule cites a line by its path, the header rule never names
+// that path. Its lines are cited by the section of the note and the line.
+const PATHLESS_LINE_CITE =
+  'A line of a file whose path the package took out is cited by the package section where the note on that path appears and by its line number, never by its path.';
+
+test('a line of a file whose path the package took out is cited by the section of the note and its line number, never by its path', () => {
+  forEachEdition((content, edition, raw) => {
+    const from = raw.indexOf(GATE_READ[0]);
+    const to = raw.indexOf(GATE_READ[1], from);
+    const step = flat(raw.slice(from, to));
+    const findings = flat(/## Findings\n([\s\S]*?)\n## Output format/.exec(raw)?.[1] ?? '');
+    for (const [where, text] of [['step 4a', step], ['the findings rules', findings]]) {
+      assert.ok(text.includes(`${HEADER_CITE} ${PATHLESS_LINE_CITE}`), `${edition}: ${where} follows the header rule with the rule for a line of such a file, word for word`);
+    }
+    assert.equal(count(content, PATHLESS_LINE_CITE), 2, `${edition}: the sentence, word for word, in those two places only`);
+  });
+});
+
 // ------------------------------------------------------------ header, stages
 
 test('the report carries the loop header, a pending verdict until the last stage, and the parsed sections', () => {
@@ -352,9 +371,14 @@ test('the sabotage copy lives in a temporary folder outside the project, is dele
     const retry = flat(RETRY_RULE.exec(raw)?.[0] ?? '');
     assert.match(retry, /restore every sabotage it records as in progress \(step 6\) before anything else, from its copy, comparing the hash/,
       `${edition}: a retry restores from the copy first`);
-    assert.match(retry, /When the copy is gone \(a restart empties the temporary folder\), restore the file from git with `git show HEAD:<path>`[^.]*a sabotaged file never has uncommitted changes[^.]*compare the same hash/,
-      `${edition}: without the copy, the retry restores from git and checks the same hash`);
-    assert.match(retry, /When the hash does not match, stop and tell the user/, `${edition}: a hash that does not match stops the audit`);
+    assert.match(retry, /When the copy is gone \(a restart empties the temporary folder\), read the file's version in git with `git show HEAD:<path>` and compare its hash with the hash the report recorded before writing anything: only when they match, write that version over the file\./,
+      `${edition}: without the copy, the retry checks the git version's hash before it writes, and writes only on a match`);
+    assert.match(retry, /When the hash does not match, leave the file as it is, stop, and tell the user which file is still sabotaged and which change to undo, as the report records it\./,
+      `${edition}: a hash that does not match leaves the file untouched, stops the audit and names the sabotage to undo`);
+    assert.doesNotMatch(content, /a sabotaged file never has uncommitted changes/,
+      `${edition}: the retry does not assume a sabotaged file has no uncommitted work, since a loop part without the OK to commit sabotages uncommitted work`);
+    assert.match(retry, /Once a file is restored and its hash checked, from the copy or from git, delete the copy and the temporary folder the dead attempt left, as step 6 does after its last restore\./,
+      `${edition}: a retry deletes the dead attempt's copy and temporary folder once the restore is checked`);
     const intoProject = content.split(/(?<=\.)\s+/)
       .filter((sentence) => /\bcop(y|ies)\b/i.test(sentence) && /\.vibeflow\//.test(sentence))
       .filter((sentence) => !/never to `\.vibeflow\/` or any other folder of the project/.test(sentence));
