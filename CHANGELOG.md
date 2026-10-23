@@ -1,6 +1,6 @@
 # Changelog
 
-### v1.16.0 (2026-10-22)
+### v1.16.0 (2026-10-23)
 
 The execution loop arrives, off by default: without `--loop`, `implement` runs its pipeline as before and specs written before 1.16 stay valid. `gen-spec`, `discover`, `analyze`, `audit` and `stats` also change for a run without the loop; each change is listed under Changed. All 3 editions updated.
 
