@@ -128,8 +128,8 @@ A standalone `audit` writes the probe file and sabotages risk code only with
 `--probes`; without it, the report lists the probe cases as code and records
 `Sabotage: skipped (standalone audit; --probes runs it)`. The copy each
 sabotage is undone from goes to a temporary folder outside the project, never
-to `.vibeflow/`, and is deleted with its folder once the file is restored and
-its hash checked.
+to `.vibeflow/`; each copy is deleted once its file is restored and its hash
+checked, and the folder after the last restore.
 
 ## Project knowledge
 

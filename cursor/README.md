@@ -56,7 +56,7 @@ Type `/` in the Agent chat and search for the skill's name:
 - `/vibeflow-prompt-pack` — generates a self-contained prompt pack with embedded patterns
 
 **Secondary:**
-- `/vibeflow-audit` — audits the implementation against DoD + patterns + tests + Critical Gate (PASS / PARTIAL / FAIL), from a review package of the diff (`--package`, `--base <ref>`); `--reaudit <commit>` checks a fix round; run by hand, it writes the probes and sabotages risk code only with `--probes`; `--consolidate-hotfixes` reclassifies hotfix trace docs
+- `/vibeflow-audit` — audits the implementation against DoD + patterns + tests + Critical Gate (PASS / PARTIAL / FAIL), from a review package of the diff (`--package`, `--base <ref>`); `--reaudit <commit>` checks a fix round; run by hand, it writes the probes and sabotages risk code only with `--probes`, and the copy each sabotage is undone from goes to a temporary folder outside the project, never to `.vibeflow/`; each copy is deleted once its file is restored and its hash checked, and the folder after the last restore; `--consolidate-hotfixes` reclassifies hotfix trace docs
 - `/vibeflow-discover` — interactive dialogue (1–5 rounds) that turns a vague idea into a PRD
 - `/vibeflow-hotfix` — observed defect with reproducible evidence: trace doc + fix + regression test written before the fix, in one call (resumes from a halted doc's path)
 
