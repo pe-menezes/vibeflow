@@ -542,7 +542,7 @@ test('review-package: a path holding a tab and looking like a secret stays out o
 // Contract: a path that looks like a secret never reaches the package, also when git writes it between quotes.
 // Breaks when: the path checks read the quoted form git prints for a path holding a tab, where the closing quote follows the value and the detector no longer matches it.
 // Not covered by: the implementer's path cases use paths git prints without quotes.
-test('review-package: a path holding a tab and looking like a secret stays out of the package', { todo: 'open gap: git quotes a path holding a tab, the detector does not match the quoted form, and the path reaches the status and diff lines' }, () => {
+test('review-package: a path holding a tab and looking like a secret stays out of the package', () => {
   withSandbox((box) => {
     const name = `notes\t${SECRET_NAME}`;
     box.write(name, 'harmless\n');

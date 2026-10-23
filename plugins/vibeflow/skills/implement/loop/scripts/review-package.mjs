@@ -68,12 +68,14 @@ check-briefing.mjs: a known key or token format, a database URL with a password,
 such as PASSWORD, SECRET or TOKEN set to a literal value) is left out whole and listed under
 WITHHELD at the top, with its size and the number of the first line that matched (in the base,
 for a removed line): read it with git. A file whose path looks like a secret is withheld the
-same way, listed without its path and with the git command that lists it. Every other line that
+same way, listed without its path and with the git command that lists it, also where git writes
+the path between quotes (a tab, a line break, a quote or a backslash in it). Every other line that
 looks like a secret (a commit title, a line of the status, the changed files or the new-file
 list, the base or folder name) is replaced by a
 note in its place, and a commit keeps its short hash; HEADER LINES LEFT OUT at the top counts
 them and says how to read them with git. The package is checked line by line before it is
-written: a line that still looks like a secret exits 2, with nothing written. Each hunk header
+written: a line that still looks like a secret exits 2, with nothing written, and so does a path
+that looks like one still in it, as it is or between quotes. Each hunk header
 comes in as its line numbers only, without the function context git prints after it.
 Nothing under .vibeflow/ counts as a change: a change only under .vibeflow/ is empty, and the
 message counts its paths. The loop's artifact folders there
@@ -168,15 +170,29 @@ function looksSecret(printed) {
 }
 
 // Whether a file diff's path looks like a secret: the path, the `## New file:` heading, or a line
-// above the first hunk (`diff --git`, `---`, `+++`, a rename, a copy or a binary notice). Such a
-// diff stays out whole, like one with a secret line.
-function secretInPath(chunk) {
+// above the first hunk (`diff --git`, `---`, `+++`, a rename, a copy or a binary notice) that
+// looks like one or names a path that does. Such a diff stays out whole, like one with a secret
+// line.
+function secretInPath(chunk, namesHiddenPath) {
   if (SECRET.test(chunk.path) || (chunk.heading && SECRET.test(chunk.heading))) return true;
+  if (namesHiddenPath(chunk.path) || (chunk.heading && namesHiddenPath(chunk.heading))) return true;
   for (const line of chunk.text.split('\n')) {
     if (HUNK_HEADER.test(line)) return false;
-    if (looksSecret(line)) return true;
+    if (looksSecret(line) || namesHiddenPath(line)) return true;
   }
   return false;
+}
+
+// Git writes a path holding a control character, a quote or a backslash between quotes, with that
+// character escaped (core.quotepath=false leaves every other character as it is). The closing
+// quote then follows the path, and the detector may no longer match a line that names it.
+const QUOTED_ESCAPES = { '\x07': '\\a', '\b': '\\b', '\t': '\\t', '\n': '\\n', '\v': '\\v', '\f': '\\f', '\r': '\\r', '"': '\\"', '\\': '\\\\' };
+
+// The forms in which a line git prints can hold a path: the path itself and, when git quotes it,
+// the escaped text between the quotes.
+function printedForms(path) {
+  const quoted = path.replace(/[\x00-\x1f"\\\x7f]/g, (c) => QUOTED_ESCAPES[c] ?? `\\${c.charCodeAt(0).toString(8).padStart(3, '0')}`);
+  return quoted === path ? [path] : [path, quoted];
 }
 
 // What replaces, in the header, a line that looks like a secret or holds a path that does.
@@ -271,6 +287,16 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     };
   }
 
+  // Every path changed since the base or in the status, read whole and unquoted: each one that
+  // looks like a secret on its own stays out of every line, in either form git prints it.
+  const changedPaths = [
+    ...git(dir, ['diff', '--name-only', '-z', '--no-renames', base, ...ARTIFACT_PATHSPEC]).split('\0'),
+    ...git(dir, ['status', '--porcelain', '-z', '--no-renames', ...ARTIFACT_PATHSPEC]).split('\0').map((entry) => entry.slice(3)),
+    ...untracked,
+  ];
+  const hiddenForms = [...new Set(changedPaths.filter((path) => path && looksSecret(path)))].flatMap(printedForms);
+  const namesHiddenPath = (text) => hiddenForms.some((form) => text.includes(form));
+
   const chunks = [
     ...splitDiff(diff).map((chunk) => ({ ...chunk, heading: null })),
     ...untracked.map((path) => {
@@ -284,7 +310,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const candidates = [];
   for (const chunk of chunks) {
     const bytes = Buffer.byteLength(chunk.text);
-    if (secretInPath(chunk)) {
+    if (secretInPath(chunk, namesHiddenPath)) {
       withheld.push({ path: chunk.path, bytes, line: 0, untracked: Boolean(chunk.heading) });
       continue;
     }
@@ -294,17 +320,19 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   }
 
   // A header line goes out when it looks like a secret, or when it names a path that does, where
-  // the detector alone may not match the line (the path is followed by more text).
-  const secretPaths = withheld.filter((item) => !item.line).map((item) => item.path);
+  // the detector alone may not match the line (the path is followed by more text, or git writes
+  // it between quotes). A diff whose path git quotes has no path to name here ("?").
+  const secretPaths = withheld.filter((item) => !item.line && item.path !== '?').map((item) => item.path);
+  const namesWithheld = (line) => namesHiddenPath(line) || secretPaths.some((path) => line.includes(path));
   const clean = (text) => text.split('\n').map((line) => {
-    if (!looksSecret(line) && !secretPaths.some((path) => line.includes(path))) return line;
+    if (!looksSecret(line) && !namesWithheld(line)) return line;
     leftOutOfHeader += 1;
     return LINE_NOTE;
   }).join('\n');
   // A commit whose title goes out keeps its short hash, enough to read it with git.
   const commitLines = commits.split('\n').filter(Boolean).map((line) => {
     const hash = line.slice(0, line.indexOf(' '));
-    if (!looksSecret(line) && !secretPaths.some((path) => line.includes(path))) return line;
+    if (!looksSecret(line) && !namesWithheld(line)) return line;
     leftOutOfHeader += 1;
     return `${hash} (title left out: it looks like a secret or credential; read it with git log -1 ${hash})`;
   });
@@ -313,7 +341,13 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const files = changedFiles(dir, base);
   const fileLines = files.map(({ added, removed, paths }) => {
     const line = `${paths.join(' => ')} | ${added === '-' ? 'binary' : `+${added} -${removed}`}`;
-    if (!paths.some(looksSecret) && !looksSecret(line) && !secretPaths.some((path) => line.includes(path))) return line;
+    if (!paths.some(looksSecret) && !looksSecret(line) && !namesWithheld(line)) return line;
+    leftOutOfHeader += 1;
+    return LINE_NOTE;
+  });
+  // A new file whose path looks like a secret is one note, even when its path holds a line break.
+  const newFileLines = untracked.map((path) => {
+    if (!namesHiddenPath(path)) return clean(`- ${path}`);
     leftOutOfHeader += 1;
     return LINE_NOTE;
   });
@@ -323,7 +357,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     '## Commits since the base', commitLines.join('\n') || '(none: the round is not committed)',
     '## git status --short', clean(git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]).trim()) || '(clean)',
     '## Files and lines', fileLines.join('\n') || '(no tracked change)',
-    '## New files', untracked.length ? clean(untracked.map((path) => `- ${path}`).join('\n')) : '(none)',
+    '## New files', newFileLines.join('\n') || '(none)',
   ].join('\n\n');
 
   let size = Buffer.byteLength(`${title}\n\n${artifactLine}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
@@ -352,7 +386,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const tracked = kept.filter((chunk) => !chunk.heading).map((chunk) => chunk.piece).join('');
   const added = kept.filter((chunk) => chunk.heading).map((chunk) => chunk.piece).join('');
   const text = `${title}\n\n${artifactLine}\n\n${notice}${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n${tracked || '(no tracked change)\n'}${added}`;
-  return { empty: false, text, leftOut, withheld, newFiles: untracked.length };
+  return { empty: false, text, leftOut, withheld, newFiles: untracked.length, hiddenForms };
 }
 
 // The count at the top of the package of the header lines it left out, with the git commands
@@ -369,6 +403,15 @@ function leakedLine(text) {
   return index + 1;
 }
 
+// The same last check for the paths that look like a secret: whether the finished package still
+// holds one, as it is or as git writes it between quotes.
+function leaksPath(text, forms = []) {
+  for (const form of forms) {
+    if (text.includes(form)) return true;
+  }
+  return false;
+}
+
 function main(argv) {
   if (argv.includes('--help') || argv.includes('-h')) {
     console.log(USAGE);
@@ -380,6 +423,9 @@ function main(argv) {
     const leaked = leakedLine(result.text);
     if (leaked) {
       throw new PackageError(`line ${leaked} of the package still looks like a secret or credential; nothing was written`);
+    }
+    if (leaksPath(result.text, result.hiddenForms)) {
+      throw new PackageError('the package still holds a path that looks like a secret or credential; nothing was written');
     }
     mkdirSync(dirname(args.out), { recursive: true });
     writeFileSync(args.out, result.text);

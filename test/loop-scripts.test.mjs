@@ -741,6 +741,67 @@ test('a tracked file whose path looks like a secret is withheld whole, and its p
   });
 });
 
+// Git writes a path holding a tab, a line break, a quote or a backslash between quotes, with that
+// character escaped: the closing quote follows the value, so the detector alone no longer matches
+// the status line or the diff lines that name the file.
+const SECRET_LOOKING_NAME = `${'API'}${'_TOKEN'}=${'f4ke'}${'Va1ue9x7Q'}`;
+const QUOTED_BY_GIT = { 'a tab': ['\t', '\\t'], 'a line break': ['\n', '\\n'], 'a quote': ['"', '\\"'], 'a backslash': ['\\', '\\\\'] };
+
+test('a path git writes between quotes and that looks like a secret stays out of the package, tracked or new', () => {
+  for (const [what, [raw, escaped]] of Object.entries(QUOTED_BY_GIT)) {
+    for (const tracked of [true, false]) {
+      withSandbox((box) => {
+        const path = `notes${raw}${SECRET_LOOKING_NAME}`;
+        let base = box.base;
+        box.write(path, 'harmless\n');
+        if (tracked) {
+          box.git('add', '-A');
+          box.git('commit', '-q', '-m', 'notes');
+          base = box.git('rev-parse', 'HEAD').trim();
+          box.write(path, 'harmless, edited\n');
+        }
+        box.write('src/rules.ts', 'export const x = 15\n');
+        const label = `${what}, ${tracked ? 'tracked' : 'new'}`;
+        const out = join(box.root, 'package.md');
+        const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+        assert.equal(result.status, 0, `${label}: ${result.out}`);
+        const text = readFileSync(out, 'utf8');
+        assert.ok(!text.includes(SECRET_LOOKING_NAME), `${label}: the path stays out of the package\n${text.slice(0, 1500)}`);
+        assert.ok(!text.includes(`notes${escaped}`), `${label}: the quoted path stays out of the package`);
+        assert.ok(!text.includes('harmless'), `${label}: the whole file diff stays out`);
+        assert.equal(text.match(WITHHELD_HEADER)?.[1], '1', `${label}\n${text.slice(0, 800)}`);
+        assert.equal(text.match(tracked ? CHANGED_PATH_ENTRY : NEW_PATH_ENTRY)?.length, 1, `${label}\n${text.slice(0, 800)}`);
+        assert.match(text, HEADER_LEFT_OUT, `${label}: the status line is counted at the top`);
+        assert.match(text, /^\+export const x = 15$/m, `${label}: the clean change stays in the package`);
+      });
+    }
+  }
+});
+
+// The last check also looks for every path that looks like a secret, as git prints it and
+// between quotes: the test runs a copy of the script whose checks of those paths find nothing.
+test('review package exits 2 and writes nothing when a path that looks like a secret is still in the finished package between quotes', () => {
+  const source = readFileSync(join(SCRIPTS_DIR, 'review-package.mjs'), 'utf8');
+  const marker = 'const namesHiddenPath = (text) => hiddenForms.some((form) => text.includes(form));';
+  assert.ok(source.includes(marker), 'review-package.mjs defines namesHiddenPath');
+  withSandbox((box) => {
+    const blind = join(box.root, 'review-package-blind.mjs');
+    writeFileSync(blind, source.replace(marker, 'const namesHiddenPath = () => false;'));
+    const path = `notes\t${SECRET_LOOKING_NAME}`;
+    box.write(path, 'harmless\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'notes');
+    const base = box.git('rev-parse', 'HEAD').trim();
+    box.write(path, 'harmless, edited\n');
+    const out = join(box.root, 'package.md');
+    const result = spawnSync(process.execPath, [blind, box.repo, base, out], { env: box.env(), encoding: 'utf8' });
+    assert.equal(result.status, 2, `${result.stdout}${result.stderr}`);
+    assert.equal(existsSync(out), false, 'nothing is written');
+    assert.match(result.stderr, /path that looks like a secret or credential/);
+    assert.ok(!`${result.stdout}${result.stderr}`.includes(SECRET_LOOKING_NAME), 'the error does not print the path');
+  });
+});
+
 test('the files section prints every path whole, a long one and both sides of a rename inside a folder, with its line counts', () => {
   withSandbox((box) => {
     const deep = `${Array.from({ length: 8 }, (_, level) => `directory-level-${level}`).join('/')}/${'long-name-'.repeat(8)}notes.txt`;
