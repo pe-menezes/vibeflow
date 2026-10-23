@@ -11,8 +11,12 @@ if (Number(process.versions.node.split('.')[0]) < 18) {
   process.exit(64);
 }
 
-const PENDING = new Set(['PENDING', 'IN_PROGRESS', 'QUEUED', 'EXPECTED', 'WAITING', 'REQUESTED', '']);
-const FAILED = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE']);
+// Each check state sits in one of these lists; a state in none of them (a check finished
+// without a conclusion, a state this script does not know, a check with no state) is never
+// green. preflight.mjs carries the same three lines, and a test keeps them equal.
+const GREEN = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
+const FAILED = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
+const PENDING = new Set(['PENDING', 'IN_PROGRESS', 'QUEUED', 'EXPECTED', 'WAITING', 'REQUESTED']);
 
 const USAGE = `usage: watch-pr.mjs --repo <owner/repo> --pr <n> [--interval-sec <s>] [--timeout-min <m>]
 
@@ -20,6 +24,14 @@ Reads the PR through gh every --interval-sec seconds (default 60) until every ch
 finished, then exits. A PR with no check reported yet keeps the watch going, so it never
 reads as green before CI starts. Gives up at --timeout-min minutes (default 480), and never
 sleeps past that ceiling: each wait is cut to the time left. Limits take fractions.
+
+Each check counts by its state. green: SUCCESS, NEUTRAL, SKIPPED. failed: FAILURE, ERROR,
+TIMED_OUT, CANCELLED, ACTION_REQUIRED, STARTUP_FAILURE, STALE. pending: PENDING, IN_PROGRESS,
+QUEUED, EXPECTED, WAITING, REQUESTED. A state in none of these lists (a check finished with no
+conclusion, a state this script does not know, a check with no state) is never green: once
+nothing is pending it exits 1, with the check's name and state on the failed: line. NEUTRAL
+and SKIPPED count as green, as GitHub Actions treats them for dependent checks and as
+gh pr checks does not fail on them, and the closing line names them with their state.
 
 gh missing, not executable or not logged in cannot fix itself, so it exits at the first read
 with a line that says what to do: 69 when gh is missing or cannot be executed, 77 when it is
@@ -84,12 +96,21 @@ function readPr(repo, pr) {
   return JSON.parse(result.stdout);
 }
 
+// `unknown` says why a state outside the three lists is not green, for the failed: line.
 function checks(info) {
   return (info.statusCheckRollup ?? []).map((check) => {
     const status = (check.status ?? '').toUpperCase();
     const conclusion = (check.conclusion ?? '').toUpperCase();
     const finished = conclusion && (status === '' || status === 'COMPLETED');
-    return { name: check.name ?? check.context ?? '?', state: finished ? conclusion : status || (check.state ?? '').toUpperCase() };
+    const state = finished ? conclusion : status || (check.state ?? '').toUpperCase();
+    const known = GREEN.has(state) || FAILED.has(state) || PENDING.has(state);
+    let unknown = null;
+    if (!known) {
+      if (state === 'COMPLETED') unknown = 'COMPLETED with no conclusion';
+      else if (state === '') unknown = 'no state';
+      else unknown = `${state}, not a known check state`;
+    }
+    return { name: check.name ?? check.context ?? '?', state, unknown };
   });
 }
 
@@ -134,10 +155,12 @@ async function main(argv) {
     }
     const list = checks(info);
     const pending = list.filter((check) => PENDING.has(check.state)).map((check) => check.name);
-    const failed = list.filter((check) => FAILED.has(check.state)).map((check) => check.name);
+    const failed = list
+      .filter((check) => FAILED.has(check.state) || check.unknown)
+      .map((check) => (check.unknown ? `${check.name} (${check.unknown})` : check.name));
     if (list.length > 0 && pending.length === 0) {
       const minutes = Math.floor((Date.now() - start) / 60_000);
-      console.log(`${clock()} CI finished in ${minutes} min: ${list.map((check) => `${check.name}=${check.state}`).join(', ')}`);
+      console.log(`${clock()} CI finished in ${minutes} min: ${list.map((check) => `${check.name}=${check.state || '(no state)'}`).join(', ')}`);
       if (failed.length) {
         console.log(`failed: ${failed.join(', ')}`);
         return 1;

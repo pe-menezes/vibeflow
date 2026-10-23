@@ -20,6 +20,13 @@ const STOP = 2;
 const LABEL = { [GO]: '[ok]', [ATTENTION]: '[attention]', [STOP]: '[stop]' };
 const MIN_BATTERY = 25;
 
+// Each check state sits in one of these lists; a state in none of them (a check finished
+// without a conclusion, a state this script does not know, a check with no state) is never
+// green. watch-pr.mjs carries the same three lines, and a test keeps them equal.
+const GREEN = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
+const FAILED = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
+const PENDING = new Set(['PENDING', 'IN_PROGRESS', 'QUEUED', 'EXPECTED', 'WAITING', 'REQUESTED']);
+
 const USAGE = `usage: preflight.mjs --repo <dir> [--hours <n>] [--default-branch <name>] [--probe-url <url>]... [--power] [--no-network]
 
 Checks the repository (not the default branch, dirty files, stashes), the network, the CI of
@@ -170,11 +177,20 @@ function pullRequests(repo, remote, ending) {
   }
   if (open.length === 0) return [[GO, 'open PRs: none']];
   return open.map((pr) => {
-    const states = (pr.statusCheckRollup ?? []).map((check) => (check.conclusion || check.status || check.state || '').toUpperCase());
-    const pending = states.some((state) => ['PENDING', 'IN_PROGRESS', 'QUEUED', 'EXPECTED', 'WAITING'].includes(state));
-    const failed = states.some((state) => ['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED'].includes(state));
-    const label = pending ? 'CI running: arm watch-pr.mjs' : failed ? 'CI red' : 'CI green or no checks';
-    return [pending || failed ? ATTENTION : GO, `PR #${pr.number}${pr.isDraft ? ' (draft)' : ''}: ${label} · ${(pr.title ?? '').slice(0, 60)}`];
+    const checks = (pr.statusCheckRollup ?? []).map((check) => ({
+      name: check.name ?? check.context ?? '?',
+      state: (check.conclusion || check.status || check.state || '').toUpperCase(),
+    }));
+    const pending = checks.some(({ state }) => PENDING.has(state));
+    const failed = checks.some(({ state }) => FAILED.has(state));
+    const unknown = checks.filter(({ state }) => !GREEN.has(state) && !FAILED.has(state) && !PENDING.has(state));
+    const named = unknown.map(({ name, state }) => `${name}=${state || '(no state)'}`).join(', ');
+    let label = 'CI green or no checks';
+    if (pending) label = 'CI running: arm watch-pr.mjs';
+    else if (failed) label = 'CI red';
+    else if (unknown.length) label = `CI not green, a check state that is not known: ${named}`;
+    const green = !pending && !failed && unknown.length === 0;
+    return [green ? GO : ATTENTION, `PR #${pr.number}${pr.isDraft ? ' (draft)' : ''}: ${label} · ${(pr.title ?? '').slice(0, 60)}`];
   });
 }
 

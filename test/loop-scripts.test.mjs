@@ -1091,6 +1091,58 @@ test('watch-pr exits 1 when a check failed', () => {
   });
 });
 
+test('watch-pr counts NEUTRAL, SKIPPED and a green status context as green, and names them on the closing line', () => {
+  withSandbox((box) => {
+    box.setGh(PR('OPEN', [
+      { name: 'unit', status: 'COMPLETED', conclusion: 'SUCCESS' },
+      { name: 'docs', status: 'COMPLETED', conclusion: 'NEUTRAL' },
+      { name: 'deploy', status: 'COMPLETED', conclusion: 'SKIPPED' },
+      { context: 'ci/legacy', state: 'SUCCESS' },
+    ]));
+    const result = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--timeout-min', '0'], box.env());
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.stdout, /CI finished .*docs=NEUTRAL/);
+    assert.match(result.stdout, /CI finished .*deploy=SKIPPED/);
+    assert.match(result.stdout, /CI finished .*ci\/legacy=SUCCESS/);
+  });
+});
+
+test('watch-pr exits 1 on a STALE or STARTUP_FAILURE check and names it on the failed line', () => {
+  withSandbox((box) => {
+    for (const conclusion of ['STALE', 'STARTUP_FAILURE']) {
+      box.setGh(PR('OPEN', [
+        { name: 'lint', status: 'COMPLETED', conclusion: 'SUCCESS' },
+        { name: 'test', status: 'COMPLETED', conclusion },
+      ]));
+      const result = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--timeout-min', '0'], box.env());
+      assert.equal(result.status, 1, `${conclusion}: ${result.out}`);
+      assert.match(result.stdout, /^failed: test$/m, conclusion);
+    }
+  });
+});
+
+test('watch-pr never ends green on a check outside its lists: finished without a conclusion, an unknown state, or no state', () => {
+  withSandbox((box) => {
+    const cases = [
+      [{ name: 'test', status: 'COMPLETED', conclusion: '' }, /test \(COMPLETED with no conclusion\)/],
+      [{ name: 'test', status: 'COMPLETED', conclusion: 'SOMETHING_NEW' }, /test \(SOMETHING_NEW, not a known check state\)/],
+      [{ name: 'test', status: 'SOMETHING_NEW' }, /test \(SOMETHING_NEW, not a known check state\)/],
+      [{ context: 'ci/legacy', state: 'SOMETHING_NEW' }, /ci\/legacy \(SOMETHING_NEW, not a known check state\)/],
+      [{ name: 'test' }, /test \(no state\)/],
+    ];
+    for (const [check, named] of cases) {
+      box.setGh(PR('OPEN', [{ name: 'lint', status: 'COMPLETED', conclusion: 'SUCCESS' }, check]));
+      const result = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--timeout-min', '0'], box.env());
+      const what = JSON.stringify(check);
+      assert.equal(result.status, 1, `${what}: ${result.out}`);
+      const failedLine = result.stdout.split('\n').find((line) => line.startsWith('failed: '));
+      assert.ok(failedLine, `${what}: no failed line\n${result.out}`);
+      assert.match(failedLine, named, what);
+      assert.doesNotMatch(failedLine, /lint/, what);
+    }
+  });
+});
+
 test('watch-pr exits 2 when the PR was closed or merged', () => {
   withSandbox((box) => {
     for (const state of ['CLOSED', 'MERGED']) {
@@ -1239,6 +1291,32 @@ test('watch-pr usage and README name 64 for bad arguments, 69 for gh missing or 
   assert.match(row, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in/);
   const flat = readme.replace(/\s+/g, ' ');
   assert.match(flat, /`watch-pr\.mjs` exits 69 at its first read when `gh` is not installed or cannot be executed, and 77 when it is not logged in/);
+});
+
+test('watch-pr usage and README say how each check state counts, NEUTRAL and SKIPPED as green', () => {
+  const usage = runScript('watch-pr.mjs', ['--help'], hermeticEnv(tmpdir())).stdout.replace(/\s+/g, ' ');
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
+  const flat = readme.replace(/\s+/g, ' ');
+  for (const text of [usage, flat]) {
+    assert.match(text, /green: SUCCESS, NEUTRAL, SKIPPED/);
+    assert.match(text, /failed: FAILURE, ERROR, TIMED_OUT, CANCELLED, ACTION_REQUIRED, STARTUP_FAILURE, STALE/);
+    assert.match(text, /pending: PENDING, IN_PROGRESS, QUEUED, EXPECTED, WAITING, REQUESTED/);
+    assert.match(text, /never green/);
+    assert.match(text, /NEUTRAL and SKIPPED count as green/);
+  }
+  const row = readme.split('\n').find((line) => line.startsWith('| `watch-pr'));
+  assert.match(row, /outside its green, failed and pending lists/);
+});
+
+// The kit imports only node: modules, so each script carries its own copy of the check state lists.
+test('watch-pr and preflight carry the same green, failed and pending check state lists', () => {
+  const lists = (name) => {
+    const source = readFileSync(join(LOOP_DIR, 'scripts', name), 'utf8');
+    return Object.fromEntries([...source.matchAll(/^const (GREEN|FAILED|PENDING) = new Set\((\[.*\])\);$/gm)].map(([, list, items]) => [list, items]));
+  };
+  const watch = lists('watch-pr.mjs');
+  assert.deepEqual(Object.keys(watch).sort(), ['FAILED', 'GREEN', 'PENDING']);
+  assert.deepEqual(lists('preflight.mjs'), watch);
 });
 
 // --- watch-round ---
@@ -1479,6 +1557,29 @@ test('preflight calls attention to dirty files, stashes, red CI and the effort v
     assert.match(result.stdout, /1 dirty file/);
     assert.match(result.stdout, /PR #3: CI red/);
     assert.match(result.stdout, /CLAUDE_CODE_EFFORT_LEVEL=low/);
+  });
+});
+
+test('preflight lists an open PR with a check outside the green list as not green', () => {
+  withSandbox((box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    const pr = (number, checks) => ({ number, title: `pr ${number}`, isDraft: false, statusCheckRollup: checks });
+    box.setGh([
+      pr(4, [{ name: 't', status: 'COMPLETED', conclusion: 'STALE' }]),
+      pr(5, [{ name: 't', status: 'COMPLETED', conclusion: '' }]),
+      pr(6, [{ name: 't', status: 'COMPLETED', conclusion: 'SOMETHING_NEW' }]),
+      pr(7, [{ name: 't' }]),
+      pr(8, [{ name: 'a', status: 'COMPLETED', conclusion: 'SUCCESS' }, { name: 'b', status: 'COMPLETED', conclusion: 'NEUTRAL' }, { name: 'c', status: 'COMPLETED', conclusion: 'SKIPPED' }, { context: 'ci/legacy', state: 'SUCCESS' }]),
+      pr(9, [{ name: 't', status: 'COMPLETED', conclusion: 'STARTUP_FAILURE' }]),
+    ]);
+    const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+    assert.match(result.stdout, /^\[attention\] PR #4: CI red/m);
+    assert.match(result.stdout, /^\[attention\] PR #5: CI not green, a check state that is not known: t=COMPLETED/m);
+    assert.match(result.stdout, /^\[attention\] PR #6: CI not green, a check state that is not known: t=SOMETHING_NEW/m);
+    assert.match(result.stdout, /^\[attention\] PR #7: CI not green, a check state that is not known: t=\(no state\)/m);
+    assert.match(result.stdout, /^\[ok\] PR #8: CI green or no checks/m);
+    assert.match(result.stdout, /^\[attention\] PR #9: CI red/m);
+    assert.equal((result.stdout.match(/CI green/g) ?? []).length, 1, result.out);
   });
 });
 
