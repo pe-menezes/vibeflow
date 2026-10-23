@@ -4,7 +4,10 @@
 // every new file. For a re-audit the base is the commit of the audited round, so the package is
 // the fix diff only. A package over the cap names what it left out; an empty one says so. A file
 // diff with a line that looks like a secret stays out whole, named with its size and that line,
-// and every hunk header comes in as its line numbers only, without the function context.
+// and every hunk header comes in as its line numbers only, without the function context. No line
+// the package writes looks like a secret: a file diff whose path does stays out whole too, a commit
+// title that does leaves its short hash, any other such line becomes a note, and the finished
+// text is checked line by line before it is written.
 // Nothing under .vibeflow/ counts as a change on its own; the loop's artifact folders there stay
 // out, counted, and the rest (specs, the knowledge base) comes in as context.
 
@@ -63,8 +66,13 @@ A file diff with a line that looks like a secret or credential (the detector of
 check-briefing.mjs: a known key or token format, a database URL with a password, or a name
 such as PASSWORD, SECRET or TOKEN set to a literal value) is left out whole and listed under
 WITHHELD at the top, with its size and the number of the first line that matched (in the base,
-for a removed line): read it with git. Each hunk header comes in as its line numbers only,
-without the function context git prints after it.
+for a removed line): read it with git. A file whose path looks like a secret is withheld the
+same way, listed without its path. Every other line that looks like a secret (a commit title, a
+line of the status, the stat or the new-file list, the base or folder name) is replaced by a
+note in its place, and a commit keeps its short hash; HEADER LINES LEFT OUT at the top counts
+them and says how to read them with git. The package is checked line by line before it is
+written: a line that still looks like a secret exits 2, with nothing written. Each hunk header
+comes in as its line numbers only, without the function context git prints after it.
 Nothing under .vibeflow/ counts as a change: a change only under .vibeflow/ is empty, and the
 message counts its paths. The loop's artifact folders there
 (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}) are always left out and counted
@@ -123,7 +131,8 @@ function realDir(path) {
 const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 
 // The file line of the first diff line that looks like a secret, or 0 when none does. Only the
-// hunks are read: a path is in the package anyway. An added or context line counts in the new
+// hunks are read here; the lines above the first hunk, which hold the paths, are read by
+// secretInPath. An added or context line counts in the new
 // file, a removed line in the base; a line of a CRLF file is tested without its "\r". The function
 // context after a hunk header is a line of the file: git gives no number for it, so the hunk's
 // first line is named.
@@ -150,6 +159,27 @@ function secretLine(chunk) {
   return 0;
 }
 
+// A line of the package that looks like a secret, tested as secretLine tests a diff line: without
+// a final "\r".
+function looksSecret(printed) {
+  return SECRET.test(printed.endsWith('\r') ? printed.slice(0, -1) : printed);
+}
+
+// Whether a file diff's path looks like a secret: the path, the `## New file:` heading, or a line
+// above the first hunk (`diff --git`, `---`, `+++`, a rename, a copy or a binary notice). Such a
+// diff stays out whole, like one with a secret line.
+function secretInPath(chunk) {
+  if (SECRET.test(chunk.path) || (chunk.heading && SECRET.test(chunk.heading))) return true;
+  for (const line of chunk.text.split('\n')) {
+    if (HUNK_HEADER.test(line)) return false;
+    if (looksSecret(line)) return true;
+  }
+  return false;
+}
+
+// What replaces, in the header, a line that looks like a secret or holds a path that does.
+const LINE_NOTE = '(line left out: it looks like a secret or credential; see HEADER LINES LEFT OUT at the top)';
+
 // The package carries each hunk header as its line numbers only: the function context is no part
 // of the change, and a secret git cut short there no longer looks like one.
 function withoutFunctionContext(chunk) {
@@ -173,7 +203,16 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   });
   if (baseShort.status !== 0) throw new PackageError(`base ${base} is not a commit in ${dir}`);
   const head = git(dir, ['rev-parse', '--short', 'HEAD']).trim();
-  const title = `# Review package · ${basename(dir)} · base ${baseShort.stdout.trim()} · HEAD ${head} · ${new Date().toISOString()}`;
+  const baseHash = baseShort.stdout.trim();
+  // Every header line that looks like a secret, counted at the top of the package.
+  let leftOutOfHeader = 0;
+  const named = (name, note) => {
+    if (!looksSecret(name)) return name;
+    leftOutOfHeader += 1;
+    return note;
+  };
+  const folder = named(basename(dir), '(folder name left out: it looks like a secret or credential)');
+  const title = `# Review package · ${folder} · base ${baseHash} · HEAD ${head} · ${new Date().toISOString()}`;
 
   // A package written inside the worktree must not carry its previous copy.
   const outReal = resolve(realDir(dirname(out)), basename(out));
@@ -189,8 +228,9 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const vibeflowCount = git(dir, ['diff', '--name-only', '-z', base, '--'])
     .split('\0')
     .filter((path) => path && isVibeflow(path)).length + allUntracked.filter(isVibeflow).length;
-  // A commit that touches only loop artifacts is not part of the round either.
-  const commits = git(dir, ['log', '--oneline', `${base}..HEAD`, ...ARTIFACT_PATHSPEC]);
+  // A commit that touches only loop artifacts is not part of the round either. Each line is the
+  // short hash and the title, as --oneline prints them.
+  const commits = git(dir, ['log', '--format=%h %s', `${base}..HEAD`, ...ARTIFACT_PATHSPEC]);
   // Explicit prefixes: splitDiff reads `a/<path>`, and diff.noprefix or diff.mnemonicPrefix in
   // the user's config would otherwise change them and leave the cap naming files as "?".
   const diff = git(dir, ['diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U10', base, ...ARTIFACT_PATHSPEC]);
@@ -205,19 +245,13 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     const advice = vibeflowCount
       ? 'An audit over this file has nothing to read: the work since the base is only under .vibeflow/.'
       : 'An audit over this file has nothing to read; check the base.';
+    const baseName = named(base, `${baseHash} (its name left out: it looks like a secret or credential)`);
     return {
       empty: true,
       vibeflowNote,
-      text: `${title}\n\n${artifactLine}\n\nEMPTY PACKAGE: nothing changed outside .vibeflow/ between base ${base} and the worktree (no commit, no diff, no new file); ${vibeflowNote}. ${advice}\n`,
+      text: `${title}\n\n${artifactLine}\n\n${headerNotice(leftOutOfHeader, baseHash)}EMPTY PACKAGE: nothing changed outside .vibeflow/ between base ${baseName} and the worktree (no commit, no diff, no new file); ${vibeflowNote}. ${advice}\n`,
     };
   }
-
-  const headSections = [
-    '## Commits since the base', commits.trim() || '(none: the round is not committed)',
-    '## git status --short', git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]).trim() || '(clean)',
-    '## Files and lines', git(dir, ['diff', '--stat', base, ...ARTIFACT_PATHSPEC]).trim() || '(no tracked change)',
-    '## New files', untracked.length ? untracked.map((path) => `- ${path}`).join('\n') : '(none)',
-  ].join('\n\n');
 
   const chunks = [
     ...splitDiff(diff).map((chunk) => ({ ...chunk, heading: null })),
@@ -231,10 +265,37 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const withheld = [];
   const candidates = [];
   for (const chunk of chunks) {
+    const bytes = Buffer.byteLength(chunk.text);
+    if (secretInPath(chunk)) {
+      withheld.push({ path: chunk.path, bytes, line: 0 });
+      continue;
+    }
     const line = secretLine(chunk.text);
-    if (line) withheld.push({ path: chunk.path, bytes: Buffer.byteLength(chunk.text), line });
+    if (line) withheld.push({ path: chunk.path, bytes, line });
     else candidates.push({ ...chunk, text: withoutFunctionContext(chunk.text) });
   }
+
+  // A header line goes out when it looks like a secret, or when it names a path that does, which
+  // the stat may print where the detector alone would not match it.
+  const secretPaths = withheld.filter((item) => !item.line).map((item) => item.path);
+  const clean = (text) => text.split('\n').map((line) => {
+    if (!looksSecret(line) && !secretPaths.some((path) => line.includes(path))) return line;
+    leftOutOfHeader += 1;
+    return LINE_NOTE;
+  }).join('\n');
+  // A commit whose title goes out keeps its short hash, enough to read it with git.
+  const commitLines = commits.split('\n').filter(Boolean).map((line) => {
+    const hash = line.slice(0, line.indexOf(' '));
+    if (!looksSecret(line) && !secretPaths.some((path) => line.includes(path))) return line;
+    leftOutOfHeader += 1;
+    return `${hash} (title left out: it looks like a secret or credential; read it with git log -1 ${hash})`;
+  });
+  const headSections = [
+    '## Commits since the base', commitLines.join('\n') || '(none: the round is not committed)',
+    '## git status --short', clean(git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]).trim()) || '(clean)',
+    '## Files and lines', clean(git(dir, ['diff', '--stat', base, ...ARTIFACT_PATHSPEC]).trim()) || '(no tracked change)',
+    '## New files', untracked.length ? clean(untracked.map((path) => `- ${path}`).join('\n')) : '(none)',
+  ].join('\n\n');
 
   let size = Buffer.byteLength(`${title}\n\n${artifactLine}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
   const kept = [];
@@ -251,16 +312,32 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   }
 
   const withheldNotice = withheld.length
-    ? `WITHHELD: ${withheld.length} file diff(s) left out because a line looks like a secret or credential. Read them with git before judging:\n${withheld.map((item) => `- ${item.path} (${item.bytes} bytes, line ${item.line})`).join('\n')}\n\n`
+    ? `WITHHELD: ${withheld.length} file diff(s) left out because a line looks like a secret or credential. Read them with git before judging:\n${clean(withheld.map((item) => (item.line
+      ? `- ${item.path} (${item.bytes} bytes, line ${item.line})`
+      : `- a file whose path looks like a secret or credential (${item.bytes} bytes): find it with git status --short`)).join('\n'))}\n\n`
     : '';
   const truncatedNotice = leftOut.length
-    ? `TRUNCATED: ${leftOut.length} of ${candidates.length} file diff(s) left out to stay under ${maxBytes} bytes. Read them with git before judging:\n${leftOut.map((item) => `- ${item.path} (${item.bytes} bytes)`).join('\n')}\n\n`
+    ? `TRUNCATED: ${leftOut.length} of ${candidates.length} file diff(s) left out to stay under ${maxBytes} bytes. Read them with git before judging:\n${clean(leftOut.map((item) => `- ${item.path} (${item.bytes} bytes)`).join('\n'))}\n\n`
     : '';
-  const notice = `${withheldNotice}${truncatedNotice}`;
+  const notice = `${headerNotice(leftOutOfHeader, baseHash)}${withheldNotice}${truncatedNotice}`;
   const tracked = kept.filter((chunk) => !chunk.heading).map((chunk) => chunk.piece).join('');
   const added = kept.filter((chunk) => chunk.heading).map((chunk) => chunk.piece).join('');
   const text = `${title}\n\n${artifactLine}\n\n${notice}${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n${tracked || '(no tracked change)\n'}${added}`;
   return { empty: false, text, leftOut, withheld, newFiles: untracked.length };
+}
+
+// The count at the top of the package of the header lines it left out, with the git commands
+// that print them.
+function headerNotice(count, baseHash) {
+  if (!count) return '';
+  return `HEADER LINES LEFT OUT: ${count} line(s) of the header look like a secret or credential, each replaced by a note in its place (a commit keeps its short hash). Read them with git: git log --oneline ${baseHash}..HEAD, git status --short, git diff --stat ${baseHash}, git ls-files --others --exclude-standard.\n\n`;
+}
+
+// The last check before writing: the line number of the first line of the finished package that
+// looks like a secret, or 0 when none does.
+function leakedLine(text) {
+  const index = text.split('\n').findIndex(looksSecret);
+  return index + 1;
 }
 
 function main(argv) {
@@ -271,6 +348,10 @@ function main(argv) {
   try {
     const args = parseArgs(argv);
     const result = build(args);
+    const leaked = leakedLine(result.text);
+    if (leaked) {
+      throw new PackageError(`line ${leaked} of the package still looks like a secret or credential; nothing was written`);
+    }
     mkdirSync(dirname(args.out), { recursive: true });
     writeFileSync(args.out, result.text);
     if (result.empty) {

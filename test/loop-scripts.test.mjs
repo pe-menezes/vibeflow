@@ -127,6 +127,19 @@ test('review-package usage and README say what stays out: what looks like a secr
   assert.match(readme, /only under `\.vibeflow\/` is an empty package/);
 });
 
+test('review-package usage and README say that no line of the package looks like a secret, the header included', () => {
+  const usage = runScript('review-package.mjs', ['--help'], hermeticEnv(tmpdir())).stdout.replace(/\s+/g, ' ');
+  assert.match(usage, /A file whose path looks like a secret is withheld the same way/);
+  assert.match(usage, /a commit keeps its short hash/);
+  assert.match(usage, /HEADER LINES LEFT OUT/);
+  assert.match(usage, /checked line by line before it is written: a line that still looks like a secret exits 2/);
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8').replace(/\s+/g, ' ');
+  assert.match(readme, /`HEADER LINES LEFT OUT`/);
+  assert.match(readme, /keeps only its short hash/);
+  assert.match(readme, /a file diff whose path looks like a secret/i);
+  assert.match(readme, /exits 2 without writing/);
+});
+
 test('review-package --help keeps every line within 100 characters', () => {
   const usage = runScript('review-package.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
   for (const line of usage.split('\n')) {
@@ -651,6 +664,128 @@ test('a secret on the line git prints after a hunk header as its function contex
     assert.ok(!text.includes(url), 'the database URL stays out of the package');
     assert.ok(!text.includes('KEY_13=changed'), 'the whole file diff stays out');
     assert.match(text, /^- config\/app\.env \(\d+ bytes, line 3\)$/m, 'git gives no line for the context, so the hunk\'s first line is named');
+  });
+});
+
+// --- review package: the header goes through the same detector ---
+
+// Commit titles, status, stat, the new-file list and the title line are text the package writes
+// too: a token pasted in a commit title or in a file name must not reach the package.
+const HEADER_LEFT_OUT = /^HEADER LINES LEFT OUT: (\d+) line\(s\) /m;
+const LINE_NOTE = '(line left out: it looks like a secret or credential; see HEADER LINES LEFT OUT at the top)';
+const PATH_ENTRY = /^- a file whose path looks like a secret or credential \(\d+ bytes\): find it with git status --short$/gm;
+
+test('a commit title that looks like a secret leaves only the short hash and a note in the package', () => {
+  withSandbox((box) => {
+    const token = SECRET_SAMPLES['GitHub token'];
+    box.write('src/rules.ts', 'export const x = 11\n');
+    box.git('commit', '-q', '-am', `Configure ${token}`);
+    const hash = box.git('rev-parse', '--short', 'HEAD').trim();
+    box.write('src/rules.ts', 'export const x = 12\n');
+    box.git('commit', '-q', '-am', 'second change');
+    const baseShort = box.git('rev-parse', '--short', box.base).trim();
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(token), 'the token in the commit title stays out of the package');
+    assert.match(text, new RegExp(`^${hash} \\(title left out: it looks like a secret or credential; read it with git log -1 ${hash}\\)$`, 'm'));
+    assert.match(text, /^[0-9a-f]+ second change$/m, 'a clean commit title stays');
+    assert.equal(text.match(HEADER_LEFT_OUT)?.[1], '1', text.slice(0, 800));
+    assert.ok(text.includes(`git log --oneline ${baseShort}..HEAD`), 'the top says how to read the lines with git');
+    assert.ok(text.search(HEADER_LEFT_OUT) < text.indexOf('## Commits since the base'), 'the count is at the top');
+    assert.doesNotMatch(text, /WITHHELD/, 'the diff itself is clean');
+    assert.match(text, /^\+export const x = 12$/m, 'the diff stays in the package');
+  });
+});
+
+test('a new file whose path looks like a secret is withheld whole, and its path stays out of every section', () => {
+  withSandbox((box) => {
+    const token = SECRET_SAMPLES['GitHub token'];
+    box.write(`notes-${token}.txt`, 'harmless\n');
+    box.write('src/rules.ts', 'export const x = 13\n');
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(token), 'the token in the file name stays out of the package');
+    assert.ok(!text.includes('harmless'), 'the whole new file stays out');
+    assert.equal(text.match(WITHHELD_HEADER)?.[1], '1', text.slice(0, 800));
+    assert.equal(text.match(PATH_ENTRY)?.length, 1, text.slice(0, 800));
+    assert.equal(text.match(HEADER_LEFT_OUT)?.[1], '2', 'the status line and the new-file line');
+    assert.equal(text.split('\n').filter((line) => line === LINE_NOTE).length, 2, text.slice(0, 1200));
+    assert.match(text, /^\+export const x = 13$/m, 'the clean change stays in the package');
+  });
+});
+
+test('a tracked file whose path looks like a secret is withheld whole, and its path stays out of the status and the stat', () => {
+  withSandbox((box) => {
+    const paths = [`notes-${SECRET_SAMPLES['GitHub token']}.txt`, `${'API'}${'_TOKEN'}=${'f4ke'}${'Va1ue9x7Q'}`];
+    for (const path of paths) box.write(path, 'harmless\n');
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'notes');
+    for (const path of paths) box.write(path, 'harmless, edited\n');
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    for (const path of paths) assert.ok(!text.includes(path), `${path.slice(0, 9)}...: the path stays out of the package`);
+    assert.ok(!text.includes('harmless'), 'the whole file diffs stay out');
+    assert.equal(text.match(WITHHELD_HEADER)?.[1], '2', text.slice(0, 800));
+    assert.equal(text.match(PATH_ENTRY)?.length, 2, text.slice(0, 800));
+    assert.equal(text.match(HEADER_LEFT_OUT)?.[1], '4', 'two status lines and two stat lines');
+    assert.match(text, /^[0-9a-f]+ notes$/m, 'the clean commit title stays');
+  });
+});
+
+test('an empty package whose base is named like a secret names the base by its short hash and says so at the top', () => {
+  withSandbox((box) => {
+    const token = SECRET_SAMPLES['GitHub token'];
+    box.git('branch', `base-${token}`);
+    const baseShort = box.git('rev-parse', '--short', box.base).trim();
+    const out = join(box.root, 'empty.md');
+    const result = runScript('review-package.mjs', [box.repo, `base-${token}`, out], box.env());
+    assert.equal(result.status, 1, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(token), 'the token in the base name stays out of the package');
+    assert.match(text, new RegExp(`^EMPTY PACKAGE: nothing changed outside \\.vibeflow/ between base ${baseShort} \\(its name left out`, 'm'));
+    assert.equal(text.match(HEADER_LEFT_OUT)?.[1], '1', text);
+  });
+});
+
+test('a package folder named like a secret keeps the title line, without the folder name', () => {
+  withSandbox((box) => {
+    const token = SECRET_SAMPLES['GitHub token'];
+    const repo = join(box.root, `app-${token}`);
+    box.git('clone', '-q', box.repo, repo);
+    writeFileSync(join(repo, 'src/rules.ts'), 'export const x = 14\n');
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [repo, box.base, out], box.env());
+    assert.equal(result.status, 0, result.out);
+    const text = readFileSync(out, 'utf8');
+    assert.ok(!text.includes(token), 'the token in the folder name stays out of the package');
+    assert.match(text, /^# Review package · \(folder name left out: it looks like a secret or credential\) · base [0-9a-f]+ · HEAD [0-9a-f]+ · /m);
+    assert.equal(text.match(HEADER_LEFT_OUT)?.[1], '1', text.slice(0, 800));
+  });
+});
+
+// The last check reads the finished text line by line, whatever let a line through before it: the
+// test runs a copy of the script whose file-diff detector finds nothing.
+test('review package exits 2 and writes nothing when a line of the finished package still looks like a secret', () => {
+  const source = readFileSync(join(SCRIPTS_DIR, 'review-package.mjs'), 'utf8');
+  const marker = 'function secretLine(chunk) {\n';
+  assert.ok(source.includes(marker), 'review-package.mjs defines secretLine');
+  withSandbox((box) => {
+    const blind = join(box.root, 'review-package-blind.mjs');
+    writeFileSync(blind, source.replace(marker, `${marker}  return 0;\n`));
+    const key = SECRET_SAMPLES['AWS access key'];
+    box.write('notes/local.txt', `AWS_ACCESS_KEY_ID=${key}\n`);
+    const out = join(box.root, 'package.md');
+    const result = spawnSync(process.execPath, [blind, box.repo, box.base, out], { env: box.env(), encoding: 'utf8' });
+    assert.equal(result.status, 2, `${result.stdout}${result.stderr}`);
+    assert.equal(existsSync(out), false, 'nothing is written');
+    assert.match(result.stderr, /still looks like a secret or credential/);
+    assert.ok(!`${result.stdout}${result.stderr}`.includes(key), 'the error does not print the line');
   });
 });
 
