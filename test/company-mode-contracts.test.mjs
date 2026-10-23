@@ -132,7 +132,8 @@ test('company mode: draft or ready by the repository\'s convention, a declared d
 
 test('company mode: watch-pr.mjs waits for the checks a CI runs on the PR, its result goes to the body and the final report, and the skip is said', () => {
   const text = section();
-  hasSentence(text, 'With CI that runs on the PR, run `watch-pr.mjs` with `--repo <owner/repo> --pr <number>` in the background, its output written to `.vibeflow/reviews/<feature>-pr-checks.txt`.', 'watch-pr with its arguments and its output in a file');
+  hasSentence(text, 'With CI that runs on the PR, run `watch-pr.mjs` with `--repo <origin host>/<owner/repo> --pr <number>` in the background, its output written to `.vibeflow/reviews/<feature>-pr-checks.txt`.', 'watch-pr with its arguments and its output in a file');
+  hasSentence(text, '`<origin host>` is the host of the `origin` remote, the one the check before step 5 validated with `gh auth status --hostname <origin host>`; the form is the same for github.com and for a GitHub Enterprise host.', 'the watch reads the PR on the host the check before step 5 validated');
   hasSentence(text, 'A repository with no CI, or whose CI does not run on this PR (only on pushes to the default branch, or only once a draft is marked ready), skips `watch-pr.mjs`, because on a PR with no check it waits until its ceiling; the PR body says which.', 'the skip, its reason, and the PR says which');
   hasSentence(text, 'a failure the change did not cause (the same check failing on the default branch, a cancelled run) goes to the user as a note in the final report and opens no round.', 'a failure the change did not cause is a note, not a round');
   assert.match(text, /final report[^.]*the checks' result from `watch-pr\.mjs`/, 'the checks\' result in the final report');
@@ -191,10 +192,10 @@ test('company mode: with no origin remote, the ending stops before the push and 
 test('company mode: watch-pr.mjs exit 64 goes back to the watch once, and 69, 77 or a second 64 say the checks are not watched and how to follow them', () => {
   // The route reads the exit code, never the error text: 64 is the orchestrator's own bad argument, 69 and 77 a gh it cannot use.
   const usage = /exit 0 green · ([^`\n]+)/.exec(read(`${KIT}/scripts/watch-pr.mjs`));
-  assert.equal(usage?.[1], '1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments · 69 gh missing or not executable · 77 gh not logged in', 'the exits of watch-pr.mjs, the ones the route below names');
+  assert.equal(usage?.[1], '1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments · 69 gh missing or not executable · 77 gh not logged in or credential refused', 'the exits of watch-pr.mjs, the ones the route below names');
   hasSentence(step(6), 'Exit 64: watch-pr.mjs refused the call itself (a bad argument, the orchestrator\'s own mistake, or a Node.js older than 18), so correct the call from its error line and start the watch again, once; a second exit 64 is not watched, as below.', 'exit 64 goes back to the watch once');
   hasSentence(step(6), 'Exit 69: gh is missing or cannot be executed.', 'the route of exit 69');
-  hasSentence(step(6), 'Exit 77: gh is not logged in.', 'the route of exit 77');
+  hasSentence(step(6), 'Exit 77: gh is not logged in, or GitHub refused its credential.', 'the route of exit 77');
   hasSentence(step(6), "On exit 69, exit 77 or a second exit 64 the watch could not start, so nothing is watching the checks and `gh pr edit` does not run: the ledger gets the line `Ending: checks not watched — watch-pr.mjs exit <code> — <its error line>`, the body file's PR checks row reads `not watched: watch-pr.mjs exit <code> (<its error line>)`, the PR keeps the body step 4 wrote, and the final report says the checks were not watched, with that error line, and gives the user `gh pr checks <number> --watch` to follow them.", 'the route of the checks not watched');
   hasSentence(step(6), 'The route reads the exit code, never the wording of the error line.', 'the route is by code');
   // The kit-wide rule for 64 at the top of orchestrator.md says what step 6 does.

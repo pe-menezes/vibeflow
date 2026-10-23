@@ -40,6 +40,7 @@ function step(n) {
 
 // Fill <placeholders> of a command written in the section.
 const VALUES = {
+  '<origin host>': 'github.com',
   '<owner/repo>': 'owner/repo',
   '<number>': '7',
   '<default branch>': 'main',
@@ -47,7 +48,8 @@ const VALUES = {
   '<feature>': 'x',
 };
 function fill(command) {
-  const tokens = command.match(/<[^>]+>|\S+/g) ?? [];
+  // A placeholder holding a space stays inside its word: `<origin host>/<owner/repo>` is one argument.
+  const tokens = command.match(/(?:<[^>]+>|[^\s<]+)+/g) ?? [];
   // A placeholder this table does not know (a PR title, for example) gets a plain word; a
   // wrong one in a script's arguments still fails, because the script refuses the value.
   return tokens.map((token) => token.replace(/<[^>]+>/g, (name) => VALUES[name] ?? 'value'));
@@ -64,13 +66,14 @@ const PR = (state, checks) => ({ state, title: 'feat', url: 'https://example.inv
 
 // ------------------------------------------------------------------ watching the PR's checks
 
-// Contract: the watch-pr.mjs command step 6 writes runs against gh, every exit the README declares for it has a route in step 6, and the reason given for skipping it without CI holds for the script.
-// Breaks when: a flag is renamed in the script or in the section (`--pr-number`), a new exit gets no route, or the script starts reading a PR with no check as green.
+// Contract: the watch-pr.mjs command step 6 writes runs against gh with the origin host in `--repo`, in the same form on github.com and on a GitHub Enterprise host, every exit the README declares for it has a route in step 6, and the reason given for skipping it without CI holds for the script.
+// Breaks when: a flag is renamed in the script or in the section (`--pr-number`), step 6 drops the host from `--repo` so gh reads the PR on github.com instead of the Enterprise host the check before step 5 validated, a new exit gets no route, or the script starts reading a PR with no check as green.
 // Not covered by: company-mode-contracts pins the step's sentences and never runs the script or crosses it with the README.
 test('watch-pr.mjs with the arguments the section writes runs against gh, and every exit it can return has a route in step 6', () => {
   const six = step(6);
   const args = /run `watch-pr\.mjs` with `([^`]+)`/.exec(six);
   assert.ok(args, 'step 6 writes watch-pr.mjs with its arguments');
+  assert.match(args[1], /--repo <origin host>\/<owner\/repo>(?: |$)/, 'step 6 gives --repo the origin host');
   const argv = fill(args[1]);
 
   // Every exit code the README declares for watch-pr.mjs is routed in step 6.
@@ -87,12 +90,20 @@ test('watch-pr.mjs with the arguments the section writes runs against gh, and ev
       [PR('MERGED', []), 2],
       [PR('CLOSED', []), 2],
     ];
-    for (const [state, expected] of cases) {
-      box.setGh(state);
-      const result = runScript('watch-pr.mjs', argv, box.env());
-      assert.equal(result.status, expected, `${state.state}: ${result.out}`);
+    // The same command reaches gh with the host it was given, github.com or a GitHub Enterprise host.
+    let reads = 0;
+    for (const host of ['github.com', 'github.example.invalid']) {
+      const hosted = fill(args[1].replace('<origin host>', host));
+      for (const [state, expected] of cases) {
+        box.setGh(state);
+        const result = runScript('watch-pr.mjs', hosted, box.env());
+        assert.equal(result.status, expected, `${host} ${state.state}: ${result.out}`);
+      }
+      const calls = readFileSync(box.ghLog, 'utf8').trim().split('\n').slice(reads);
+      reads += calls.length;
+      assert.equal(calls.length, cases.length, `${host}: one read of the PR per case`);
+      for (const call of calls) assert.match(call, new RegExp(`^pr view 7 --repo ${host.replace(/\./g, '\\.')}/owner/repo `), `${host}: ${call}`);
     }
-    assert.match(readFileSync(box.ghLog, 'utf8'), /pr view 7 --repo owner\/repo/);
 
     // The skip's reason holds for the script: a PR with no check never reads as done before the ceiling.
     box.setGh(PR('OPEN', []));
