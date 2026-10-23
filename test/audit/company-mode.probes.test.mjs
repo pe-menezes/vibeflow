@@ -405,6 +405,47 @@ test('for a CI that tests the merge commit, the git commands step 2 writes give 
   });
 });
 
+// Contract: when the default branch conflicts with the feature branch, the git commands step 2 writes stop at the merge with a non-zero exit, before the clone the suite runs in is made, so the suite never runs on a tree git settled by itself.
+// Breaks when: the merge gains a strategy option that settles conflicts on its own (`merge --no-edit -X ours origin/<default branch>`), so the suite goes green on a tree no CI tests: GitHub runs no `pull_request` workflow while the pull request has a conflict.
+// Not covered by: the merge-commit probe above uses branches that touch different files and never conflict, and company-mode-contracts pins the step's sentence, which a rewording of the step replaces together with the option.
+test('when the default branch conflicts with the feature branch, the git commands step 2 writes stop at the merge before the clone the suite runs in', () => {
+  const text = step(2);
+  const commands = [...text.matchAll(/`(git [^`]+)`/g)].map((m) => m[1]);
+  assert.ok(commands.some((c) => / merge /.test(c)), 'step 2 writes the merge');
+  withSandbox((box) => {
+    // Both branches rewrite the same line of the same file.
+    box.git('checkout', '-q', '-b', 'feat/x');
+    box.write('src/rules.ts', 'export const x = 2\n');
+    box.git('commit', '-q', '-am', 'feature');
+    box.git('checkout', '-q', 'main');
+    box.write('src/rules.ts', 'export const x = 3\n');
+    box.git('commit', '-q', '-am', 'main moves on');
+    box.git('checkout', '-q', 'feat/x');
+    const env = box.env({ GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t.invalid' });
+    const run = (argv) => spawnSync(argv[0], argv.slice(1), { cwd: box.repo, env, encoding: 'utf8' });
+    const known = { '<n>': '1', '<project root>': box.repo, '<default branch>': 'main', '<feature branch>': 'feat/x' };
+    const dirs = new Map();
+    const dir = (name) => {
+      if (!dirs.has(name)) dirs.set(name, join(box.root, `dir-${dirs.size}`));
+      return dirs.get(name);
+    };
+    // Run in order and stop at the first command that fails, as a careful session does.
+    let stopped = null;
+    for (const c of commands) {
+      const argv = c.replace(/<[^>]+>/g, (name) => known[name] ?? dir(name)).split(' ');
+      if (run(argv).status !== 0) {
+        stopped = c;
+        break;
+      }
+    }
+    assert.ok(stopped, 'a conflicting merge stops the commands of step 2');
+    assert.match(stopped, / merge /, `the command that stops is the merge: ${stopped}`);
+    const last = commands.at(-1);
+    assert.ok(last !== stopped && /^git clone /.test(last), 'the clone the suite runs in comes after the merge');
+    assert.equal(existsSync(dir(last.match(/(<[^>]+>)$/)[1])), false, 'the clone the suite runs in is never made from an unmerged tree');
+  });
+});
+
 // ------------------------------------------------------------------ when gh cannot open the pull request
 
 // A sentence that ends or halts the loop.
@@ -484,6 +525,33 @@ test('watch-pr.mjs exits 69 and 77 at the first read, and orchestrator.md sends 
   assert.ok(sentences.some((s) => /\bsecond exit 64\b/.test(s) && /\b69\b/.test(s) && /\b77\b/.test(s) && /\bnot watched\b/.test(s)), 'a second exit 64, like 69 and 77, leaves the checks not watched');
 });
 
+// Contract: a credential GitHub refuses, which gh reports with exit 1 and `HTTP 401` on the API URL of the host it was given, makes the watch-pr.mjs command step 6 writes exit 77 at its first read, on github.com and on a GitHub Enterprise host alike, so the route of exit 77 leaves the checks not watched instead of waiting.
+// Breaks when: watch-pr.mjs recognizes the refusal only on github.com's API (`/HTTP 401: Bad credentials \(https:\/\/api\.github\.com/`), so on an Enterprise host the refused credential is retried until the ceiling and step 6 reports exit 3 after hours of reading a PR it can never read.
+// Not covered by: the watch-pr tests feed the refusal from api.github.com with a hand-made `--repo owner/repo`, and the company-mode probe of exit 77 above makes gh exit 4, never exit 1 with `HTTP 401`.
+test('the watch-pr.mjs command step 6 writes exits 77 at the first read when GitHub refuses the credential, on github.com and on a GitHub Enterprise host', () => {
+  const args = /run `watch-pr\.mjs` with `([^`]+)`/.exec(step(6));
+  assert.ok(args, 'step 6 writes watch-pr.mjs with its arguments');
+  for (const [host, api] of [['github.com', 'https://api.github.com/graphql'], ['github.example.invalid', 'https://github.example.invalid/api/graphql']]) {
+    withSandbox((box) => {
+      box.writeExecutable('gh', [
+        '#!/bin/sh',
+        `printf '%s\\n' "$*" >> '${box.ghLog}'`,
+        `printf 'HTTP 401: Bad credentials (${api})\\nTry authenticating with:  gh auth login\\n' >&2`,
+        'exit 1',
+        '',
+      ].join('\n'));
+      const argv = [...fill(args[1].replace('<origin host>', host)), '--interval-sec', '0.05', '--timeout-min', '0.01'];
+      const result = runScript('watch-pr.mjs', argv, box.env({ GH_TOKEN: undefined, GITHUB_TOKEN: undefined }));
+      assert.equal(result.status, 77, `${host}: ${result.out}`);
+      assert.match(result.stderr, /^watch-pr: GitHub refused the credential gh uses/, `${host}: ${result.out}`);
+      const calls = readFileSync(box.ghLog, 'utf8').trim().split('\n');
+      assert.equal(calls.length, 1, `${host}: one read of the PR, no retry`);
+      assert.match(calls[0], new RegExp(`^pr view 7 --repo ${host.replace(/\./g, '\\.')}/owner/repo `), `${host}: ${calls[0]}`);
+    });
+  }
+  assert.match(step(6), /Exit 77:[^.]*\brefused its credential\b/, 'step 6 routes a refused credential with exit 77');
+});
+
 // The sentences of the company-mode section, list items included.
 const sectionSentences = () => section().split(/(?<=[.;:])\s+(?=[A-Z0-9`*])/);
 
@@ -544,6 +612,24 @@ test('no sentence of orchestrator.md sends watch-pr.mjs exit 69, exit 77 or a se
   assert.ok(targets.some((s) => /\bsecond exit 64\b/.test(s)), 'step 6 routes a second exit 64');
   for (const s of targets) {
     assert.doesNotMatch(mask(s), BACK, `a sentence sends exit 69, exit 77 or a second exit 64 back to the watch: "${s}"`);
+  }
+});
+
+// Contract: the causes of watch-pr.mjs exits 69 and 77 (gh missing or not executable, gh not logged in, a credential GitHub refused) send no one back to the watch either when a sentence names the cause instead of the exit code: no sentence of orchestrator.md that names one of them, or the gh login commands, keeps a verb of watching, resuming or starting again once the phrases that end the watch are masked.
+// Breaks when: a sentence worded by the cause is added ("When GitHub refused the credential, run `gh auth refresh` and start the watch again."), so a refused credential, which exits 77 at every read, restarts a watch that exits 77 again, a loop the orchestrator never leaves.
+// Not covered by: the probe above picks its sentences by the codes 69, 77 and a second 64, and company-mode-contracts pins the sentences of step 6; a sentence that names only the cause passes both.
+test('no sentence of orchestrator.md that names the cause of exit 69 or 77 sends the orchestrator back to the watch', () => {
+  const CAUSE = /\bnot logged in\b|\bcredential\b|\bgh is missing\b|\bcannot be executed\b|\bgh auth (login|refresh)\b/i;
+  const BACK = /\bwatch(es|ing)?\b|\bresum|\bcorrect|\bagain\b|\bre-?(run|start|try)|\bretr(y|ies)\b|\buntil\b|\bwait|\bfurther\b|\banother\b|\brepeat|\bstart(s|ed)?\b/i;
+  const mask = (s) => s
+    .replace(/`gh pr checks [^`]*`/g, ' ')
+    .replace(/`?watch-pr\.mjs`?/g, ' ')
+    .replace(/\bthe watch could not start\b|\bnothing is watching\b|\b(were |is )?not watched\b|\bgoes to the user\b/g, ' ');
+  const named = fileSentences().filter((s) => CAUSE.test(s));
+  assert.ok(named.some((s) => s.startsWith('Exit 77:') && /\bcredential\b/.test(s)), 'step 6 names the refused credential in the route of exit 77');
+  assert.ok(named.some((s) => s.startsWith('Exit 69:')), 'step 6 names the cause of exit 69');
+  for (const s of named) {
+    assert.doesNotMatch(mask(s), BACK, `a sentence that names the cause of exit 69 or 77 sends the orchestrator back to the watch: "${s}"`);
   }
 });
 
