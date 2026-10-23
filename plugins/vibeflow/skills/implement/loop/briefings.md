@@ -19,6 +19,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * project knowledge: `.vibeflow/index.md` and the patterns it lists (the map is there; do not re-explore the tree)
 * spec: `.vibeflow/specs/<spec file>`
 * rules: loop principles 1, 3, 4 and 6
+* role: `roles/executor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:executor` already carries it)
 
 ## Facts
 * <fact> (measured HH:MM by `<command>`)
@@ -58,6 +59,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * audit report: `.vibeflow/audits/<feature>-<part>-audit.md`; from fix 2 on, also the previous re-audit report, `.vibeflow/audits/<feature>-<part>-reaudit-<round - 1>.md`, where the open findings are
 * the part's progress file and `.vibeflow/index.md`
 * rules: loop principles 1, 6 and 7
+* role: `roles/executor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:executor` already carries it)
 
 ## Perimeter
 * the files of the findings above, nothing else
