@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import {
-  appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync,
+  appendFileSync, chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -439,6 +439,134 @@ test('review-package: a database URL with a long generated user name or password
   });
 });
 
+// A file name that looks like a secret, and the value inside it, assembled at run time.
+const SECRET_NAME = `${'API'}${'_TOKEN'}=${'f4ke'}${'Va1ue9x7Q'}`;
+const SECRET_NAME_VALUE = `${'f4ke'}${'Va1ue9x7Q'}`;
+const FAKE_GITHUB_TOKEN = `${'gh'}${'p_'}${'A1b2C3d4E5f6G7h8I9j0'}${'K1l2M3n4O5p6Q7r8'}`;
+
+// Commits what the sandbox holds and returns the new commit, the base of the round that follows.
+function commitAll(box, title) {
+  box.git('add', '-A');
+  box.git('commit', '-q', '-m', title);
+  return box.git('rev-parse', 'HEAD').trim();
+}
+
+// Contract: a path that looks like a secret never reaches the package, in whatever form the stat prints it.
+// Breaks when: a stat line is matched only by the detector or by the whole path, while git prints a rename as "dir/{old => new}" and a long path cut short after ".../", so the path's literal reaches the "Files and lines" section.
+// Not covered by: the implementer's path cases use short top-level paths, which the stat prints whole and without a rename.
+test('review-package: a path that looks like a secret stays out of the stat when git prints it as a rename or cut short', { todo: 'open gap: the stat prints a withheld path as "dir/{old => new}" or after ".../", and neither form is recognized, so the path reaches the package' }, () => {
+  const deep = Array.from({ length: 8 }, (_, level) => `directory-level-${level}`).join('/');
+  const cases = {
+    'a committed rename inside a folder': (box) => {
+      box.write('conf/old.txt', 'harmless\n');
+      const base = commitAll(box, 'add');
+      box.git('mv', 'conf/old.txt', `conf/${SECRET_NAME}`);
+      commitAll(box, 'rename');
+      return base;
+    },
+    'a staged rename inside a folder': (box) => {
+      box.git('mv', 'src/rules.ts', `src/${SECRET_NAME}`);
+      return box.base;
+    },
+    'an edit under a long folder path': (box) => {
+      box.write(`${deep}/${SECRET_NAME}`, 'harmless\n');
+      const base = commitAll(box, 'add');
+      box.write(`${deep}/${SECRET_NAME}`, 'harmless, edited\n');
+      return base;
+    },
+  };
+  for (const [what, setUp] of Object.entries(cases)) {
+    withSandbox((box) => {
+      const result = packageOf(box, setUp(box));
+      assert.ok(result.status === 0 || result.status === 2, `${what}: ${result.out}`);
+      assert.ok(!result.text.includes(SECRET_NAME_VALUE), `${what}: the path reached the package\n${result.text.slice(0, 1500)}`);
+    });
+  }
+});
+
+// Contract: a long file name holding a token leaves no piece of the token in the package.
+// Breaks when: the stat cuts the name from the left, and the piece it keeps has lost the token's prefix, so neither the detector nor the whole path matches the line.
+// Not covered by: the implementer's token path is short enough for the stat to print it whole, where the detector matches it.
+test('review-package: a long file name holding a token leaves no piece of the token in the stat', { todo: 'open gap: the stat cuts a long file name from the left, and the piece of the token it keeps no longer looks like one' }, () => {
+  const random = FAKE_GITHUB_TOKEN.slice(4);
+  for (let after = 10; after <= 60; after += 10) {
+    withSandbox((box) => {
+      const name = `${'n'.repeat(70)}-${FAKE_GITHUB_TOKEN}-${'m'.repeat(after)}.txt`;
+      box.write(name, 'harmless\n');
+      const base = commitAll(box, 'add');
+      box.write(name, 'harmless, edited\n');
+      const result = packageOf(box, base);
+      assert.ok(result.status === 0 || result.status === 2, `${after}: ${result.out}`);
+      for (let start = 0; start + 12 <= random.length; start += 1) {
+        assert.ok(!result.text.includes(random.slice(start, start + 12)), `${after} characters after the token: a 12-character piece of it reached the package`);
+      }
+    });
+  }
+});
+
+// Contract: the WITHHELD entry of a file left out for its path names a git command that lists that file.
+// Breaks when: the entry points only to the worktree status, while the withheld change is committed and the status is clean.
+// Not covered by: the implementer's path cases leave the change uncommitted, where git status --short lists it.
+test('review-package: the entry of a committed file withheld for its path points to a git command that lists it', { todo: 'open gap: the entry says to find the file with git status --short, which lists nothing once the change is committed' }, () => {
+  withSandbox((box) => {
+    box.write(SECRET_NAME, 'harmless\n');
+    commitAll(box, 'add');
+    const result = packageOf(box, box.base);
+    assert.equal(result.status, 0, result.out);
+    assert.ok(!result.text.includes(SECRET_NAME_VALUE), result.text.slice(0, 1500));
+    const entry = result.text.split('\n').find((line) => line.startsWith('- a file whose path looks like a secret'));
+    assert.ok(entry, result.text.slice(0, 1500));
+    const command = /find it with (git [^\n]+)$/.exec(entry)?.[1];
+    assert.ok(command, entry);
+    assert.ok(box.git(...command.split(' ').slice(1)).includes(SECRET_NAME), `${command} does not list the withheld file`);
+  });
+});
+
+// Contract: a file diff with no added line (a deleted file, a mode change) on a path that looks like a secret stays out whole, its path in no section.
+// Breaks when: the path is read only from the `+++` line, which a deleted file prints as /dev/null, or only from a part of the diff a mode change does not have.
+// Not covered by: the implementer's path cases are a new file and an edit, which both print the path on a `+++` line.
+test('review-package: a deleted file and a mode change on a path that looks like a secret keep the path out of the package', () => {
+  const cases = {
+    'a deleted file': (box) => box.git('rm', '-q', SECRET_NAME),
+    'a mode change': (box) => {
+      chmodSync(join(box.repo, SECRET_NAME), 0o755);
+      box.git('update-index', '--chmod=+x', SECRET_NAME);
+    },
+  };
+  for (const [what, change] of Object.entries(cases)) {
+    withSandbox((box) => {
+      box.write(SECRET_NAME, 'harmless\n');
+      const base = commitAll(box, 'add');
+      change(box);
+      box.git('commit', '-q', '-m', what);
+      const result = packageOf(box, base);
+      assert.equal(result.status, 0, `${what}: ${result.out}`);
+      assert.ok(!result.text.includes(SECRET_NAME_VALUE), `${what}: the path reached the package\n${result.text.slice(0, 1500)}`);
+      assert.match(result.text, /^- a file whose path looks like a secret or credential \(\d+ bytes\)/m, what);
+      assert.match(result.text, /^HEADER LINES LEFT OUT: [1-9]\d* line\(s\) /m, what);
+    });
+  }
+});
+
+// Contract: a commit title that looks like a secret stays out of the package when the commit touches only .vibeflow/, in a package with other changes and in an empty one.
+// Breaks when: the commit list is cleaned only for commits that touch code, or the empty package's text gains the commit list unchecked.
+// Not covered by: the implementer's commit title case commits a change under src/.
+test('review-package: a commit title that looks like a secret on a commit that touches only .vibeflow/ stays out of the package', () => {
+  withSandbox((box) => {
+    box.write('.vibeflow/specs/rules.md', 'a spec\n');
+    const commit = commitAll(box, `spec ${FAKE_GITHUB_TOKEN}`);
+    const empty = packageOf(box, box.base);
+    assert.equal(empty.status, 1, empty.out);
+    assert.ok(!empty.text.includes(FAKE_GITHUB_TOKEN.slice(4)), empty.text);
+    box.write('src/rules.ts', 'export const x = 2\n');
+    const full = packageOf(box, box.base);
+    assert.equal(full.status, 0, full.out);
+    assert.ok(!full.text.includes(FAKE_GITHUB_TOKEN.slice(4)), full.text.slice(0, 1500));
+    const hash = commit.slice(0, 7);
+    assert.match(full.text, new RegExp(`^${hash}[0-9a-f]* \\(title left out: `, 'm'), full.text.slice(0, 1500));
+  });
+});
+
 // Contract: only the top-level .vibeflow/ folder is set aside; a deleted file, a staged file, a look-alike name or a nested folder is a change.
 // Breaks when: the .vibeflow/ test drops the slash, or matches the folder at any depth, or the empty check reads only untracked files.
 // Not covered by: the implementer's .vibeflow/ tests change files only under the top-level .vibeflow/ or in src/ by an edit.
@@ -772,6 +900,28 @@ test('check-probes: by default it reads exactly the test files that call themsel
   }
 });
 
+// Contract: a --dir reached through a symbolic link inside the repository is judged by the folder it leads to: outside the repository it exits 64, inside it is read.
+// Breaks when: the inside check compares the path as given instead of the real one, so a link inside the repository that leads out passes it and its files are read or skipped in silence.
+// Not covered by: the implementer's outside cases name the outside folder directly, by an absolute path or by "..", and its link case links the whole repository.
+test('check-probes: a --dir that is a symbolic link inside the repository is judged by the folder it leads to', () => {
+  withSandbox((box) => {
+    const outside = join(box.root, 'outside');
+    mkdirSync(outside);
+    writeFileSync(join(outside, 'clock.test.js'), 'Date.now()\n');
+    symlinkSync(outside, join(box.repo, 'probes-out'));
+    const out = runScript('check-probes.mjs', [box.repo, '--dir', 'probes-out'], box.env());
+    assert.equal(out.status, 64, out.out);
+    assert.match(out.stderr, /^check-probes: --dir probes-out is outside the repository /m, out.out);
+    assert.equal(out.stdout, '', out.out);
+    box.write('tests/probes/clock.test.ts', 'Date.now()\n');
+    symlinkSync(join(box.repo, 'tests/probes'), join(box.repo, 'probes-in'));
+    const inside = runScript('check-probes.mjs', [box.repo, '--dir', 'probes-in'], box.env());
+    assert.equal(inside.status, 1, inside.out);
+    assert.match(inside.stdout, /^tests\/probes\/clock\.test\.ts:1 \[real clock\]/m, inside.out);
+    assert.match(inside.stdout, /^1 probe file\(s\) read; 1 suspect line\(s\)$/m, inside.out);
+  });
+});
+
 // --- the Node version guard, over what the manifest installs ---
 
 // Contract: every script the kit manifest installs, on a Node below 18, exits 64 with nothing on stdout and says it needs Node.js 18, with the version found.
@@ -934,6 +1084,54 @@ test('preflight: a password holding a space in an origin URL that does not parse
   });
 });
 
+// Contract: a --probe-url given without a scheme is never printed with the password written before its "@", whatever the password holds.
+// Breaks when: the redaction without a scheme stops at the first "/", so a password holding one keeps the whole user part on the network line.
+// Not covered by: the implementer's case without a scheme is an scp-style origin whose password holds a space, never a "/".
+test('preflight: a --probe-url without a scheme is not printed with its password, a "/" in the password included', { todo: 'open gap: without a scheme, the redaction stops at the first "/", so a password holding one is printed whole' }, async () => {
+  const port = await closedPort();
+  const password = `${'pr0be'}/${'s3cr'}${'et'}`;
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    const result = await watchWhile('preflight.mjs', ['--repo', box.repo, '--probe-url', `user:${password}@127.0.0.1:${port}/v1`], offline(box.env()), {});
+    assert.match(result.out, /^\[stop\] network: no answer from /m, result.out);
+    assert.ok(!result.out.includes('s3cr'), result.out);
+  });
+});
+
+// Contract: a --probe-url with a scheme, in any letter case, is printed without its credentials, also when its path holds an "@".
+// Breaks when: the scheme test is case-sensitive, or the redaction ends at the authority and misses a password that an "@" in the path follows.
+// Not covered by: the implementer's --probe-url cases are lower-case http URLs with no "@" after the host.
+test('preflight: a --probe-url with a scheme in capitals or an "@" in its path is printed without its password', async () => {
+  const port = await closedPort();
+  const password = `${'pr0be'}/${'s3cr'}${'et'} ${'tail'}`;
+  await withSandboxAsync(async (box) => {
+    box.git('switch', '-q', '-c', 'feat/x');
+    for (const url of [`HTTP://user:${password}@127.0.0.1:${port}/v1`, `http://user:${password}@127.0.0.1:${port}/a@b`]) {
+      const result = await watchWhile('preflight.mjs', ['--repo', box.repo, '--probe-url', url], offline(box.env()), {});
+      assert.match(result.out, /^\[stop\] network: no answer from /m, result.out);
+      assert.ok(!result.out.includes('s3cr'), result.out);
+      assert.ok(!result.out.includes('user:'), result.out);
+    }
+  });
+});
+
+// Contract: an ssh:// origin or an origin of another scheme is never printed with its password, on any line.
+// Breaks when: the redaction is applied only to http(s) URLs, or a line about an origin with no host for gh prints the URL as git returns it.
+// Not covered by: the implementer's origin cases with a password are https URLs and an scp-style remote.
+test('preflight: an ssh:// origin and an origin of another scheme are printed without their password', () => {
+  const password = `${'or1gin'}/${'s3cr'}${'et'} ${'tail'}`;
+  for (const remote of [`ssh://user:${password}@127.0.0.1:9/owner/repo.git`, `ftp://user:${password}@127.0.0.1/owner/repo.git`]) {
+    withSandbox((box) => {
+      box.git('switch', '-q', '-c', 'feat/x');
+      box.git('remote', 'add', 'origin', remote);
+      const result = runScript('preflight.mjs', ['--repo', box.repo], offline(box.env()));
+      assert.ok(result.status === 1 || result.status === 2, `${remote.slice(0, 6)}: ${result.out}`);
+      assert.ok(!result.out.includes('s3cr'), result.out);
+      assert.ok(!result.out.includes('user:'), result.out);
+    });
+  }
+});
+
 // Contract: with the origin on a host and gh not installed, the open PR line says gh is not installed, not that gh does not serve the host.
 // Breaks when: the skip of the open PR list follows any failed gh auth status, the exit of a gh that is not there included.
 // Not covered by: the implementer's case with gh missing reads only the pr ending line.
@@ -971,5 +1169,85 @@ test('watch-pr: a gh that fails several reads in a row and then answers green en
     assert.equal(result.status, 0, result.out);
     assert.match(result.stdout, /; attempt 4$/m, result.out);
     assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 5, result.out);
+  });
+});
+
+// Contract: a check outside the three lists does not end the watch while another check is pending; once nothing is pending the watch exits 1 and names it.
+// Breaks when: a check outside the lists counts as pending, so the watch waits for it to the ceiling, or ends the watch at once, before the pending check reports.
+// Not covered by: every implementer case with a state outside the lists has no pending check next to it.
+test('watch-pr: a check outside its lists next to a pending one waits for the pending one, then exits 1 naming it', () => {
+  withSandbox((box) => {
+    const pr = (slow) => JSON.stringify({ state: 'OPEN', title: 'feat', url: 'https://example.invalid/pr/7', statusCheckRollup: [{ name: 'odd', status: 'COMPLETED', conclusion: '' }, { name: 'slow', ...slow }] });
+    writeFileSync(join(box.root, 'running.json'), pr({ status: 'IN_PROGRESS', conclusion: '' }));
+    writeFileSync(join(box.root, 'done.json'), pr({ status: 'COMPLETED', conclusion: 'SUCCESS' }));
+    box.writeExecutable('gh', [
+      '#!/bin/sh',
+      `printf '%s\\n' "$*" >> '${box.ghLog}'`,
+      `reads=$(wc -l < '${box.ghLog}')`,
+      `if [ $reads -gt 1 ]; then cat '${join(box.root, 'done.json')}'; else cat '${join(box.root, 'running.json')}'; fi`,
+      '',
+    ].join('\n'));
+    const result = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.02', '--timeout-min', '5'], box.env());
+    assert.equal(result.status, 1, result.out);
+    assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 2, result.out);
+    assert.match(result.stdout, /CI finished .*slow=SUCCESS/, result.out);
+    assert.match(result.stdout, /^failed: odd \(COMPLETED with no conclusion\)$/m, result.out);
+  });
+});
+
+// A gh that refuses the credential the way gh does for a bad token: exit 1, HTTP 401 on stderr.
+const REFUSING_GH = "#!/bin/sh\nprintf 'HTTP 401: Bad credentials (https://api.github.com/graphql)\\n' >&2\nexit 1\n";
+
+// Contract: on a refused credential with GH_TOKEN and GITHUB_TOKEN both set, the advice names both variables and never prints a value.
+// Breaks when: the advice names only the first variable it finds, or prints the variable with its value.
+// Not covered by: the implementer's cases set one variable at a time.
+test('watch-pr: a refused credential with GH_TOKEN and GITHUB_TOKEN both set names both and prints neither value', () => {
+  withSandbox((box) => {
+    box.writeExecutable('gh', REFUSING_GH);
+    const value = `${'not'}-${'a'}-${'real'}-${'value'}`;
+    const result = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--timeout-min', '0.01'], box.env({ GH_TOKEN: value, GITHUB_TOKEN: value }));
+    assert.equal(result.status, 77, result.out);
+    assert.match(result.stderr, /GH_TOKEN/, result.out);
+    assert.match(result.stderr, /GITHUB_TOKEN/, result.out);
+    assert.ok(!result.out.includes(value), result.out);
+  });
+});
+
+// Contract: on a refused credential, the advice names the token variable gh sends to the host given in --repo.
+// Breaks when: the advice reads only GH_TOKEN and GITHUB_TOKEN, while gh sends GH_ENTERPRISE_TOKEN or GITHUB_ENTERPRISE_TOKEN to a GitHub Enterprise Server host, so "gh auth login" changes nothing it sends.
+// Not covered by: the implementer's refused-credential cases use an <owner/repo> on github.com.
+test('watch-pr: a refused credential on an Enterprise host with GH_ENTERPRISE_TOKEN set says to replace that token', { todo: 'open gap: with GH_ENTERPRISE_TOKEN set for an Enterprise host, the advice is gh auth login, which does not change the token gh sends' }, () => {
+  withSandbox((box) => {
+    box.writeExecutable('gh', REFUSING_GH);
+    const value = `${'not'}-${'a'}-${'real'}-${'value'}`;
+    const env = box.env({ GH_TOKEN: undefined, GITHUB_TOKEN: undefined, GH_ENTERPRISE_TOKEN: value });
+    const result = runScript('watch-pr.mjs', ['--repo', 'github.example.invalid/owner/repo', '--pr', '7', '--timeout-min', '0.01'], env);
+    assert.equal(result.status, 77, result.out);
+    assert.ok(!result.out.includes(value), result.out);
+    assert.match(result.stderr, /GH_ENTERPRISE_TOKEN/, result.out);
+  });
+});
+
+// Contract: only HTTP 401 reads as a refused credential; another status that begins with the same digits is a failed read, retried to the ceiling.
+// Breaks when: the 401 pattern loses its word boundary, so "HTTP 4010" or "HTTP 401x" ends the watch with 77.
+// Not covered by: the implementer's retried cases are 403, 502 and a network error, none starting with 401.
+test('watch-pr: a gh error whose status only begins with 401 is retried, not read as a refused credential', () => {
+  withSandbox((box) => {
+    box.writeExecutable('gh', "#!/bin/sh\nprintf 'HTTP 4010: something else\\n' >&2\nexit 1\n");
+    const result = runScript('watch-pr.mjs', ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.005'], box.env());
+    assert.equal(result.status, 3, result.out);
+    assert.match(result.stdout, /ceiling of 0\.005 min reached without reading the PR/, result.out);
+  });
+});
+
+// Contract: --repo refuses an scp-style remote, the form a person may paste from `git remote -v`, with 64 and without calling gh.
+// Breaks when: the host pattern takes a "user@host:" prefix, so the remote reaches gh, which can only fail and keep the watch retrying.
+// Not covered by: the implementer's refused forms are URLs, a port, slashes and host names, not an scp-style remote.
+test('watch-pr: an scp-style remote given as --repo exits 64 without calling gh', () => {
+  withSandbox((box) => {
+    const result = runScript('watch-pr.mjs', ['--repo', 'git@github.example.invalid:owner/repo.git', '--pr', '7', '--timeout-min', '0'], box.env());
+    assert.equal(result.status, 64, result.out);
+    assert.match(result.stderr, /--repo takes <owner\/repo> or <host>\/<owner\/repo>/, result.out);
+    assert.equal(existsSync(box.ghLog), false, 'gh was called');
   });
 });
