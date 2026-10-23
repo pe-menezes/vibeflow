@@ -57,6 +57,8 @@ const USAGE = `usage: check-briefing.mjs <briefing> [--role executor|fix|auditor
 Without --role, the role comes from the file name (<feature>-<part>-<role>[-<n>].md).
 --pair, on an auditor briefing, checks that every bullet of its "Criteria" section is also in
 the "Done when" section of <executor-briefing>, matching whole words.
+With a secret in the briefing, no line quotes its text: the facts without time and source are
+counted, and a missing criterion is named by its position in "Criteria".
 
 exit 0 ok · 1 attention · 2 stop (a secret in the text) · 64 bad arguments or unreadable file`;
 
@@ -168,14 +170,20 @@ function containsWords(haystack, needle) {
   return false;
 }
 
-function pairFindings(auditorText, executorPath) {
+// With a secret in the auditor briefing, a missing criterion is named by its position in
+// "Criteria", never by its text.
+function pairFindings(auditorText, executorPath, quote) {
   const criteria = sectionItems(auditorText, 'criteria');
   if (criteria.length === 0) return [[ATTENTION, 'no criteria in the auditor briefing\'s "Criteria" section: --pair has nothing to compare']];
   const done = sectionItems(readText(executorPath, 'executor briefing'), 'done when').map(words);
   if (done.length === 0) return [[ATTENTION, `${executorPath} has no "Done when" items`]];
-  const missing = criteria.filter((criterion) => !done.some((item) => containsWords(item, words(criterion))));
+  const missing = criteria
+    .map((criterion, index) => ({ criterion, index }))
+    .filter(({ criterion }) => !done.some((item) => containsWords(item, words(criterion))));
   if (missing.length === 0) return [[OK, `all ${criteria.length} auditor criteria are in the executor's "Done when"`]];
-  return missing.map((criterion) => [ATTENTION, `criterion not in the executor's "Done when": ${criterion}`]);
+  return missing.map(({ criterion, index }) => [ATTENTION, quote
+    ? `criterion not in the executor's "Done when": ${criterion}`
+    : `criterion ${index + 1} of ${criteria.length} not in the executor's "Done when" (not quoted: the briefing holds a secret)`]);
 }
 
 function check(options) {
@@ -183,6 +191,8 @@ function check(options) {
   const lines = text.split('\n');
   const role = options.role ?? roleFromName(options.file);
   const findings = [];
+  // With a secret in the briefing, no line quotes the briefing's text.
+  const secret = SECRET.test(text);
 
   if (role) {
     const headings = lines.filter((line) => /^#{1,6}\s/.test(line)).map((line) => normal(line.replace(/^#+/, '')));
@@ -194,7 +204,10 @@ function check(options) {
 
   const unsourced = sectionItems(text, 'facts').filter((fact) => !(TIME.test(fact) && SOURCE.test(fact)) && !TO_CHECK.test(fact));
   if (unsourced.length) {
-    findings.push([ATTENTION, `${unsourced.length} fact(s) without time and source ("measured HH:MM by <command>" or "to check: <source>"): ${unsourced.slice(0, 3).map((fact) => fact.slice(0, 90)).join(' | ')}`]);
+    const quoted = secret
+      ? 'not quoted: the briefing holds a secret'
+      : unsourced.slice(0, 3).map((fact) => fact.slice(0, 90)).join(' | ');
+    findings.push([ATTENTION, `${unsourced.length} fact(s) without time and source ("measured HH:MM by <command>" or "to check: <source>"): ${quoted}`]);
   }
 
   if (NEEDS_KNOWLEDGE.has(role) && !text.includes('.vibeflow/index.md')) {
@@ -207,12 +220,12 @@ function check(options) {
     findings.push([ATTENTION, `${copied.length} sentence(s) copied from principles.md: point at the principle by number instead ("${copied[0].slice(0, 70)}...")`]);
   }
 
-  if (SECRET.test(text)) findings.push([STOP, 'a secret or credential in the text: name the variable instead']);
+  if (secret) findings.push([STOP, 'a secret or credential in the text: name the variable instead']);
   if (lines.length > MAX_LINES) findings.push([ATTENTION, `${lines.length} lines: point at rules and at the project knowledge instead of restating them`]);
 
   if (options.pair) {
     if (role !== 'auditor') findings.push([ATTENTION, `--pair checks an auditor briefing; this one is ${role ?? 'of unknown role'}`]);
-    else findings.push(...pairFindings(text, options.pair));
+    else findings.push(...pairFindings(text, options.pair, !secret));
   }
 
   if (!findings.some(([level]) => level > OK)) findings.unshift([OK, `${role} briefing matches its template`]);

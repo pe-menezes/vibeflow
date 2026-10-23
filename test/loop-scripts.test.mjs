@@ -1254,6 +1254,33 @@ test('check-briefing stops on a secret', () => {
   });
 });
 
+test('check-briefing, on a briefing that holds a secret, counts the facts without time and source and quotes none of them', () => {
+  scratch((dir) => {
+    // The value is built by concatenation so secret scanners do not flag this test file.
+    const value = 'FAKE' + 'token' + '1234567890';
+    const facts = '* the service reads API_TOKEN=' + value + '\n* the deploy failed every night since 23/09\n';
+    const secret = runScript(
+      'check-briefing.mjs',
+      [briefing(dir, 'feature-rules-executor.md', EXECUTOR_OK.replace('## Facts\n', `## Facts\n${facts}`))],
+      hermeticEnv(dir),
+    );
+    assert.equal(secret.status, 2, secret.out);
+    assert.match(secret.stdout, /^\[stop\] .*secret/m);
+    assert.match(secret.stdout, /^\[attention\] 2 fact\(s\) without time and source/m);
+    assert.ok(!secret.out.includes(value), `the value reached the output: ${secret.out}`);
+    assert.doesNotMatch(secret.out, /deploy failed/, 'no fact is quoted when the briefing holds a secret');
+
+    // Without a secret, the same line still quotes the facts.
+    const clean = runScript(
+      'check-briefing.mjs',
+      [briefing(dir, 'feature-rules-executor.md', EXECUTOR_OK.replace('## Facts\n', '## Facts\n* the deploy failed every night since 23/09\n'))],
+      hermeticEnv(dir),
+    );
+    assert.equal(clean.status, 1, clean.out);
+    assert.match(clean.stdout, /^\[attention\] 1 fact\(s\) without time and source.*the deploy failed every night since 23\/09/m);
+  });
+});
+
 const auditor = (criteria) => `# feature · rules · auditor
 
 ## What to audit
@@ -1314,6 +1341,34 @@ test('check-briefing --pair finds an auditor criterion missing from the executor
     ], hermeticEnv(dir));
     assert.equal(none.status, 1, none.out);
     assert.match(none.stdout, /no criteria/i);
+  });
+});
+
+test('check-briefing --pair, on an auditor briefing that holds a secret, names a missing criterion by its position and quotes none', () => {
+  scratch((dir) => {
+    const executor = briefing(dir, 'feature-rules-executor.md', EXECUTOR_OK);
+    // The value is built by concatenation so secret scanners do not flag this test file.
+    const value = 'FAKE' + 'token' + '1234567890';
+    const secret = runScript('check-briefing.mjs', [
+      briefing(dir, 'feature-rules-auditor.md', auditor(
+        '* DoD 1: the rules load from the file\n* DoD 2: a malformed file is refused\n* DoD 3: the client sends API_TOKEN=' + value,
+      )),
+      '--pair', executor,
+    ], hermeticEnv(dir));
+    assert.equal(secret.status, 2, secret.out);
+    assert.match(secret.stdout, /^\[stop\] .*secret/m);
+    assert.match(secret.stdout, /^\[attention\] criterion 2 of 3 not in the executor's "Done when"/m);
+    assert.match(secret.stdout, /^\[attention\] criterion 3 of 3 not in the executor's "Done when"/m);
+    assert.ok(!secret.out.includes(value), `the value reached the output: ${secret.out}`);
+    assert.doesNotMatch(secret.out, /malformed file|the client sends/, 'no criterion is quoted when the briefing holds a secret');
+
+    // Without a secret, the same line still quotes the criterion.
+    const clean = runScript('check-briefing.mjs', [
+      briefing(dir, 'feature-rules-auditor.md', auditor('* DoD 1: the rules load from the file\n* DoD 2: a malformed file is refused')),
+      '--pair', executor,
+    ], hermeticEnv(dir));
+    assert.equal(clean.status, 1, clean.out);
+    assert.match(clean.stdout, /^\[attention\] criterion not in the executor's "Done when": DoD 2: a malformed file is refused$/m);
   });
 });
 
