@@ -1339,6 +1339,58 @@ test('watch-pr exits 64 for bad arguments without calling gh', () => {
   });
 });
 
+// gh --repo takes [HOST/]OWNER/REPO, so a GitHub Enterprise host rides in the same argument.
+test('watch-pr takes --repo as <owner/repo> or <host>/<owner/repo> and hands it to gh as given', () => {
+  withSandbox((box) => {
+    box.setGh(PR('OPEN', [{ name: 'test', status: 'COMPLETED', conclusion: 'SUCCESS' }]));
+    for (const repo of ['owner/repo', 'github.example.invalid/owner/repo', 'ghe/my-org/my.repo', 'GHE-1.Example.invalid/o_1/r-2']) {
+      rmSync(box.ghLog, { force: true });
+      const result = runScript('watch-pr.mjs', ['--repo', repo, '--pr', '7', '--timeout-min', '0'], box.env());
+      assert.equal(result.status, 0, `${repo}: ${result.out}`);
+      assert.equal(readFileSync(box.ghLog, 'utf8'), `pr view 7 --repo ${repo} --json state,statusCheckRollup,title,url\n`, repo);
+    }
+  });
+});
+
+test('watch-pr exits 64 for any other --repo form, naming the two forms it takes, without calling gh', () => {
+  withSandbox((box) => {
+    const forms = [
+      'repo',
+      'a/b/c/d',
+      '/owner/repo',
+      'owner/repo/',
+      'github.example.invalid:8443/owner/repo',
+      'https://github.example.invalid/owner/repo',
+      'host..example/owner/repo',
+      '-host.example/owner/repo',
+      'host-.example/owner/repo',
+      'host_name.example/owner/repo',
+      '',
+    ];
+    for (const repo of forms) {
+      const result = runScript('watch-pr.mjs', ['--repo', repo, '--pr', '7', '--timeout-min', '0'], box.env());
+      assert.equal(result.status, 64, `${JSON.stringify(repo)}: ${result.out}`);
+      assert.match(result.stderr, /--repo takes <owner\/repo> or <host>\/<owner\/repo>/, JSON.stringify(repo));
+    }
+    assert.equal(existsSync(box.ghLog), false, 'gh was called');
+  });
+});
+
+test('watch-pr usage and README give both --repo forms, the origin host for GitHub Enterprise, and that the host form was checked against a fake gh only', () => {
+  const usage = runScript('watch-pr.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
+  assert.match(usage, /^usage: watch-pr\.mjs --repo \[<host>\/\]<owner\/repo> --pr <n>/);
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
+  const row = readme.split('\n').find((line) => line.startsWith('| `watch-pr'));
+  assert.match(row, /^\| `watch-pr\.mjs --repo \[<host>\/\]<owner\/repo> --pr <n>/);
+  for (const text of [usage.replace(/\s+/g, ' '), readme.replace(/\s+/g, ' ')]) {
+    assert.match(text, /`?<owner\/repo>`? or `?<host>\/<owner\/repo>`?/);
+    assert.match(text, /GitHub Enterprise/);
+    assert.match(text, /host of the `?origin`? remote/);
+    assert.match(text, /passed to `?gh`? as given/);
+    assert.match(text, /only against a fake `?gh`?, not against a real GitHub Enterprise/);
+  }
+});
+
 test('watch-pr usage and README name 64 for bad arguments, 69 for gh missing or not executable, 77 for gh not logged in or its credential refused', () => {
   const usage = runScript('watch-pr.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
   assert.match(usage, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in or credential refused$/m);

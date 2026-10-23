@@ -18,7 +18,12 @@ const GREEN = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const FAILED = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
 const PENDING = new Set(['PENDING', 'IN_PROGRESS', 'QUEUED', 'EXPECTED', 'WAITING', 'REQUESTED']);
 
-const USAGE = `usage: watch-pr.mjs --repo <owner/repo> --pr <n> [--interval-sec <s>] [--timeout-min <m>]
+const USAGE = `usage: watch-pr.mjs --repo [<host>/]<owner/repo> --pr <n> [--interval-sec <s>] [--timeout-min <m>]
+
+--repo takes <owner/repo> or <host>/<owner/repo>, the forms gh --repo takes, and is passed to
+gh as given. On GitHub Enterprise, give the host of the origin remote, as the loop does; the
+host form was checked only against a fake gh, not against a real GitHub Enterprise. A host is a
+machine name without a port; any other form exits 64.
 
 Reads the PR through gh every --interval-sec seconds (default 60) until every check has
 finished, then exits. A PR with no check reported yet keeps the watch going, so it never
@@ -66,6 +71,12 @@ class Permanent extends Error {
   }
 }
 
+// --repo is <owner/repo>, or <host>/<owner/repo> for a GitHub Enterprise host: the two forms the
+// --repo flag of gh documents. The host is a machine name (dot-separated labels of letters,
+// digits and hyphens); gh documents no port there, so a host with a port is a bad argument.
+const HOST = /[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*/;
+const REPO = new RegExp(`^(?:${HOST.source}\\/)?[\\w.-]+\\/[\\w.-]+$`);
+
 function fail(message) {
   console.error(`watch-pr: ${message}`);
   process.exit(64);
@@ -79,7 +90,7 @@ function parseArgs(argv) {
     if (!key || argv[i + 1] === undefined) fail(`unexpected argument ${argv[i]}\n\n${USAGE}`);
     options[key] = argv[i + 1];
   }
-  if (!options.repo || !/^[\w.-]+\/[\w.-]+$/.test(options.repo)) fail('--repo takes <owner/repo>');
+  if (!options.repo || !REPO.test(options.repo)) fail('--repo takes <owner/repo> or <host>/<owner/repo>, the two forms gh --repo takes');
   if (!/^\d+$/.test(String(options.pr))) fail('--pr takes a PR number');
   for (const key of ['intervalSec', 'timeoutMin']) {
     options[key] = Number(options[key]);
