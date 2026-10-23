@@ -988,6 +988,61 @@ test('check-probes passes a behavior probe and reads only audit folders', () => 
   });
 });
 
+test('check-probes reads the same probe files whether --dir is relative to the repository or absolute', () => {
+  withSandbox((box) => {
+    box.write('tests/probes/clock.test.ts', 'Date.now()\n');
+    box.write('tests/other/clock.test.ts', 'Date.now()\n');
+    for (const dir of ['tests/probes', './tests/probes/', join(box.repo, 'tests/probes'), `${join(box.repo, 'tests/probes')}/`]) {
+      const result = runScript('check-probes.mjs', [box.repo, '--dir', dir], box.env());
+      assert.equal(result.status, 1, `${dir}: ${result.out}`);
+      assert.match(result.stdout, /^tests\/probes\/clock\.test\.ts:1 \[real clock\]/m, dir);
+      assert.match(result.stdout, /^1 probe file\(s\) read; 1 suspect line\(s\)$/m, dir);
+    }
+  });
+});
+
+test('check-probes reads an absolute --dir given through a symbolic link to the repository', () => {
+  withSandbox((box) => {
+    box.write('tests/probes/clock.test.ts', 'Date.now()\n');
+    const link = join(box.root, 'repo-link');
+    symlinkSync(box.repo, link);
+    const result = runScript('check-probes.mjs', [link, '--dir', join(link, 'tests/probes')], box.env());
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.stdout, /^tests\/probes\/clock\.test\.ts:1 \[real clock\]/m);
+    assert.match(result.stdout, /^1 probe file\(s\) read; 1 suspect line\(s\)$/m);
+  });
+});
+
+test('check-probes exits 64 with the reason when --dir does not exist, is not a folder or is outside the repository', () => {
+  withSandbox((box) => {
+    box.write('tests/probes/clock.test.ts', 'Date.now()\n');
+    const cases = [
+      ['tests/nothing', /does not exist/],
+      [join(box.repo, 'tests/nothing'), /does not exist/],
+      ['tests/probes/clock.test.ts', /is not a folder/],
+      [box.home, /is outside the repository/],
+      ['../home', /is outside the repository/],
+    ];
+    for (const [dir, reason] of cases) {
+      const result = runScript('check-probes.mjs', [box.repo, '--dir', dir], box.env());
+      assert.equal(result.status, 64, `${dir}: ${result.out}`);
+      assert.match(result.stderr, /^check-probes: --dir /m, dir);
+      assert.match(result.stderr, reason, dir);
+      assert.equal(result.stdout, '', dir);
+    }
+  });
+});
+
+test('check-probes usage and README say --dir is relative to the repository or absolute, and exits 64 when it cannot be read', () => {
+  const usage = runScript('check-probes.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
+  assert.match(usage, /relative to the repository's top level, or absolute/);
+  assert.match(usage, /64 bad arguments[^\n]*--dir that does not exist,\s+is not a folder or is outside the repository/);
+  const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
+  const row = readme.split('\n').find((line) => line.startsWith('| `check-probes.mjs'));
+  assert.match(row, /64 a --dir that does not exist, is not a folder or is outside the repository/);
+  assert.match(readme, /`check-probes\.mjs` in detail:[^\n]*relative to the repository's top level, or absolute/);
+});
+
 // --- who-reads ---
 
 test('who-reads finds the test that reads a file', () => {

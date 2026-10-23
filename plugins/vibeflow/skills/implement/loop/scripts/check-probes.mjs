@@ -5,8 +5,8 @@
 // orchestrator decides, and a state probe moves to the audit report before the PR.
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 // The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
 if (Number(process.versions.node.split('.')[0]) < 18) {
@@ -19,9 +19,11 @@ const USAGE = `usage: check-probes.mjs <repo> [--base <ref>] [--dir <probe folde
 Without --dir, the probes are the files under an "audit/" folder inside a test folder
 (test/, tests/, __tests__/ or spec/, at any depth). With --base, only the probe files changed
 since <ref> (committed, modified or untracked) are read; without it, every probe file is
-(periodic pruning).
+(periodic pruning). A --dir folder is relative to the repository's top level, or absolute;
+either way it must be a folder inside the repository.
 
-exit 0 clean · 1 suspects · 64 bad arguments or git failure`;
+exit 0 clean · 1 suspects · 64 bad arguments, git failure, or a --dir that does not exist,
+is not a folder or is outside the repository`;
 
 const FAMILIES = [
   ['reads git', /\b(execFileSync|execFile|spawnSync|spawn|execSync|exec)\(\s*['"`]git\b|subprocess\.\w+\(\s*\[\s*['"]git|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/],
@@ -68,9 +70,26 @@ function parseArgs(argv) {
   return options;
 }
 
+// The --dir folder as a path from the repository's top level: relative to the top level, or
+// absolute as given; both through realpath, so a folder reached by a symbolic link matches git's paths.
+function probeFolder(top, dir) {
+  let real;
+  try {
+    real = realpathSync(isAbsolute(dir) ? dir : join(top, dir));
+  } catch {
+    fail(`--dir ${dir} does not exist`);
+  }
+  if (!statSync(real).isDirectory()) fail(`--dir ${dir} is not a folder`);
+  const inside = relative(realpathSync(top), real);
+  if (inside === '..' || inside.startsWith(`..${sep}`) || isAbsolute(inside)) fail(`--dir ${dir} is outside the repository ${top}`);
+  return inside.split(sep).join('/');
+}
+
 function probeFiles(top, { base, dir }) {
-  const folder = dir?.replace(/^\.\//, '').replace(/\/$/, '');
-  const inScope = folder ? (path) => path.startsWith(`${folder}/`) : (path) => DEFAULT_PROBE_PATH.test(path);
+  const folder = dir === null ? null : probeFolder(top, dir);
+  const inScope = folder === null
+    ? (path) => DEFAULT_PROBE_PATH.test(path)
+    : (path) => folder === '' || path.startsWith(`${folder}/`);
   const listed = base
     ? [
         ...git(top, ['diff', '--name-only', '--no-renames', '--diff-filter=d', '-z', base, '--']),
