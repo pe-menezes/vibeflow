@@ -87,6 +87,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 ## Read first
 * `.vibeflow/index.md`, the spec, the executor's progress file
 * rules: loop principles 5, 6 and 7
+* role: `roles/auditor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:auditor` already carries it)
 
 ## Review package
 * `.vibeflow/reviews/<feature>-<part>-round-<n>.md`, written by `review-package.mjs` (commits, status, stat, diff with context, new files)
@@ -123,6 +124,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 ## Read first
 * the audit report, the fix briefing, the progress file
 * rules: loop principles 5 and 7
+* role: `roles/auditor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:auditor` already carries it)
 
 ## Review package
 * the fix diff only: `.vibeflow/reviews/<feature>-<part>-round-<n>.md`, written by `review-package.mjs` from the commit of the audited round

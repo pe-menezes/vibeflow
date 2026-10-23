@@ -4,6 +4,7 @@
     "README.md",
     "briefings.md",
     "principles.md",
+    "roles/auditor.md",
     "scripts/check-briefing.mjs",
     "scripts/check-probes.mjs",
     "scripts/perimeter.mjs",
