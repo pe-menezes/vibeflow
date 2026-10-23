@@ -33,16 +33,27 @@ nothing is pending it exits 1, with the check's name and state on the failed: li
 and SKIPPED count as green, as GitHub Actions treats them for dependent checks and as
 gh pr checks does not fail on them, and the closing line names them with their state.
 
-gh missing, not executable or not logged in cannot fix itself, so it exits at the first read
-with a line that says what to do: 69 when gh is missing or cannot be executed, 77 when it is
-not logged in. Any other failed read (gh exit 1, network, a 5xx) is retried until the ceiling.
-64 is only for bad arguments (and a Node.js older than 18), so a caller can tell its own
-mistake from a gh it cannot use by the code alone.
+gh missing, not executable, not logged in or with a refused credential cannot fix itself, so
+it exits at the first read with a line that says what to do: 69 when gh is missing or cannot
+be executed, 77 when it is not logged in or GitHub refuses its credential (gh exit 1 with
+HTTP 401). Any other failed read (gh exit 1 without HTTP 401, a 403, network, a 5xx) is
+retried until the ceiling. 64 is only for bad arguments (and a Node.js older than 18), so a
+caller can tell its own mistake from a gh it cannot use by the code alone.
 
-exit 0 green · 1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments · 69 gh missing or not executable · 77 gh not logged in`;
+exit 0 green · 1 failed · 2 closed or merged · 3 ceiling · 64 bad arguments · 69 gh missing or not executable · 77 gh not logged in or credential refused`;
 
 // gh exits 4 when it needs authentication.
 const GH_AUTH_EXIT = 4;
+// gh exits 1 with this in its error when GitHub refuses the token (invalid, revoked or expired).
+const REFUSED = /\bHTTP 401\b/;
+
+// gh reads GH_TOKEN, then GITHUB_TOKEN, before its stored login, so a token set in the
+// environment is the one to replace; gh auth login would not change what gh sends.
+function credentialFix() {
+  const set = ['GH_TOKEN', 'GITHUB_TOKEN'].filter((name) => process.env[name]);
+  if (set.length === 0) return 'run `gh auth login`';
+  return `replace the token in ${set.join(' and ')}, which gh uses before its stored login, or unset it and run \`gh auth login\``;
+}
 // sysexits: the service is unavailable, and the permission is missing.
 const EX_UNAVAILABLE = 69;
 const EX_NOPERM = 77;
@@ -91,6 +102,9 @@ function readPr(repo, pr) {
   if (result.error) throw new Error(`gh could not run: ${result.error.message}`);
   if (result.status === GH_AUTH_EXIT) {
     throw new Permanent(`gh is not logged in; run \`gh auth login\`, then start the watch again (${result.stderr.trim().slice(0, 200)})`, EX_NOPERM);
+  }
+  if (result.status === 1 && REFUSED.test(result.stderr)) {
+    throw new Permanent(`GitHub refused the credential gh uses; ${credentialFix()}, then start the watch again (${result.stderr.split('\n').find((line) => REFUSED.test(line)).trim().slice(0, 200)})`, EX_NOPERM);
   }
   if (result.status !== 0) throw new Error(`gh exited ${result.status}: ${result.stderr.trim().slice(0, 200)}`);
   return JSON.parse(result.stdout);

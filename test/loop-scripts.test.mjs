@@ -1228,6 +1228,63 @@ test('watch-pr exits 77 at the first read when gh is not logged in (gh exit 4), 
   });
 });
 
+// A token GitHub refuses (invalid, revoked, expired) makes gh exit 1 with HTTP 401, not 4. The
+// fake prints the two lines gh 2.87.3 prints for it; the token values are built by concatenation.
+const ghRefusingCredential = (log) => [
+  '#!/bin/sh',
+  `printf '%s\\n' "$*" >> '${log}'`,
+  "printf 'HTTP 401: Bad credentials (https://api.github.com/graphql)\\nTry authenticating with:  gh auth login\\n' >&2",
+  'exit 1',
+  '',
+].join('\n');
+
+test('watch-pr exits 77 at the first read when GitHub refuses the credential (gh exit 1 with HTTP 401), and says what to do', () => {
+  withSandbox((box) => {
+    box.writeExecutable('gh', ghRefusingCredential(box.ghLog));
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
+    const result = runScript('watch-pr.mjs', args, box.env({ GH_TOKEN: undefined, GITHUB_TOKEN: undefined }));
+    assert.equal(result.status, 77, result.out);
+    assert.match(result.stderr, /^watch-pr: GitHub refused the credential gh uses; .*\(HTTP 401: Bad credentials/m);
+    assert.match(result.stderr, /run `gh auth login`/);
+    assert.doesNotMatch(result.stderr, /GH_TOKEN|GITHUB_TOKEN/);
+    assert.doesNotMatch(result.out, /attempt|ceiling/);
+    assert.equal(readFileSync(box.ghLog, 'utf8').trim().split('\n').length, 1, 'gh was read more than once');
+  });
+});
+
+test('watch-pr, on a refused credential, says to replace the token in the variable set in the environment, naming only that one', () => {
+  withSandbox((box) => {
+    box.writeExecutable('gh', ghRefusingCredential(box.ghLog));
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
+    const token = `${'not'}-${'a'}-${'real'}-${'token'}`;
+    for (const [set, named, unnamed] of [
+      [{ GH_TOKEN: token, GITHUB_TOKEN: undefined }, /GH_TOKEN/, /GITHUB_TOKEN/],
+      [{ GH_TOKEN: undefined, GITHUB_TOKEN: token }, /GITHUB_TOKEN/, /\bGH_TOKEN/],
+    ]) {
+      const result = runScript('watch-pr.mjs', args, box.env(set));
+      const what = Object.keys(set).find((key) => set[key]);
+      assert.equal(result.status, 77, `${what}: ${result.out}`);
+      assert.match(result.stderr, /GitHub refused the credential gh uses/, what);
+      assert.match(result.stderr, /replace the token in/, what);
+      assert.match(result.stderr, named, what);
+      assert.doesNotMatch(result.stderr, unnamed, what);
+      assert.ok(!result.out.includes(token), `${what}: the token value reached the output`);
+    }
+  });
+});
+
+test('watch-pr keeps reading after gh exit 1 without HTTP 401 (a 403, a 502, a network error) until the ceiling', () => {
+  withSandbox((box) => {
+    const args = ['--repo', 'owner/repo', '--pr', '7', '--interval-sec', '0.05', '--timeout-min', '0.01'];
+    for (const text of ['HTTP 403: Resource not accessible by integration', 'HTTP 502: Bad Gateway (https://api.github.com/graphql)', 'error connecting to api.github.com']) {
+      box.writeExecutable('gh', `#!/bin/sh\nprintf '%s\\n' '${text}' >&2\nexit 1\n`);
+      const result = runScript('watch-pr.mjs', args, box.env());
+      assert.equal(result.status, 3, `${text}: ${result.out}`);
+      assert.match(result.stdout, /ceiling of 0\.01 min reached without reading the PR/, text);
+    }
+  });
+});
+
 test('watch-pr keeps reading after any other gh failure until the ceiling', () => {
   withSandbox((box) => {
     // The fake gh fails (exit 1) on the first read and answers green afterwards. Under a ceiling far
@@ -1282,15 +1339,18 @@ test('watch-pr exits 64 for bad arguments without calling gh', () => {
   });
 });
 
-test('watch-pr usage and README name 64 for bad arguments, 69 for gh missing or not executable, 77 for gh not logged in', () => {
+test('watch-pr usage and README name 64 for bad arguments, 69 for gh missing or not executable, 77 for gh not logged in or its credential refused', () => {
   const usage = runScript('watch-pr.mjs', ['--help'], hermeticEnv(tmpdir())).stdout;
-  assert.match(usage, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in/);
-  assert.match(usage, /gh missing, not executable or not logged in cannot fix itself/);
+  assert.match(usage, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in or credential refused$/m);
+  const flatUsage = usage.replace(/\s+/g, ' ');
+  assert.match(flatUsage, /gh missing, not executable, not logged in or with a refused credential cannot fix itself/);
+  assert.match(flatUsage, /77 when it is not logged in or GitHub refuses its credential \(gh exit 1 with HTTP 401\)/);
+  assert.match(flatUsage, /Any other failed read \(gh exit 1 without HTTP 401, a 403, network, a 5xx\) is retried until the ceiling/);
   const readme = readFileSync(join(LOOP_DIR, 'README.md'), 'utf8');
   const row = readme.split('\n').find((line) => line.startsWith('| `watch-pr'));
-  assert.match(row, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in/);
+  assert.match(row, /64 bad arguments · 69 gh missing or not executable · 77 gh not logged in or credential refused \|$/);
   const flat = readme.replace(/\s+/g, ' ');
-  assert.match(flat, /`watch-pr\.mjs` exits 69 at its first read when `gh` is not installed or cannot be executed, and 77 when it is not logged in/);
+  assert.match(flat, /`watch-pr\.mjs` exits 69 at its first read when `gh` is not installed or cannot be executed, and 77 when it is not logged in or GitHub refuses its credential \(`gh` exit 1 with `HTTP 401`\)/);
 });
 
 test('watch-pr usage and README say how each check state counts, NEUTRAL and SKIPPED as green', () => {
