@@ -344,8 +344,8 @@ test('proof scales with risk: scenarios, sabotage only in risk code, undone from
 
 test('a sabotage is recorded before it is applied, a retry restores it first, and a standalone audit spares uncommitted files', () => {
   forEachEdition((content, edition) => {
-    assert.match(content, /before applying a sabotage, write it into the report[^.]*the file, the path of its copy in that temporary folder[^.]*hash/i,
-      `${edition}: the sabotage is written in the report before it is applied`);
+    assert.match(content, /before applying a sabotage, write it into the report under `### Sabotage` as in progress: the file and line, the wrong change, the path of its copy in that temporary folder, and the copy's hash\./i,
+      `${edition}: the sabotage, with its place and its wrong change, is written in the report before it is applied`);
     assert.match(content, /restores? every sabotage (it|the report) records? as in progress[^.]*before anything else/i,
       `${edition}: a retry restores an in-progress sabotage first`);
     assert.match(content, /standalone audit sabotages only files without uncommitted changes[^.]*lists the others as not sabotaged, with the reason/i,
@@ -366,19 +366,21 @@ test('the sabotage copy lives in a temporary folder outside the project, is dele
     const step6 = SABOTAGE_STEP.exec(content)?.[0] ?? '';
     assert.match(step6, /The copy goes to a temporary folder created for this audit outside the project \(`mktemp -d` on macOS and Linux, a new folder under the user's `TEMP` folder on Windows\), never to `\.vibeflow\/` or any other folder of the project, so no `git add` reaches it/,
       `${edition}: the copy goes to a temporary folder outside the project`);
-    assert.match(step6, /once the restored file matches the hash, mark it restored and delete the copy; after the last restore, delete the temporary folder, and the report says both were deleted/i,
+    assert.match(step6, /once the restored file matches the hash, mark it restored and delete its copy; after the last restore, delete the temporary folder, and the report says both were deleted/i,
       `${edition}: the copy and its folder are deleted after the checked restore, and the report says so`);
     const retry = flat(RETRY_RULE.exec(raw)?.[0] ?? '');
     assert.match(retry, /restore every sabotage it records as in progress \(step 6\) before anything else, from its copy, comparing the hash/,
       `${edition}: a retry restores from the copy first`);
     assert.match(retry, /When the copy is gone \(a restart empties the temporary folder\), read the file's version in git with `git show HEAD:<path>` and compare its hash with the hash the report recorded before writing anything: only when they match, write that version over the file\./,
       `${edition}: without the copy, the retry checks the git version's hash before it writes, and writes only on a match`);
-    assert.match(retry, /When the hash does not match, leave the file as it is, stop, and tell the user which file is still sabotaged and which change to undo, as the report records it\./,
-      `${edition}: a hash that does not match leaves the file untouched, stops the audit and names the sabotage to undo`);
+    assert.match(retry, /When the hash does not match, leave the file as it is, stop, and tell the user which file is still sabotaged and which change to undo, as its in-progress line in the report names them\./,
+      `${edition}: a hash that does not match leaves the file untouched, stops the audit and names the sabotage to undo from its in-progress line`);
     assert.doesNotMatch(content, /a sabotaged file never has uncommitted changes/,
       `${edition}: the retry does not assume a sabotaged file has no uncommitted work, since a loop part without the OK to commit sabotages uncommitted work`);
-    assert.match(retry, /Once a file is restored and its hash checked, from the copy or from git, delete the copy and the temporary folder the dead attempt left, as step 6 does after its last restore\./,
-      `${edition}: a retry deletes the dead attempt's copy and temporary folder once the restore is checked`);
+    assert.match(retry, /Once a file is restored and its hash checked, from the copy or from git, delete its copy; once every sabotage the dead attempt left in progress is restored, delete its temporary folder, as step 6 does after its last restore\./,
+      `${edition}: a retry deletes each file's copy once its restore is checked, and the dead attempt's temporary folder only after the last restore`);
+    assert.doesNotMatch(retry, /delete the copy and the temporary folder/,
+      `${edition}: the retry does not delete the temporary folder with the first restored file's copy, which would take the other in-progress copies with it`);
     const intoProject = content.split(/(?<=\.)\s+/)
       .filter((sentence) => /\bcop(y|ies)\b/i.test(sentence) && /\.vibeflow\//.test(sentence))
       .filter((sentence) => !/never to `\.vibeflow\/` or any other folder of the project/.test(sentence));
@@ -387,6 +389,9 @@ test('the sabotage copy lives in a temporary folder outside the project, is dele
     const sabotage = /### Sabotage\n([\s\S]*?)\n### Probes/.exec(template)?.[1] ?? '';
     assert.ok(sabotage.split('\n').some((line) => line.includes('copy: <temporary folder>/<copy>')),
       `${edition}: the template records the copy in the temporary folder`);
+    assert.deepEqual(sabotage.split('\n').filter((line) => line.includes('— in progress —')),
+      ['- <file:line> — in progress — <the wrong change> — copy: <temporary folder>/<copy> — sha256 <hash> (until restored)'],
+      `${edition}: the template's in-progress line records the place and the wrong change before the copy and the hash`);
     assert.ok(!/\.vibeflow\//.test(sabotage), `${edition}: the template puts no copy under .vibeflow/`);
     steps[edition] = SABOTAGE_STEP.exec(raw)?.[0] ?? '';
     retries[edition] = RETRY_RULE.exec(raw)?.[0] ?? '';

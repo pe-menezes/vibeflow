@@ -68,9 +68,10 @@ file's version in git with `git show HEAD:<path>` and compare its hash with
 the hash the report recorded before writing anything: only when they match,
 write that version over the file. When the hash does not match, leave the
 file as it is, stop, and tell the user which file is still sabotaged and
-which change to undo, as the report records it. Once a file is restored and
-its hash checked, from the copy or from git, delete the copy and the
-temporary folder the dead attempt left, as step 6 does after its last
+which change to undo, as its in-progress line in the report names them.
+Once a file is restored and its hash checked, from the copy or from git,
+delete its copy; once every sabotage the dead attempt left in progress is
+restored, delete its temporary folder, as step 6 does after its last
 restore.
 
 1. **Review package** (`1/7 package`). The audit reads the change from one
@@ -281,10 +282,11 @@ restore.
      forbidden while work is uncommitted, because they throw away the
      implementer's work.
    - Before applying a sabotage, write it into the report under
-     `### Sabotage` as in progress: the file, the path of its copy in that
-     temporary folder, and the copy's hash. Once the restored file matches the
-     hash, mark it restored and delete the copy; after the last restore,
-     delete the temporary folder, and the report says both were deleted.
+     `### Sabotage` as in progress: the file and line, the wrong change, the
+     path of its copy in that temporary folder, and the copy's hash. Once the
+     restored file matches the hash, mark it restored and delete its copy;
+     after the last restore, delete the temporary folder, and the report says
+     both were deleted.
      With `--probes`, a standalone audit
      sabotages only files without uncommitted changes and lists the others as
      not sabotaged, with the reason: for those, an interrupted sabotage would
@@ -392,7 +394,7 @@ Left out of the package: <n> file(s), read with git | none
 
 ### Sabotage
 - <file:line> — <the wrong change> — killed by <test> | survived → <finding id>
-- <file> — in progress — copy: <temporary folder>/<copy> — sha256 <hash> (until restored)
+- <file:line> — in progress — <the wrong change> — copy: <temporary folder>/<copy> — sha256 <hash> (until restored)
 Copies: deleted, with their temporary folder
 - <file> — not sabotaged — <reason>
 Sabotage: skipped (standalone audit; --probes runs it)
