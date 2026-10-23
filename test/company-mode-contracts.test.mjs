@@ -81,15 +81,18 @@ test('company mode: the suite runs in the CI\'s environment, at the CI\'s checko
   const text = section();
   hasSentence(text, 'Read the CI configuration: runner image, runtime version, test command, the events that trigger it, and how it checks out the code (a checkout without full history, such as `actions/checkout` with no `fetch-depth`, leaves the tests no git history to read).', 'reads the CI configuration, triggers and checkout included');
   hasSentence(text, "When the dev machine differs from it, run the suite in the CI's environment before the push: for example a container of the CI image with the network off, over a clone as shallow as the CI's checkout, made with `git clone --depth <n> file://<project root> <clone>`, because git ignores `--depth` for a plain local path.", 'the CI-environment suite before the push, in a container, over a shallow clone');
-  hasSentence(text, 'When the CI tests the pull request\'s merge commit with the base, as `pull_request` workflows do, the run is over the feature branch merged with the default branch inside the clone, never on the branch that is pushed.', 'the merge commit, as the CI tests it');
+  hasSentence(text, 'When the CI tests the pull request\'s merge commit with the base, as `pull_request` workflows do, the run is over the feature branch merged with the default branch, never on the branch that is pushed.', 'the merge commit, as the CI tests it');
+  hasSentence(text, "Git refuses that merge inside a clone as shallow as the CI's checkout, so it is not made there: clone the project with its full history with `git clone --branch <feature branch> <project root> <full clone>`, merge the default branch into it with `git -C <full clone> merge --no-edit origin/<default branch>`, then clone the merge as shallow as the CI's checkout with `git clone --depth <n> file://<full clone> <merge clone>`, and the suite runs in `<merge clone>`.", 'the merge in a clone with full history, then a clone of it at the CI\'s depth');
   hasSentence(text, "A red run there blocks the push and is a finding for a fix round of the part it belongs to, within that part's ceiling (loop principle 8), and the ending restarts as below.", 'a red CI-environment run blocks the push and restarts the ending');
   hasSentence(text, 'When that run is not possible (no container runtime, an image that cannot run locally), the ledger records why and the PR body says so.', 'the impossibility is recorded and declared in the PR');
   hasSentence(text, 'A repository with no CI configuration has nothing to match, and the PR body says it has no CI.', 'no CI is said in the PR');
 });
 
 test('company mode: the shallow clone the section writes is shallow, and a plain local path would not be', () => {
-  const clone = [...section().matchAll(/`(git clone [^`]+)`/g)].map((m) => m[1]);
-  assert.equal(clone.length, 1, 'the section writes one git clone command');
+  // The shallow clone of the project root; the clones of the merge path are run by the
+  // merge-commit probe in test/audit/company-mode.probes.test.mjs.
+  const clone = [...section().matchAll(/`(git clone [^`]+)`/g)].map((m) => m[1]).filter((c) => c.includes('<project root>') && c.includes('--depth'));
+  assert.equal(clone.length, 1, 'the section writes one shallow git clone of the project root');
   withSandbox((box) => {
     for (const n of [2, 3]) {
       box.write('src/rules.ts', `export const x = ${n}\n`);

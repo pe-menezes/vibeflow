@@ -349,7 +349,7 @@ test('no sentence anywhere in orchestrator.md permits a merge, a deploy, a migra
 // Contract: for a CI that tests the pull request's merge commit, the git commands step 2 writes give the merged tree (feature and default branch) in a clone as shallow as the CI's checkout.
 // Breaks when: the merge is done where the clone's depth does not allow it, or the clone is deepened to make the merge possible.
 // Not covered by: the shallow-clone contract test uses a repository with one branch and never merges.
-test('for a CI that tests the merge commit, the git commands step 2 writes give the merged tree at the CI\'s depth', { todo: 'open gap: step 2 merges inside a clone as shallow as the CI\'s checkout, where git refuses the merge' }, () => {
+test('for a CI that tests the merge commit, the git commands step 2 writes give the merged tree at the CI\'s depth', () => {
   const text = step(2);
   assert.match(text, /merge commit/, 'step 2 handles a CI that tests the pull request\'s merge commit');
   const commands = [...text.matchAll(/`(git [^`]+)`/g)].map((m) => m[1]);
@@ -374,25 +374,23 @@ test('for a CI that tests the merge commit, the git commands step 2 writes give 
       if (!dirs.has(name)) dirs.set(name, join(box.root, `dir-${dirs.size}`));
       return dirs.get(name);
     };
-    // Run in order; the suite runs in the last clone they make.
+    // Run in order, as written; the suite runs in the last clone they make, and the step says so.
     let clone = null;
+    let cloneName = null;
     for (const c of commands) {
       const argv = c.replace(/<[^>]+>/g, (name) => known[name] ?? dir(name)).split(' ');
       const r = run(argv);
       assert.equal(r.status, 0, `${argv.join(' ')}: ${r.stderr}`);
-      if (argv[1] === 'clone') clone = argv[argv.length - 1];
+      if (argv[1] === 'clone') {
+        clone = argv[argv.length - 1];
+        cloneName = c.match(/(<[^>]+>|\S+)$/)[1];
+      }
     }
     assert.ok(clone, 'step 2 writes the git clone the suite runs in');
-    // Where the section puts the merge: inside the clone. Done the only way a clone at the
-    // CI's depth allows, fetching the default branch at the same depth.
-    if (/merged with the default branch inside the clone/.test(text)) {
-      assert.equal(run(['git', 'fetch', '-q', '--depth', '1', 'origin', 'main'], clone).status, 0);
-      const merged = run(['git', 'merge', '--no-edit', 'FETCH_HEAD'], clone);
-      assert.equal(merged.status, 0, `the merge inside the clone at the CI's depth: ${merged.stderr.trim()}`);
-    }
     const has = (path) => run(['git', 'cat-file', '-e', `HEAD:${path}`], clone).status === 0;
     assert.ok(has('src/feature.ts') && has('src/main-only.ts'), 'the tree the suite runs on holds both the feature and the default branch, as the merge commit does');
     assert.equal(run(['git', 'rev-parse', '--is-shallow-repository'], clone).stdout.trim(), 'true', 'and the clone is still as shallow as the CI\'s checkout');
+    assert.ok(text.includes(`the suite runs in ${cloneName}`) || text.includes(`the suite runs in \`${cloneName}\``), `step 2 says the suite runs in ${cloneName}, the last clone its commands make`);
   });
 });
 
