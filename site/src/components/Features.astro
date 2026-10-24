@@ -17,6 +17,7 @@ const commands = [
   { id: 'discover', tier: 'Tool', title: t.feat5Title, desc: t.feat5Desc, forLabel: t.feat5For, highlights: t.feat5Highlights },
   { id: 'prompt-pack', tier: 'Tool', title: t.feat6Title, desc: t.feat6Desc, forLabel: t.feat6For, highlights: t.feat6Highlights },
   { id: 'quick', tier: 'Tool', title: t.feat7Title, desc: t.feat7Desc, forLabel: t.feat7For, highlights: t.feat7Highlights },
+  { id: 'hotfix', tier: 'Tool', title: t.feat10Title, desc: t.cmdHotfixDesc, forLabel: t.feat10For, highlights: t.feat10Highlights },
   { id: 'teach', tier: 'Tool', title: t.feat8Title, desc: t.feat8Desc, forLabel: t.feat8For, highlights: t.feat8Highlights },
   { id: 'stats', tier: 'Tool', title: t.feat9Title, desc: t.feat9Desc, forLabel: t.feat9For, highlights: t.feat9Highlights },
 ];
@@ -54,7 +55,7 @@ const commands = [
 <style>
   .cmd-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 1.25rem;
   }
 
@@ -142,6 +143,22 @@ const commands = [
   .cmd-cta {
     text-align: center;
     margin-top: 2.5rem;
+  }
+
+  /* 10 cards: 2 columns on tablets, 4 from 1024px (4 + 4 + 2), so no card sits alone in the last row */
+  @media (max-width: 1023px) {
+    .cmd-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .cmd-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .cmd-card {
+      padding: 1.5rem;
+    }
   }
 
   @media (max-width: 768px) {

@@ -18,6 +18,7 @@ const t = useTranslations(lang);
       <Fragment set:html={t.heroTitle.replace('\n', '<br />')} />
     </h1>
     <p class="hero-sub">{t.heroSubtitle}</p>
+    <a href={`/${lang}/#loop`} class="hero-notice">{t.heroNotice}</a>
 
     <div class="terminal">
       <div class="terminal-bar">
@@ -233,6 +234,24 @@ const t = useTranslations(lang);
     line-height: 1.5;
     max-width: 520px;
     margin: 0 auto 1.75rem;
+  }
+
+  .hero-notice {
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-glow);
+    border: 1px solid var(--accent-glow-strong);
+    border-radius: var(--radius-full);
+    padding: 0.35rem 0.9rem;
+    margin: -0.5rem auto 1.5rem;
+    text-decoration: none;
+    transition: border-color 0.25s var(--ease-out), color 0.25s var(--ease-out);
+  }
+  .hero-notice:hover {
+    border-color: var(--accent);
+    color: var(--text-primary);
   }
 
   /* Terminal */

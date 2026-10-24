@@ -1,6 +1,7 @@
 ---
 import type { Locale } from '../i18n/utils';
 import { useTranslations } from '../i18n/utils';
+import InlineCode from './InlineCode.astro';
 
 interface Props {
   lang: Locale;
@@ -79,6 +80,10 @@ const npxEditions = [
             </div>
           </div>
         ))}
+      </div>
+      <div class="ed-notes">
+        <p class="ed-note"><InlineCode text={t.editionsLoopKit} /></p>
+        <p class="ed-note"><InlineCode text={t.editionsGitDisclaimer} /></p>
       </div>
       <div class="ed-tag">{t.editionsTagline}</div>
     </div>
@@ -257,6 +262,19 @@ const npxEditions = [
     padding: 0.15rem 0.4rem;
     border-radius: 4px;
     user-select: all;
+  }
+
+  .ed-notes {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .ed-note {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
   }
 
   .ed-tag {
