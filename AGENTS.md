@@ -67,6 +67,7 @@ For a shared plugin release, keep these values aligned:
 - `CHANGELOG.md`
 - `plugins/vibeflow/.claude-plugin/plugin.json`
 - `plugins/vibeflow/.codex-plugin/plugin.json`
+- `plugins/vibeflow/plugin.json`
 - `.claude-plugin/marketplace.json` top-level, metadata, and plugin versions
 
 Change `cli/package.json` only when the CLI changes.
@@ -84,6 +85,10 @@ Cursor and Copilot prompts name the CLI version they need.
 - Codex discovers focused skills from their descriptions and uses its native
   task and agent model. Do not emulate the Claude architect agent in a Codex
   manifest.
+- Hermes Agent reads the Agent Plugins v1 manifest at
+  `plugins/vibeflow/plugin.json`, discovers `skills/*/SKILL.md` by position,
+  and ignores `agents/`. It accepts `allowed-tools` in the frontmatter without
+  applying it.
 - Copilot uses `.prompt.md` files with `description` and `agent` frontmatter.
 - Cursor descriptions need precise “Use when...” triggers for auto-invocation.
 - `implement` is available in every edition. `prompt-pack` remains an option
