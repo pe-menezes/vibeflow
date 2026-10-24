@@ -8,7 +8,7 @@
 
 AI agents write code fast — but without specs, they write the **wrong** code fast. Vibeflow adds a thinking layer before coding: you define **what** to build with specs, guardrails, and quality gates. The agent implements following your project's real patterns.
 
-> Works with **Codex** and **Claude Code** through one shared plugin, plus **Cursor** (rules + skills) and **GitHub Copilot** (prompts + agents).
+> Works with **Codex**, **Claude Code** and **Hermes Agent** through one shared plugin, plus **Cursor** (rules + skills) and **GitHub Copilot** (prompts + agents).
 
 ## 3 commands to start
 
@@ -56,14 +56,17 @@ The loop is off by default and runs only when you turn it on:
 for the project (`--no-loop` turns it off for one run). Requirements:
 
 - The loop kit, which ships inside the `implement` skill
-  (`plugins/vibeflow/skills/implement/loop/`). Claude Code and Codex get it
-  with the plugin; the Cursor and Copilot installers copy it into the project.
+  (`plugins/vibeflow/skills/implement/loop/`). Claude Code, Codex and Hermes
+  get it with the plugin; the Cursor and Copilot installers copy it into the
+  project.
 - Node.js 18 or later for the kit's scripts.
 - In Claude Code, version 2.1.69 or newer, the one that substitutes
   `${CLAUDE_SKILL_DIR}` in a skill's body. An `audit` run by hand needs it
   too, to build its review package: on an older version it does not find the
   kit, records `Review package: none (kit not installed)` and computes the
-  diff as before, and updating Claude Code, not the plugin, fixes it.
+  diff as before, and updating Claude Code, not the plugin, fixes it. In Codex
+  and Hermes the variable is never substituted, and the skills resolve the
+  kit path from their own folder.
 - For the pull request at the end: a remote on GitHub (or GitHub Enterprise)
   and `gh auth status` ok for its host. The `pr ending` line of
   `preflight.mjs` tells you before the first dispatch. Without it, the loop
@@ -79,8 +82,8 @@ the roles, the artifacts and the ceilings.
 
 ## Editions
 
-Each edition adapts the same methodology to the agent's format. Codex and
-Claude share the exact same skill sources under `plugins/vibeflow/`; their
+Each edition adapts the same methodology to the agent's format. Codex, Claude
+and Hermes share the exact same skill sources under `plugins/vibeflow/`; their
 platform-specific manifests only handle packaging and discovery.
 
 ### Codex (plugin)
@@ -92,6 +95,18 @@ codex plugin add vibeflow@vibeflow-marketplace
 
 Start a new task after installation. Ask naturally — for example, “analyze this
 project with Vibeflow” — and Codex selects the matching focused skill.
+
+### Hermes Agent (plugin)
+
+```bash
+hermes plugins install pe-menezes/vibeflow/plugins/vibeflow
+hermes plugins enable vibeflow
+```
+
+The install scan reads the kit README's description of the secret detector as
+a secret; `--force` installs; a catalog listing removes the prompt. Start a new
+session after installation. Ask naturally, as in Codex — the ten skills load,
+and Hermes has no slash commands for them.
 
 ### Claude Code (plugin — no npx)
 
@@ -140,6 +155,7 @@ The loop kit goes to `.github/vibeflow/loop/`. See [`copilot/README.md`](copilot
 |---------|---------------|---------|
 | **Codex** | Plugin marketplace | `codex plugin marketplace add pe-menezes/vibeflow`<br>`codex plugin add vibeflow@vibeflow-marketplace` |
 | **Claude Code** | Plugin (inside Claude Code) | See install steps above |
+| **Hermes Agent** | Plugin | `hermes plugins install pe-menezes/vibeflow/plugins/vibeflow`<br>`hermes plugins enable vibeflow` |
 | **Cursor** | npx installer | `npx setup-vibeflow@latest --cursor` |
 | **GitHub Copilot** | npx installer | `npx setup-vibeflow@latest --copilot` |
 
