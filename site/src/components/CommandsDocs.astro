@@ -22,6 +22,8 @@ const commands = [
       { label: '--scope <path>', desc: t.cmdAnalyzeFlagScope },
       { label: '--interactive', desc: t.cmdAnalyzeFlagInteractive },
       { label: '--satellite <url>', desc: t.cmdAnalyzeFlagSatellite },
+      { label: '--measure', desc: t.cmdAnalyzeFlagMeasure },
+      { label: lang === 'en' ? 'Tests and pitfalls' : 'Testes e pitfalls', desc: t.cmdAnalyzeTests },
       { label: lang === 'en' ? 'Import protection' : 'Proteção de importados', desc: t.cmdAnalyzeImportProtection },
     ],
     output: t.cmdAnalyzeOutput,
@@ -35,6 +37,7 @@ const commands = [
     flags: [
       { label: lang === 'en' ? 'Quick round' : 'Round rápido', desc: t.cmdDiscoverModeQuick },
       { label: lang === 'en' ? 'Complete flow' : 'Fluxo completo', desc: t.cmdDiscoverModeComplete },
+      { label: '## Clarifications', desc: t.cmdDiscoverClarifications },
     ],
     output: t.cmdDiscoverOutput,
   },
@@ -49,6 +52,12 @@ const commands = [
       { label: lang === 'en' ? 'From description' : 'A partir de descrição', desc: t.cmdGenSpecInputDirect },
       { label: lang === 'en' ? 'PRD validation' : 'Validação de PRD', desc: t.cmdGenSpecValidation },
       { label: 'Auto-split', desc: t.cmdGenSpecAutoSplit },
+      { label: '[NEEDS CLARIFICATION: …]', desc: t.cmdGenSpecMarkers },
+      { label: '## Clarifications', desc: t.cmdGenSpecClarifications },
+      { label: 'Scenarios:', desc: t.cmdGenSpecScenarios },
+      { label: 'Risk code:', desc: t.cmdGenSpecRiskCode },
+      { label: lang === 'en' ? 'No one to answer' : 'Sem ninguém para responder', desc: t.cmdGenSpecHeadless },
+      { label: lang === 'en' ? 'Literals' : 'Literais', desc: t.cmdGenSpecLiterals },
     ],
     output: t.cmdGenSpecOutput,
   },
@@ -59,6 +68,7 @@ const commands = [
     desc: t.cmdImplementDesc,
     usage: t.cmdImplementUsage,
     flags: [
+      { label: lang === 'en' ? 'Phase 0' : 'Fase 0', desc: t.cmdImplementPhase0 },
       { label: lang === 'en' ? 'Phase 1' : 'Fase 1', desc: t.cmdImplementPhase1 },
       { label: lang === 'en' ? 'Phase 2' : 'Fase 2', desc: t.cmdImplementPhase2 },
       { label: lang === 'en' ? 'Phase 3' : 'Fase 3', desc: t.cmdImplementPhase3 },
@@ -66,7 +76,18 @@ const commands = [
       { label: lang === 'en' ? 'Phase 5' : 'Fase 5', desc: t.cmdImplementPhase5 },
       { label: lang === 'en' ? 'Phase 6' : 'Fase 6', desc: t.cmdImplementPhase6 },
       { label: lang === 'en' ? 'Phase 7' : 'Fase 7', desc: t.cmdImplementPhase7 },
+      { label: lang === 'en' ? 'Phase 8' : 'Fase 8', desc: t.cmdImplementPhase8 },
     ],
+    loop: {
+      label: t.cmdLoopMode,
+      flags: [
+        { label: '--loop', desc: t.cmdImplementLoop },
+        { label: 'loop: true', desc: t.cmdImplementLoopConfig },
+        { label: '--no-loop', desc: t.cmdImplementNoLoop },
+        { label: t.cmdImplementLoopStopLabel, desc: t.cmdImplementLoopStop },
+      ],
+      link: t.cmdImplementLoopLink,
+    },
     output: t.cmdImplementOutput,
     note: t.cmdImplementNote,
   },
@@ -90,10 +111,15 @@ const commands = [
     desc: t.cmdAuditDesc,
     usage: t.cmdAuditUsage,
     flags: [
+      { label: lang === 'en' ? 'Review package' : 'Pacote de revisão', desc: t.cmdAuditPackage },
+      { label: '--reaudit <round-commit>', desc: t.cmdAuditReaudit },
+      { label: '--probes', desc: t.cmdAuditProbes },
+      { label: lang === 'en' ? 'Severity and cause' : 'Severidade e causa', desc: t.cmdAuditSeverity },
       { label: 'PASS', desc: t.cmdAuditVerdictPass },
       { label: 'PARTIAL', desc: t.cmdAuditVerdictPartial },
       { label: 'FAIL', desc: t.cmdAuditVerdictFail },
       { label: lang === 'en' ? 'Incremental fix' : 'Fix incremental', desc: t.cmdAuditIncremental },
+      { label: '--consolidate-hotfixes', desc: t.cmdAuditConsolidate },
     ],
     output: t.cmdAuditOutput,
   },
@@ -113,7 +139,7 @@ const commands = [
   {
     id: 'hotfix',
     name: 'hotfix',
-    tagline: lang === 'en' ? 'Fix bugs with a paper trail' : 'Conserte bugs com rastro',
+    tagline: t.feat10For,
     desc: t.cmdHotfixDesc,
     usage: t.cmdHotfixUsage,
     flags: [
@@ -151,6 +177,8 @@ const commands = [
     flags: [
       { label: lang === 'en' ? 'Metrics' : 'Métricas', desc: t.cmdStatsMetrics },
       { label: lang === 'en' ? 'Trend' : 'Tendência', desc: t.cmdStatsTrend },
+      { label: '### Loop', desc: t.cmdStatsLoop },
+      { label: lang === 'en' ? 'In progress' : 'Em andamento', desc: t.cmdStatsInProgress },
     ],
     output: t.cmdStatsOutput,
   },
@@ -195,6 +223,21 @@ const commands = [
               ))}
             </div>
           </div>
+
+          {cmd.loop && (
+            <div class="cmd-flags-block">
+              <span class="cmd-label">{cmd.loop.label}</span>
+              <div class="cmd-flags">
+                {cmd.loop.flags.map((flag) => (
+                  <div class="cmd-flag">
+                    <code class="cmd-flag-label">{flag.label}</code>
+                    <p class="cmd-flag-desc">{flag.desc}</p>
+                  </div>
+                ))}
+              </div>
+              <a href={`/${lang}/#loop`} class="cmd-loop-link">{cmd.loop.link}</a>
+            </div>
+          )}
 
           <div class="cmd-output-block">
             <span class="cmd-label">{t.cmdOutput}</span>
@@ -392,6 +435,17 @@ const commands = [
     font-size: 0.82rem;
     color: var(--text-secondary);
     line-height: 1.5;
+  }
+
+  .cmd-loop-link {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent-light);
+  }
+  .cmd-loop-link:hover {
+    color: var(--text-primary);
   }
 
   /* Output block */

@@ -1,0 +1,185 @@
+---
+import type { Locale } from '../i18n/utils';
+import { useTranslations } from '../i18n/utils';
+
+interface Props {
+  lang: Locale;
+}
+
+const { lang } = Astro.props;
+const t = useTranslations(lang);
+
+const steps = [
+  { num: '1', title: t.loopStep1Title, desc: t.loopStep1Desc },
+  { num: '2', title: t.loopStep2Title, desc: t.loopStep2Desc },
+  { num: '3', title: t.loopStep3Title, desc: t.loopStep3Desc },
+  { num: '4', title: t.loopStep4Title, desc: t.loopStep4Desc },
+  { num: '5', title: t.loopStep5Title, desc: t.loopStep5Desc },
+];
+
+const blocks = [
+  { title: t.loopOnTitle, items: t.loopOnItems },
+  { title: t.loopHostsTitle, items: t.loopHostsItems },
+  { title: t.loopCompanyTitle, items: t.loopCompanyItems },
+  { title: t.loopReqTitle, items: t.loopReqItems },
+];
+---
+
+<div class="section" id="loop">
+  <div class="container">
+    <div class="section-label">{t.loopLabel}</div>
+    <h2 class="section-title" set:html={t.loopTitle} />
+    <p class="section-sub loop-sub">{t.loopSubtitle}</p>
+
+    <ol class="loop-steps">
+      {steps.map((step) => (
+        <li class="loop-step">
+          <div class="loop-num">{step.num}</div>
+          <h3>{step.title}</h3>
+          <p>{step.desc}</p>
+        </li>
+      ))}
+    </ol>
+
+    <div class="loop-blocks">
+      {blocks.map((block) => (
+        <div class="loop-block">
+          <h3>{block.title}</h3>
+          <ul>
+            {block.items.map((item: string) => (
+              <li>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+
+    <div class="loop-more">
+      <a href={t.loopMoreHref} target="_blank" rel="noopener" class="loop-link">{t.loopMore}</a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .loop-sub {
+    max-width: 640px;
+  }
+
+  .loop-steps {
+    list-style: none;
+    margin: 0 0 2.5rem;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.25rem;
+    position: relative;
+  }
+
+  @media (min-width: 1024px) {
+    .loop-steps::before {
+      content: '';
+      position: absolute;
+      top: 23px;
+      left: 32px;
+      right: 32px;
+      height: 2px;
+      background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.25) 15%, rgba(99, 102, 241, 0.4) 50%, rgba(99, 102, 241, 0.25) 85%, transparent 100%);
+      border-radius: 2px;
+    }
+  }
+
+  .loop-step {
+    text-align: left;
+  }
+
+  .loop-num {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1rem;
+    color: var(--accent);
+    margin-bottom: 0.9rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .loop-step h3 {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+  }
+
+  .loop-step p {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+
+  .loop-blocks {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
+  }
+
+  .loop-block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.5rem 1.75rem;
+  }
+
+  .loop-block h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+  }
+
+  .loop-block ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+    line-height: 1.6;
+  }
+
+  .loop-block li + li {
+    margin-top: 0.45rem;
+  }
+
+  .loop-more {
+    margin-top: 1.5rem;
+    font-size: 0.85rem;
+  }
+
+  .loop-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .loop-link:hover {
+    color: var(--text-primary);
+  }
+
+  @media (max-width: 1023px) {
+    .loop-steps {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .loop-steps,
+    .loop-blocks {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

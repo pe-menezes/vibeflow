@@ -44,6 +44,13 @@ const artifacts = [
   },
 ];
 
+const loopFolders = [
+  { name: 'loop/', desc: t.anatomyLoopLedger },
+  { name: 'briefings/', desc: t.anatomyLoopBriefings },
+  { name: 'progress/', desc: t.anatomyLoopProgress },
+  { name: 'reviews/', desc: t.anatomyLoopReviews },
+];
+
 const conventionsBullets = [
   t.anatomyVsConventionsBullet1,
   t.anatomyVsConventionsBullet2,
@@ -100,6 +107,19 @@ const patternsBullets = [
         </article>
       ))}
     </div>
+
+    <article class="artifact-card loop-folders">
+      <header class="artifact-head">
+        <span class="loop-folders-title">{t.anatomyLoopTitle}</span>
+      </header>
+      <p class="loop-folders-intro">{t.anatomyLoopIntro}</p>
+      <ul class="loop-folders-list">
+        {loopFolders.map((f) => (
+          <li><code>{f.name}</code> {f.desc}</li>
+        ))}
+      </ul>
+      <p class="loop-folders-git">{t.anatomyLoopGit}</p>
+    </article>
   </div>
 </section>
 
@@ -251,6 +271,49 @@ const patternsBullets = [
     font-size: 0.92rem;
     color: var(--text-primary);
     line-height: 1.65;
+  }
+
+  .loop-folders {
+    margin-top: 1.5rem;
+  }
+
+  .loop-folders-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .loop-folders-intro,
+  .loop-folders-git {
+    font-size: 0.92rem;
+    color: var(--text-secondary);
+    line-height: 1.65;
+    margin: 0 0 1rem;
+  }
+
+  .loop-folders-git {
+    margin: 1rem 0 0;
+  }
+
+  .loop-folders-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    line-height: 1.65;
+  }
+
+  .loop-folders-list li + li {
+    margin-top: 0.4rem;
+  }
+
+  .loop-folders-list code {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    background: var(--accent-glow);
+    padding: 0.1rem 0.4rem;
+    border-radius: 5px;
   }
 
   .anatomy-vs {
