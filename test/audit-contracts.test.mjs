@@ -167,21 +167,21 @@ test('the plugin edition reads an unsubstituted ${CLAUDE_SKILL_DIR} as the kit n
   assert.ok(step1.includes(bullet), 'the bullet sits in step 1');
 });
 
-// The same plugin serves Codex, which never substitutes the variable and
-// reaches the kit relative to the skill's own folder: there the literal
+// The same plugin serves Codex and Hermes, which never substitute the variable
+// and reach the kit relative to the skill's own folder: there the literal
 // variable means "resolve the path and run again", not a missing kit.
-test('in Codex the unsubstituted variable means resolving the kit path from the skill folder and running again, not a missing kit', () => {
+test('in Codex and Hermes the unsubstituted variable means resolving the kit path from the skill folder and running again, not a missing kit', () => {
   const content = flat(read(EDITIONS.shared));
   const bullet = /- A command that still shows `\$\{CLAUDE_SKILL_DIR\}` literally[\s\S]*?stays an error\./.exec(content)?.[0] ?? '';
   const unsubstituted = /^[\s\S]*?the next case says\./.exec(bullet)?.[0] ?? '';
   const codex = unsubstituted.indexOf(
-    'In Codex the variable is never substituted: resolve the kit path relative to the directory of this SKILL.md and run the command again.');
-  assert.ok(codex !== -1, 'Codex resolves the path relative to this SKILL.md and runs the command again');
+    'In Codex and Hermes the variable is never substituted: resolve the kit path relative to the directory of this SKILL.md and run the command again.');
+  assert.ok(codex !== -1, 'Codex and Hermes resolve the path relative to this SKILL.md and run the command again');
   const notInstalled = unsubstituted.indexOf('the kit counts as not installed');
-  assert.ok(notInstalled > codex, 'the Codex rule comes before the kit is counted as not installed');
+  assert.ok(notInstalled > codex, 'the Codex and Hermes rule comes before the kit is counted as not installed');
   assert.match(unsubstituted.slice(codex, notInstalled), /run the command again\. In Claude Code before 2\.1\.69, or a host that does not know the variable, $/,
     'only an old Claude Code or a host without the variable counts as the kit not installed');
-  assert.match(content, /\(in Codex, the same path relative to the directory of this SKILL\.md\)/, 'the kit paragraph names the same Codex path');
+  assert.match(content, /\(in Codex and Hermes, the same path relative to the directory of this SKILL\.md\)/, 'the kit paragraph names the same Codex and Hermes path');
 });
 
 // ------------------------------------------------- what the package left out

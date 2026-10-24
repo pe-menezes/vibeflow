@@ -49,11 +49,11 @@ to offer. `Independence: same session` is recorded instead of refusing, and the
 audit runs the same way; the reader weighs it, because a session that did not
 see the work finds what the implementer missed.
 
-The loop kit lives at `${CLAUDE_SKILL_DIR}/../implement/loop/` (in Codex, the
-same path relative to the directory of this SKILL.md). This command uses two
-of its scripts, `review-package.mjs` and `check-probes.mjs`. When the folder is
-missing, the kit is not installed: updating the Vibeflow plugin installs it,
-and each step below says how the audit runs without it.
+The loop kit lives at `${CLAUDE_SKILL_DIR}/../implement/loop/` (in Codex and
+Hermes, the same path relative to the directory of this SKILL.md). This command
+uses two of its scripts, `review-package.mjs` and `check-probes.mjs`. When the
+folder is missing, the kit is not installed: updating the Vibeflow plugin
+installs it, and each step below says how the audit runs without it.
 
 ## Steps
 
@@ -111,10 +111,10 @@ restore.
      the next case.
    - A command that still shows `${CLAUDE_SKILL_DIR}` literally, or a kit
      path that starts at `/../`, means the variable was not substituted.
-     In Codex the variable is never substituted: resolve the kit path
-     relative to the directory of this SKILL.md and run the command again.
-     In Claude Code before 2.1.69, or a host that does not know the
-     variable, the kit counts as not installed, not as an error to fix. Record
+     In Codex and Hermes the variable is never substituted: resolve the kit
+     path relative to the directory of this SKILL.md and run the command again.
+     In Claude Code before 2.1.69, or a host that does not know the variable,
+     the kit counts as not installed, not as an error to fix. Record
      `Review package: none (kit not installed)` with the hint to update
      Claude Code to 2.1.69 or newer, and go on as the next case says. With
      the path resolved, `node` answering "Cannot find module" for the kit's
