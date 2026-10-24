@@ -1,0 +1,29 @@
+---
+// Renders an i18n string whose literals are marked with backticks: the text
+// between a pair of backticks becomes <code>, the rest stays text, and the
+// backticks themselves never reach the page. No set:html: every part goes
+// through Astro's escaping. A short literal (flag, key, command) does not wrap
+// inside; a path (it has a "/") may wrap where it has to.
+interface Props {
+  text: string;
+}
+
+const { text } = Astro.props;
+const parts = text.split('`').map((value, i) => ({
+  value,
+  code: i % 2 === 1,
+  path: value.includes('/'),
+}));
+---
+{parts.map((p) => (p.code ? <code class:list={['ic', { 'ic-path': p.path }]}>{p.value}</code> : p.value))}
+
+<style>
+  .ic {
+    white-space: nowrap;
+  }
+
+  .ic-path {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+</style>

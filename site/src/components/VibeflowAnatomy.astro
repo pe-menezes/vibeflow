@@ -1,6 +1,7 @@
 ---
 import type { Locale } from '../i18n/utils';
 import { useTranslations } from '../i18n/utils';
+import InlineCode from './InlineCode.astro';
 
 interface Props {
   lang: Locale;
@@ -112,13 +113,13 @@ const patternsBullets = [
       <header class="artifact-head">
         <span class="loop-folders-title">{t.anatomyLoopTitle}</span>
       </header>
-      <p class="loop-folders-intro">{t.anatomyLoopIntro}</p>
+      <p class="loop-folders-intro"><InlineCode text={t.anatomyLoopIntro} /></p>
       <ul class="loop-folders-list">
         {loopFolders.map((f) => (
-          <li><code>{f.name}</code> {f.desc}</li>
+          <li><code>{f.name}</code> <InlineCode text={f.desc} /></li>
         ))}
       </ul>
-      <p class="loop-folders-git">{t.anatomyLoopGit}</p>
+      <p class="loop-folders-git"><InlineCode text={t.anatomyLoopGit} /></p>
     </article>
   </div>
 </section>

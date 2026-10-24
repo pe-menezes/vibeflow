@@ -1,6 +1,7 @@
 ---
 import type { Locale } from '../i18n/utils';
 import { useTranslations } from '../i18n/utils';
+import InlineCode from './InlineCode.astro';
 
 interface Props {
   lang: Locale;
@@ -81,8 +82,8 @@ const npxEditions = [
         ))}
       </div>
       <div class="ed-notes">
-        <p class="ed-note">{t.editionsLoopKit}</p>
-        <p class="ed-note">{t.editionsGitDisclaimer}</p>
+        <p class="ed-note"><InlineCode text={t.editionsLoopKit} /></p>
+        <p class="ed-note"><InlineCode text={t.editionsGitDisclaimer} /></p>
       </div>
       <div class="ed-tag">{t.editionsTagline}</div>
     </div>
