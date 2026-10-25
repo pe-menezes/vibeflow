@@ -5,7 +5,7 @@
 This monorepo contains one shared plugin, two file-based editions, a marketing
 site, and an installer:
 
-- `plugins/vibeflow/` — universal Claude + Codex plugin and source of truth for skill logic
+- `plugins/vibeflow/` — universal Claude + Codex + Hermes plugin and source of truth for skill logic
 - `.claude-plugin/marketplace.json` — Claude marketplace catalog
 - `.agents/plugins/marketplace.json` — Codex marketplace catalog
 - `copilot/` — GitHub Copilot prompts, agents, and instructions
@@ -43,12 +43,14 @@ Copilot and Cursor editions never hold a copy, because `cli/index.js` downloads
 the files that `loop/manifest.json` lists. The executor and auditor roles live
 in `loop/roles/`; the Claude agents carry the same body after their front
 matter. Codex reaches the roles through its native subagent or a new task given
-the briefing's path; Cursor and Copilot through a new chat the user opens with
-the orchestrator's one-line instruction, whose briefing points at the role
-file. A change to a role changes both the role file and its agent.
+the briefing's path; Hermes through a `delegate_task` task whose `goal` points
+at the briefing and whose `context` names the role file; Cursor and Copilot
+through a new chat the user opens with the orchestrator's one-line instruction,
+whose briefing points at the role file. A change to a role changes both the
+role file and its agent.
 
 - Command logic changes affect the shared plugin, Copilot, and Cursor.
-- Claude and Codex packaging changes affect only their manifests or catalogs.
+- Claude, Codex, and Hermes packaging changes affect only their manifests or catalogs.
 - New or removed workflows affect every edition plus the READMEs and manual.
 
 ## Documentation checklist
