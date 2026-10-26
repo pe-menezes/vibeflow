@@ -1,8 +1,8 @@
 # Changelog
 
-### Unreleased
+### v1.17.0 (2026-10-26)
 
-The Hermes Agent edition: the same shared plugin, read from a root manifest. The version number, the date and the bump of the three manifests are the maintainer's at release time.
+The Hermes Agent edition: the same shared plugin, read from a root manifest.
 
 **Added**
 
