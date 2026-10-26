@@ -1,5 +1,22 @@
 # Changelog
 
+### Unreleased
+
+The Hermes Agent edition: the same shared plugin, read from a root manifest. The version number, the date and the bump of the three manifests are the maintainer's at release time.
+
+**Added**
+
+- **Hermes Agent edition**: `plugins/vibeflow/plugin.json`, an Agent Plugins v1 manifest at the package root, through which Hermes discovers the ten shared skills by position and ignores `agents/`; it accepts `allowed-tools` in a skill's frontmatter without applying it.
+- **Installing on Hermes**: `hermes plugins install pe-menezes/vibeflow/plugins/vibeflow`, then `hermes plugins enable vibeflow` and a new session. The install scan reads the kit README's description of the secret detector as a secret, so `--force` installs; a catalog listing removes the prompt. The skills are asked for in natural language, as in Codex: Hermes has no slash commands for them.
+- **The loop on Hermes**: the fresh-sessions table of the orchestrator gains a Hermes row: each round is one `delegate_task` task whose `goal` carries the round's title and points at the briefing, and whose `context` names the role file in the kit. The end of a round is the task's result arriving as a new turn, so the orchestrator ends its turn after the dispatch instead of running `watch-round.mjs`, and a result with no final marker in the round's file restarts the round from the file. When the `delegate_task` call itself returns the result (a session with no later-result consumer, such as a one-shot CLI run or cron), the orchestrator reads it there and goes on instead of ending its turn, which would end the session with the loop stopped at its first round.
+
+**Changed**
+
+- **`audit`, `implement` and `stats` name Hermes beside Codex**: the kit path in the three skills is resolved from the skill's folder "in Codex and Hermes", where `${CLAUDE_SKILL_DIR}` is never substituted; the Claude Code case (update Claude Code, not the plugin) is unchanged.
+- **`roles/auditor.md` and `agents/auditor.md`**: the plugin's audit workflow is named for Claude Code, Codex and Hermes.
+
+Measured on Hermes v0.21.5 (2026-10-24): the install and enable commands, the ten skills loading, the kit present inside the installed plugin, and the repository's suite. The loop ran on Hermes to build this edition: four parts, ten rounds (four executor, four audit, one fix, one re-audit; the audit that died on an HTTP 429 from the provider and was dispatched again counts once), parts 1 to 3 PASS at round 0 and part 4 PARTIAL at round 0 and PASS after one fix round, two audit probe files written by the auditors and committed. The part 4 executor could not write `AGENTS.md`, a file name Hermes guards with an approval prompt that timed out, so the orchestrator applied the executor's patches as the fix round. Measured on the same version on 2026-10-26: a `delegate_task` call in a `hermes --oneshot` session returns the child's result in the call itself; the cron case was read in Hermes' code, not run. Not measured: `implement --loop` started by a user in the Hermes chat (here the orchestrator was the agent's main session reading `orchestrator.md` directly), and the 400k-token ceiling under context compression.
+
 ### v1.16.0 (2026-10-23)
 
 The execution loop arrives, off by default: without `--loop`, `implement` runs its pipeline as before and specs written before 1.16 stay valid. `gen-spec`, `discover`, `analyze`, `audit` and `stats` also change for a run without the loop; each change is listed under Changed. All 3 editions updated.

@@ -135,6 +135,25 @@ test('orchestrator.md: a fresh session per round on every host, and the user-ope
   assert.ok(text.includes('`vibeflow:executor`') && text.includes('`vibeflow:auditor`'), 'Claude Code subagents');
   assert.ok(text.includes('`<feature> · <part> · <role> · round <n>`'), 'the subagent description');
   assert.match(text, /\| Codex \|[^|]*native subagent[^|]*new task/i, 'Codex row');
+  // Hermes: one `delegate_task` task per round. The child opens with zero parent context, so the
+  // goal carries the round title (its first line is the task's title in the UI, loop principle 9)
+  // and the briefing instruction, and the context names the role file; nothing else.
+  assert.match(text, /\| Hermes \|[^|]*`delegate_task`[^|]*\|[^|]*`roles\/auditor\.md`[^|]*audit workflow/i, 'Hermes row');
+  const [, hermesExecutor] = /\| Hermes \|([^|]*)\|/.exec(text);
+  assert.match(hermesExecutor, /`goal`[^|]*first line[^|]*`<feature> · <part> · <role> · round <n>`/, 'Hermes: the first line of the goal is the round title');
+  assert.match(hermesExecutor, /second[^|]*"Read `<briefing path>` and follow it\."/, 'Hermes: the second line of the goal reads the briefing');
+  assert.match(hermesExecutor, /`context`[^|]*`roles\/executor\.md`/, 'Hermes: the context names the executor role file');
+  // The child's result arrives as a new turn once the task ends, so on Hermes the orchestrator
+  // ends its turn after the dispatch; it never polls a file or a transcript with watch-round.mjs.
+  assert.match(text, /on Hermes the task's title is the first line of the `goal`/, 'Hermes: the first line of the goal is the task title, the description of loop principle 9');
+  assert.match(text, /Hermes round is the task's result arriving as a new turn: the orchestrator ends its turn after the dispatch instead of running `watch-round\.mjs`/, 'Hermes: the end of a round is the result arriving as a new turn, so the orchestrator ends its turn after the dispatch instead of running watch-round.mjs');
+  assert.match(text, /instead of running `watch-round\.mjs`[^.]*five lines in the result[^.]*final marker in the round's file; a result with no marker in the file[^.]*restarted from the file \(loop principle 3\)/, 'Hermes: reads the five lines in the result and the marker in the file; no marker restarts the round from the file');
+  // A session with no later-result consumer (one-shot CLI, cron) gets the result back in the
+  // delegate_task call itself; ending the turn there would end the session at the first round.
+  assert.match(text, /When the `delegate_task` call itself returns the result \(a session with no later-result consumer, such as a one-shot CLI run or cron\), the orchestrator reads it there and goes on/, 'Hermes: a result returned by the call itself is read there, not waited for in a new turn');
+  // `rg -n 'Hermes' orchestrator.md` shows the row and a paragraph line that names the wait it replaces.
+  const hermesLines = orchestrator().split('\n').filter((line) => line.includes('Hermes'));
+  assert.ok(hermesLines.some((line) => !line.startsWith('|') && line.includes('watch-round')), 'the Hermes paragraph line names watch-round, the wait it replaces');
   assert.match(text, /\| Cursor, Copilot \|[^|]*new chat the user opens[^|]*one-line instruction/i, 'Cursor and Copilot row');
   assert.match(text, /cannot open a fresh session[^.]*falls back to the chat the user opens[^.]*says so/i, 'fallback to the user-opened chat');
   assert.match(text, /nothing else in the command breaks/i, 'the fallback breaks nothing else');

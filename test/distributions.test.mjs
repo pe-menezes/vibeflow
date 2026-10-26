@@ -148,6 +148,30 @@ test('Claude and Codex catalogs point at the same versioned plugin', () => {
   assert.equal(codexManifest.skills, './skills/');
 });
 
+test('Hermes root manifest is the Agent Plugins v1 edition of the same versioned plugin', () => {
+  const claudeManifest = JSON.parse(read('plugins/vibeflow/.claude-plugin/plugin.json'));
+  const codexManifest = JSON.parse(read('plugins/vibeflow/.codex-plugin/plugin.json'));
+  const hermesManifest = JSON.parse(read('plugins/vibeflow/plugin.json'));
+
+  assert.equal(hermesManifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
+  assert.equal(hermesManifest.name, 'vibeflow');
+  assert.equal(hermesManifest.name, claudeManifest.name);
+  assert.equal(hermesManifest.name, codexManifest.name);
+  assert.equal(hermesManifest.version, claudeManifest.version);
+  assert.equal(hermesManifest.version, codexManifest.version);
+  assert.deepEqual(Object.keys(hermesManifest).sort(), [
+    '$schema',
+    'author',
+    'description',
+    'homepage',
+    'keywords',
+    'license',
+    'name',
+    'repository',
+    'version',
+  ]);
+});
+
 test('Claude architect enables project memory without changing the Codex skill boundary', () => {
   const architect = read('plugins/vibeflow/agents/architect.md');
   const codexManifest = JSON.parse(read('plugins/vibeflow/.codex-plugin/plugin.json'));

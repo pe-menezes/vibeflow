@@ -2,10 +2,10 @@
 
 > Spec-driven development for AI agents. Define what to build, let the agent build it right.
 
-Vibeflow is a shared plugin for Codex, Claude Code, and Claude Desktop. It
-analyzes your codebase, generates grounded specs with a binary Definition of
-Done, implements within explicit scope and budget guardrails, and audits the
-result against your project's real patterns.
+Vibeflow is a shared plugin for Codex, Claude Code, Claude Desktop and Hermes
+Agent. It analyzes your codebase, generates grounded specs with a binary
+Definition of Done, implements within explicit scope and budget guardrails, and
+audits the result against your project's real patterns.
 
 ## Install
 
@@ -22,6 +22,21 @@ Start a new Codex task after installation so the skills are loaded. Vibeflow
 skills are selected automatically from natural-language requests; for example,
 ask Codex to “analyze this project with Vibeflow” or “generate a Vibeflow spec
 for this feature.”
+
+### Hermes Agent
+
+Install the package from this repository's path and enable it:
+
+```bash
+hermes plugins install pe-menezes/vibeflow/plugins/vibeflow
+hermes plugins enable vibeflow
+```
+
+The install scan reads the kit README's description of the secret detector as
+a secret; `--force` installs; a catalog listing removes the prompt. Start a new
+Hermes session after installation so the skills are loaded. As in Codex, the
+skills are selected from natural-language requests; Hermes has no slash
+commands for them.
 
 ### Claude Desktop
 
@@ -72,8 +87,8 @@ audit <spec>         → verify the result with evidence
 ```
 
 In Claude, invoke the namespaced commands such as `/vibeflow:analyze`. In
-Codex, describe the same goal naturally and the matching skill is discovered
-from its description.
+Codex and Hermes, describe the same goal naturally and the matching skill is
+discovered from its description.
 
 ## Workflows
 
@@ -104,7 +119,12 @@ evidence. The agent never merges, deploys, migrates a shared environment or
 reads production.
 
 In Claude Code the rounds run in the `vibeflow:executor` and `vibeflow:auditor`
-agents; in Codex, in a native subagent or a new task given the briefing's path.
+agents; in Codex, in a native subagent or a new task given the briefing's path;
+in Hermes, in a `delegate_task` task whose `goal` points at the briefing and
+whose `context` names the role file, its result arriving as a new turn at the
+end of the round, or in the `delegate_task` call itself in a session with no
+later-result consumer, such as a one-shot CLI run or cron, where the
+orchestrator reads it and goes on.
 The loop kit (principles, briefing templates, the orchestrator's flow, the PR
 body template, the role files and the scripts) lives in
 `skills/implement/loop/` and ships with the plugin. Its scripts need Node.js 18
@@ -113,7 +133,9 @@ Claude Code the loop needs version 2.1.69 or newer, the one that substitutes
 `${CLAUDE_SKILL_DIR}` in a skill's body. An `audit` run by hand needs it too,
 to build its review package: on an older version it does not find the kit,
 records `Review package: none (kit not installed)` and computes the diff as
-before, and updating Claude Code, not the plugin, fixes it.
+before, and updating Claude Code, not the plugin, fixes it. In Codex and
+Hermes the variable is never substituted, and the skills resolve the kit path
+from their own folder.
 
 The pull request at the end is opened with `gh`, so it needs a remote on GitHub
 (or GitHub Enterprise) and `gh auth status` ok for its host; the `pr ending`
@@ -166,6 +188,7 @@ project, and it compounds as specs, decisions, fixes, and audits are added.
 plugins/vibeflow/
 ├── .claude-plugin/plugin.json
 ├── .codex-plugin/plugin.json
+├── plugin.json              # Hermes Agent manifest (Agent Plugins v1)
 ├── skills/
 │   ├── <workflow>/SKILL.md
 │   └── implement/loop/      # the loop kit: README.md, manifest.json, scripts/, roles/
@@ -180,7 +203,9 @@ Claude-specific architect sub-agent with project-scoped persistent memory, and
 the executor and auditor agents whose bodies are byte-identical to
 `skills/implement/loop/roles/`;
 Codex exposes only the shared skills and uses `.vibeflow/` as durable project
-context through its native task/agent model.
+context through its native task/agent model. Hermes, reading `plugin.json`,
+exposes only the shared skills as well: it ignores `agents/` and accepts
+`allowed-tools` in a skill's frontmatter without applying it.
 
 ## Philosophy
 
@@ -196,7 +221,8 @@ context through its native task/agent model.
 The source of truth is this directory in
 [`pe-menezes/vibeflow`](https://github.com/pe-menezes/vibeflow). The repository
 root carries separate Claude and Codex marketplace catalogs that both resolve
-to this package. GitHub Actions publishes a Claude-only compatibility view to
+to this package, and Hermes installs it from the package's path in the
+repository. GitHub Actions publishes a Claude-only compatibility view to
 [`pe-menezes/vibeflow-claude`](https://github.com/pe-menezes/vibeflow-claude).
 
 ## Documentation

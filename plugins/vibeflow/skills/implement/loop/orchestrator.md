@@ -12,9 +12,10 @@ Every round (executor, fix, auditor, re-auditor) runs in a fresh session that di
 |---|---|---|
 | Claude Code | the `vibeflow:executor` subagent | the `vibeflow:auditor` subagent |
 | Codex | its native subagent, or a new task, given the briefing path | the same, running the audit workflow |
+| Hermes | one `delegate_task` task: a `goal` whose first line is `<feature> · <part> · <role> · round <n>` and whose second line is "Read `<briefing path>` and follow it.", and a `context` naming the role file in the kit (`roles/executor.md`) | the same, with `roles/auditor.md`, running the audit workflow |
 | Cursor, Copilot | a new chat the user opens, with a one-line instruction the orchestrator writes: "Read `<briefing path>` and follow it." | the same |
 
-On Claude Code, each subagent's description is `<feature> · <part> · <role> · round <n>` (loop principle 9). A host or session that cannot open a fresh session (no subagent tool, a sandbox that refuses it) falls back to the chat the user opens, and says so in one line with the instruction to paste; nothing else in the command breaks. While the user's chat runs, the orchestrator watches the round's file as below.
+On Claude Code, each subagent's description is `<feature> · <part> · <role> · round <n>` (loop principle 9); on Hermes the task's title is the first line of the `goal`, which is why that line carries it. The end of a Hermes round is the task's result arriving as a new turn: the orchestrator ends its turn after the dispatch instead of running `watch-round.mjs`, then reads the five lines in the result and the final marker in the round's file; a result with no marker in the file is a session that stopped early, and its round is restarted from the file (loop principle 3). When the `delegate_task` call itself returns the result (a session with no later-result consumer, such as a one-shot CLI run or cron), the orchestrator reads it there and goes on: ending the turn there would end the session with the loop stopped at its first round. A host or session that cannot open a fresh session (no subagent tool, a sandbox that refuses it) falls back to the chat the user opens, and says so in one line with the instruction to paste; nothing else in the command breaks. While the user's chat runs, the orchestrator watches the round's file as below.
 
 ## Opening
 
