@@ -148,6 +148,9 @@ test('orchestrator.md: a fresh session per round on every host, and the user-ope
   assert.match(text, /on Hermes the task's title is the first line of the `goal`/, 'Hermes: the first line of the goal is the task title, the description of loop principle 9');
   assert.match(text, /Hermes round is the task's result arriving as a new turn: the orchestrator ends its turn after the dispatch instead of running `watch-round\.mjs`/, 'Hermes: the end of a round is the result arriving as a new turn, so the orchestrator ends its turn after the dispatch instead of running watch-round.mjs');
   assert.match(text, /instead of running `watch-round\.mjs`[^.]*five lines in the result[^.]*final marker in the round's file; a result with no marker in the file[^.]*restarted from the file \(loop principle 3\)/, 'Hermes: reads the five lines in the result and the marker in the file; no marker restarts the round from the file');
+  // A session with no later-result consumer (one-shot CLI, cron) gets the result back in the
+  // delegate_task call itself; ending the turn there would end the session at the first round.
+  assert.match(text, /When the `delegate_task` call itself returns the result \(a session with no later-result consumer, such as a one-shot CLI run or cron\), the orchestrator reads it there and goes on/, 'Hermes: a result returned by the call itself is read there, not waited for in a new turn');
   // `rg -n 'Hermes' orchestrator.md` shows the row and a paragraph line that names the wait it replaces.
   const hermesLines = orchestrator().split('\n').filter((line) => line.includes('Hermes'));
   assert.ok(hermesLines.some((line) => !line.startsWith('|') && line.includes('watch-round')), 'the Hermes paragraph line names watch-round, the wait it replaces');

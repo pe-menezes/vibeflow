@@ -122,7 +122,9 @@ In Claude Code the rounds run in the `vibeflow:executor` and `vibeflow:auditor`
 agents; in Codex, in a native subagent or a new task given the briefing's path;
 in Hermes, in a `delegate_task` task whose `goal` points at the briefing and
 whose `context` names the role file, its result arriving as a new turn at the
-end of the round.
+end of the round, or in the `delegate_task` call itself in a session with no
+later-result consumer, such as a one-shot CLI run or cron, where the
+orchestrator reads it and goes on.
 The loop kit (principles, briefing templates, the orchestrator's flow, the PR
 body template, the role files and the scripts) lives in
 `skills/implement/loop/` and ships with the plugin. Its scripts need Node.js 18
