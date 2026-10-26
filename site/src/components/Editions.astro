@@ -14,6 +14,23 @@ const npxEditions = [
   { title: t.cursorTitle, desc: t.cursorDesc, install: t.cursorInstall },
   { title: t.copilotTitle, desc: t.copilotDesc, install: t.copilotInstall },
 ];
+
+// Display markup for a command: pieces that never break inside (`pe-menezes`,
+// `setup-vibeflow@latest`, `--cursor`), joined by spaces or by "/" plus <wbr>, so the
+// line breaks only there (a leading "/", as in `/plugin`, gets no break after it).
+// The copy button keeps the exact command in data-copy.
+const escapeHtml = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const cmdHtml = (cmd: string) =>
+  cmd
+    .split(' ')
+    .map((word) =>
+      word
+        .split(/(?<=[^/]\/)/)
+        .map((piece) => `<span class="ed-cmd-part">${escapeHtml(piece)}</span>`)
+        .join('<wbr>'),
+    )
+    .join(' ');
 ---
 
 <div class="section reveal" id="editions">
@@ -28,11 +45,11 @@ const npxEditions = [
           <h3>{t.codexTitle}</h3>
           <p class="ed-desc">{t.codexDesc}</p>
           <div class="ed-cmd">
-            <span>{t.codexInstall}</span>
+            <span class="ed-cmd-text" set:html={cmdHtml(t.codexInstall)} />
             <button class="copy-btn" data-copy={t.codexInstall} type="button">{t.copyLabel}</button>
           </div>
           <div class="ed-cmd" style="margin-top: 0.5rem;">
-            <span>{t.codexInstall2}</span>
+            <span class="ed-cmd-text" set:html={cmdHtml(t.codexInstall2)} />
             <button class="copy-btn" data-copy={t.codexInstall2} type="button">{t.copyLabel}</button>
           </div>
         </div>
@@ -41,11 +58,11 @@ const npxEditions = [
           <h3>{t.hermesTitle}</h3>
           <p class="ed-desc">{t.hermesDesc}</p>
           <div class="ed-cmd">
-            <span>{t.hermesInstall}</span>
+            <span class="ed-cmd-text" set:html={cmdHtml(t.hermesInstall)} />
             <button class="copy-btn" data-copy={t.hermesInstall} type="button">{t.copyLabel}</button>
           </div>
           <div class="ed-cmd" style="margin-top: 0.5rem;">
-            <span>{t.hermesInstall2}</span>
+            <span class="ed-cmd-text" set:html={cmdHtml(t.hermesInstall2)} />
             <button class="copy-btn" data-copy={t.hermesInstall2} type="button">{t.copyLabel}</button>
           </div>
         </div>
@@ -72,11 +89,11 @@ const npxEditions = [
 
           <div class="ed-tab-content" data-content="cli">
             <div class="ed-cmd">
-              <span>{t.claudeInstall}</span>
+              <span class="ed-cmd-text" set:html={cmdHtml(t.claudeInstall)} />
               <button class="copy-btn" data-copy={t.claudeInstall} type="button">{t.copyLabel}</button>
             </div>
             <div class="ed-cmd" style="margin-top: 0.5rem;">
-              <span>{t.claudeInstall2}</span>
+              <span class="ed-cmd-text" set:html={cmdHtml(t.claudeInstall2)} />
               <button class="copy-btn" data-copy={t.claudeInstall2} type="button">{t.copyLabel}</button>
             </div>
           </div>
@@ -88,7 +105,7 @@ const npxEditions = [
             <h3>{ed.title}</h3>
             <p class="ed-desc">{ed.desc}</p>
             <div class="ed-cmd">
-              <span>{ed.install}</span>
+              <span class="ed-cmd-text" set:html={cmdHtml(ed.install)} />
               <button class="copy-btn" data-copy={ed.install} type="button">{t.copyLabel}</button>
             </div>
           </div>
@@ -142,17 +159,12 @@ const npxEditions = [
     gap: 1.5rem;
   }
 
-  /* Five cards: from 1024px, the two cards with two commands share the first
-     row and the other three share the second, so no card sits alone. */
-  @media (min-width: 1024px) {
-    .ed-grid {
-      grid-template-columns: repeat(6, 1fr);
-    }
-    .ed-grid > .ed-card {
-      grid-column: span 2;
-    }
-    .ed-grid > .ed-card:nth-child(-n + 2) {
-      grid-column: span 3;
+  /* Five cards in two columns above the 768px breakpoint: Codex and Hermes on the
+     first row; Claude Code on the left across the second and third rows, with
+     Cursor and Copilot stacked on its right. Below it, one column (rule at the end). */
+  @media (min-width: 769px) {
+    .ed-grid > .ed-card--claude {
+      grid-row: span 2;
     }
   }
 
@@ -195,9 +207,21 @@ const npxEditions = [
     font-size: 0.72rem;
     color: var(--text-primary);
   }
-  .ed-cmd span {
-    min-width: 0;
-    overflow-wrap: anywhere;
+  /* The command keeps its button beside it while both fit; when the longest
+     unbreakable piece plus the button does not fit, the button drops below. */
+  .ed-cmd {
+    flex-wrap: wrap;
+    gap: 0.15rem 0.5rem;
+  }
+  .ed-cmd-text {
+    flex: 1 1 12rem;
+  }
+  .ed-cmd .copy-btn {
+    margin-left: auto;
+  }
+  /* Pieces come from set:html, so they carry no scoped attribute. */
+  .ed-cmd-text :global(.ed-cmd-part) {
+    white-space: nowrap;
   }
 
   .copy-btn {
@@ -322,6 +346,13 @@ const npxEditions = [
     }
     .ed-grid {
       grid-template-columns: 1fr;
+    }
+    /* Command pieces never break inside, so the narrow card gives them more room. */
+    .ed-card {
+      padding: 1.5rem 1.1rem;
+    }
+    .ed-cmd {
+      padding: 0.65rem 0.7rem;
     }
   }
 </style>
