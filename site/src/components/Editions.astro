@@ -37,6 +37,19 @@ const npxEditions = [
           </div>
         </div>
 
+        <div class="ed-card">
+          <h3>{t.hermesTitle}</h3>
+          <p class="ed-desc">{t.hermesDesc}</p>
+          <div class="ed-cmd">
+            <span>{t.hermesInstall}</span>
+            <button class="copy-btn" data-copy={t.hermesInstall} type="button">{t.copyLabel}</button>
+          </div>
+          <div class="ed-cmd" style="margin-top: 0.5rem;">
+            <span>{t.hermesInstall2}</span>
+            <button class="copy-btn" data-copy={t.hermesInstall2} type="button">{t.copyLabel}</button>
+          </div>
+        </div>
+
         <!-- Claude Code — special card with tabs -->
         <div class="ed-card ed-card--claude">
           <h3>{t.claudeTitle}</h3>
@@ -83,6 +96,7 @@ const npxEditions = [
       </div>
       <div class="ed-notes">
         <p class="ed-note"><InlineCode text={t.editionsLoopKit} /></p>
+        <p class="ed-note"><InlineCode text={t.editionsHermesScan} /></p>
         <p class="ed-note"><InlineCode text={t.editionsGitDisclaimer} /></p>
       </div>
       <div class="ed-tag">{t.editionsTagline}</div>
@@ -128,6 +142,20 @@ const npxEditions = [
     gap: 1.5rem;
   }
 
+  /* Five cards: from 1024px, the two cards with two commands share the first
+     row and the other three share the second, so no card sits alone. */
+  @media (min-width: 1024px) {
+    .ed-grid {
+      grid-template-columns: repeat(6, 1fr);
+    }
+    .ed-grid > .ed-card {
+      grid-column: span 2;
+    }
+    .ed-grid > .ed-card:nth-child(-n + 2) {
+      grid-column: span 3;
+    }
+  }
+
   .ed-card {
     background: var(--bg-card);
     border-radius: 16px;
@@ -166,6 +194,10 @@ const npxEditions = [
     font-family: var(--font-mono);
     font-size: 0.72rem;
     color: var(--text-primary);
+  }
+  .ed-cmd span {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .copy-btn {
