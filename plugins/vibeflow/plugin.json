@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "vibeflow",
-  "version": "1.16.0",
+  "version": "1.17.0",
   "description": "Spec-driven development for AI agents. Analyze real project patterns, define binary completion criteria, implement within explicit guardrails, and audit the result.",
   "author": {
     "name": "Pedro Menezes",
