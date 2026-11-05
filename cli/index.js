@@ -225,7 +225,7 @@ function confinement(paths, fs) {
       if (stat && stat.isSymbolicLink()) {
         hops += 1;
         if (hops > 40) {
-          const err = new Error(`${path} is a loop of links`);
+          const err = new Error(`${path} is a loop of links, or a chain of more than 40 links`);
           err.code = 'ELOOP';
           err.path = path;
           throw err;
@@ -388,7 +388,8 @@ function indentOf(line) {
 // indented less than four columns (a backtick fence's info string has no backtick); the first
 // later line of the same character, at least as long and with nothing after it, closes it, and a
 // fence never closed runs to the end. A line indented by four columns or more, a tab included,
-// is code too.
+// is code too. The info string is the rest of the line, whatever it holds: `[\s\S]`, not `.`,
+// which in JavaScript stops at U+2028 and U+2029, characters a Markdown line carries as text.
 function codeLines(text) {
   const code = new Set();
   let fence = null;
@@ -401,7 +402,7 @@ function codeLines(text) {
     } else if (column >= 4) {
       code.add(start);
     } else {
-      const open = rest.match(/^(`{3,}|~{3,})(.*)$/);
+      const open = rest.match(/^(`{3,}|~{3,})([\s\S]*)$/);
       if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
         fence = open[1];
         code.add(start);
@@ -677,7 +678,7 @@ async function main() {
   const refused = [];
   const unresolved = (err, dest) => {
     const where = err.path ? relative(cwd, err.path) || '.' : dest;
-    if (err.code === 'ELOOP') return { dest, reason: `${where} is a loop of links that never lands on a file or folder`, kind: 'link' };
+    if (err.code === 'ELOOP') return { dest, reason: `${where} is a loop of links, or a chain of more than 40 links, which the installer does not follow`, kind: 'link' };
     return { dest, reason: `${where} cannot be resolved (${err.code || err.message})`, kind: 'unchecked' };
   };
   let root = null;

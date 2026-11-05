@@ -796,6 +796,35 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
   }
 }
 
+// Contract (conserto 7): a fence opener's info string takes any character Markdown allows in it, a Unicode line or paragraph separator (U+2028, U+2029) included, and that separator neither ends the opener's line nor its info string, as micromark reads it (`~~~text\u2028~~~` opens one fence whose info is `text\u2028~~~`). So a pair inside such a fence is the user's example and stays, and the real block below it, if any, updates on every --force.
+// Breaks when: the opener's info string is read with a JavaScript `.` (the state at 1ee5655: `.` stops at U+2028 and U+2029, the opener is not recognised, and the pair inside is taken for the block and its content replaced), or U+2028 goes back to ending a line (then `~~~text` opens and the `~~~` after the separator closes the fence at once, exposing the pair).
+// Not covered by: CODE_LINE_FORMS puts U+2028 in prose only; every fence opener in FENCE_STATES, RA3_FENCES and CODE_LINE_FORMS has an ASCII info string or none.
+const INFO_STRING_FORMS = [
+  { name: 'a tilde fence whose info string has a U+2028, above the real block', body: `# Mine\n\n~~~text\u2028x\n${START}\nUSER-EXAMPLE\n${END}\n~~~\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`~~~text\u2028x\n${START}\nUSER-EXAMPLE\n${END}\n~~~\n`] },
+  { name: 'a backtick fence whose info string has a U+2029, with no real block', body: `# Mine\n\n${T3}text\u2029x\n${START}\nUSER-EXAMPLE\n${END}\n${T3}\n\nEnd.\n`, kept: [`${T3}text\u2029x\n${START}\nUSER-EXAMPLE\n${END}\n${T3}\n\nEnd.\n`], appended: true },
+  { name: 'a tilde fence whose info string is text, a U+2028 and a tilde run that would close it if U+2028 ended the line', body: `# Mine\n\n~~~text\u2028~~~\n${START}\nUSER-EXAMPLE\n${END}\n~~~\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`~~~text\u2028~~~\n${START}\nUSER-EXAMPLE\n${END}\n~~~\n`] },
+];
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of INFO_STRING_FORMS) {
+    test(`conserto 7: --${edition} over ${state.name} keeps the user's example and updates the one real block on every pass`, async () => {
+      const texts = await installStale(edition, state.body);
+      for (const [run, text] of texts.entries()) {
+        const where = `run ${run + 1}\n${JSON.stringify(text)}`;
+        const heading = text.lastIndexOf('## Vibeflow Methodology');
+        assert.equal(text.slice(heading - START.length - 1, heading), `${START}\n`, where);
+        assert.equal(countOf(text, '## Vibeflow Methodology'), 1, where);
+        assert.ok(!/[\r\n]old[\r\n]/.test(text) && !text.includes('STALE-'), where);
+        assert.equal(countOf(text, 'USER-EXAMPLE'), 1, where);
+        for (const piece of state.kept) assert.ok(text.includes(piece), `kept ${JSON.stringify(piece)}\n${where}`);
+        assert.ok(text.indexOf('USER-EXAMPLE') < heading, where);
+        if (state.appended) assert.ok(text.startsWith(state.body), `the user's bytes changed\n${where}`);
+        else assert.equal(countOf(text, 'End.'), 1, where);
+      }
+      assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+    });
+  }
+}
+
 // ---- reaudit 4 of part 3: a fence opened on a list item's own line
 
 // Contract (conserto 5's, "the code reader agrees with Markdown on what is code"): a fence opened on the line of a list item (`- ```` , `1. ~~~`) is a fenced code block inside the item, as CommonMark (micromark) reads it, so a Vibeflow pair the user writes in it, indented to the item's content, is the user's example: it stays byte for byte, and the real block below it, if any, is the one that updates on every --force.

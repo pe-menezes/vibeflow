@@ -858,6 +858,28 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
     }
   });
 
+  // Conserto 7 (B10): the 40-link limit also stops a finite chain with no cycle, so the refusal
+  // names both, the loop and the chain too long to follow, instead of calling a chain a loop.
+  test(`--${edition} refuses a chain of more than 40 links with no loop, and says it is too long, not only a loop`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      writeFileSync(join(workspace.project, 'real.md'), '# Real\n');
+      symlinkSync('real.md', join(workspace.project, 'chain-40'));
+      for (let i = 39; i >= 1; i -= 1) symlinkSync(`chain-${i + 1}`, join(workspace.project, `chain-${i}`));
+      symlinkSync('chain-1', join(workspace.project, 'AGENTS.md'));
+      const projectBefore = snapshot(workspace.project);
+      const result = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
+      assert.equal(result.status, 1, result.out);
+      assert.ok(!result.out.includes('Error:'), `a raw error\n${result.out}`);
+      assert.ok(result.out.includes('AGENTS.md — AGENTS.md is a loop of links, or a chain of more than 40 links'), `names the file, the loop and the chain\n${result.out}`);
+      assert.deepEqual(snapshot(workspace.project), projectBefore, 'wrote in the project');
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+
   test(`--${edition} refusing a shared AGENTS.md says to install from the folder where the real file is, and only then`, async () => {
     const server = await startServer();
     const workspace = makeWorkspace();
