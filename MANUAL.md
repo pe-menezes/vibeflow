@@ -40,7 +40,7 @@ Nem sempre você precisa do pipeline completo. Veja os atalhos abaixo.
 
 ## Instalação
 
-Vibeflow está disponível para 5 agentes. Escolha o seu:
+Vibeflow está disponível para 6 agentes. Escolha o seu:
 
 | Edição | Comando de instalação |
 |--------|----------------------|
@@ -48,13 +48,16 @@ Vibeflow está disponível para 5 agentes. Escolha o seu:
 | **Hermes Agent** | `hermes plugins install pe-menezes/vibeflow/plugins/vibeflow`, depois `hermes plugins enable vibeflow` |
 | **GitHub Copilot** | `npx setup-vibeflow@latest --copilot` |
 | **Cursor** | `npx setup-vibeflow@latest --cursor` |
+| **OpenCode** | `npx setup-vibeflow@latest --opencode` |
 | **Claude Code** | `/plugin marketplace add pe-menezes/vibeflow`, depois `/plugin install vibeflow@vibeflow-marketplace` |
 
 Codex, Claude e Hermes usam o mesmo pacote em [`plugins/vibeflow/`](plugins/vibeflow/),
 com uma única fonte para as skills e manifests específicos para cada host. O
 repositório `pe-menezes/vibeflow-claude` continua como espelho de compatibilidade
 para instalações existentes. Para as outras edições, veja
-[`copilot/`](copilot/) e [`cursor/`](cursor/).
+[`copilot/`](copilot/), [`cursor/`](cursor/) e [`opencode/`](opencode/). O
+OpenCode roda as mesmas skills do pacote, sem mudança, copiadas para o projeto
+pelo instalador.
 
 No Claude Code, o subagente `architect` usa memória persistente de escopo de
 projeto e mantém seu índice no diretório de memória fornecido pelo próprio
@@ -68,13 +71,58 @@ listagem no catálogo do Hermes remove essa pergunta. Abra uma sessão nova
 depois de instalar e peça em linguagem natural, como no Codex: o Hermes não tem
 slash commands para as skills.
 
+No OpenCode, a edição instala no projeto, pelo `--opencode` (CLI 0.18.0): os
+agentes `architect`, `executor` e `auditor` em `.opencode/agents/`, os dez
+commands `/vibeflow-<nome>` em `.opencode/commands/`, as dez skills
+compartilhadas em `.opencode/skills/<nome>/`, com o nome de sempre, porque o
+OpenCode só carrega uma skill cujo nome casa com o da pasta, e o kit do loop em
+`.opencode/skills/implement/loop/`. O bloco do Vibeflow entra no `AGENTS.md` do
+projeto, e o OpenCode carrega esse arquivo nas instruções de sistema: aqui o
+bloco é instrução que o host lê, não a convenção que é no Copilot e no Cursor.
+O `architect` é agente primário, que você escolhe com Tab, como o `plan` do
+próprio OpenCode; `executor` e `auditor` são subagentes que o loop despacha. O
+que este host não tem:
+
+- **Restrição por lista de permitidos.** O OpenCode começa todo agente com um
+  `allow` geral e a última regra que casa ganha, então um agente que só declara
+  o que usa herda tudo, inclusive abrir subagente. Os três agentes do Vibeflow
+  negam tudo primeiro (`"*": deny`) e depois nomeiam o que o papel usa, e
+  nenhum deles abre subagente.
+- **O arquivo de agente do Claude Code.** Um `tools:` separado por vírgulas faz
+  o OpenCode descartar o arquivo sem aviso; por isso a edição traz os próprios
+  agentes, em `opencode/agents/`.
+- **Memória de agente.** O `architect` do OpenCode não tem o `MEMORY.md` do
+  Claude Code: lê `.vibeflow/index.md` primeiro, como o agente do Copilot, e o
+  conhecimento mora só em `.vibeflow/`.
+- **Arquivo fora do projeto sem pergunta.** Os três agentes do Vibeflow usam
+  `external_directory: ask`, o mínimo de que os papéis precisam; os detalhes
+  estão em [`opencode/README.md`](opencode/README.md).
+
+Se o projeto já tem um `.opencode/agents/architect.md` seu (ou `executor.md`,
+`auditor.md`), ou uma skill sua com o nome de um dos dez workflows (`audit`,
+`stats` e os outros), o instalador pula o arquivo sem `--force` e o sobrescreve
+com `--force`. Pulado, o agente ou a skill do Vibeflow não entra, e o bloco do
+`.gitignore` passa a esconder o seu arquivo do git. Os nomes sem prefixo vêm do
+host: o OpenCode dá ao agente o nome do arquivo, o loop chama `executor` e
+`auditor` pelo nome, e o nome da skill tem de casar com o da pasta.
+
+**Como chamar cada workflow:** no Claude Code, `/vibeflow:<nome>` (por exemplo
+`/vibeflow:analyze`); no Cursor e no Copilot, `/vibeflow-<nome>`; no Codex e no
+Hermes, em linguagem natural, e o host escolhe a skill pela descrição. O
+OpenCode tem os dois: pode carregar a skill pela descrição e tem os commands
+`/vibeflow-<nome>`, com hífen e não com dois-pontos. A expansão do command é do
+terminal interativo (o TUI): o `opencode run` não expande e manda o texto cru
+ao modelo, o que foi medido. A expansão no TUI e o Tab até o `architect` não
+foram conferidos nesta edição. Nos títulos abaixo, `vibeflow-<nome>` vale para
+o gesto do seu host.
+
 Uma flag de edição é **obrigatória** — o instalador não tem default para evitar
-instalar na edição errada. `--copilot` e `--cursor` instalam arquivos;
-`--codex` e `--claude` mostram os comandos do marketplace nativo.
+instalar na edição errada. `--copilot`, `--cursor` e `--opencode` instalam
+arquivos; `--codex` e `--claude` mostram os comandos do marketplace nativo.
 
-**Kit do loop:** desde o CLI 0.17.0, `--cursor` e `--copilot` também instalam o kit do loop de execução, em `.cursor/skills/vibeflow-implement/loop/` e em `.github/vibeflow/loop/`, baixando do plugin os arquivos que o `manifest.json` do kit lista (uma fonte só, `plugins/vibeflow/skills/implement/loop/`). Instalação anterior ganha o kit rodando o instalador de novo com `--force`. No Codex, no Claude Code e no Hermes o kit vem dentro do plugin. Veja [O loop de execução](#o-loop-de-execução).
+**Kit do loop:** desde o CLI 0.17.0, `--cursor` e `--copilot` também instalam o kit do loop de execução, em `.cursor/skills/vibeflow-implement/loop/` e em `.github/vibeflow/loop/`, e o `--opencode` (CLI 0.18.0) em `.opencode/skills/implement/loop/`, baixando do plugin os arquivos que o `manifest.json` do kit lista (uma fonte só, `plugins/vibeflow/skills/implement/loop/`). Instalação anterior ganha o kit rodando o instalador de novo com `--force`. No Codex, no Claude Code e no Hermes o kit vem dentro do plugin. Veja [O loop de execução](#o-loop-de-execução).
 
-**Git:** Por padrão, o instalador adiciona ao `.gitignore` os arquivos que instala e a pasta `.vibeflow/` (gerada pelo analyze). Eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`.
+**Git:** Por padrão, o instalador adiciona ao `.gitignore` os arquivos que instala e a pasta `.vibeflow/` (gerada pelo analyze). Eles não entram no commit. Se quiser versionar no git, remova o bloco "Vibeflow" do `.gitignore`. No OpenCode o bloco lista cada caminho instalado, nunca `.opencode/` inteiro, porque essa pasta também guarda arquivo seu.
 
 ## Comandos
 
@@ -203,13 +251,13 @@ Gera um prompt pack auto-contido a partir de uma spec. O prompt pack é o que o 
 
 **Salva em:** `.vibeflow/prompt-packs/<slug>.md`
 
-O prompt pack é **agent-agnostic** — funciona no Codex, Copilot, Cursor, Claude Code, ou qualquer outro.
+O prompt pack é **agent-agnostic** — funciona no Codex, Copilot, Cursor, Claude Code, OpenCode, ou qualquer outro.
 
 ---
 
 ### `vibeflow-implement`
 
-Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec, carrega padrões e convenções de `.vibeflow/`, e implementa seguindo budget, anti-escopo e DoD. Disponível em todas as edições (Codex, Claude Code, Copilot e Cursor).
+Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec, carrega padrões e convenções de `.vibeflow/`, e implementa seguindo budget, anti-escopo e DoD. Disponível em todas as edições (Codex, Claude Code, Hermes, Copilot, Cursor e OpenCode).
 
 **Quando usar:**
 - Spec aprovada, quer implementar com guardrails automáticos
@@ -322,7 +370,7 @@ Antes de casar o catálogo, o Critical Gate lê com git cada arquivo das listas 
 
 Pacote vazio onde se espera mudança (parte do loop, `--package`, `--base` ou re-audit) termina em FAIL, "nothing to audit", nunca PASS. Os casos sem pacote ficam registrados no relatório:
 - trabalho já commitado na branch padrão, num audit à mão sem `--base`: o audit roda sobre o código como antes e grava `Review package: none (no uncommitted or branch change; --base <ref> audits committed work)`; o Critical Gate diz que nenhum diff foi escaneado;
-- kit ausente: `Review package: none (kit not installed)`, com o comando que instala; o mesmo registro vale quando o comando ainda mostra `${CLAUDE_SKILL_DIR}` literal, ou o caminho do kit começa em `/../`, porque a variável não foi substituída (Claude Code anterior a 2.1.69), e aí a dica é atualizar o Claude Code, não o plugin; no Codex e no Hermes, que nunca substituem a variável, o audit resolve o caminho a partir da pasta da skill e roda de novo;
+- kit ausente: `Review package: none (kit not installed)`, com o comando que instala; o mesmo registro vale quando o comando ainda mostra `${CLAUDE_SKILL_DIR}` literal, ou o caminho do kit começa em `/../`, porque a variável não foi substituída (Claude Code anterior a 2.1.69), e aí a dica é atualizar o Claude Code, não o plugin; no OpenCode, no Codex e no Hermes, que nunca substituem a variável, o audit resolve o caminho a partir da pasta da skill e roda de novo;
 - Node.js ausente ou abaixo de 18: `Review package: none (Node.js 18+ not found)`.
 Nesses dois últimos, o diff é calculado como antes (`git diff HEAD` ou `git diff <base>...HEAD`).
 
@@ -400,7 +448,7 @@ Mostra estatísticas dos audits: taxa de pass/fail, padrões mais violados, gaps
 
 **Audits em andamento:** um relatório com `**Verdict: pending**` é um audit em andamento ou interrompido. O `stats` conta esses à parte ("N audits in progress or interrupted") e os deixa fora de todas as outras contagens: audits analisados, PASS, PARTIAL e FAIL e suas porcentagens, DoD, padrões e convenções, a tendência e as contagens de findings.
 
-**Seção Loop:** quando `.vibeflow/loop/` tem ledgers (os `.md` da pasta, menos o `config.md`, que guarda a configuração do loop), o relatório ganha `### Loop`: partes, taxa de PASS no primeiro audit, média de rodadas de conserto, mediana do relógio do despacho ao PASS, as rodadas de cada parte, findings por severidade e por causa, findings `closed-by-probe` e audits em sessão nova contra mesma sessão. Os números vêm do `loop-stats.mjs` do kit, que pula linha malformada com aviso em vez de adivinhar. Sem ledgers, o relatório é o de antes. O comando não escreve nada em disco. No Claude Code, o `Bash(node:*)` do `stats` pré-aprova os comandos `node` enquanto ele roda, para o `loop-stats.mjs` rodar sem pergunta; qualquer outro comando continua possível depois da pergunta de permissão. Se o comando ainda mostra `${CLAUDE_SKILL_DIR}` literal, no Claude Code ele diz que atualizar o Claude Code resolve e mostra o resto do relatório; no Codex e no Hermes, que nunca substituem a variável, ele resolve o caminho a partir da pasta da skill e roda de novo.
+**Seção Loop:** quando `.vibeflow/loop/` tem ledgers (os `.md` da pasta, menos o `config.md`, que guarda a configuração do loop), o relatório ganha `### Loop`: partes, taxa de PASS no primeiro audit, média de rodadas de conserto, mediana do relógio do despacho ao PASS, as rodadas de cada parte, findings por severidade e por causa, findings `closed-by-probe` e audits em sessão nova contra mesma sessão. Os números vêm do `loop-stats.mjs` do kit, que pula linha malformada com aviso em vez de adivinhar. Sem ledgers, o relatório é o de antes. O comando não escreve nada em disco. No Claude Code, o `Bash(node:*)` do `stats` pré-aprova os comandos `node` enquanto ele roda, para o `loop-stats.mjs` rodar sem pergunta; qualquer outro comando continua possível depois da pergunta de permissão. Se o comando ainda mostra `${CLAUDE_SKILL_DIR}` literal, no Claude Code ele diz que atualizar o Claude Code resolve e mostra o resto do relatório; no OpenCode, no Codex e no Hermes, que nunca substituem a variável, ele resolve o caminho a partir da pasta da skill e roda de novo.
 
 ---
 
@@ -498,14 +546,14 @@ Aqui sim usa discover — porque o problema ainda não tá claro. O discover vai
 
 Desligado por padrão. Sem `--loop`, o `implement` roda o pipeline de sempre (fases 0 a 8) e as specs escritas antes da 1.16 continuam válidas. Os comandos `gen-spec`, `discover`, `analyze`, `audit` e `stats` mudam também usados sem o loop, e o bloco Changed do `CHANGELOG.md` lista cada mudança: entre elas, as permissões (`Edit` e `Write` no `audit`, `Bash(node:*)` no `stats`), o cabeçalho, as seções novas e a regra de veredito do relatório do `audit` (um `defect` ou `risk-gap` aberto segura abaixo de PASS, e a confiança deixou de pesar), o pacote de revisão gravado em `.vibeflow/reviews/` com o diff da merge-base até a árvore de trabalho, o `--probes` acima, o `[NEEDS CLARIFICATION: ...]`, a checagem antes de salvar e a lista `Risk code:` do `gen-spec` (que, sem ninguém para responder, como num `claude -p`, pode terminar nas perguntas sem salvar a spec), o `## Clarifications` do `discover` e o bloco Tests and Pitfalls do `analyze`, que só roda a suíte do projeto com `--measure`. O loop existe porque quem implementou não deve aprovar: um auditor numa sessão que não viu o trabalho acha o que o implementador deixou passar.
 
-**Como liga:** `implement <spec> --loop` numa rodada, ou `loop: true` no front matter de `.vibeflow/loop/config.md` para o projeto (as chaves `loop` e `commit-rounds` são `false` por padrão); `--no-loop` desliga numa rodada. No Claude Code, o loop precisa da versão 2.1.69 ou mais nova, a que substitui `${CLAUDE_SKILL_DIR}` no corpo da skill, e o `audit` rodado à mão também, para montar o pacote de revisão: numa versão anterior ele não acha o kit, grava `Review package: none (kit not installed)` e calcula o diff como antes; quem resolve é atualizar o Claude Code, não o plugin.
+**Como liga:** `implement <spec> --loop` numa rodada, ou `loop: true` no front matter de `.vibeflow/loop/config.md` para o projeto (as chaves `loop` e `commit-rounds` são `false` por padrão); `--no-loop` desliga numa rodada. No Claude Code, o loop precisa da versão 2.1.69 ou mais nova, a que substitui `${CLAUDE_SKILL_DIR}` no corpo da skill, e o `audit` rodado à mão também, para montar o pacote de revisão: numa versão anterior ele não acha o kit, grava `Review package: none (kit not installed)` e calcula o diff como antes; quem resolve é atualizar o Claude Code, não o plugin. No OpenCode, o `implement --loop` roda a partir do Build, que tem as skills, as ferramentas de edição e a ferramenta `subagent`: o `architect` não orquestra o loop, porque não abre subagente. Uma rodada inteira do loop no OpenCode não foi medida: nem se a chamada em primeiro plano tem teto de duração, nem como chega a você a pergunta de permissão de um subagente enquanto a orquestradora espera.
 
 **Papéis:**
 - **Orquestradora:** a sessão onde você chamou o `implement`. Corta o trabalho em partes, escreve o briefing de cada rodada, despacha cada rodada para uma sessão nova, confere de fora e mantém o ledger. Não implementa.
 - **Executor:** implementa uma parte (ou uma rodada de conserto) numa sessão nova, vermelho antes do verde, com arquivo de progresso a cada marco; não commita nem chama outro agente. Responde em cinco linhas: estado (DONE, DONE WITH CAVEATS, NEEDS CONTEXT ou BLOCKED), arquivos, placar dos testes, ressalvas, caminho do progresso.
 - **Auditor e reauditor:** o audit e o re-audit, cada um numa sessão nova, escrevendo só o relatório e o arquivo de sondas; nunca consertam.
 
-**Sessão nova em cada host:** no Claude Code, os agentes `vibeflow:executor` e `vibeflow:auditor` do plugin; no Codex, o subagente nativo ou uma task nova com o caminho do briefing; no Hermes, uma task do `delegate_task`, com o `goal` apontando o briefing e o `context` nomeando o arquivo do papel no kit — o fim da rodada é o resultado da task chegando como um turno novo, então a orquestradora encerra o turno depois do despacho em vez de ficar observando o arquivo da rodada, e um resultado sem o marcador final no arquivo reinicia a rodada a partir dele; numa sessão sem quem receba o resultado depois, como uma execução de um disparo pela CLI ou um cron, a própria chamada do `delegate_task` devolve o resultado, e a orquestradora o lê ali e segue, porque encerrar o turno encerraria a sessão com o loop parado na primeira rodada; no Cursor e no Copilot, um chat novo que você abre com a linha que a orquestradora escreve ("Read `<briefing>` and follow it."). Host que não abre sessão nova cai nesse chat aberto por você, e diz isso. Os papéis moram uma vez só, em `roles/executor.md` e `roles/auditor.md` do kit, e os agentes do Claude Code têm o mesmo texto.
+**Sessão nova em cada host:** no Claude Code, os agentes `vibeflow:executor` e `vibeflow:auditor` do plugin; no Codex, o subagente nativo ou uma task nova com o caminho do briefing; no Hermes, uma task do `delegate_task`, com o `goal` apontando o briefing e o `context` nomeando o arquivo do papel no kit — o fim da rodada é o resultado da task chegando como um turno novo, então a orquestradora encerra o turno depois do despacho em vez de ficar observando o arquivo da rodada, e um resultado sem o marcador final no arquivo reinicia a rodada a partir dele; numa sessão sem quem receba o resultado depois, como uma execução de um disparo pela CLI ou um cron, a própria chamada do `delegate_task` devolve o resultado, e a orquestradora o lê ali e segue, porque encerrar o turno encerraria a sessão com o loop parado na primeira rodada; no OpenCode, uma chamada da ferramenta `subagent` em primeiro plano, ao agente `executor` nas rodadas de executor e de conserto e ao `auditor` nas de auditoria (ao `general` do host quando a edição não está instalada, nunca ao `explore`, que nega edição), com a `description` levando o título da rodada: o fim da rodada é a chamada retornando a resposta final do subagente, e uma resposta sem o marcador final no arquivo reinicia a rodada a partir dele; no Cursor e no Copilot, um chat novo que você abre com a linha que a orquestradora escreve ("Read `<briefing>` and follow it."). Host que não abre sessão nova cai nesse chat aberto por você, e diz isso. Os papéis moram uma vez só, em `roles/executor.md` e `roles/auditor.md` do kit, e os agentes do Claude Code e o `executor` e o `auditor` do OpenCode têm o mesmo texto depois do front matter.
 
 **O fluxo de uma parte:**
 1. Abertura: spec achada, branch de feature (nunca a branch padrão; nela o loop para e pede um nome), `git status` e `git stash list` lidos com dono para cada arquivo sujo, e o OK para commitar as rodadas, pedido uma vez por feature (ou `commit-rounds: true`). Antes de trabalho longo, `preflight.mjs`.
@@ -532,7 +580,7 @@ Desligado por padrão. Sem `--loop`, o `implement` roda o pipeline de sempre (fa
 
 **Limites:** o PR é o fim do trabalho do agente. Ele nunca faz merge, nunca faz deploy, nunca aplica migração em ambiente compartilhado e nunca lê produção. Medição com dado real usa homologação ou dado anonimizado entregue pelo time.
 
-**O kit:** fica em `plugins/vibeflow/skills/implement/loop/` (no Cursor, `.cursor/skills/vibeflow-implement/loop/`; no Copilot, `.github/vibeflow/loop/`; no Hermes, como no Codex, dentro do plugin instalado): os nove princípios do loop, os quatro modelos de briefing, o fluxo da orquestradora, o modelo do corpo do PR, os papéis e nove scripts Node sem dependência (`preflight`, `who-reads`, `check-briefing`, `perimeter`, `review-package`, `check-probes`, `watch-pr`, `watch-round`, `loop-stats`). O `README.md` do kit diz o que cada script faz e o que cada código de saída significa. Os scripts precisam de Node.js 18 ou mais novo e saem com 64 abaixo disso, todos sem exceção, e também quando não conseguem rodar, para um erro nunca se passar por veredicto, com as exceções que o `README.md` do kit dá: o `review-package.mjs` sai com 2 em todo erro, o `preflight.mjs` sai com 2 (parar) num caminho que não é repositório git, e o `watch-pr.mjs` guarda o 64 para argumento errado e sai na primeira leitura com 69 quando o `gh` não está instalado ou não pode ser executado, e com 77 quando não tem login ou quando o GitHub recusa a credencial (`gh` sai com 1 e `HTTP 401` no erro), dizendo o que fazer (sem login, rodar `gh auth login`; com a credencial recusada, rodar `gh auth login`, com `--hostname <host>` fora do github.com, ou, quando uma delas está definida, trocar o token nas variáveis que o `gh` lê para aquele host antes do login guardado: `GH_TOKEN` e `GITHUB_TOKEN` no github.com e num host `ghe.com`, `GH_ENTERPRISE_TOKEN` e `GITHUB_ENTERPRISE_TOKEN` num GitHub Enterprise Server), porque esperar não conserta nenhum desses casos; qualquer outra falha de leitura (`gh` com saída 1 sem `HTTP 401`, um 403, rede, um 5xx) é repetida até o teto. O `watch-pr.mjs --repo` aceita `<owner/repo>` e `<host>/<owner/repo>`, as formas que o `gh --repo` aceita, e qualquer outra forma sai com 64. O `check-probes.mjs --dir` aceita pasta relativa à raiz do repositório ou absoluta, as duas resolvidas por links simbólicos, e sai com 64, dizendo o motivo, para pasta que não existe, que não é pasta ou que fica fora do repositório. O `preflight.mjs` não imprime credencial de URL nenhuma: de toda URL que imprime (o `origin` em qualquer forma e cada `--probe-url`) sai tudo entre `<esquema>://` e a última `@`, espaço incluído, e, numa URL sem esquema, tudo até a última `@` (a parte de usuário de um remoto `usuário@host:caminho`, ou um `usuário:senha@host/caminho`); um caminho com `@` perde mais que a credencial. O `preflight.mjs --power` (bateria, tampa e sono) é só do macOS. Plataformas: testado em macOS e Linux (os scripts do kit e a suíte de testes do repositório); Windows não foi medido.
+**O kit:** fica em `plugins/vibeflow/skills/implement/loop/` (no Cursor, `.cursor/skills/vibeflow-implement/loop/`; no Copilot, `.github/vibeflow/loop/`; no OpenCode, `.opencode/skills/implement/loop/`, ao lado da skill `implement`; no Hermes, como no Codex, dentro do plugin instalado): os nove princípios do loop, os quatro modelos de briefing, o fluxo da orquestradora, o modelo do corpo do PR, os papéis e nove scripts Node sem dependência (`preflight`, `who-reads`, `check-briefing`, `perimeter`, `review-package`, `check-probes`, `watch-pr`, `watch-round`, `loop-stats`). O `README.md` do kit diz o que cada script faz e o que cada código de saída significa. Os scripts precisam de Node.js 18 ou mais novo e saem com 64 abaixo disso, todos sem exceção, e também quando não conseguem rodar, para um erro nunca se passar por veredicto, com as exceções que o `README.md` do kit dá: o `review-package.mjs` sai com 2 em todo erro, o `preflight.mjs` sai com 2 (parar) num caminho que não é repositório git, e o `watch-pr.mjs` guarda o 64 para argumento errado e sai na primeira leitura com 69 quando o `gh` não está instalado ou não pode ser executado, e com 77 quando não tem login ou quando o GitHub recusa a credencial (`gh` sai com 1 e `HTTP 401` no erro), dizendo o que fazer (sem login, rodar `gh auth login`; com a credencial recusada, rodar `gh auth login`, com `--hostname <host>` fora do github.com, ou, quando uma delas está definida, trocar o token nas variáveis que o `gh` lê para aquele host antes do login guardado: `GH_TOKEN` e `GITHUB_TOKEN` no github.com e num host `ghe.com`, `GH_ENTERPRISE_TOKEN` e `GITHUB_ENTERPRISE_TOKEN` num GitHub Enterprise Server), porque esperar não conserta nenhum desses casos; qualquer outra falha de leitura (`gh` com saída 1 sem `HTTP 401`, um 403, rede, um 5xx) é repetida até o teto. O `watch-pr.mjs --repo` aceita `<owner/repo>` e `<host>/<owner/repo>`, as formas que o `gh --repo` aceita, e qualquer outra forma sai com 64. O `check-probes.mjs --dir` aceita pasta relativa à raiz do repositório ou absoluta, as duas resolvidas por links simbólicos, e sai com 64, dizendo o motivo, para pasta que não existe, que não é pasta ou que fica fora do repositório. O `preflight.mjs` não imprime credencial de URL nenhuma: de toda URL que imprime (o `origin` em qualquer forma e cada `--probe-url`) sai tudo entre `<esquema>://` e a última `@`, espaço incluído, e, numa URL sem esquema, tudo até a última `@` (a parte de usuário de um remoto `usuário@host:caminho`, ou um `usuário:senha@host/caminho`); um caminho com `@` perde mais que a credencial. O `preflight.mjs --power` (bateria, tampa e sono) é só do macOS. Plataformas: testado em macOS e Linux (os scripts do kit e a suíte de testes do repositório); Windows não foi medido.
 
 ## A pasta `.vibeflow/`
 
@@ -555,7 +603,7 @@ Essa é a base de conhecimento do projeto. Tudo aqui é gerado e atualizado pelo
 └── reviews/          # Pacotes de revisão e o corpo do PR (material de trabalho, fora do git)
 ```
 
-**Commite no git, menos `reviews/`.** Os outros docs são feitos para serem versionados e evoluírem com o projeto. `reviews/` é material de trabalho: guarda os pacotes de revisão (a cópia do diff e dos arquivos novos que cada audit lê, refeita a cada auditoria) e o corpo do PR, e não se versiona. Acrescente `.vibeflow/reviews/` ao `.gitignore`. A cópia que o audit faz antes de sabotar nunca fica em `.vibeflow/`: vai para uma pasta temporária fora do projeto e é apagada quando o arquivo volta e o hash confere. (Nas instalações do Cursor e do Copilot, o instalador já põe `.vibeflow/` inteiro no `.gitignore`.)
+**Commite no git, menos `reviews/`.** Os outros docs são feitos para serem versionados e evoluírem com o projeto. `reviews/` é material de trabalho: guarda os pacotes de revisão (a cópia do diff e dos arquivos novos que cada audit lê, refeita a cada auditoria) e o corpo do PR, e não se versiona. Acrescente `.vibeflow/reviews/` ao `.gitignore`. A cópia que o audit faz antes de sabotar nunca fica em `.vibeflow/`: vai para uma pasta temporária fora do projeto e é apagada quando o arquivo volta e o hash confere. (Nas instalações do Cursor, do Copilot e do OpenCode, o instalador já põe `.vibeflow/` inteiro no `.gitignore`.)
 
 ## Guardrails
 
@@ -577,7 +625,7 @@ Regras que estão sempre ativas, independente do comando:
 - **Rode `analyze` antes de tudo.** Sem `.vibeflow/`, os outros comandos funcionam mas produzem resultados piores.
 - **`discover` não é obrigatório.** Se a ideia já está clara, pule direto para `gen-spec`.
 - **`quick` é o atalho do dia a dia.** Para tasks que cabem em 4 arquivos, não precisa do pipeline completo.
-- **O prompt pack é agent-agnostic.** Copie e cole em qualquer agente de IA — Codex, Copilot, Cursor, Claude Code, ChatGPT, etc.
+- **O prompt pack é agent-agnostic.** Copie e cole em qualquer agente de IA — Codex, Copilot, Cursor, Claude Code, OpenCode, ChatGPT, etc.
 - **`teach` mantém o conhecimento vivo.** Depois de aprender algo novo sobre o projeto, ensine o `.vibeflow/`.
 - **`audit` é o quality gate.** Rode sempre depois de implementar. Se falhar, use o prompt pack incremental que ele gera.
 - **Tudo responde no idioma do input.** Escreva em português, receba em português. Termos técnicos em inglês são ok.

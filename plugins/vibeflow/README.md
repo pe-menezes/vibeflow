@@ -3,7 +3,8 @@
 > Spec-driven development for AI agents. Define what to build, let the agent build it right.
 
 Vibeflow is a shared plugin for Codex, Claude Code, Claude Desktop and Hermes
-Agent. It analyzes your codebase, generates grounded specs with a binary
+Agent, and OpenCode runs its skills unchanged from the project. It analyzes
+your codebase, generates grounded specs with a binary
 Definition of Done, implements within explicit scope and budget guardrails, and
 audits the result against your project's real patterns.
 
@@ -59,6 +60,23 @@ Existing installations that use `pe-menezes/vibeflow-claude` remain
 supported. That repository is a compatibility mirror generated from this
 package.
 
+### OpenCode
+
+OpenCode does not read this package as a plugin. The installer copies its ten
+skills, unchanged, into the project, with three agents and ten commands of the
+OpenCode edition:
+
+```bash
+npx setup-vibeflow@latest --opencode
+```
+
+The skills land in `.opencode/skills/<name>/`, keeping their names, because
+OpenCode loads a skill only when its name matches its folder; the agents in
+`.opencode/agents/` and the commands in `.opencode/commands/`. The Claude Code
+agent files in `agents/` do not load there: a comma-separated `tools:` field
+makes OpenCode drop the file without a word. See
+[`opencode/README.md`](https://github.com/pe-menezes/vibeflow/blob/main/opencode/README.md).
+
 ### Local development
 
 From a checkout of the main repository:
@@ -88,7 +106,10 @@ audit <spec>         → verify the result with evidence
 
 In Claude, invoke the namespaced commands such as `/vibeflow:analyze`. In
 Codex and Hermes, describe the same goal naturally and the matching skill is
-discovered from its description.
+discovered from its description. OpenCode does both: it can load the skill by
+its description, and its interactive terminal has the `/vibeflow-<name>`
+commands, with a hyphen (`/vibeflow-analyze`); `opencode run` does not expand
+them, and the expansion in that terminal was not checked for this edition.
 
 ## Workflows
 
@@ -124,18 +145,26 @@ in Hermes, in a `delegate_task` task whose `goal` points at the briefing and
 whose `context` names the role file, its result arriving as a new turn at the
 end of the round, or in the `delegate_task` call itself in a session with no
 later-result consumer, such as a one-shot CLI run or cron, where the
-orchestrator reads it and goes on.
+orchestrator reads it and goes on; in OpenCode, in a foreground call of its
+`subagent` tool to the `executor` or `auditor` agent of the OpenCode edition
+(the host's `general` when the edition is not installed), the round ending
+when the call returns. In OpenCode the orchestrator is Build: the `architect`
+agent cannot open a subagent. Not checked for this edition: a whole
+`implement --loop` run on OpenCode, whether a foreground `subagent` call has a
+time ceiling, and how a subagent's permission question reaches you.
 The loop kit (principles, briefing templates, the orchestrator's flow, the PR
 body template, the role files and the scripts) lives in
-`skills/implement/loop/` and ships with the plugin. Its scripts need Node.js 18
+`skills/implement/loop/` and ships with the plugin; the OpenCode installer
+copies it to `.opencode/skills/implement/loop/`, beside the `implement` skill.
+Its scripts need Node.js 18
 or later and exit 64 below it; `preflight.mjs --power` is macOS only. In
 Claude Code the loop needs version 2.1.69 or newer, the one that substitutes
 `${CLAUDE_SKILL_DIR}` in a skill's body. An `audit` run by hand needs it too,
 to build its review package: on an older version it does not find the kit,
 records `Review package: none (kit not installed)` and computes the diff as
-before, and updating Claude Code, not the plugin, fixes it. In Codex and
-Hermes the variable is never substituted, and the skills resolve the kit path
-from their own folder.
+before, and updating Claude Code, not the plugin, fixes it. In OpenCode, Codex
+and Hermes the variable is never substituted, and the skills resolve the kit
+path from their own folder.
 
 The pull request at the end is opened with `gh`, so it needs a remote on GitHub
 (or GitHub Enterprise) and `gh auth status` ok for its host; the `pr ending`
@@ -205,7 +234,10 @@ the executor and auditor agents whose bodies are byte-identical to
 Codex exposes only the shared skills and uses `.vibeflow/` as durable project
 context through its native task/agent model. Hermes, reading `plugin.json`,
 exposes only the shared skills as well: it ignores `agents/` and accepts
-`allowed-tools` in a skill's frontmatter without applying it.
+`allowed-tools` in a skill's frontmatter without applying it. OpenCode gets the
+skills from the installer, not from a manifest, and its own three agents, which
+restrict by denial: an allow-list restricts nothing on that host, so each
+agent opens by denying everything and then names what its role uses.
 
 ## Philosophy
 
@@ -221,8 +253,10 @@ exposes only the shared skills as well: it ignores `agents/` and accepts
 The source of truth is this directory in
 [`pe-menezes/vibeflow`](https://github.com/pe-menezes/vibeflow). The repository
 root carries separate Claude and Codex marketplace catalogs that both resolve
-to this package, and Hermes installs it from the package's path in the
-repository. GitHub Actions publishes a Claude-only compatibility view to
+to this package, Hermes installs it from the package's path in the
+repository, and the `setup-vibeflow` installer copies its skills and loop kit
+into a project for OpenCode. GitHub Actions publishes a Claude-only
+compatibility view to
 [`pe-menezes/vibeflow-claude`](https://github.com/pe-menezes/vibeflow-claude).
 
 ## Documentation

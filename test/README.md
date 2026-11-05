@@ -142,9 +142,11 @@ commit and with the same strength (the new sentence pinned as whole as the old
 one, the old one asserted gone when it must not come back); never loosen a test
 just to let a reworded sentence pass.
 
-It requires the same ten workflows in the shared Claude/Codex plugin, Cursor
-skills, and Copilot prompt files; validates host-specific names and frontmatter;
-checks essential behavior anchors for each workflow; and verifies that the
-Claude and Codex catalogs resolve to the same versioned plugin. It also covers
-the loop kit's scripts, contracts and installer. GitHub Actions runs the same
+It requires the same ten workflows in the shared Claude/Codex/Hermes plugin,
+Cursor skills, Copilot prompt files and OpenCode commands; validates
+host-specific names and frontmatter, including the OpenCode agents' permission
+maps; checks essential behavior anchors for each workflow; and verifies that
+the Claude, Codex and Hermes manifests resolve to the same versioned plugin. It
+also covers the loop kit's scripts, contracts and installer, and the CLI's
+install of each file-based edition, OpenCode's shared skills and kit included. GitHub Actions runs the same
 command for every pull request and push to `main`.

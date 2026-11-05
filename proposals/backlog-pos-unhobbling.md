@@ -1,6 +1,7 @@
 # Backlog: findings from the unhobbling series
 
-> Status: **open** — items 1–3 and 5 remain; item 4 closed 2026-08-15.
+> Status: **open** — items 2, 3 and 5 remain; item 4 closed 2026-08-15, item 1
+> closed 2026-11-05.
 > Origin: audits of `unhobbling-geracao-5`, parts 1 and 7
 > (`.vibeflow/audits/`, gitignored — this file is the durable copy).
 > Related: `proposals/unhobbling-style.md` (the series' normative guide).
@@ -15,7 +16,22 @@ descending order of who they hurt, plus one gap in the series' own validation.
 Closing that gap added a fifth: item 5 was found by the smoke test the gap
 called for. Section 6 collects the cross-review findings of 2026-08-16.
 
-## 1. `--force` reinstall accumulates a stray `<!-- vibeflow:end -->`
+## 1. `--force` reinstall accumulates a stray `<!-- vibeflow:end -->` — closed
+
+**Closed 2026-11-05, in `633665b`** (`fix(cli): the installer never replaces
+text outside a real delimiter pair`), which finished what `9a43347` started on
+the OpenCode branch. The fix took the first approach below: `cli/index.js`
+takes the source's own delimiter pair off before wrapping (`withoutOwnDelimiters`),
+so the shipped files keep their markers for whoever copies them by hand, and
+the installed `AGENTS.md` and `copilot-instructions.md` both get one pair. The
+migration is handled: the start right above the replaced block and the ends
+right below it, with only blank space between, go with it, so a file from CLI
+0.17 settles on one pair. The CLI also replaces only a real pair (the first
+`end` with a `start` above it), so an orphan delimiter of the user's stays
+where it is instead of pairing with the block. The CHANGELOG note is in the
+entry that ships it, under Changed; the pattern doc lives in
+`.vibeflow/patterns/delimited-block-upsert.md`. The text below is the finding
+as it was recorded.
 
 **Real installer bug, pre-existing, affects installed users.** Found while
 verifying part 7; identical before and after that part, in both editions.

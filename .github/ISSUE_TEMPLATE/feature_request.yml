@@ -29,6 +29,8 @@ body:
         - All editions
         - Codex
         - Claude Code
+        - Hermes Agent
+        - OpenCode
         - Cursor
         - GitHub Copilot
         - CLI (setup-vibeflow)

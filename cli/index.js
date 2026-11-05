@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, parse, relative, sep } from 'node:path';
 import pc from 'picocolors';
 
 // --- Config ---
@@ -28,9 +28,12 @@ const BASE_URL = (process.env[BASE_URL_ENV] || DEFAULT_BASE_URL).replace(/\/+$/,
 // The loop kit has one source, inside the plugin's implement skill; its manifest lists the
 // files, so a kit file added later needs no change here.
 const KIT_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills/implement/loop`;
+// The shared skills, which an edition that runs them unchanged installs from their one source.
+const SKILLS_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills`;
 const KIT_MANIFEST = 'manifest.json';
-// A manifest entry is a plain relative path: no absolute path, no "..", no hidden segment,
-// so nothing it names can land outside the edition's kit folder.
+// A manifest entry is a plain relative path: no absolute path, no "..", no hidden segment. That
+// stops lexical traversal only: a link already in the user's project can still lead out of it,
+// and what keeps every write inside the project is the check in landsOutside, before any write.
 const KIT_PATH_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/;
 
 const COPILOT_FILES = [
@@ -63,6 +66,20 @@ const CURSOR_FILES = [
   { src: 'skills/vibeflow-stats/SKILL.md', dest: '.cursor/skills/vibeflow-stats/SKILL.md' },
 ];
 
+// OpenCode runs the shared skills as they are: each goes to .opencode/skills/<name>/, keeping
+// its name, because the host loads a skill only when its name matches its folder, and the
+// implement skill reaches the kit as loop/ beside its SKILL.md. An entry with its own baseUrl
+// is fetched from there instead of the edition's base.
+const OPENCODE_WORKFLOWS = ['analyze', 'audit', 'discover', 'gen-spec', 'hotfix', 'implement', 'prompt-pack', 'quick', 'stats', 'teach'];
+
+const OPENCODE_FILES = [
+  { src: 'agents/architect.md', dest: '.opencode/agents/architect.md' },
+  { src: 'agents/executor.md', dest: '.opencode/agents/executor.md' },
+  { src: 'agents/auditor.md', dest: '.opencode/agents/auditor.md' },
+  ...OPENCODE_WORKFLOWS.map((name) => ({ src: `commands/vibeflow-${name}.md`, dest: `.opencode/commands/vibeflow-${name}.md` })),
+  ...OPENCODE_WORKFLOWS.map((name) => ({ src: `${name}/SKILL.md`, dest: `.opencode/skills/${name}/SKILL.md`, baseUrl: SKILLS_BASE_URL })),
+];
+
 const EDITIONS = {
   copilot: {
     name: 'Copilot',
@@ -84,6 +101,17 @@ const EDITIONS = {
     markerLegacy: null,
     agentsSrc: 'AGENTS.md',
     doneMessage: `Type ${pc.bold('/vibeflow-analyze')} in Cursor Agent chat to get started.`,
+    handleCopilotInstructions: false,
+  },
+  opencode: {
+    name: 'OpenCode',
+    baseUrl: `${BASE_URL}/opencode`,
+    files: OPENCODE_FILES,
+    kitDest: '.opencode/skills/implement/loop',
+    marker: '.opencode/commands/vibeflow-analyze.md',
+    markerLegacy: null,
+    agentsSrc: 'AGENTS.md',
+    doneMessage: `Type ${pc.bold('/vibeflow-analyze')} in OpenCode to get started.`,
     handleCopilotInstructions: false,
   },
 };
@@ -109,6 +137,15 @@ const GITIGNORE_BLOCKS = {
 .cursor/rules/vibeflow-architect.mdc
 .cursor/skills/vibeflow-*/
 `,
+  opencode: `
+# Vibeflow — installed + generated (remove to track in git)
+.vibeflow/
+.opencode/agents/architect.md
+.opencode/agents/executor.md
+.opencode/agents/auditor.md
+.opencode/commands/vibeflow-*.md
+${OPENCODE_WORKFLOWS.map((name) => `.opencode/skills/${name}/`).join('\n')}
+`,
 };
 
 // What a reinstall may add to a Vibeflow block that is already in .gitignore. A line that an
@@ -124,6 +161,7 @@ const GITIGNORE_UPDATES = {
       '.github/vibeflow/', // 0.17.0: the loop kit folder
     ],
     cursor: [],
+    opencode: [],
   },
 };
 
@@ -137,6 +175,122 @@ function ensureDir(dirPath) {
   if (!existsSync(dirPath)) {
     mkdirSync(dirPath, { recursive: true });
   }
+}
+
+// The confinement: where a write lands, and whether it may happen. It takes its path module and
+// its lstatSync and readlinkSync as arguments and reaches nothing else, so the same code runs
+// under Windows path rules in the suite (test/cli-kit.test.mjs), which the CI cannot run otherwise.
+function confinement(paths, fs) {
+  const { sep, dirname, join, isAbsolute, parse, relative } = paths;
+  const { lstatSync, readlinkSync } = fs;
+
+  // A path's root comes from the path itself: `/`, a drive (`C:\`) or a share (`\\srv\share\`),
+  // never the separator alone, which on Windows is no root at all (`\C:` names nothing). Its
+  // names are what follows the root, split at every separator the path rules accept.
+  const separators = sep === '\\' ? /[\\/]+/ : /\/+/;
+  const rootOf = (path) => {
+    const root = parse(path).root;
+    return root ? join(root) : root;
+  };
+  const namesOf = (path, root) => path.slice(root.length).split(separators).filter(Boolean);
+
+  // Where a write to the absolute `path` lands, walked the way the file system walks it: one name
+  // at a time from the root, a link replaced by its target where it stands, so a `..` after a link
+  // climbs from where the link really leads (`bridge/../x` with `bridge -> ../outside/deep` lands
+  // in `outside/x`), never from the name as written. A name that is not there yet is a folder or
+  // the file the installer would create, so it stands as written. A loop of links throws ELOOP.
+  function landing(path) {
+    const start = parse(path).root;
+    const names = namesOf(path, start);
+    let real = rootOf(path);
+    let missing = false;
+    let hops = 0;
+    while (names.length > 0) {
+      const name = names.shift();
+      if (name === '.') continue;
+      if (name === '..') {
+        real = dirname(real);
+        missing = false;
+        continue;
+      }
+      const next = join(real, name);
+      let stat = null;
+      if (!missing) {
+        try {
+          stat = lstatSync(next);
+        } catch (err) {
+          if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+        }
+      }
+      if (stat && stat.isSymbolicLink()) {
+        hops += 1;
+        if (hops > 40) {
+          const err = new Error(`${path} is a loop of links, or a chain of more than 40 links`);
+          err.code = 'ELOOP';
+          err.path = path;
+          throw err;
+        }
+        // A relative target stands where the link stands; an absolute one starts again at its own
+        // root, and one rooted at the separator alone (`\x` on Windows) at the root it is read on.
+        const target = readlinkSync(next);
+        if (isAbsolute(target)) {
+          const own = parse(target).root;
+          names.unshift(...namesOf(target, own));
+          real = /^[\\/]$/.test(own) ? rootOf(real) : rootOf(target);
+        } else {
+          names.unshift(...namesOf(target, ''));
+        }
+        continue;
+      }
+      missing = !stat;
+      real = next;
+    }
+    return real;
+  }
+
+  // Why writing `dest` (relative to cwd) would leave the project, or null when it would not: the
+  // file and every folder on its way, links resolved, must land inside the project's real root.
+  // --force does not change this: it overwrites Vibeflow's own files, it never follows a link out.
+  function landsOutside(root, cwd, dest) {
+    const inside = (path) => path === root || path.startsWith(root.endsWith(sep) ? root : root + sep);
+    const parts = dest.split('/');
+    for (let i = 1; i <= parts.length; i += 1) {
+      const prefix = parts.slice(0, i).join('/');
+      const real = landing(join(cwd, prefix));
+      if (!inside(real)) return `${prefix} leads to ${real}, outside the project (${root})`;
+    }
+    return null;
+  }
+
+  // Why writing `dest` would change a file under another name, or null when it would not: a
+  // regular file with more than one name (a hard link) changes under every name it has, wherever
+  // those are, outside the project included, so it is refused even when a link in the project
+  // leads to it.
+  function hardLinked(root, cwd, dest) {
+    const real = landing(join(cwd, dest));
+    let stat;
+    try {
+      stat = lstatSync(real);
+    } catch (err) {
+      if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null;
+      throw err;
+    }
+    if (!stat.isFile() || stat.nlink < 2) return null;
+    return `${relative(root, real) || real} is a hard link, one of ${stat.nlink} names for the same file: writing it would change the file under each of them, wherever they are`;
+  }
+
+  return { landing, landsOutside, hardLinked };
+}
+
+const { landing, landsOutside, hardLinked } = confinement({ sep, dirname, join, isAbsolute, parse, relative }, { lstatSync, readlinkSync });
+
+// Writes `dest` only where landsOutside and hardLinked allow, creating the folders on its way.
+function writeInside(root, cwd, dest, content) {
+  const reason = landsOutside(root, cwd, dest) || hardLinked(root, cwd, dest);
+  if (reason) throw new Error(reason);
+  const destPath = join(cwd, dest);
+  ensureDir(dirname(destPath));
+  writeFileSync(destPath, content, 'utf-8');
 }
 
 async function downloadFile(baseUrl, srcPath) {
@@ -178,10 +332,10 @@ async function loadKitFiles(kitDest) {
   return manifest.files.map((path) => ({ src: path, dest: `${kitDest}/${path}`, baseUrl: KIT_BASE_URL }));
 }
 
+// The text below the source's `---`.
 function extractAgentsAppendContent(fullContent) {
   const separatorIndex = fullContent.indexOf('\n---\n');
-  if (separatorIndex === -1) return fullContent;
-  return fullContent.slice(separatorIndex + '\n---\n'.length);
+  return separatorIndex === -1 ? fullContent : fullContent.slice(separatorIndex + '\n---\n'.length);
 }
 
 function extractCopilotInstructionsSnippet(fullContent) {
@@ -190,30 +344,154 @@ function extractCopilotInstructionsSnippet(fullContent) {
   return match[1].trim();
 }
 
+// A source that carries its own delimiters, for whoever copies the file by hand (the editions'
+// AGENTS.md and the Copilot snippet do), gives what is between them: upsertDelimitedBlock adds the pair.
+function withoutOwnDelimiters(block) {
+  const starts = markerLines(block, VIBEFLOW_START);
+  const ends = markerLines(block, VIBEFLOW_END);
+  if (starts.length === 0 || ends.length === 0) return block;
+  const startIdx = starts[0];
+  const endIdx = ends[ends.length - 1];
+  if (endIdx < startIdx) return block;
+  return block.slice(startIdx + VIBEFLOW_START.length, endIdx);
+}
+
+// The lines of a text as Markdown reads them, the one reading that codeLines and markerLines
+// share: a line ends at LF, CRLF or a lone CR, and nothing else ends it. Gives where each line
+// starts and its text without the line end; a text that ends with a line end ends with an empty line.
+function linesOf(text) {
+  const lines = [];
+  const lineEnd = /\r\n|\r|\n/g;
+  let start = 0;
+  for (let match = lineEnd.exec(text); match; match = lineEnd.exec(text)) {
+    lines.push({ start, text: text.slice(start, match.index) });
+    start = match.index + match[0].length;
+  }
+  lines.push({ start, text: text.slice(start) });
+  return lines;
+}
+
+// The column where a line's text starts, a tab advancing to the next multiple of four, and that text.
+function indentOf(line) {
+  let column = 0;
+  let i = 0;
+  for (; i < line.length; i += 1) {
+    if (line[i] === ' ') column += 1;
+    else if (line[i] === '\t') column += 4 - (column % 4);
+    else break;
+  }
+  return { column, rest: line.slice(i) };
+}
+
+// The code in a Markdown text: the offset where each code line starts, and the fence still open
+// at the end of the text, or null. A fence is a line of three or more backticks or tildes,
+// indented less than four columns (a backtick fence's info string has no backtick); the first
+// later line of the same character, at least as long and with nothing after it, closes it, and a
+// fence never closed runs to the end. A line indented by four columns or more, a tab included,
+// is code too. The info string is the rest of the line, whatever it holds: `[\s\S]`, not `.`,
+// which in JavaScript stops at U+2028 and U+2029, characters a Markdown line carries as text.
+function codeLines(text) {
+  const code = new Set();
+  let fence = null;
+  for (const { start, text: line } of linesOf(text)) {
+    const { column, rest } = indentOf(line);
+    if (fence) {
+      code.add(start);
+      const close = column < 4 && rest.match(/^(`{3,}|~{3,})[ \t]*$/);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+    } else if (column >= 4) {
+      code.add(start);
+    } else {
+      const open = rest.match(/^(`{3,}|~{3,})([\s\S]*)$/);
+      if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
+        fence = open[1];
+        code.add(start);
+      }
+    }
+  }
+  return { code, open: fence };
+}
+
+// A delimiter is a marker that is the whole line, spaces around it aside, outside any code. A
+// marker quoted inside a line (between backticks, at the head of a sentence) or written in a
+// fenced or indented code block (the user's example of the format) is the user's text, never a
+// delimiter. Gives the offset of the marker in each such line, in file order.
+function markerLines(text, marker) {
+  const offsets = [];
+  const { code } = codeLines(text);
+  const whole = new RegExp(`^([ \\t]*)${marker}[ \\t]*$`);
+  for (const { start, text: line } of linesOf(text)) {
+    const match = whole.exec(line);
+    if (match && !code.has(start)) offsets.push(start + match[1].length);
+  }
+  return offsets;
+}
+
+// The block goes at the end of the file, outside any code, and every byte the user wrote stays:
+// a last line with no line end gets one, a fence the user left open there is closed with its own
+// fence, which renders the same, so the block is found on the next run, and a blank line goes
+// before the block unless the file already ends in one.
+function appendBlock(existing, delimited) {
+  const { open } = codeLines(existing);
+  let text = existing;
+  if (linesOf(text).at(-1).text !== '') text += '\n';
+  if (open) text += `${open}\n`;
+  const lines = linesOf(text);
+  if (!(lines.length >= 3 && lines.at(-2).text.trim() === '')) text += '\n';
+  return text + delimited + '\n';
+}
+
+// The block in the user's file is a real pair: the first end that has a start above it, with the
+// last start above that end. A start with no end below it, or an end with no start above it, is
+// the user's text and stays where it is, along with everything around it.
+function findDelimitedPair(existing) {
+  const starts = markerLines(existing, VIBEFLOW_START);
+  for (const endIdx of markerLines(existing, VIBEFLOW_END)) {
+    const above = starts.filter((startIdx) => startIdx < endIdx);
+    if (above.length > 0) return { startIdx: above[above.length - 1], endIdx };
+  }
+  return null;
+}
+
 function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
-  const delimited = `${VIBEFLOW_START}\n${newBlock.trim()}\n${VIBEFLOW_END}`;
+  const delimited = `${VIBEFLOW_START}\n${withoutOwnDelimiters(newBlock).trim()}\n${VIBEFLOW_END}`;
 
   if (!existing) {
     return { content: delimited + '\n', action: 'created' };
   }
 
-  const startIdx = existing.indexOf(VIBEFLOW_START);
-  const endIdx = existing.indexOf(VIBEFLOW_END);
+  const pair = findDelimitedPair(existing);
 
-  if (startIdx !== -1 && endIdx !== -1) {
-    const before = existing.slice(0, startIdx);
-    const after = existing.slice(endIdx + VIBEFLOW_END.length);
+  if (pair) {
+    // An older CLI wrapped a source that had its own delimiters, and each rerun left one more
+    // end delimiter: the extra start right above the block and the ends right below it, with
+    // only blank space between, go with it. Only delimiter lines go; anything else around the
+    // pair, a marker quoted in the user's text included, is left alone.
+    const blank = (text) => text.trim() === '';
+    let blockStart = pair.startIdx;
+    const starts = markerLines(existing, VIBEFLOW_START);
+    for (let i = starts.length - 1; i >= 0; i -= 1) {
+      if (starts[i] >= blockStart) continue;
+      if (!blank(existing.slice(starts[i] + VIBEFLOW_START.length, blockStart))) break;
+      blockStart = starts[i];
+    }
+    const before = existing.slice(0, blockStart);
+    let blockEnd = pair.endIdx + VIBEFLOW_END.length;
+    for (const endIdx of markerLines(existing, VIBEFLOW_END)) {
+      if (endIdx < blockEnd) continue;
+      if (!blank(existing.slice(blockEnd, endIdx))) break;
+      blockEnd = endIdx + VIBEFLOW_END.length;
+    }
+    const after = existing.slice(blockEnd);
     const content = before + delimited + after;
     return { content, action: 'replaced' };
   }
 
   if (legacyMarker && existing.includes(legacyMarker)) {
-    const content = existing.trimEnd() + '\n\n' + delimited + '\n';
-    return { content, action: 'legacy-append', warning: true };
+    return { content: appendBlock(existing, delimited), action: 'legacy-append', warning: true };
   }
 
-  const content = existing.trimEnd() + '\n\n' + delimited + '\n';
-  return { content, action: 'appended' };
+  return { content: appendBlock(existing, delimited), action: 'appended' };
 }
 
 // The .gitignore block is a marker comment line followed by its paths, up to the first blank
@@ -251,6 +529,7 @@ function detectEdition() {
   const args = process.argv.slice(2);
   if (args.includes('--cursor')) return 'cursor';
   if (args.includes('--copilot')) return 'copilot';
+  if (args.includes('--opencode')) return 'opencode';
   if (args.includes('--codex')) return 'codex';
   if (args.includes('--claude') || args.includes('--claude-code')) return 'claude';
   return null;
@@ -301,6 +580,7 @@ function printUsage() {
   console.log(`  ${pc.bold('Editions:')}`);
   console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions, vibeflow/loop)')}`);
   console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills, the loop kit in skills/vibeflow-implement/loop)')}`);
+  console.log(`    ${pc.cyan('--opencode')}  Install for OpenCode ${pc.dim('(.opencode/agents, commands, skills, the loop kit in skills/implement/loop)')}`);
   console.log(`    ${pc.cyan('--codex')}     Show install instructions for Codex ${pc.dim('(plugin system)')}`);
   console.log(`    ${pc.cyan('--claude')}    Show install instructions for Claude Code ${pc.dim('(plugin system)')}`);
   console.log('');
@@ -314,6 +594,7 @@ function printUsage() {
   console.log(`  ${pc.bold('Examples:')}`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --copilot`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor`);
+  console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --opencode`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --codex`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --claude`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor --force`);
@@ -384,7 +665,53 @@ async function main() {
     log(pc.yellow('!'), `loop kit — ${KIT_BASE_URL}/${KIT_MANIFEST} answered 404, so this base has no kit; installing ${edition.name} without it (implement --loop and stats need it: rerun with --force once the base has it)`);
     kitFiles = [];
   }
-  const files = [...edition.files.map((file) => ({ ...file, baseUrl: edition.baseUrl })), ...kitFiles];
+  const files = [...edition.files.map((file) => ({ baseUrl: edition.baseUrl, ...file })), ...kitFiles];
+
+  // Every path the install may write is checked before the first download: a link in the project
+  // that leads out of it refuses the whole install, so nothing lands half installed or outside.
+  // A check that fails refuses like a path that leads out, with its reason: the project folder
+  // itself first, since every other path is measured against where it lands. Each refusal has a
+  // kind (a link, a hard link, a check that could not run), and the closing lines give the remedy
+  // for each kind that is there, since what undoes a link does nothing for a hard link.
+  const writes = [...files.map((file) => file.dest), 'AGENTS.md', '.gitignore'];
+  if (edition.handleCopilotInstructions) writes.push('.github/copilot-instructions.md');
+  const refused = [];
+  const unresolved = (err, dest) => {
+    const where = err.path ? relative(cwd, err.path) || '.' : dest;
+    if (err.code === 'ELOOP') return { dest, reason: `${where} is a loop of links, or a chain of more than 40 links, which the installer does not follow`, kind: 'link' };
+    return { dest, reason: `${where} cannot be resolved (${err.code || err.message})`, kind: 'unchecked' };
+  };
+  let root = null;
+  try {
+    root = landing(cwd);
+  } catch (err) {
+    refused.push({ ...unresolved(err, '.'), reason: `the project folder ${cwd} cannot be resolved (${err.code || err.message})` });
+  }
+  for (const dest of root === null ? [] : writes) {
+    try {
+      const reason = landsOutside(root, cwd, dest);
+      const hardLink = reason ? null : hardLinked(root, cwd, dest);
+      if (reason) refused.push({ dest, reason, kind: 'link', outside: true });
+      else if (hardLink) refused.push({ dest, reason: hardLink, kind: 'hard link' });
+    } catch (err) {
+      // A path whose links never land anywhere is refused like one that lands outside.
+      refused.push(unresolved(err, dest));
+    }
+  }
+  if (refused.length > 0) {
+    for (const { dest, reason } of refused) log(pc.red('x'), `${dest} — ${reason}`);
+    log(pc.red('x'), 'Nothing was installed, and --force does not change that.');
+    const kinds = new Set(refused.map(({ kind }) => kind));
+    if (kinds.has('link')) log(pc.dim('→'), 'Every file Vibeflow writes must land inside the project: replace each link above with a folder or file of its own, or point it inside the project.');
+    if (kinds.has('hard link')) log(pc.dim('→'), 'A file with more than one name changes under every one of them when it is written, inside the project or not: give each hard link above a file of its own (copy it, then move the copy over it), and run the installer again.');
+    if (kinds.has('unchecked')) log(pc.dim('→'), 'Where each path above leads could not be checked, so nothing is written through it: fix what its line names, and run the installer again.');
+    if (refused.some(({ dest, outside }) => dest === 'AGENTS.md' && outside)) {
+      const shared = dirname(landing(join(cwd, 'AGENTS.md')));
+      log(pc.dim('→'), `AGENTS.md is shared through a link: to install with it, run the installer from ${shared}, the folder where the real file is.`);
+    }
+    console.log('');
+    process.exit(1);
+  }
 
   // Download and install files
   let created = 0;
@@ -392,7 +719,6 @@ async function main() {
 
   for (const file of files) {
     const destPath = join(cwd, file.dest);
-    const destDir = join(destPath, '..');
 
     if (existsSync(destPath) && !force) {
       log(pc.dim('-'), `${pc.dim(file.dest)} ${pc.dim('(exists, skipped)')}`);
@@ -402,8 +728,7 @@ async function main() {
 
     try {
       const content = await downloadFile(file.baseUrl, file.src);
-      ensureDir(destDir);
-      writeFileSync(destPath, content, 'utf-8');
+      writeInside(root, cwd, file.dest, content);
       log(pc.green('+'), file.dest);
       created++;
     } catch (err) {
@@ -421,7 +746,7 @@ async function main() {
     const appendContent = extractAgentsAppendContent(agentsSource);
     const existing = existsSync(agentsPath) ? readFileSync(agentsPath, 'utf-8') : null;
     const result = upsertDelimitedBlock(existing, appendContent, '## Vibeflow Methodology');
-    writeFileSync(agentsPath, result.content, 'utf-8');
+    writeInside(root, cwd, 'AGENTS.md', result.content);
 
     if (result.action === 'created') {
       log(pc.green('+'), `AGENTS.md ${pc.dim('(created)')}`);
@@ -446,7 +771,7 @@ async function main() {
         const snippet = extractCopilotInstructionsSnippet(snippetSource);
         if (snippet) {
           const result = upsertDelimitedBlock(existing, snippet, '## Vibeflow');
-          writeFileSync(copilotInstrPath, result.content, 'utf-8');
+          writeInside(root, cwd, '.github/copilot-instructions.md', result.content);
 
           if (result.action === 'replaced') {
             log(pc.green('+'), `.github/copilot-instructions.md ${pc.dim('(vibeflow snippet updated)')}`);
@@ -477,7 +802,7 @@ async function main() {
       if (result.action === 'present') {
         log(pc.dim('-'), `${pc.dim('.gitignore')} ${pc.dim('(Vibeflow block already present)')}`);
       } else {
-        writeFileSync(gitignorePath, result.content, 'utf-8');
+        writeInside(root, cwd, '.gitignore', result.content);
         if (result.action === 'appended') {
           log(pc.green('+'), `.gitignore ${pc.dim('(Vibeflow paths added — remove that block to track in git)')}`);
         } else {

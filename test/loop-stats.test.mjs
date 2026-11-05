@@ -422,22 +422,24 @@ test('the plugin stats command blames an older Claude Code, not the plugin, when
   assert.ok(missing, 'no missing-kit rule after the substitution check');
   assert.ok(text.indexOf(rule) < text.indexOf(missing[0]), 'the substitution check must come before the missing-kit advice');
   assert.match(missing[0], /`node` answers "Cannot find module" for it on a normal absolute path/, missing[0]);
-  assert.match(missing[0], /the loop kit is not installed: say that updating the Vibeflow plugin installs it/, missing[0]);
+  assert.match(missing[0], /the loop kit is not installed: say that updating the Vibeflow plugin installs it, and where this SKILL\.md sits in `\.opencode\/skills\/`, `npx setup-vibeflow@latest --opencode --force` \(setup-vibeflow 0\.18\.0 or newer\) installs it/, missing[0]);
   assert.doesNotMatch(missing[0], /Claude Code/, missing[0]);
 });
 
-test('the plugin stats command sends Codex and Hermes to the relative kit path before blaming an older Claude Code', () => {
-  // The plugin skill is also the Codex and Hermes edition, where the variable
-  // is never substituted: a Codex or Hermes user must not be told to update
-  // Claude Code.
+test('the plugin stats command sends OpenCode, Codex and Hermes to the relative kit path before blaming an older Claude Code', () => {
+  // The plugin skill is also the OpenCode, Codex and Hermes edition, where the
+  // variable is never substituted: a user of any of the three must not be told
+  // to update Claude Code.
   const text = readFileSync(join(REPO_ROOT, 'plugins/vibeflow/skills/stats/SKILL.md'), 'utf8').replace(/\s+/g, ' ');
   const found = text.match(/\* When the command still shows `\$\{CLAUDE_SKILL_DIR\}`[^*]*/);
   assert.ok(found, 'no rule for a command that still shows ${CLAUDE_SKILL_DIR}');
   const rule = found[0];
-  const codex = 'In Codex and Hermes the variable is never substituted: resolve the kit path relative to the directory of this SKILL.md and run the command again.';
-  assert.ok(rule.includes(codex), `the substitution rule does not send Codex and Hermes to the relative path: ${rule}`);
+  const codex = 'In OpenCode, Codex and Hermes the variable is never substituted: resolve the kit path relative to the directory of this SKILL.md and run the command again.';
+  assert.ok(rule.includes(codex), `the substitution rule does not send OpenCode, Codex and Hermes to the relative path: ${rule}`);
   const update = rule.indexOf('updating Claude Code fixes it');
   assert.ok(update > 0, rule);
-  assert.ok(rule.indexOf(codex) < update, 'the Codex and Hermes case must come before the advice to update Claude Code');
-  assert.ok(rule.indexOf(codex) < rule.indexOf('older than 2.1.69'), 'the Codex and Hermes case must come before the older Claude Code case');
+  assert.ok(rule.indexOf(codex) < update, 'the OpenCode, Codex and Hermes case must come before the advice to update Claude Code');
+  assert.ok(rule.indexOf(codex) < rule.indexOf('older than 2.1.69'), 'the OpenCode, Codex and Hermes case must come before the older Claude Code case');
+  assert.ok(text.includes('--json` (in OpenCode, Codex and Hermes, the same path relative to the directory of this SKILL.md)'),
+    'the command line names the same OpenCode, Codex and Hermes path');
 });
