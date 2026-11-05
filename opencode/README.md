@@ -29,11 +29,39 @@ OpenCode names an agent and a command after its file, so the agents are `archite
 
 ## Installation
 
+At the root of the target repo:
+
+```bash
+npx setup-vibeflow@latest --opencode
+```
+
+The installer (CLI 0.18.0) writes into the project:
+
+- the `architect`, `executor` and `auditor` agents to `.opencode/agents/`
+- the ten `/vibeflow-<name>` commands to `.opencode/commands/`
+- the ten shared skills to `.opencode/skills/<name>/`, keeping their names
+- the loop kit to `.opencode/skills/implement/loop/`, beside the `implement` skill
+- the Vibeflow block of `opencode/AGENTS.md` into the project's `AGENTS.md`, which OpenCode loads into its system instructions
+- a Vibeflow block in `.gitignore` that lists `.vibeflow/` and each installed path, never `.opencode/` as a whole, which also holds your own files; remove the block if you want to track them in git
+
+> If the project already has its own `.opencode/agents/architect.md`,
+> `executor.md` or `auditor.md`, or its own skill named like one of the ten
+> workflows (`audit`, `stats`, ...), the installer skips that file without
+> `--force` and overwrites it with `--force`. Skipped, the Vibeflow agent or
+> skill is missing, and the installer's `.gitignore` block hides your own file
+> from git. The names come from the host: OpenCode names an agent after its
+> file, the loop calls `executor` and `auditor` by name, and a skill's name has
+> to match its folder.
+
+### By hand, without the CLI
+
 At the root of the target repo, copy the files into `.opencode/`:
 
 - `opencode/agents/*.md` into `.opencode/agents/`
 - `opencode/commands/*.md` into `.opencode/commands/`
-- each `plugins/vibeflow/skills/<name>/` folder, with everything inside it, into `.opencode/skills/<name>/`
+- each `plugins/vibeflow/skills/<name>/` folder, with everything inside it, into `.opencode/skills/<name>/` (the `implement` folder carries the loop kit in `loop/`)
+
+Then add the content of `opencode/AGENTS.md` to the project's `AGENTS.md`, as the note at its top says.
 
 OpenCode does not read Claude Code plugins (`~/.claude/plugins/`), so the Claude Code plugin being installed on the same machine does not make the workflows available here.
 

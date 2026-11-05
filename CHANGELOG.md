@@ -1,8 +1,8 @@
 # Changelog
 
-### v1.18.0 (2026-11-05)
+### Unreleased
 
-The OpenCode edition: the shared skills, unchanged, installed into the project with three agents and ten commands. The installer's Vibeflow block also stops piling up delimiters and losing text, which changes what the Copilot and Cursor installs write too.
+The OpenCode edition: the shared skills, unchanged, installed into the project with three agents and ten commands. The installer's Vibeflow block also stops piling up delimiters and losing text, which changes what the Copilot and Cursor installs write too. The version number, the date and the bump of the three manifests are the maintainer's at release time.
 
 **Added**
 
