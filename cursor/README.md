@@ -37,7 +37,7 @@ At the root of the target repo:
 npx setup-vibeflow@latest --cursor
 ```
 
-The installer copies the files, creates the directories, and appends to `AGENTS.md` automatically.
+The installer copies the files, creates the directories, and appends to `AGENTS.md` automatically. It refuses to install, with or without `--force`, when a file it would write, or a folder on the way to it, leads outside the project through a link; if your `AGENTS.md` is a link to a shared file, run the installer from the folder where the real file is.
 
 ## Usage
 
