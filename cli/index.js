@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative, resolve, sep } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
 import pc from 'picocolors';
 
 // --- Config ---
@@ -177,26 +177,50 @@ function ensureDir(dirPath) {
   }
 }
 
-// Where a write to `path` lands, every link resolved, including a link to a path that is not
-// there yet (the write would create it) and the folders the installer would create.
+// Where a write to the absolute `path` lands, walked the way the file system walks it: one name
+// at a time from the root, a link replaced by its target where it stands, so a `..` after a link
+// climbs from where the link really leads (`bridge/../x` with `bridge -> ../outside/deep` lands
+// in `outside/x`), never from the name as written. A name that is not there yet is a folder or
+// the file the installer would create, so it stands as written. A loop of links throws ELOOP.
 function landing(path) {
-  for (let hops = 0; hops < 64; hops += 1) {
-    try {
-      return realpathSync(path);
-    } catch (err) {
-      if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+  const names = path.split(sep).filter(Boolean);
+  let real = sep;
+  let missing = false;
+  let hops = 0;
+  while (names.length > 0) {
+    const name = names.shift();
+    if (name === '.') continue;
+    if (name === '..') {
+      real = dirname(real);
+      missing = false;
+      continue;
     }
+    const next = join(real, name);
     let stat = null;
-    try {
-      stat = lstatSync(path);
-    } catch (err) {
-      if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+    if (!missing) {
+      try {
+        stat = lstatSync(next);
+      } catch (err) {
+        if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+      }
     }
-    if (!stat) return join(landing(dirname(path)), basename(path));
-    if (!stat.isSymbolicLink()) throw new Error(`${path} cannot be resolved`);
-    path = resolve(dirname(path), readlinkSync(path));
+    if (stat && stat.isSymbolicLink()) {
+      hops += 1;
+      if (hops > 40) {
+        const err = new Error(`${path} is a loop of links`);
+        err.code = 'ELOOP';
+        err.path = path;
+        throw err;
+      }
+      const target = readlinkSync(next);
+      names.unshift(...target.split(sep).filter(Boolean));
+      if (isAbsolute(target)) real = sep;
+      continue;
+    }
+    missing = !stat;
+    real = next;
   }
-  throw new Error(`${path} goes through too many links`);
+  return real;
 }
 
 // Why writing `dest` (relative to cwd) would leave the project, or null when it would not: the
@@ -213,9 +237,26 @@ function landsOutside(root, cwd, dest) {
   return null;
 }
 
-// Writes `dest` only where landsOutside allows, creating the folders on its way.
+// Why writing `dest` would change a file under another name, or null when it would not: a
+// regular file with more than one name (a hard link) changes under every name it has, wherever
+// those are, outside the project included, so it is refused even when a link in the project
+// leads to it.
+function hardLinked(root, cwd, dest) {
+  const real = landing(join(cwd, dest));
+  let stat;
+  try {
+    stat = lstatSync(real);
+  } catch (err) {
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null;
+    throw err;
+  }
+  if (!stat.isFile() || stat.nlink < 2) return null;
+  return `${relative(root, real) || real} is a hard link, one of ${stat.nlink} names for the same file: writing it would change the file under each of them, wherever they are`;
+}
+
+// Writes `dest` only where landsOutside and hardLinked allow, creating the folders on its way.
 function writeInside(root, cwd, dest, content) {
-  const reason = landsOutside(root, cwd, dest);
+  const reason = landsOutside(root, cwd, dest) || hardLinked(root, cwd, dest);
   if (reason) throw new Error(reason);
   const destPath = join(cwd, dest);
   ensureDir(dirname(destPath));
@@ -285,32 +326,57 @@ function withoutOwnDelimiters(block) {
   return block.slice(startIdx + VIBEFLOW_START.length, endIdx);
 }
 
+// The lines of a text as Markdown reads them, the one reading that codeLines and markerLines
+// share: a line ends at LF, CRLF or a lone CR, and nothing else ends it. Gives where each line
+// starts and its text without the line end; a text that ends with a line end ends with an empty line.
+function linesOf(text) {
+  const lines = [];
+  const lineEnd = /\r\n|\r|\n/g;
+  let start = 0;
+  for (let match = lineEnd.exec(text); match; match = lineEnd.exec(text)) {
+    lines.push({ start, text: text.slice(start, match.index) });
+    start = match.index + match[0].length;
+  }
+  lines.push({ start, text: text.slice(start) });
+  return lines;
+}
+
+// The column where a line's text starts, a tab advancing to the next multiple of four, and that text.
+function indentOf(line) {
+  let column = 0;
+  let i = 0;
+  for (; i < line.length; i += 1) {
+    if (line[i] === ' ') column += 1;
+    else if (line[i] === '\t') column += 4 - (column % 4);
+    else break;
+  }
+  return { column, rest: line.slice(i) };
+}
+
 // The code in a Markdown text: the offset where each code line starts, and the fence still open
 // at the end of the text, or null. A fence is a line of three or more backticks or tildes,
-// indented up to three spaces (a backtick fence's info string has no backtick); the first later
-// line of the same character, at least as long and with nothing after it, closes it, and a fence
-// never closed runs to the end. A line indented by four spaces or more is code too.
+// indented less than four columns (a backtick fence's info string has no backtick); the first
+// later line of the same character, at least as long and with nothing after it, closes it, and a
+// fence never closed runs to the end. A line indented by four columns or more, a tab included,
+// is code too.
 function codeLines(text) {
   const code = new Set();
   let fence = null;
-  for (let pos = 0; pos <= text.length;) {
-    const newline = text.indexOf('\n', pos);
-    const stop = newline === -1 ? text.length : newline;
-    const line = text.slice(pos, stop).replace(/\r$/, '');
+  for (const { start, text: line } of linesOf(text)) {
+    const { column, rest } = indentOf(line);
     if (fence) {
-      code.add(pos);
-      const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+      code.add(start);
+      const close = column < 4 && rest.match(/^(`{3,}|~{3,})[ \t]*$/);
       if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+    } else if (column >= 4) {
+      code.add(start);
     } else {
-      const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      const open = rest.match(/^(`{3,}|~{3,})(.*)$/);
       if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
         fence = open[1];
-        code.add(pos);
-      } else if (/^ {4}/.test(line)) {
-        code.add(pos);
+        code.add(start);
       }
     }
-    pos = stop + 1;
   }
   return { code, open: fence };
 }
@@ -322,18 +388,26 @@ function codeLines(text) {
 function markerLines(text, marker) {
   const offsets = [];
   const { code } = codeLines(text);
-  const line = new RegExp(`^([ \\t]*)${marker}[ \\t]*\\r?$`, 'gm');
-  for (let match = line.exec(text); match; match = line.exec(text)) {
-    if (!code.has(match.index)) offsets.push(match.index + match[1].length);
+  const whole = new RegExp(`^([ \\t]*)${marker}[ \\t]*$`);
+  for (const { start, text: line } of linesOf(text)) {
+    const match = whole.exec(line);
+    if (match && !code.has(start)) offsets.push(start + match[1].length);
   }
   return offsets;
 }
 
-// The block goes at the end of the file, outside any code: a fence the user left open there is
-// closed first with its own fence, which renders the same, so the block is found on the next run.
+// The block goes at the end of the file, outside any code, and every byte the user wrote stays:
+// a last line with no line end gets one, a fence the user left open there is closed with its own
+// fence, which renders the same, so the block is found on the next run, and a blank line goes
+// before the block unless the file already ends in one.
 function appendBlock(existing, delimited) {
   const { open } = codeLines(existing);
-  return existing.trimEnd() + (open ? `\n${open}` : '') + '\n\n' + delimited + '\n';
+  let text = existing;
+  if (linesOf(text).at(-1).text !== '') text += '\n';
+  if (open) text += `${open}\n`;
+  const lines = linesOf(text);
+  if (!(lines.length >= 3 && lines.at(-2).text.trim() === '')) text += '\n';
+  return text + delimited + '\n';
 }
 
 // The block in the user's file is a real pair: the first end that has a start above it, with the
@@ -564,14 +638,16 @@ async function main() {
 
   // Every path the install may write is checked before the first download: a link in the project
   // that leads out of it refuses the whole install, so nothing lands half installed or outside.
-  const root = realpathSync(cwd);
+  const root = landing(cwd);
   const writes = [...files.map((file) => file.dest), 'AGENTS.md', '.gitignore'];
   if (edition.handleCopilotInstructions) writes.push('.github/copilot-instructions.md');
   const refused = [];
   for (const dest of writes) {
     try {
       const reason = landsOutside(root, cwd, dest);
+      const hardLink = reason ? null : hardLinked(root, cwd, dest);
       if (reason) refused.push({ dest, reason, outside: true });
+      else if (hardLink) refused.push({ dest, reason: hardLink, outside: false });
     } catch (err) {
       // A path whose links never land anywhere is refused like one that lands outside.
       const where = err.path ? relative(cwd, err.path) || '.' : dest;

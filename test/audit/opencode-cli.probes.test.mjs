@@ -485,12 +485,13 @@ async function startServerWith(overrides) {
   return { url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-// Contract: "the whole line" tolerates spaces and tabs around the marker and a CRLF line end, so a real pair the user indented, or a file saved with Windows line ends, is recognised as the block: one pair, its old content gone, the user's lines around it kept, and the same file on every rerun.
-// Breaks when: the marker test is rewritten as a line comparison (`text.split('\n')` and `line === marker`, or `line.trim() === marker` over a split that leaves the `\r`), or the regex loses its `[ \t]*`: the real pair is no longer seen, a second block is appended under it with the old content left in place.
+// Contract: "the whole line" tolerates up to three spaces before the marker, spaces and tabs after it, and a CRLF or CR line end, so a real pair the user indented, or a file saved with Windows or old Mac line ends, is recognised as the block: one pair, its old content gone, the user's lines around it kept, and the same file on every rerun. (A tab before the marker makes the line code, the user's example: that is CODE_LINE_FORMS below. Until conserto 5 this table asked a tab-indented pair to be a real pair, and that is what wiped a tab-indented example.)
+// Breaks when: the marker test is rewritten as a line comparison (`text.split('\n')` and `line === marker`, or `line.trim() === marker` over a split that leaves the `\r`), the regex loses its leading spaces or its trailing `[ \t]*`, or a lone CR stops ending a line: the real pair is no longer seen, a second block is appended under it with the old content left in place.
 // Not covered by: every block case of the executor and of the earlier audits writes the markers at column 0 with LF line ends.
 const LINE_FORMS = [
   { name: 'a real pair indented with spaces', body: `# My rules\r\n\n  ${START}\nold\n  ${END}\n\nKEEP-TAIL.\n` },
-  { name: 'a real pair with a tab before and spaces after', body: `# My rules\n\n\t${START} \t\nold\n${END}\t\n\nKEEP-TAIL.\n` },
+  { name: 'a real pair with three spaces before and a tab and spaces after', body: `# My rules\n\n   ${START} \t\nold\n${END}\t \n\nKEEP-TAIL.\n` },
+  { name: 'a real pair in a file whose lines end in CR alone', body: `# My rules\r\r${START}\rold\r${END}\r\rKEEP-TAIL.\r` },
   { name: 'a real pair in a CRLF file, with the orphan end an older CLI left', body: `# My rules\r\n\r\n${START}\r\nold\r\n${END}\r\n${END}\r\n\r\nKEEP-TAIL.\r\n` },
 ];
 for (const edition of ['cursor', 'copilot', 'opencode']) {
@@ -760,4 +761,37 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
       await server.close();
     }
   });
+}
+
+// Contract (conserto 5): the reader of code and the reader of markers agree on what a line is and on what indents code. A line ends at LF, CRLF or a lone CR, and nothing else (a Unicode line separator is text inside the line); a tab before the first character indents to column four, so a line led by a tab, or by spaces and a tab, is indented code, and so is no fence. A marker in such a line is the user's example and stays; a whole-line pair outside code is the real block and updates on every --force.
+// Breaks when: the code reader counts only spaces as indentation while the marker reader accepts a tab (the state at c40c166: a tab-indented example is taken for the block and its content is replaced), either reader splits only on LF while the other ends a line at a lone CR (at c40c166 the fence scanner saw a CR-only file as one line, so the fence never covered the example), or the marker reader goes back to a multiline regex, whose `^` also starts a line after U+2028.
+// Not covered by: LINE_FORMS above holds the real pair in each line form; RA3_FENCES writes LF and CRLF only and indents with spaces only; FENCE_STATES in test/cli-kit.test.mjs is LF.
+const CODE_LINE_FORMS = [
+  { name: 'a pair indented by a tab above the real block', body: `# Mine\n\n\t${START}\n\tUSER-EXAMPLE\n\t${END}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`\t${START}\n\tUSER-EXAMPLE\n\t${END}\n`] },
+  { name: 'a pair indented by two spaces and a tab, with no real block', body: `# Mine\n\n  \t${START}\n  \tUSER-EXAMPLE\n  \t${END}\n\nEnd.\n`, kept: [`  \t${START}\n  \tUSER-EXAMPLE\n  \t${END}\n\nEnd.\n`], appended: true },
+  { name: 'a tab before a backtick run, which is code and opens no fence', body: `# Mine\n\n\t${T3}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`\t${T3}\n`], examples: 0 },
+  { name: 'a CR-only file with a fenced example above the real block', body: `# Mine\r\r${T3}\r${START}\rUSER-EXAMPLE\r${END}\r${T3}\r\r${START}\rold\r${END}\r\rEnd.\r`, kept: [`${T3}\r${START}\rUSER-EXAMPLE\r${END}\r${T3}\r`] },
+  { name: 'a CR-only file with a fenced example and no real block', body: `# Mine\r\r~~~\r${START}\rUSER-EXAMPLE\r${END}\r~~~\r\rEnd.\r`, kept: [`~~~\r${START}\rUSER-EXAMPLE\r${END}\r~~~\r\rEnd.\r`], appended: true },
+  { name: 'a CR-only file with a pair indented by four spaces', body: `# Mine\r\r    ${START}\r    USER-EXAMPLE\r    ${END}\r\rEnd.\r`, kept: [`    ${START}\r    USER-EXAMPLE\r    ${END}\r\rEnd.\r`], appended: true },
+  { name: 'a pair whose start follows a Unicode line separator inside a line', body: `# Mine\n\nprose ${START}\nUSER-EXAMPLE\n${END}\n\nEnd.\n`, kept: [`prose ${START}\nUSER-EXAMPLE\n${END}\n\nEnd.\n`], appended: true },
+];
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of CODE_LINE_FORMS) {
+    test(`conserto 5: --${edition} over ${state.name} keeps the user's example and updates the one real block on every pass`, async () => {
+      const texts = await installStale(edition, state.body);
+      for (const [run, text] of texts.entries()) {
+        const where = `run ${run + 1}\n${JSON.stringify(text)}`;
+        const heading = text.lastIndexOf('## Vibeflow Methodology');
+        assert.equal(text.slice(heading - START.length - 1, heading), `${START}\n`, where);
+        assert.equal(countOf(text, '## Vibeflow Methodology'), 1, where);
+        assert.ok(!/[\r\n]old[\r\n]/.test(text) && !text.includes('STALE-'), where);
+        assert.equal(countOf(text, 'USER-EXAMPLE'), state.examples ?? countOf(state.body, 'USER-EXAMPLE'), where);
+        for (const piece of state.kept) assert.ok(text.includes(piece), `kept ${JSON.stringify(piece)}\n${where}`);
+        assert.ok(text.startsWith('# Mine'), where);
+        if (state.appended) assert.ok(text.startsWith(state.body), `the user's bytes changed\n${where}`);
+        else assert.equal(countOf(text, 'End.'), 1, where);
+      }
+      assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+    });
+  }
 }

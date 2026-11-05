@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -675,6 +675,8 @@ const FENCE_STATES = [
   { name: 'a fenced example below the real block', body: `# Mine\n\n${START}\nold\n${END}\n\n${EXAMPLE('~~~')}\nEnd.\n`, kept: [`${END}\n\n${EXAMPLE('~~~')}\nEnd.\n`], real: true },
   { name: 'an indented start right above the real block', body: `# Mine\n\n    ${START}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`# Mine\n\n    ${START}\n\n${START}\n`], real: true },
   { name: 'an indented end right below the real block', body: `# Mine\n\n${START}\nold\n${END}\n\n    ${END}\n\nEnd.\n`, kept: [`${END}\n\n    ${END}\n\nEnd.\n`], real: true },
+  { name: 'a block indented by a tab', body: `# Mine\n\n\t${START}\n\tUSER-EXAMPLE\n\t${END}\n\nEnd.\n`, kept: [`\t${START}\n\tUSER-EXAMPLE\n\t${END}\n`] },
+  { name: 'a block indented by a space and a tab, above the real block', body: `# Mine\n\n \t${START}\n \tUSER-EXAMPLE\n \t${END}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`# Mine\n\n \t${START}\n \tUSER-EXAMPLE\n \t${END}\n\n`, `${END}\n\nEnd.\n`], real: true },
 ];
 
 for (const edition of ['cursor', 'copilot', 'opencode']) {
@@ -870,4 +872,205 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
       await server.close();
     }
   });
+}
+
+// A `..` that comes after a link is applied where the link really lands, as the file system does:
+// `bridge/../victim.md` with `bridge -> ../outside/deep` writes `outside/victim.md`, never
+// `project/victim.md`. Each state is two links in a fresh project; `outside` sits beside it.
+const DOTDOT_LINKS = [
+  {
+    form: 'AGENTS.md through a link and then ..',
+    named: 'AGENTS.md',
+    make: (project, outside) => {
+      mkdirSync(join(outside, 'deep'));
+      writeFileSync(join(outside, 'victim.md'), 'VICTIM OUTSIDE\n');
+      symlinkSync('../outside/deep', join(project, 'bridge'));
+      symlinkSync('bridge/../victim.md', join(project, 'AGENTS.md'));
+    },
+  },
+  {
+    form: 'AGENTS.md through a link and then .., to a file not there yet',
+    named: 'AGENTS.md',
+    make: (project, outside) => {
+      mkdirSync(join(outside, 'deep'));
+      symlinkSync('../outside/deep', join(project, 'bridge'));
+      symlinkSync('bridge/../victim.md', join(project, 'AGENTS.md'));
+    },
+  },
+  {
+    form: 'AGENTS.md through a name not there yet, then .. and a link out',
+    named: 'AGENTS.md',
+    make: (project, outside) => {
+      mkdirSync(join(outside, 'deep'));
+      writeFileSync(join(outside, 'victim.md'), 'VICTIM OUTSIDE\n');
+      symlinkSync('../outside/deep', join(project, 'bridge'));
+      symlinkSync('not-yet/../bridge/../victim.md', join(project, 'AGENTS.md'));
+    },
+  },
+  {
+    form: 'the kit scripts folder through a link and then ..',
+    named: 'scripts',
+    make: (project, outside, edition) => {
+      mkdirSync(join(outside, 'deep'));
+      mkdirSync(join(outside, 'scripts'));
+      mkdirSync(join(project, KIT_DEST[edition]), { recursive: true });
+      symlinkSync(join(outside, 'deep'), join(project, 'bridge'));
+      symlinkSync(`${project}/bridge/../scripts`, join(project, KIT_DEST[edition], 'scripts'));
+    },
+  },
+];
+
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const shape of DOTDOT_LINKS) {
+    test(`--${edition} refuses ${shape.form} when the link leads out, with or without --force`, async () => {
+      const server = await startServer();
+      const workspace = makeWorkspace();
+      try {
+        const outside = join(workspace.root, 'outside');
+        mkdirSync(outside);
+        shape.make(workspace.project, outside, edition);
+        const outsideBefore = snapshot(outside);
+        const projectBefore = snapshot(workspace.project);
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+          const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+          assert.equal(result.status, 1, `${args.join(' ')}\n${result.out}`);
+          assert.match(result.out, /outside the project/, result.out);
+          assert.ok(result.out.includes(shape.named), `${args.join(' ')}: the refusal names ${shape.named}\n${result.out}`);
+          assert.match(result.out, /Nothing was installed/, result.out);
+          assert.deepEqual(snapshot(outside), outsideBefore, `${args.join(' ')} wrote outside the project`);
+          assert.deepEqual(snapshot(workspace.project), projectBefore, `${args.join(' ')} wrote in the project`);
+        }
+      } finally {
+        workspace.cleanup();
+        await server.close();
+      }
+    });
+  }
+
+  test(`--${edition} installs through a link and then .. that stays inside, where the file system puts it`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      mkdirSync(join(workspace.project, 'sub/deep'), { recursive: true });
+      symlinkSync('sub/deep', join(workspace.project, 'bridge'));
+      symlinkSync('bridge/../rules.md', join(workspace.project, 'AGENTS.md'));
+      for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+        const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+        assert.equal(result.status, 0, `${args.join(' ')}\n${result.out}`);
+        const text = readFileSync(join(workspace.project, 'sub/rules.md'), 'utf8');
+        assert.equal(occurrences(text, START), 1, text);
+        assert.ok(!existsSync(join(workspace.project, 'rules.md')), 'the block went where the .. was collapsed by hand');
+      }
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+}
+
+// A destination that is a regular file with more than one name (a hard link) is refused: writing
+// it would change the file under its other names, and those may be anywhere, outside the
+// project included. That holds when a link inside the project leads to it.
+const HARD_LINKS = [
+  {
+    form: 'AGENTS.md is a hard link to a file outside',
+    dest: 'AGENTS.md',
+    make: (project, outside) => {
+      writeFileSync(join(outside, 'shared.md'), '# Shared elsewhere\n');
+      linkSync(join(outside, 'shared.md'), join(project, 'AGENTS.md'));
+    },
+  },
+  {
+    form: 'a kit file is a hard link to a file outside',
+    dest: (edition) => `${KIT_DEST[edition]}/scripts/check-briefing.mjs`,
+    make: (project, outside, edition) => {
+      writeFileSync(join(outside, 'check-briefing.mjs'), 'OUTSIDE THE PROJECT\n');
+      mkdirSync(join(project, KIT_DEST[edition], 'scripts'), { recursive: true });
+      linkSync(join(outside, 'check-briefing.mjs'), join(project, KIT_DEST[edition], 'scripts/check-briefing.mjs'));
+    },
+  },
+  {
+    form: 'AGENTS.md links inside to CLAUDE.md, a hard link to a file outside',
+    dest: 'AGENTS.md',
+    make: (project, outside) => {
+      writeFileSync(join(outside, 'shared.md'), '# Shared elsewhere\n');
+      linkSync(join(outside, 'shared.md'), join(project, 'CLAUDE.md'));
+      symlinkSync('CLAUDE.md', join(project, 'AGENTS.md'));
+    },
+  },
+  {
+    form: 'AGENTS.md is a hard link to CLAUDE.md inside the project',
+    dest: 'AGENTS.md',
+    make: (project) => {
+      writeFileSync(join(project, 'CLAUDE.md'), '# Mine\n');
+      linkSync(join(project, 'CLAUDE.md'), join(project, 'AGENTS.md'));
+    },
+  },
+];
+
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const shape of HARD_LINKS) {
+    test(`--${edition} refuses to install when ${shape.form}, with or without --force`, async () => {
+      const server = await startServer();
+      const workspace = makeWorkspace();
+      try {
+        const outside = join(workspace.root, 'outside');
+        mkdirSync(outside);
+        shape.make(workspace.project, outside, edition);
+        const dest = typeof shape.dest === 'function' ? shape.dest(edition) : shape.dest;
+        const outsideBefore = snapshot(outside);
+        const projectBefore = snapshot(workspace.project);
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+          const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+          assert.equal(result.status, 1, `${args.join(' ')}\n${result.out}`);
+          assert.ok(!result.out.includes('Error:'), `${args.join(' ')}: a raw error\n${result.out}`);
+          assert.ok(result.out.split('\n').some((line) => line.includes(`x ${dest} — `) && line.includes('hard link')), `${args.join(' ')}: names ${dest} and the hard link\n${result.out}`);
+          assert.match(result.out, /Nothing was installed/, result.out);
+          assert.ok(!result.out.includes('run the installer from'), `${args.join(' ')}: a hard link gets no monorepo hint\n${result.out}`);
+          assert.deepEqual(snapshot(outside), outsideBefore, `${args.join(' ')} wrote outside the project`);
+          assert.deepEqual(snapshot(workspace.project), projectBefore, `${args.join(' ')} wrote in the project`);
+        }
+      } finally {
+        workspace.cleanup();
+        await server.close();
+      }
+    });
+  }
+}
+
+// A fence the user left open at the end of the file is closed before the block is appended, and
+// everything the user wrote stays byte for byte, trailing spaces and blank lines in the code too.
+const OPEN_FENCE_TAILS = [
+  { name: 'code that ends in trailing spaces and a blank line', body: `# Mine\n\n${TICKS}\ncode  \n\n` },
+  { name: 'code that ends in trailing spaces and no line end', body: `# Mine\n\n~~~~ txt\ncode  ` },
+  { name: 'code that ends in blank lines in a CRLF file', body: `# Mine\r\n\r\n${TICKS}\r\ncode \t\r\n\r\n\r\n` },
+];
+
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of OPEN_FENCE_TAILS) {
+    test(`--${edition} over a fence left open with ${state.name} keeps every byte of it and gives one block`, async () => {
+      const server = await startServer();
+      const workspace = makeWorkspace();
+      try {
+        writeFileSync(join(workspace.project, 'AGENTS.md'), state.body);
+        const texts = [];
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force'], [`--${edition}`, '--force']]) {
+          const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+          assert.equal(result.status, 0, result.out);
+          texts.push(readFileSync(join(workspace.project, 'AGENTS.md'), 'utf8'));
+        }
+        for (const [run, text] of texts.entries()) {
+          const where = `run ${run + 1}\n${JSON.stringify(text)}`;
+          assert.ok(text.startsWith(state.body), `the user's bytes changed\n${where}`);
+          assert.equal(occurrences(text, '## Vibeflow Methodology'), 1, where);
+          assert.equal(occurrences(text, START), 1, where);
+          assert.ok(text.endsWith(`${END}\n`), where);
+        }
+        assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+      } finally {
+        workspace.cleanup();
+        await server.close();
+      }
+    });
+  }
 }
