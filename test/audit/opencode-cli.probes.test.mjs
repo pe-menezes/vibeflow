@@ -330,3 +330,89 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
     }
   });
 }
+
+// ---- delimiter states the part-3 reaudit built (reaudit 1 of part 3)
+
+// Contract: in any arrangement of delimiters, the CLI replaces only the first real pair (the first end with a start above it, and the start nearest above that end); every other start and end, and every line of the user's text, stays where it is, once, and the file settles by the second run.
+// Breaks when: the start is looked up in the whole file instead of above the end (the user's text is copied once per run when a start follows the block), the first start of the file opens the pair (an orphan start above the block swallows the user's text), or the last pair wins over the first.
+// Not covered by: test/cli-kit.test.mjs has only a clean AGENTS.md and the file an older CLI left; none of these states.
+const STATES = [
+  {
+    name: 'two well-formed pairs: the first is replaced, the second is left as it is',
+    edition: 'cursor',
+    body: `# Mine\n\nU-top\n\n${START}\nold one\n${END}\n\nU-middle\n\n${START}\nold two\n${END}\n\nU-tail\n`,
+    keep: ['U-top', 'U-middle', 'U-tail', 'old two'],
+    gone: ['old one'],
+    pairs: [2, 2],
+    order: ['U-top', '## Vibeflow Methodology', 'U-middle', 'old two', 'U-tail'],
+  },
+  {
+    name: 'an end above an orphan start, and no pair: both stay, and the appended block is the one replaced',
+    edition: 'copilot',
+    body: `# Mine\n\n${END}\n\nU-mid\n\n${START}\nU-edited block, end deleted\n\nU-keep\n`,
+    keep: ['U-mid', 'U-edited block, end deleted', 'U-keep'],
+    gone: [],
+    pairs: [2, 2],
+    order: ['U-mid', 'U-edited block, end deleted', 'U-keep', '## Vibeflow Methodology'],
+  },
+  {
+    name: 'an orphan start after the block, with the user\'s text below it',
+    edition: 'opencode',
+    body: `# Mine\n\n${START}\nold\n${END}\n\nU-mid\n\n${START}\nU-orphan text\n\nU-keep\n`,
+    keep: ['U-mid', 'U-orphan text', 'U-keep'],
+    gone: ['\nold\n'],
+    pairs: [2, 1],
+    order: ['## Vibeflow Methodology', 'U-mid', 'U-orphan text', 'U-keep'],
+  },
+  {
+    name: 'stray ends inside the user\'s text, above and below the block',
+    edition: 'cursor',
+    body: `# Mine\n\nU-one\n${END}\nU-two\n\n${START}\nold\n${END}\n\nU-three\n${END}\nU-four\n`,
+    keep: ['U-one', 'U-two', 'U-three', 'U-four'],
+    gone: ['\nold\n'],
+    pairs: [1, 3],
+    order: ['U-one', 'U-two', '## Vibeflow Methodology', 'U-three', 'U-four'],
+  },
+  {
+    name: 'the block at the very end of the file, with no newline after its end',
+    edition: 'opencode',
+    body: `# Mine\n\nU-top\n\n${START}\nold\n${END}`,
+    keep: ['U-top'],
+    gone: ['\nold\n'],
+    pairs: [1, 1],
+    order: ['U-top', '## Vibeflow Methodology'],
+  },
+];
+for (const state of STATES) {
+  test(`AGENTS.md block: --${state.edition} over ${state.name}`, async () => {
+    const { texts } = await installOver(state.edition, 'AGENTS.md', state.body);
+    for (const [run, text] of texts.entries()) {
+      const where = `run ${run + 1}\n${text}`;
+      for (const line of state.keep) assert.equal(countOf(text, line), 1, `${line}: ${where}`);
+      for (const line of state.gone) assert.ok(!text.includes(line), `${line}: ${where}`);
+      assert.equal(countOf(text, START), state.pairs[0], where);
+      assert.equal(countOf(text, END), state.pairs[1], where);
+      assert.equal(countOf(text, '## Vibeflow Methodology'), 1, where);
+      const at = state.order.map((line) => text.indexOf(line));
+      assert.deepEqual([...at].sort((a, b) => a - b), at, `order ${state.order.join(' < ')}: ${where}`);
+    }
+    assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+  });
+}
+
+// Contract: a .github/copilot-instructions.md that a 0.17 CLI wrapped twice and grew one orphan end per --force converges to one pair, with the user's text before and after the snippet kept once, like AGENTS.md.
+// Breaks when: the sweep of an older CLI's leftovers (the extra start above the pair, the ends below it) is kept for AGENTS.md only, for instance moved into its caller or given to the snippet a writer of its own, so this file stays at 1 start and 3 ends.
+// Not covered by: test/cli-kit.test.mjs never installs over a copilot-instructions.md, and the D1 probe above starts from a file with no block.
+test('copilot-instructions.md: --copilot over the file a 0.17 CLI left converges to one pair and keeps the user\'s text', async () => {
+  const older = `# Team rules\n\nuse tabs\n\n${START}\n${START}\n## Vibeflow\n\nold snippet\n${END}\n${END}\n${END}\n${END}\n\n## Mine after\n\nkeep after\n`;
+  const { texts } = await installOver('copilot', '.github/copilot-instructions.md', older);
+  for (const [run, text] of texts.entries()) {
+    const where = `run ${run + 1}\n${text}`;
+    assert.equal(countOf(text, START), 1, where);
+    assert.equal(countOf(text, END), 1, where);
+    assert.ok(!text.includes('old snippet'), where);
+    assert.ok(text.startsWith(`# Team rules\n\nuse tabs\n\n${START}\n## Vibeflow`), where);
+    assert.ok(text.endsWith(`${END}\n\n## Mine after\n\nkeep after\n`), where);
+  }
+  assert.equal(texts[2], texts[1]);
+});
