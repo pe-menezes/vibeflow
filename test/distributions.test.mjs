@@ -88,10 +88,15 @@ test('all editions expose the same workflow inventory and valid names', () => {
     .filter((name) => name.endsWith('.prompt.md'))
     .map((name) => name.replace(/^vibeflow-/, '').replace(/\.prompt\.md$/, ''))
     .sort();
+  const opencode = readdirSync(join(ROOT, 'opencode/commands'))
+    .filter((name) => name.endsWith('.md'))
+    .map((name) => name.replace(/^vibeflow-/, '').replace(/\.md$/, ''))
+    .sort();
 
   assert.deepEqual(shared, WORKFLOWS);
   assert.deepEqual(cursor, WORKFLOWS);
   assert.deepEqual(copilot, WORKFLOWS);
+  assert.deepEqual(opencode, WORKFLOWS);
 
   for (const workflow of WORKFLOWS) {
     const files = workflowFiles(workflow);
@@ -101,6 +106,9 @@ test('all editions expose the same workflow inventory and valid names', () => {
     assert.ok(frontmatterValue(read(files.shared), 'description'), `${files.shared} needs a description`);
     assert.ok(frontmatterValue(read(files.cursor), 'description'), `${files.cursor} needs a description`);
     assert.ok(frontmatterValue(read(files.copilot), 'description'), `${files.copilot} needs a description`);
+    // OpenCode names a command after its file, so the file name is the command's name.
+    const command = `opencode/commands/vibeflow-${workflow}.md`;
+    assert.ok(frontmatterValue(read(command), 'description'), `${command} needs a description`);
   }
 });
 
@@ -115,7 +123,7 @@ test('all workflow editions preserve their essential behavior contracts', () => 
   }
 });
 
-test('Cursor and Copilot host files use their documented frontmatter', () => {
+test('Cursor, Copilot and OpenCode host files use their documented frontmatter', () => {
   assert.equal(frontmatterValue(read('cursor/rules/vibeflow.mdc'), 'alwaysApply'), 'true');
   assert.equal(frontmatterValue(read('cursor/rules/vibeflow-architect.mdc'), 'alwaysApply'), 'false');
 
@@ -128,6 +136,22 @@ test('Cursor and Copilot host files use their documented frontmatter', () => {
 
   for (const workflow of WORKFLOWS) {
     assert.ok(frontmatterValue(read(workflowFiles(workflow).copilot), 'agent'));
+  }
+
+  // OpenCode: an agent is named after its file, takes `mode` and `permission`, and drops the
+  // whole file when `tools:` is a comma-separated list, as in the Claude Code front matter.
+  const modes = { architect: 'primary', executor: 'subagent', auditor: 'subagent' };
+  for (const [agent, mode] of Object.entries(modes)) {
+    const path = `opencode/agents/${agent}.md`;
+    const content = read(path);
+    assert.ok(frontmatterValue(content, 'description'), `${path} needs a description`);
+    assert.equal(frontmatterValue(content, 'mode'), mode, `${path} mode`);
+    assert.match(content.match(/^---\n([\s\S]*?)\n---\n/)[1], /^permission:\n {2}\S/m, `${path} declares a permission map`);
+    assert.equal(frontmatterValue(content, 'tools'), undefined, `${path} has no tools field`);
+  }
+  for (const workflow of WORKFLOWS) {
+    const content = read(`opencode/commands/vibeflow-${workflow}.md`);
+    assert.ok(content.includes('$ARGUMENTS'), `vibeflow-${workflow} passes $ARGUMENTS`);
   }
 });
 
