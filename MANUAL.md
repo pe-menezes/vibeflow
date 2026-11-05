@@ -109,7 +109,7 @@ host: o OpenCode dá ao agente o nome do arquivo, o loop chama `executor` e
 **Como chamar cada workflow:** no Claude Code, `/vibeflow:<nome>` (por exemplo
 `/vibeflow:analyze`); no Cursor e no Copilot, `/vibeflow-<nome>`; no Codex e no
 Hermes, em linguagem natural, e o host escolhe a skill pela descrição. O
-OpenCode tem os dois: escolhe a skill pela descrição e tem os commands
+OpenCode tem os dois: pode carregar a skill pela descrição e tem os commands
 `/vibeflow-<nome>`, com hífen e não com dois-pontos. A expansão do command é do
 terminal interativo (o TUI): o `opencode run` não expande e manda o texto cru
 ao modelo, o que foi medido. A expansão no TUI e o Tab até o `architect` não

@@ -29,7 +29,7 @@ right below it, with only blank space between, go with it, so a file from CLI
 0.17 settles on one pair. The CLI also replaces only a real pair (the first
 `end` with a `start` above it), so an orphan delimiter of the user's stays
 where it is instead of pairing with the block. The CHANGELOG note is in the
-entry that ships it, under Fixed; the pattern doc lives in
+entry that ships it, under Changed; the pattern doc lives in
 `.vibeflow/patterns/delimited-block-upsert.md`. The text below is the finding
 as it was recorded.
 

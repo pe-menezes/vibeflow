@@ -69,7 +69,7 @@ OpenCode does not read Claude Code plugins (`~/.claude/plugins/`), so the Claude
 ## Usage
 
 ### Slash commands
-Type `/` in OpenCode and pick the command:
+Type `/` in OpenCode's interactive terminal and pick the command (`opencode run` does not expand it, and the expansion in that terminal was not checked for this edition):
 
 **Core:**
 - `/vibeflow-analyze` — analyzes the codebase and generates `.vibeflow/` (flags: `--fresh`, `--scope`, `--interactive`, `--satellite`, `--measure`)
@@ -90,11 +90,11 @@ Type `/` in OpenCode and pick the command:
 A command runs in the agent you are in. OpenCode also offers the skills by themselves, so asking in plain words ("audit the last part") can load the matching skill without the command.
 
 ### The Architect agent
-`architect` is a primary agent: switch to it with Tab, as you switch to OpenCode's own `plan`. It reads, searches, runs commands, edits, browses the web and asks you questions, and it can load the eight workflows its command table names (discover, analyze, gen-spec, prompt-pack, audit, quick, teach, stats). `implement` and `hotfix` write code, so they are denied there, and the architect cannot open a subagent, which the execution loop sends its rounds through: run them from Build, which has the skills, the edit tools and the `subagent` tool.
+`architect` is a primary agent: switch to it with Tab, as you switch to OpenCode's own `plan` (the Tab switch to `architect` was not checked for this edition). It reads, searches, runs commands, edits, browses the web and asks you questions, and it can load the eight workflows its command table names (discover, analyze, gen-spec, prompt-pack, audit, quick, teach, stats). `implement` and `hotfix` write code, so they are denied there, and the architect cannot open a subagent, which the execution loop sends its rounds through: run them from Build, which has the skills, the edit tools and the `subagent` tool.
 
 ### Execution loop (opt-in)
 
-Off by default. With `/vibeflow-implement <spec> --loop` (or `loop: true` in `.vibeflow/loop/config.md`), the session becomes the orchestrator: the executor implements each part in a fresh session, the independent audit runs in another one, and there are at most two fix rounds. In OpenCode, each fresh session is a call of the `subagent` tool in the foreground, to the `executor` agent for executor and fix rounds and to the `auditor` agent for audits; the call returns when the round ends. Without these agents installed, the orchestrator calls OpenCode's `general` agent instead. The kit's scripts need Node.js 18 or newer (below that they exit with code 64). Details in [MANUAL.md](../MANUAL.md) (in Portuguese).
+Off by default. With `/vibeflow-implement <spec> --loop` (or `loop: true` in `.vibeflow/loop/config.md`), the session becomes the orchestrator: the executor implements each part in a fresh session, the independent audit runs in another one, and there are at most two fix rounds. In OpenCode, each fresh session is a call of the `subagent` tool in the foreground, to the `executor` agent for executor and fix rounds and to the `auditor` agent for audits; the call returns when the round ends. Not checked for this edition: a whole `implement --loop` run on OpenCode, whether a foreground `subagent` call has a time ceiling, and how a subagent's permission question reaches you. Without these agents installed, the orchestrator calls OpenCode's `general` agent instead. The kit's scripts need Node.js 18 or newer (below that they exit with code 64). Details in [MANUAL.md](../MANUAL.md) (in Portuguese).
 
 ## What OpenCode does not have
 

@@ -168,7 +168,7 @@ the project's `AGENTS.md`, which OpenCode loads as instructions.
 Type `/vibeflow-analyze` in OpenCode's interactive terminal to get started.
 Only that terminal expands a command: `opencode run` passes `/vibeflow-analyze`
 on to the model as plain text. You can also ask in plain words, and
-OpenCode picks the skill by its description. `architect` is a primary agent you
+OpenCode can load the matching skill by its description. `architect` is a primary agent you
 switch to with Tab; `implement --loop` runs from Build, which sends each round
 to the `executor` and `auditor` subagents. Not checked for this edition: the
 command expanding and the Tab switch, which only the interactive terminal

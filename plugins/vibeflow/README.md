@@ -106,7 +106,7 @@ audit <spec>         → verify the result with evidence
 
 In Claude, invoke the namespaced commands such as `/vibeflow:analyze`. In
 Codex and Hermes, describe the same goal naturally and the matching skill is
-discovered from its description. OpenCode does both: it picks the skill from
+discovered from its description. OpenCode does both: it can load the skill by
 its description, and its interactive terminal has the `/vibeflow-<name>`
 commands, with a hyphen (`/vibeflow-analyze`); `opencode run` does not expand
 them, and the expansion in that terminal was not checked for this edition.
@@ -149,7 +149,9 @@ orchestrator reads it and goes on; in OpenCode, in a foreground call of its
 `subagent` tool to the `executor` or `auditor` agent of the OpenCode edition
 (the host's `general` when the edition is not installed), the round ending
 when the call returns. In OpenCode the orchestrator is Build: the `architect`
-agent cannot open a subagent.
+agent cannot open a subagent. Not checked for this edition: a whole
+`implement --loop` run on OpenCode, whether a foreground `subagent` call has a
+time ceiling, and how a subagent's permission question reaches you.
 The loop kit (principles, briefing templates, the orchestrator's flow, the PR
 body template, the role files and the scripts) lives in
 `skills/implement/loop/` and ships with the plugin; the OpenCode installer
