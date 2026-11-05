@@ -186,7 +186,7 @@ shows, and a whole `implement --loop` run. See
 
 > By default the installer adds installed files and the `.vibeflow/` folder to `.gitignore`. Remove the "Vibeflow" block from `.gitignore` if you want to track them in git. For OpenCode the block lists each installed path, never `.opencode/` as a whole, which also holds your own files.
 
-> The Cursor, Copilot and OpenCode installers refuse to install, with or without `--force`, when a file they would write, or a folder on the way to it, leads outside the project through a link; if your `AGENTS.md` is a link to a shared file, run the installer from the folder where the real file is.
+> The Cursor, Copilot and OpenCode installers refuse to install, with or without `--force`, when a file they would write, or a folder on the way to it, leads outside the project through a link; if your `AGENTS.md` is a link to a shared file, run the installer from the folder where the real file is. They refuse a file they would write that is a hard link, a file with more than one name, the same way, inside the project or out, because writing it would change the file under each of its names; give that file a copy of its own. A known limitation: a Vibeflow marker pair you quote inside a code fence that opens on the line of a list item is read as a real pair, so the install deletes that example ([#44](https://github.com/pe-menezes/vibeflow/issues/44)).
 
 ### Edition summary
 

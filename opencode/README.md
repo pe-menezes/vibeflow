@@ -45,7 +45,7 @@ The installer (CLI 0.18.0) writes into the project:
 - the Vibeflow block of `opencode/AGENTS.md` into the project's `AGENTS.md`, which OpenCode loads into its system instructions
 - a Vibeflow block in `.gitignore` that lists `.vibeflow/` and each installed path, never `.opencode/` as a whole, which also holds your own files; remove the block if you want to track them in git
 
-The installer refuses to install, with or without `--force`, when a file it would write, or a folder on the way to it, leads outside the project through a link; if your `AGENTS.md` is a link to a shared file, run the installer from the folder where the real file is.
+The installer refuses to install, with or without `--force`, when a file it would write, or a folder on the way to it, leads outside the project through a link; if your `AGENTS.md` is a link to a shared file, run the installer from the folder where the real file is. It refuses a file it would write that is a hard link, a file with more than one name, the same way, inside the project or out, because writing it would change the file under each of its names; give that file a copy of its own. A known limitation: a Vibeflow marker pair you quote inside a code fence that opens on the line of a list item is read as a real pair, so the install deletes that example ([#44](https://github.com/pe-menezes/vibeflow/issues/44)).
 
 > If the project already has its own `.opencode/agents/architect.md`,
 > `executor.md` or `auditor.md`, or its own skill named like one of the ten
