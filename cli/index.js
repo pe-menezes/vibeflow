@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import pc from 'picocolors';
 
 // --- Config ---
@@ -285,16 +285,55 @@ function withoutOwnDelimiters(block) {
   return block.slice(startIdx + VIBEFLOW_START.length, endIdx);
 }
 
-// A delimiter is a marker that is the whole line, spaces around it aside. A marker quoted inside
-// a line (between backticks, at the head of a sentence) is the user's text, never a delimiter.
-// Gives the offset of the marker in each such line, in file order.
+// The code in a Markdown text: the offset where each code line starts, and the fence still open
+// at the end of the text, or null. A fence is a line of three or more backticks or tildes,
+// indented up to three spaces (a backtick fence's info string has no backtick); the first later
+// line of the same character, at least as long and with nothing after it, closes it, and a fence
+// never closed runs to the end. A line indented by four spaces or more is code too.
+function codeLines(text) {
+  const code = new Set();
+  let fence = null;
+  for (let pos = 0; pos <= text.length;) {
+    const newline = text.indexOf('\n', pos);
+    const stop = newline === -1 ? text.length : newline;
+    const line = text.slice(pos, stop).replace(/\r$/, '');
+    if (fence) {
+      code.add(pos);
+      const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null;
+    } else {
+      const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+      if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
+        fence = open[1];
+        code.add(pos);
+      } else if (/^ {4}/.test(line)) {
+        code.add(pos);
+      }
+    }
+    pos = stop + 1;
+  }
+  return { code, open: fence };
+}
+
+// A delimiter is a marker that is the whole line, spaces around it aside, outside any code. A
+// marker quoted inside a line (between backticks, at the head of a sentence) or written in a
+// fenced or indented code block (the user's example of the format) is the user's text, never a
+// delimiter. Gives the offset of the marker in each such line, in file order.
 function markerLines(text, marker) {
   const offsets = [];
+  const { code } = codeLines(text);
   const line = new RegExp(`^([ \\t]*)${marker}[ \\t]*\\r?$`, 'gm');
   for (let match = line.exec(text); match; match = line.exec(text)) {
-    offsets.push(match.index + match[1].length);
+    if (!code.has(match.index)) offsets.push(match.index + match[1].length);
   }
   return offsets;
+}
+
+// The block goes at the end of the file, outside any code: a fence the user left open there is
+// closed first with its own fence, which renders the same, so the block is found on the next run.
+function appendBlock(existing, delimited) {
+  const { open } = codeLines(existing);
+  return existing.trimEnd() + (open ? `\n${open}` : '') + '\n\n' + delimited + '\n';
 }
 
 // The block in the user's file is a real pair: the first end that has a start above it, with the
@@ -344,12 +383,10 @@ function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
   }
 
   if (legacyMarker && existing.includes(legacyMarker)) {
-    const content = existing.trimEnd() + '\n\n' + delimited + '\n';
-    return { content, action: 'legacy-append', warning: true };
+    return { content: appendBlock(existing, delimited), action: 'legacy-append', warning: true };
   }
 
-  const content = existing.trimEnd() + '\n\n' + delimited + '\n';
-  return { content, action: 'appended' };
+  return { content: appendBlock(existing, delimited), action: 'appended' };
 }
 
 // The .gitignore block is a marker comment line followed by its paths, up to the first blank
@@ -532,12 +569,25 @@ async function main() {
   if (edition.handleCopilotInstructions) writes.push('.github/copilot-instructions.md');
   const refused = [];
   for (const dest of writes) {
-    const reason = landsOutside(root, cwd, dest);
-    if (reason) refused.push({ dest, reason });
+    try {
+      const reason = landsOutside(root, cwd, dest);
+      if (reason) refused.push({ dest, reason, outside: true });
+    } catch (err) {
+      // A path whose links never land anywhere is refused like one that lands outside.
+      const where = err.path ? relative(cwd, err.path) || '.' : dest;
+      const reason = err.code === 'ELOOP'
+        ? `${where} is a loop of links that never lands on a file or folder`
+        : `${where} cannot be resolved (${err.code || err.message})`;
+      refused.push({ dest, reason, outside: false });
+    }
   }
   if (refused.length > 0) {
     for (const { dest, reason } of refused) log(pc.red('x'), `${dest} — ${reason}`);
     log(pc.red('x'), `Nothing was installed: every file Vibeflow writes must land inside the project, and --force does not change that. Replace each link above with a folder or file of its own, or point it inside the project.`);
+    if (refused.some(({ dest, outside }) => dest === 'AGENTS.md' && outside)) {
+      const shared = dirname(landing(join(cwd, 'AGENTS.md')));
+      log(pc.dim('→'), `AGENTS.md is shared through a link: to install with it, run the installer from ${shared}, the folder where the real file is.`);
+    }
     console.log('');
     process.exit(1);
   }

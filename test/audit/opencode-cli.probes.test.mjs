@@ -549,8 +549,8 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
 }
 
 // Contract (the p3b briefing's): nothing the user wrote around a pair is lost. A Vibeflow pair the user writes inside a fenced code block, to document the format, is the user's example.
-// Breaks when: never held: since conserto 2 a marker alone on its line is a delimiter wherever it sits, fences included (the executor's declared decision). With no real pair the example is replaced by the block inside the fence; with a real pair below the fence, the example is replaced and the real block keeps its old content on every rerun.
-// Not covered by: no test fences a marker. Marked todo: it is a defect reproduced by this reaudit, out of this round's written contract, and its leaving the front is Pedro's word (dev-remoto, principle 8).
+// Breaks when: markerLines stops skipping the code lines (the code from conserto 2 to e0283d5, where a marker alone on its line was a delimiter wherever it sat, fences included): with no real pair the example is replaced by the block inside the fence; with a real pair below the fence, the example is replaced and the real block keeps its old content on every rerun.
+// Not covered by: before conserto 4 no test fenced a marker. Opened as todo by reaudit 2 of part 3 (defect D1) and closed by conserto 4, with test/cli-kit.test.mjs covering the other fence forms.
 const FENCE = '```';
 const FENCED = [
   { name: 'a fenced example pair and no real pair', body: `# My rules\n\n${FENCE}markdown\n${START}\nUSER-EXAMPLE\n${END}\n${FENCE}\n\nEnd.\n` },
@@ -558,7 +558,7 @@ const FENCED = [
 ];
 for (const edition of ['cursor', 'copilot', 'opencode']) {
   for (const state of FENCED) {
-    test(`AGENTS.md block: --${edition} over ${state.name} keeps the example`, { todo: 'defect F1/F2 of reaudit 2 of part 3: fenced markers are read as delimiters' }, async () => {
+    test(`AGENTS.md block: --${edition} over ${state.name} keeps the example`, async () => {
       const { texts } = await installOver(edition, 'AGENTS.md', state.body);
       for (const text of texts) {
         assert.equal(countOf(text, 'USER-EXAMPLE'), 1, text);

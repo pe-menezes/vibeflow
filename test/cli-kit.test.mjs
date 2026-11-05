@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -652,6 +652,91 @@ test('an AGENTS.md written by an older CLI, with the block wrapped twice, is rew
   }
 });
 
+// A marker inside a code block is the user's text, never a delimiter: a fence of three or more
+// backticks or tildes (indented up to three spaces), closed by the first fence of the same
+// character at least as long, or open to the end of the file; and a line indented by four
+// spaces or more. The pair search, the two sweeps of extra delimiters and the source's own pair
+// all skip such markers, so a user who documents the block's format keeps the example, and the
+// real block outside the code still updates on every rerun.
+
+const START = '<!-- vibeflow:start -->';
+const END = '<!-- vibeflow:end -->';
+const TICKS = '```';
+const occurrences = (text, needle) => text.split(needle).length - 1;
+const EXAMPLE = (open, close = open) => `${open}\n${START}\nUSER-EXAMPLE\n${END}\n${close}\n`;
+const FENCE_STATES = [
+  { name: 'a tilde fence', body: `# Mine\n\n${EXAMPLE('~~~')}\nEnd.\n`, kept: [EXAMPLE('~~~')] },
+  { name: 'a backtick fence indented by three spaces', body: `# Mine\n\n${EXAMPLE(`   ${TICKS}md`, `   ${TICKS}`)}\nEnd.\n`, kept: [EXAMPLE(`   ${TICKS}md`, `   ${TICKS}`)] },
+  { name: 'a block indented by four spaces', body: `# Mine\n\n    ${START}\n    USER-EXAMPLE\n    ${END}\n\nEnd.\n`, kept: [`    ${START}\n    USER-EXAMPLE\n    ${END}\n`] },
+  { name: 'a fence never closed', body: `# Mine\n\n${TICKS}\n${START}\nUSER-EXAMPLE\n${END}\n`, kept: [`${TICKS}\n${START}\nUSER-EXAMPLE\n${END}\n`] },
+  { name: 'a four-backtick fence that a three-backtick line does not close', body: `# Mine\n\n${TICKS}\`\n${START}\n${TICKS}\nUSER-EXAMPLE\n${END}\n${TICKS}\`\n\nEnd.\n`, kept: [`${TICKS}\`\n${START}\n${TICKS}\nUSER-EXAMPLE\n${END}\n${TICKS}\`\n`] },
+  { name: 'a tilde fence that a backtick line does not close', body: `# Mine\n\n~~~\n${TICKS}\n${START}\nUSER-EXAMPLE\n${END}\n${TICKS}\n~~~\n\nEnd.\n`, kept: [`~~~\n${TICKS}\n${START}\nUSER-EXAMPLE\n${END}\n${TICKS}\n~~~\n`] },
+  { name: 'a fenced example above the real block', body: `# Mine\n\n${EXAMPLE(TICKS)}\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`# Mine\n\n${EXAMPLE(TICKS)}\n`, `${END}\n\nEnd.\n`], real: true },
+  { name: 'a fenced example below the real block', body: `# Mine\n\n${START}\nold\n${END}\n\n${EXAMPLE('~~~')}\nEnd.\n`, kept: [`${END}\n\n${EXAMPLE('~~~')}\nEnd.\n`], real: true },
+  { name: 'an indented start right above the real block', body: `# Mine\n\n    ${START}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`# Mine\n\n    ${START}\n\n${START}\n`], real: true },
+  { name: 'an indented end right below the real block', body: `# Mine\n\n${START}\nold\n${END}\n\n    ${END}\n\nEnd.\n`, kept: [`${END}\n\n    ${END}\n\nEnd.\n`], real: true },
+];
+
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of FENCE_STATES) {
+    test(`--${edition} over ${state.name}: the markers in the code are the user's, and three runs give one block`, async () => {
+      const server = await startServer();
+      const workspace = makeWorkspace();
+      try {
+        writeFileSync(join(workspace.project, 'AGENTS.md'), state.body);
+        const texts = [];
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force'], [`--${edition}`, '--force']]) {
+          const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+          assert.equal(result.status, 0, result.out);
+          texts.push(readFileSync(join(workspace.project, 'AGENTS.md'), 'utf8'));
+        }
+        for (const [run, text] of texts.entries()) {
+          const where = `run ${run + 1}\n${text}`;
+          const methodology = text.indexOf('## Vibeflow Methodology');
+          assert.equal(occurrences(text, '## Vibeflow Methodology'), 1, where);
+          assert.equal(text.slice(methodology - START.length - 2, methodology), `\n${START}\n`, where);
+          assert.equal(occurrences(text, 'USER-EXAMPLE'), occurrences(state.body, 'USER-EXAMPLE'), where);
+          assert.equal(occurrences(text, START), occurrences(state.body, START) + (state.real ? 0 : 1), where);
+          assert.ok(!/\nold\n/.test(text), where);
+          assert.ok(text.startsWith('# Mine\n\n'), where);
+          for (const piece of state.kept) assert.ok(text.includes(piece), `kept ${JSON.stringify(piece)}\n${where}`);
+          if (!state.real) assert.ok(text.indexOf('USER-EXAMPLE') < methodology, where);
+        }
+        assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+      } finally {
+        workspace.cleanup();
+        await server.close();
+      }
+    });
+  }
+}
+
+// The edition's source loses only its own pair: an example pair the source fences below its
+// block is not taken as the block's end.
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  test(`--${edition}: a source that fences an example pair below its own block gives the block up to its own end`, async () => {
+    const source = readFileSync(join(ROOT, edition, 'AGENTS.md'), 'utf8');
+    assert.equal(occurrences(source, `\n${END}`), 1, 'the source has one end');
+    const fenced = source.replace(`\n${END}`, () => `\n${END}\n\nSOURCE-BELOW\n\n${EXAMPLE('~~~')}`);
+    const server = await startServer({ [`${edition}/AGENTS.md`]: fenced });
+    const workspace = makeWorkspace();
+    try {
+      writeFileSync(join(workspace.project, 'AGENTS.md'), '# Mine\n\nKEEP.\n');
+      const result = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
+      assert.equal(result.status, 0, result.out);
+      const text = readFileSync(join(workspace.project, 'AGENTS.md'), 'utf8');
+      assert.ok(!text.includes('SOURCE-BELOW') && !text.includes('USER-EXAMPLE'), text);
+      assert.equal(occurrences(text, START), 1, text);
+      assert.equal(occurrences(text, END), 1, text);
+      assert.ok(text.startsWith('# Mine\n\nKEEP.\n\n'), text);
+      assert.ok(text.endsWith(`${END}\n`), text);
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+}
+
 // A link in the project where the installer expects a folder or a file. Every write lands, links
 // resolved, inside the project's real root; when one would not, the install is refused before
 // anything is written, with or without --force, and says which file and why. A link that stays
@@ -735,6 +820,51 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
         assert.deepEqual(readdirSync(shared).sort(), scripts, 'the scripts sit in the folder the link points to');
         assert.ok(existsSync(join(workspace.project, MARKER[edition])));
       }
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+
+  test(`--${edition} refuses a loop of links in the tone of the other refusals, naming the file and why`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      symlinkSync(join(workspace.project, 'loop-b'), join(workspace.project, EDITION_ROOT[edition]));
+      symlinkSync(join(workspace.project, EDITION_ROOT[edition]), join(workspace.project, 'loop-b'));
+      const projectBefore = snapshot(workspace.project);
+      for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+        const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+        assert.equal(result.status, 1, `${args.join(' ')}\n${result.out}`);
+        assert.ok(!result.out.includes('Error:'), `${args.join(' ')}: a raw error\n${result.out}`);
+        assert.ok(result.out.includes(`${MARKER[edition]} — ${EDITION_ROOT[edition]} is a loop of links`), `${args.join(' ')}: names the file and the loop\n${result.out}`);
+        assert.match(result.out, /Nothing was installed/, result.out);
+        assert.deepEqual(snapshot(workspace.project), projectBefore, `${args.join(' ')} wrote in the project`);
+      }
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+
+  test(`--${edition} refusing a shared AGENTS.md says to install from the folder where the real file is, and only then`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      const outside = join(workspace.root, 'outside');
+      mkdirSync(outside);
+      writeFileSync(join(outside, 'AGENTS.md'), '# Shared elsewhere\n');
+      symlinkSync(join(outside, 'AGENTS.md'), join(workspace.project, 'AGENTS.md'));
+      const shared = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
+      assert.equal(shared.status, 1, shared.out);
+      assert.ok(shared.out.includes(`run the installer from ${realpathSync(outside)}`), shared.out);
+      rmSync(join(workspace.project, 'AGENTS.md'));
+      mkdirSync(join(workspace.project, KIT_DEST[edition]), { recursive: true });
+      symlinkSync(outside, join(workspace.project, KIT_DEST[edition], 'scripts'));
+      const kit = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
+      assert.equal(kit.status, 1, kit.out);
+      assert.match(kit.out, /Nothing was installed/, kit.out);
+      assert.ok(!kit.out.includes('run the installer from'), kit.out);
     } finally {
       workspace.cleanup();
       await server.close();
