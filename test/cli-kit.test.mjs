@@ -10,8 +10,8 @@ import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { copyFileSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, normalize, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join, normalize, posix, relative, sep, win32 } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { LOOP_DIR, hermeticEnv } from './loop-helpers.mjs';
 
@@ -43,6 +43,13 @@ const BLOCK_OPENCODE = [
   '.opencode/commands/vibeflow-*.md',
   ...WORKFLOWS.map((name) => `.opencode/skills/${name}/`),
 ];
+
+// The closing line of a refusal names the remedy for what was refused: pointing a link inside the
+// project undoes a link out, and does nothing for a hard link, even one between two files of the
+// project; a path whose landing cannot be checked gets neither.
+const LINK_REMEDY = 'replace each link above with a folder or file of its own, or point it inside the project';
+const HARD_LINK_REMEDY = 'give each hard link above a file of its own';
+const UNCHECKED_REMEDY = 'Where each path above leads could not be checked';
 
 function manifestFiles() {
   const manifest = JSON.parse(readFileSync(join(LOOP_DIR, 'manifest.json'), 'utf8'));
@@ -792,6 +799,8 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
           assert.match(result.out, /outside the project/, result.out);
           assert.ok(result.out.includes(link), `${args.join(' ')}: the refusal names ${link}\n${result.out}`);
           assert.match(result.out, /Nothing was installed/, result.out);
+          assert.ok(result.out.includes(LINK_REMEDY), `${args.join(' ')}: a link out gets the link remedy\n${result.out}`);
+          assert.ok(!result.out.includes(HARD_LINK_REMEDY), `${args.join(' ')}: a link out gets no hard link remedy\n${result.out}`);
           assert.deepEqual(snapshot(outside), outsideBefore, `${args.join(' ')} wrote outside the project`);
           assert.deepEqual(snapshot(workspace.project), projectBefore, `${args.join(' ')} wrote in the project`);
         }
@@ -1027,6 +1036,8 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
           assert.ok(result.out.split('\n').some((line) => line.includes(`x ${dest} — `) && line.includes('hard link')), `${args.join(' ')}: names ${dest} and the hard link\n${result.out}`);
           assert.match(result.out, /Nothing was installed/, result.out);
           assert.ok(!result.out.includes('run the installer from'), `${args.join(' ')}: a hard link gets no monorepo hint\n${result.out}`);
+          assert.ok(result.out.includes(HARD_LINK_REMEDY), `${args.join(' ')}: a hard link gets the hard link remedy\n${result.out}`);
+          assert.ok(!result.out.includes(LINK_REMEDY), `${args.join(' ')}: a hard link gets no link remedy, which does not undo it\n${result.out}`);
           assert.deepEqual(snapshot(outside), outsideBefore, `${args.join(' ')} wrote outside the project`);
           assert.deepEqual(snapshot(workspace.project), projectBefore, `${args.join(' ')} wrote in the project`);
         }
@@ -1067,6 +1078,193 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
           assert.ok(text.endsWith(`${END}\n`), where);
         }
         assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+      } finally {
+        workspace.cleanup();
+        await server.close();
+      }
+    });
+  }
+}
+
+// The confinement (landing, landsOutside, hardLinked) under Windows path rules. The CI runs on
+// Linux only, so these run the functions of cli/index.js with path.win32 and a stand-in file
+// system: cli/index.js builds them in `function confinement(paths, fs)`, which takes its path
+// module and its lstatSync and readlinkSync as arguments and reaches nothing else, and that
+// function is taken from the file and run here as it is. A drive is a root like `/`: the walk
+// starts at the root the path itself names (`C:\`, `\\server\share\`), never at the separator.
+function confinementOf(paths, fs) {
+  const src = readFileSync(join(ROOT, 'cli/index.js'), 'utf8');
+  const begin = src.indexOf('\nfunction confinement(');
+  assert.ok(begin >= 0, 'cli/index.js builds the confinement in function confinement(paths, fs)');
+  const end = src.indexOf('\n}\n', begin + 1);
+  // eslint-disable-next-line no-new-func
+  return new Function(`${src.slice(begin, end + 3)}\nreturn confinement;`)()(paths, fs);
+}
+
+// A stand-in file system: `tree` maps each absolute path to a folder, a file (with its number of
+// names) or a link (with its target as written), and every lstat asked is kept in `asked`.
+function fakeFs(tree) {
+  const asked = [];
+  const missing = (p, code = 'ENOENT') => Object.assign(new Error(`${code}: ${p}`), { code, path: p });
+  return {
+    asked,
+    lstatSync(p) {
+      asked.push(p);
+      const entry = tree[p];
+      if (!entry) throw missing(p);
+      if (entry.deny) throw missing(p, entry.deny);
+      return { isSymbolicLink: () => 'link' in entry, isFile: () => entry.file === true, nlink: entry.nlink || 1 };
+    },
+    readlinkSync(p) {
+      return tree[p].link;
+    },
+  };
+}
+
+const WIN_PROJECT = 'C:\\Users\\x\\proj';
+const WIN_VICTIM = 'C:\\Users\\x\\outside\\victim.md';
+const WIN_BASE = {
+  'C:\\Users': { dir: true },
+  'C:\\Users\\x': { dir: true },
+  [WIN_PROJECT]: { dir: true },
+  'C:\\Users\\x\\outside': { dir: true },
+  'C:\\Users\\x\\outside\\deep': { dir: true },
+  [WIN_VICTIM]: { file: true },
+  'D:\\shared': { dir: true },
+  'D:\\shared\\AGENTS.md': { file: true },
+};
+const WIN_AGENTS = `${WIN_PROJECT}\\AGENTS.md`;
+const WIN_CLAUDE = `${WIN_PROJECT}\\CLAUDE.md`;
+
+const WIN_SHAPES = [
+  { form: 'AGENTS.md links to an absolute path outside', tree: { [WIN_AGENTS]: { link: WIN_VICTIM } }, lands: WIN_VICTIM, outside: true },
+  { form: 'AGENTS.md links to ..\\outside', tree: { [WIN_AGENTS]: { link: '..\\outside\\victim.md' } }, lands: WIN_VICTIM, outside: true },
+  { form: 'AGENTS.md links outside with forward slashes', tree: { [WIN_AGENTS]: { link: 'C:/Users/x/outside/victim.md' } }, lands: WIN_VICTIM, outside: true },
+  { form: 'AGENTS.md links to a path rooted on the same drive', tree: { [WIN_AGENTS]: { link: '\\Users\\x\\outside\\victim.md' } }, lands: WIN_VICTIM, outside: true },
+  { form: 'AGENTS.md links to another drive', tree: { [WIN_AGENTS]: { link: 'D:\\shared\\AGENTS.md' } }, lands: 'D:\\shared\\AGENTS.md', outside: true },
+  {
+    form: 'AGENTS.md links through a bridge and .. out of the project',
+    tree: { [`${WIN_PROJECT}\\bridge`]: { link: '..\\outside\\deep' }, [WIN_AGENTS]: { link: 'bridge\\..\\victim.md' } },
+    lands: WIN_VICTIM,
+    outside: true,
+  },
+  { form: 'AGENTS.md links inside to CLAUDE.md', tree: { [WIN_AGENTS]: { link: 'CLAUDE.md' }, [WIN_CLAUDE]: { file: true } }, lands: WIN_CLAUDE, outside: false, hard: false },
+  { form: 'AGENTS.md is a hard link', tree: { [WIN_AGENTS]: { file: true, nlink: 2 } }, lands: WIN_AGENTS, outside: false, hard: true },
+  {
+    form: 'AGENTS.md links inside to CLAUDE.md, a hard link',
+    tree: { [WIN_AGENTS]: { link: 'CLAUDE.md' }, [WIN_CLAUDE]: { file: true, nlink: 2 } },
+    lands: WIN_CLAUDE,
+    outside: false,
+    hard: true,
+  },
+  { form: 'AGENTS.md is a plain file', tree: { [WIN_AGENTS]: { file: true } }, lands: WIN_AGENTS, outside: false, hard: false },
+];
+
+test('under Windows path rules the project root is walked from its drive, not from the separator', () => {
+  const fs = fakeFs(WIN_BASE);
+  const { landing } = confinementOf(win32, fs);
+  assert.equal(landing(WIN_PROJECT), WIN_PROJECT);
+  assert.deepEqual(fs.asked, ['C:\\Users', 'C:\\Users\\x', WIN_PROJECT], 'every name on the way is asked from C:\\');
+});
+
+test('under Windows path rules a share is walked from its own root', () => {
+  const share = '\\\\srv\\share\\proj';
+  const fs = fakeFs({ [share]: { dir: true }, [`${share}\\AGENTS.md`]: { link: WIN_VICTIM } });
+  const { landing, landsOutside } = confinementOf(win32, fs);
+  const root = landing(share);
+  assert.equal(root, share);
+  assert.deepEqual(fs.asked, [share]);
+  assert.match(landsOutside(root, share, 'AGENTS.md') || '', /outside the project/);
+});
+
+for (const shape of WIN_SHAPES) {
+  test(`under Windows path rules, when ${shape.form}, the confinement sees where it lands`, () => {
+    const fs = fakeFs({ ...WIN_BASE, ...shape.tree });
+    const { landing, landsOutside, hardLinked } = confinementOf(win32, fs);
+    const root = landing(WIN_PROJECT);
+    assert.equal(landing(WIN_AGENTS), shape.lands);
+    const out = landsOutside(root, WIN_PROJECT, 'AGENTS.md');
+    if (shape.outside) {
+      assert.ok(out && out.includes('outside the project'), `refused as a link out: ${out}`);
+      return;
+    }
+    assert.equal(out, null);
+    const hard = hardLinked(root, WIN_PROJECT, 'AGENTS.md');
+    if (shape.hard) assert.ok(hard && hard.includes('hard link'), `refused as a hard link: ${hard}`);
+    else assert.equal(hard, null);
+  });
+}
+
+test('under Windows path rules a kit path whose folder links out is refused at that folder', () => {
+  const fs = fakeFs({ ...WIN_BASE, [`${WIN_PROJECT}\\.opencode`]: { link: 'C:\\Users\\x\\outside' } });
+  const { landing, landsOutside } = confinementOf(win32, fs);
+  const out = landsOutside(landing(WIN_PROJECT), WIN_PROJECT, '.opencode/skills/implement/loop/manifest.json');
+  assert.ok(out && out.startsWith('.opencode leads to C:\\Users\\x\\outside'), out);
+});
+
+test('under Windows path rules an error other than a missing name reaches the caller', () => {
+  const fs = fakeFs({ ...WIN_BASE, [WIN_AGENTS]: { deny: 'EPERM' } });
+  const { landing } = confinementOf(win32, fs);
+  assert.throws(() => landing(WIN_AGENTS), (err) => err.code === 'EPERM');
+});
+
+test('the same confinement under POSIX path rules still walks from / and follows a link out', () => {
+  const fs = fakeFs({
+    '/home': { dir: true }, '/home/x': { dir: true }, '/home/x/proj': { dir: true },
+    '/home/x/outside': { dir: true }, '/home/x/outside/victim.md': { file: true },
+    '/home/x/proj/AGENTS.md': { link: '../outside/victim.md' },
+  });
+  const { landing, landsOutside } = confinementOf(posix, fs);
+  const root = landing('/home/x/proj');
+  assert.deepEqual(fs.asked, ['/home', '/home/x', '/home/x/proj']);
+  assert.equal(landing('/home/x/proj/AGENTS.md'), '/home/x/outside/victim.md');
+  assert.match(landsOutside(root, '/home/x/proj', 'AGENTS.md') || '', /outside the project/);
+});
+
+// A check that fails is a refusal that says why, never a raw error: the project folder, or one
+// destination, that lstat answers with something other than "not there" (here EPERM, through a
+// stand-in lstat loaded before the CLI) stops the install with its reason and the remedy for it.
+function denyingPreload(workspace, paths) {
+  const preload = join(workspace.root, 'deny-lstat.mjs');
+  writeFileSync(preload, [
+    "import fs from 'node:fs';",
+    "import { syncBuiltinESMExports } from 'node:module';",
+    `const deny = new Set(${JSON.stringify(paths)});`,
+    'const lstat = fs.lstatSync;',
+    'fs.lstatSync = function (p, ...rest) {',
+    "  if (deny.has(String(p))) throw Object.assign(new Error(`EPERM: operation not permitted, lstat '${p}'`), { code: 'EPERM', path: String(p) });",
+    '  return lstat.call(this, p, ...rest);',
+    '};',
+    'syncBuiltinESMExports();',
+    '',
+  ].join('\n'));
+  return { NODE_OPTIONS: `--import=${pathToFileURL(preload).href}` };
+}
+
+const UNCHECKED = [
+  { form: 'the project folder', deny: (project) => [project, realpathSync(project)], names: 'x . — ' },
+  { form: 'AGENTS.md', deny: (project) => [join(project, 'AGENTS.md'), join(realpathSync(project), 'AGENTS.md')], names: 'x AGENTS.md — ' },
+];
+
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const shape of UNCHECKED) {
+    test(`--${edition} refuses with a reason, not a raw error, when lstat cannot answer for ${shape.form}`, async () => {
+      const server = await startServer();
+      const workspace = makeWorkspace();
+      try {
+        writeFileSync(join(workspace.project, 'AGENTS.md'), '# Mine\n');
+        const env = { [BASE_ENV]: server.url, ...denyingPreload(workspace, shape.deny(workspace.project)) };
+        const projectBefore = snapshot(workspace.project);
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+          const result = await runCli(workspace, args, env);
+          assert.equal(result.status, 1, `${args.join(' ')}\n${result.out}`);
+          assert.ok(!result.out.includes('Error:'), `${args.join(' ')}: a raw error\n${result.out}`);
+          assert.ok(result.out.split('\n').some((line) => line.includes(shape.names) && line.includes('cannot be resolved (EPERM)')), `${args.join(' ')}: names ${shape.form} and why\n${result.out}`);
+          assert.match(result.out, /Nothing was installed/, result.out);
+          assert.ok(result.out.includes(UNCHECKED_REMEDY), `${args.join(' ')}: the remedy for a check that failed\n${result.out}`);
+          assert.ok(!result.out.includes(LINK_REMEDY) && !result.out.includes(HARD_LINK_REMEDY), `${args.join(' ')}: no remedy for what was not found\n${result.out}`);
+          assert.deepEqual(snapshot(workspace.project), projectBefore, `${args.join(' ')} wrote in the project`);
+        }
       } finally {
         workspace.cleanup();
         await server.close();

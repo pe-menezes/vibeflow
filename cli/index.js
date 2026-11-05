@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, writeFileSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { dirname, isAbsolute, join, parse, relative, sep } from 'node:path';
 import pc from 'picocolors';
 
 // --- Config ---
@@ -177,82 +177,112 @@ function ensureDir(dirPath) {
   }
 }
 
-// Where a write to the absolute `path` lands, walked the way the file system walks it: one name
-// at a time from the root, a link replaced by its target where it stands, so a `..` after a link
-// climbs from where the link really leads (`bridge/../x` with `bridge -> ../outside/deep` lands
-// in `outside/x`), never from the name as written. A name that is not there yet is a folder or
-// the file the installer would create, so it stands as written. A loop of links throws ELOOP.
-function landing(path) {
-  const names = path.split(sep).filter(Boolean);
-  let real = sep;
-  let missing = false;
-  let hops = 0;
-  while (names.length > 0) {
-    const name = names.shift();
-    if (name === '.') continue;
-    if (name === '..') {
-      real = dirname(real);
-      missing = false;
-      continue;
-    }
-    const next = join(real, name);
-    let stat = null;
-    if (!missing) {
-      try {
-        stat = lstatSync(next);
-      } catch (err) {
-        if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+// The confinement: where a write lands, and whether it may happen. It takes its path module and
+// its lstatSync and readlinkSync as arguments and reaches nothing else, so the same code runs
+// under Windows path rules in the suite (test/cli-kit.test.mjs), which the CI cannot run otherwise.
+function confinement(paths, fs) {
+  const { sep, dirname, join, isAbsolute, parse, relative } = paths;
+  const { lstatSync, readlinkSync } = fs;
+
+  // A path's root comes from the path itself: `/`, a drive (`C:\`) or a share (`\\srv\share\`),
+  // never the separator alone, which on Windows is no root at all (`\C:` names nothing). Its
+  // names are what follows the root, split at every separator the path rules accept.
+  const separators = sep === '\\' ? /[\\/]+/ : /\/+/;
+  const rootOf = (path) => {
+    const root = parse(path).root;
+    return root ? join(root) : root;
+  };
+  const namesOf = (path, root) => path.slice(root.length).split(separators).filter(Boolean);
+
+  // Where a write to the absolute `path` lands, walked the way the file system walks it: one name
+  // at a time from the root, a link replaced by its target where it stands, so a `..` after a link
+  // climbs from where the link really leads (`bridge/../x` with `bridge -> ../outside/deep` lands
+  // in `outside/x`), never from the name as written. A name that is not there yet is a folder or
+  // the file the installer would create, so it stands as written. A loop of links throws ELOOP.
+  function landing(path) {
+    const start = parse(path).root;
+    const names = namesOf(path, start);
+    let real = rootOf(path);
+    let missing = false;
+    let hops = 0;
+    while (names.length > 0) {
+      const name = names.shift();
+      if (name === '.') continue;
+      if (name === '..') {
+        real = dirname(real);
+        missing = false;
+        continue;
       }
-    }
-    if (stat && stat.isSymbolicLink()) {
-      hops += 1;
-      if (hops > 40) {
-        const err = new Error(`${path} is a loop of links`);
-        err.code = 'ELOOP';
-        err.path = path;
-        throw err;
+      const next = join(real, name);
+      let stat = null;
+      if (!missing) {
+        try {
+          stat = lstatSync(next);
+        } catch (err) {
+          if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+        }
       }
-      const target = readlinkSync(next);
-      names.unshift(...target.split(sep).filter(Boolean));
-      if (isAbsolute(target)) real = sep;
-      continue;
+      if (stat && stat.isSymbolicLink()) {
+        hops += 1;
+        if (hops > 40) {
+          const err = new Error(`${path} is a loop of links`);
+          err.code = 'ELOOP';
+          err.path = path;
+          throw err;
+        }
+        // A relative target stands where the link stands; an absolute one starts again at its own
+        // root, and one rooted at the separator alone (`\x` on Windows) at the root it is read on.
+        const target = readlinkSync(next);
+        if (isAbsolute(target)) {
+          const own = parse(target).root;
+          names.unshift(...namesOf(target, own));
+          real = /^[\\/]$/.test(own) ? rootOf(real) : rootOf(target);
+        } else {
+          names.unshift(...namesOf(target, ''));
+        }
+        continue;
+      }
+      missing = !stat;
+      real = next;
     }
-    missing = !stat;
-    real = next;
+    return real;
   }
-  return real;
+
+  // Why writing `dest` (relative to cwd) would leave the project, or null when it would not: the
+  // file and every folder on its way, links resolved, must land inside the project's real root.
+  // --force does not change this: it overwrites Vibeflow's own files, it never follows a link out.
+  function landsOutside(root, cwd, dest) {
+    const inside = (path) => path === root || path.startsWith(root.endsWith(sep) ? root : root + sep);
+    const parts = dest.split('/');
+    for (let i = 1; i <= parts.length; i += 1) {
+      const prefix = parts.slice(0, i).join('/');
+      const real = landing(join(cwd, prefix));
+      if (!inside(real)) return `${prefix} leads to ${real}, outside the project (${root})`;
+    }
+    return null;
+  }
+
+  // Why writing `dest` would change a file under another name, or null when it would not: a
+  // regular file with more than one name (a hard link) changes under every name it has, wherever
+  // those are, outside the project included, so it is refused even when a link in the project
+  // leads to it.
+  function hardLinked(root, cwd, dest) {
+    const real = landing(join(cwd, dest));
+    let stat;
+    try {
+      stat = lstatSync(real);
+    } catch (err) {
+      if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null;
+      throw err;
+    }
+    if (!stat.isFile() || stat.nlink < 2) return null;
+    return `${relative(root, real) || real} is a hard link, one of ${stat.nlink} names for the same file: writing it would change the file under each of them, wherever they are`;
+  }
+
+  return { landing, landsOutside, hardLinked };
 }
 
-// Why writing `dest` (relative to cwd) would leave the project, or null when it would not: the
-// file and every folder on its way, links resolved, must land inside the project's real root.
-// --force does not change this: it overwrites Vibeflow's own files, it never follows a link out.
-function landsOutside(root, cwd, dest) {
-  const inside = (path) => path === root || path.startsWith(root.endsWith(sep) ? root : root + sep);
-  const parts = dest.split('/');
-  for (let i = 1; i <= parts.length; i += 1) {
-    const prefix = parts.slice(0, i).join('/');
-    const real = landing(join(cwd, prefix));
-    if (!inside(real)) return `${prefix} leads to ${real}, outside the project (${root})`;
-  }
-  return null;
-}
-
-// Why writing `dest` would change a file under another name, or null when it would not: a
-// regular file with more than one name (a hard link) changes under every name it has, wherever
-// those are, outside the project included, so it is refused even when a link in the project
-// leads to it.
-function hardLinked(root, cwd, dest) {
-  const real = landing(join(cwd, dest));
-  let stat;
-  try {
-    stat = lstatSync(real);
-  } catch (err) {
-    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return null;
-    throw err;
-  }
-  if (!stat.isFile() || stat.nlink < 2) return null;
-  return `${relative(root, real) || real} is a hard link, one of ${stat.nlink} names for the same file: writing it would change the file under each of them, wherever they are`;
-}
+const { landing, landsOutside, hardLinked } = confinement({ sep, dirname, join, isAbsolute, parse, relative }, { lstatSync, readlinkSync });
 
 // Writes `dest` only where landsOutside and hardLinked allow, creating the folders on its way.
 function writeInside(root, cwd, dest, content) {
@@ -638,28 +668,42 @@ async function main() {
 
   // Every path the install may write is checked before the first download: a link in the project
   // that leads out of it refuses the whole install, so nothing lands half installed or outside.
-  const root = landing(cwd);
+  // A check that fails refuses like a path that leads out, with its reason: the project folder
+  // itself first, since every other path is measured against where it lands. Each refusal has a
+  // kind (a link, a hard link, a check that could not run), and the closing lines give the remedy
+  // for each kind that is there, since what undoes a link does nothing for a hard link.
   const writes = [...files.map((file) => file.dest), 'AGENTS.md', '.gitignore'];
   if (edition.handleCopilotInstructions) writes.push('.github/copilot-instructions.md');
   const refused = [];
-  for (const dest of writes) {
+  const unresolved = (err, dest) => {
+    const where = err.path ? relative(cwd, err.path) || '.' : dest;
+    if (err.code === 'ELOOP') return { dest, reason: `${where} is a loop of links that never lands on a file or folder`, kind: 'link' };
+    return { dest, reason: `${where} cannot be resolved (${err.code || err.message})`, kind: 'unchecked' };
+  };
+  let root = null;
+  try {
+    root = landing(cwd);
+  } catch (err) {
+    refused.push({ ...unresolved(err, '.'), reason: `the project folder ${cwd} cannot be resolved (${err.code || err.message})` });
+  }
+  for (const dest of root === null ? [] : writes) {
     try {
       const reason = landsOutside(root, cwd, dest);
       const hardLink = reason ? null : hardLinked(root, cwd, dest);
-      if (reason) refused.push({ dest, reason, outside: true });
-      else if (hardLink) refused.push({ dest, reason: hardLink, outside: false });
+      if (reason) refused.push({ dest, reason, kind: 'link', outside: true });
+      else if (hardLink) refused.push({ dest, reason: hardLink, kind: 'hard link' });
     } catch (err) {
       // A path whose links never land anywhere is refused like one that lands outside.
-      const where = err.path ? relative(cwd, err.path) || '.' : dest;
-      const reason = err.code === 'ELOOP'
-        ? `${where} is a loop of links that never lands on a file or folder`
-        : `${where} cannot be resolved (${err.code || err.message})`;
-      refused.push({ dest, reason, outside: false });
+      refused.push(unresolved(err, dest));
     }
   }
   if (refused.length > 0) {
     for (const { dest, reason } of refused) log(pc.red('x'), `${dest} — ${reason}`);
-    log(pc.red('x'), `Nothing was installed: every file Vibeflow writes must land inside the project, and --force does not change that. Replace each link above with a folder or file of its own, or point it inside the project.`);
+    log(pc.red('x'), 'Nothing was installed, and --force does not change that.');
+    const kinds = new Set(refused.map(({ kind }) => kind));
+    if (kinds.has('link')) log(pc.dim('→'), 'Every file Vibeflow writes must land inside the project: replace each link above with a folder or file of its own, or point it inside the project.');
+    if (kinds.has('hard link')) log(pc.dim('→'), 'A file with more than one name changes under every one of them when it is written, inside the project or not: give each hard link above a file of its own (copy it, then move the copy over it), and run the installer again.');
+    if (kinds.has('unchecked')) log(pc.dim('→'), 'Where each path above leads could not be checked, so nothing is written through it: fix what its line names, and run the installer again.');
     if (refused.some(({ dest, outside }) => dest === 'AGENTS.md' && outside)) {
       const shared = dirname(landing(join(cwd, 'AGENTS.md')));
       log(pc.dim('→'), `AGENTS.md is shared through a link: to install with it, run the installer from ${shared}, the folder where the real file is.`);
