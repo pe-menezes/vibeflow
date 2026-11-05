@@ -3,8 +3,8 @@
 // them, hands the skill body over with `${CLAUDE_SKILL_DIR}` unsubstituted, together with the
 // skill's absolute folder — instead of landing in the "kit not installed" case written for an old
 // Claude Code or an unknown host; the orchestrator's host table opens each OpenCode round through
-// its `subagent` tool; and the auditor role names OpenCode among the hosts that read the plugin's
-// audit workflow. The contract tests pin the key sentences; these probes pin the routing as a whole
+// its `subagent` tool; and the auditor role sends OpenCode to the shared audit workflow where the
+// CLI installs it. The contract tests pin the key sentences; these probes pin the routing as a whole
 // (every host mention in the three skills) and the parts of the host table a rewrite would drift
 // on. Each case states, as comments, the contract it protects, the plausible regression that breaks
 // it and why the contract tests did not catch it.
@@ -36,7 +36,7 @@ const count = (text, word) => (text.match(new RegExp(`\\b${word}\\b`, 'g')) ?? [
 
 // Contract: in the three skills, every sentence that names a host reaching the kit by itself (Codex, Hermes or OpenCode) names all three, once each, and each skill names OpenCode in as many sentences as it names Codex: the five places that resolve the kit path (the `implement` kit path, the `audit` kit paragraph and its unsubstituted-variable rule, the `stats` command line and its rule) are where an OpenCode reader meets its host's name.
 // Breaks when: one of the five keeps "(in Codex and Hermes, …)" without OpenCode — an OpenCode session reading it would take the Claude Code tail and count the kit as not installed — or OpenCode gets a sentence of its own that drifts from the rule the next change to the kit path edits.
-// Not covered by: audit-contracts and loop-stats pin the `audit` and `stats` sentences as literals; the Hermes probe checks the sentences that name Codex or Hermes against the hosts of the `audit` rule, and its case 3 the `implement` parenthetical; only this case catches a sentence that names OpenCode alone, and its count per skill catches OpenCode dropped from the `audit` rule and from `implement` together, which the Hermes probe, reading its hosts from that rule, accepts.
+// Not covered by: audit-contracts and loop-stats pin the `audit` and `stats` sentences as literals, and the Hermes probe's case 3 the `implement` parenthetical; only this case checks every host sentence of the three skills, so it alone catches a host sentence added anywhere that names one or two of the three hosts, and its count per skill catches OpenCode dropped from the `audit` rule and from `implement` together. It took over the Hermes probe's former case 1, which checked a subset of this one while audit-contracts passed.
 test('OpenCode kit path: every host sentence in audit, implement and stats names OpenCode, Codex and Hermes together', () => {
   const expected = { audit: 2, implement: 1, stats: 2 };
   for (const [name, path] of Object.entries(SKILLS)) {
@@ -68,16 +68,21 @@ test('OpenCode host table: the row opens the round with the `subagent` tool and 
   assert.doesNotMatch(paragraph, /\.opencode\/|\.config\/opencode/, 'the paragraph names no OpenCode install path');
 });
 
-// Contract: the auditor role and the Claude agent that carries it name OpenCode among the hosts that read the audit workflow from the Vibeflow plugin's `skills/audit/SKILL.md`, next to Claude Code, Codex and Hermes, and not among the by-file editions, so an OpenCode auditor reads the shared workflow with its kit-path rule instead of looking for a Cursor or Copilot file.
-// Breaks when: the host list is edited in the role file only (the agent body then differs from the role) or OpenCode lands after the Cursor or Copilot path.
-// Not covered by: audit-contracts checks that the agent body equals the role and that the role names each edition's path, not which hosts read the plugin path.
-test('OpenCode auditor role: the role and the agent name OpenCode among the hosts of the plugin audit workflow', () => {
+// Contract: the auditor role and the Claude agent that carries it send an OpenCode auditor to `.opencode/skills/audit/SKILL.md`, the shared audit workflow the CLI installs (`.opencode/skills/<name>/SKILL.md` in `cli/index.js`), named as that same shared workflow and before the Cursor and Copilot paths, while `skills/audit/SKILL.md` in the Vibeflow plugin stays the path of Claude Code, Codex and Hermes, so an OpenCode auditor reads the shared workflow with its kit-path rule from where it is installed, instead of looking for a plugin this host does not have or for a Cursor or Copilot file.
+// Breaks when: the host list is edited in the role file only (the agent body then differs from the role); OpenCode goes back among the plugin hosts, where the edition is installed and no plugin exists; the path drifts from the folder the CLI writes; or OpenCode lands after the Cursor or Copilot path.
+// Not covered by: audit-contracts checks that the agent body equals the role and that the role names each edition's path, not which hosts read the plugin path nor where OpenCode reads it; the opencode-edition probes compare the OpenCode agent body with the role, not what the role says.
+test('OpenCode auditor role: the role and the agent send OpenCode to the shared audit workflow the CLI installs, not to a plugin', () => {
+  const cli = readFileSync(join(ROOT, 'cli/index.js'), 'utf8');
+  assert.ok(cli.includes('dest: `.opencode/skills/${name}/SKILL.md`'), 'the CLI installs each shared skill to .opencode/skills/<name>/SKILL.md');
   for (const [name, path] of Object.entries(AUDITOR)) {
     const text = flat(read(path));
     const sentence = /The procedure is the audit workflow of your host, read from its file: [^]*?in Copilot\./.exec(text)?.[0];
     assert.ok(sentence, `${name}: the sentence that says where the audit workflow is read`);
-    assert.ok(sentence.includes('`skills/audit/SKILL.md` in the Vibeflow plugin for Claude Code, Codex, Hermes and OpenCode ('),
-      `${name}: OpenCode reads the plugin workflow with Claude Code, Codex and Hermes: ${sentence}`);
+    assert.ok(sentence.includes('`skills/audit/SKILL.md` in the Vibeflow plugin for Claude Code, Codex and Hermes ('),
+      `${name}: the plugin path is the one of Claude Code, Codex and Hermes, without OpenCode: ${sentence}`);
+    assert.ok(sentence.includes('the same shared workflow installed at `.opencode/skills/audit/SKILL.md` in OpenCode'),
+      `${name}: OpenCode reads the shared workflow where the CLI installs it: ${sentence}`);
     assert.equal(count(sentence, 'OpenCode'), 1, `${name}: OpenCode is named once: ${sentence}`);
+    assert.ok(sentence.indexOf('in OpenCode') < sentence.indexOf('in Cursor'), `${name}: OpenCode comes before the by-file editions: ${sentence}`);
   }
 });

@@ -29,7 +29,10 @@ const KIT_PATH = {
   copilot: '.github/vibeflow/loop/',
 };
 const INSTALL_HINT = {
-  shared: /updating the Vibeflow plugin installs it/,
+  // In OpenCode the shared skill is installed by the CLI, not by a plugin: the
+  // hint names the folder the reader's SKILL.md sits in and the command that
+  // reinstalls it there.
+  shared: /updating the Vibeflow plugin installs it, and where\s+this SKILL\.md sits in\s+`\.opencode\/skills\/`,\s+`npx setup-vibeflow@latest --opencode --force`\s+\(setup-vibeflow 0\.18\.0 or newer\)\s+installs it/,
   cursor: /`npx setup-vibeflow@latest --cursor --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
   copilot: /`npx setup-vibeflow@latest --copilot --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
 };

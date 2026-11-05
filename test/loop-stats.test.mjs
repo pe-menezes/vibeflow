@@ -422,7 +422,7 @@ test('the plugin stats command blames an older Claude Code, not the plugin, when
   assert.ok(missing, 'no missing-kit rule after the substitution check');
   assert.ok(text.indexOf(rule) < text.indexOf(missing[0]), 'the substitution check must come before the missing-kit advice');
   assert.match(missing[0], /`node` answers "Cannot find module" for it on a normal absolute path/, missing[0]);
-  assert.match(missing[0], /the loop kit is not installed: say that updating the Vibeflow plugin installs it/, missing[0]);
+  assert.match(missing[0], /the loop kit is not installed: say that updating the Vibeflow plugin installs it, and where this SKILL\.md sits in `\.opencode\/skills\/`, `npx setup-vibeflow@latest --opencode --force` \(setup-vibeflow 0\.18\.0 or newer\) installs it/, missing[0]);
   assert.doesNotMatch(missing[0], /Claude Code/, missing[0]);
 });
 

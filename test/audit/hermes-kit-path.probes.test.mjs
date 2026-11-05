@@ -3,9 +3,9 @@
 // does — resolve `${CLAUDE_SKILL_DIR}` as the directory of the SKILL.md being read and run the
 // command again — instead of landing in the "kit not installed" case written for an old Claude
 // Code or an unknown host. The implementer's contract tests pin the two key sentences and the
-// kit paragraph of `audit`; these probes pin the routing as a whole (every host mention in the
-// three skills) and that the path the sentence tells both hosts to resolve really reaches the
-// scripts each skill names. Each case states, as comments, the contract it protects, the
+// kit paragraph of `audit`; these probes pin that the Claude Code cases never name Hermes, and
+// that the path the sentence tells both hosts to resolve really reaches the scripts each skill
+// names. That every host sentence names every host is the opencode-kit-path probe's case 1. Each case states, as comments, the contract it protects, the
 // plausible regression that breaks it and why the implementer's tests did not catch it.
 // Run with: node --test test/*.test.mjs test/audit/*.test.mjs
 
@@ -54,20 +54,6 @@ const kitParenProblem = (text, hosts) => {
   if (repeated.length) return `each host is named once in the sentence, inside the parenthetical; not so for [${repeated}]: ${sentence}`;
   return null;
 };
-
-// Contract: in the three skills, every sentence that names Codex or Hermes as a host that reaches the kit names every host the `audit` rule "In … the variable is never substituted" lists, in any order, each once, so a Hermes reader meets its host's name exactly where the Codex reader does and falls into the "resolve the path and run again" case rather than into the one for a host that does not know the variable.
-// Breaks when: a rewrite narrows one sentence back to a subset of the rule's hosts ("(in Codex, …)", or the list without the host the rule last gained), names a host twice, or adds Hermes to a sentence of its own, drifting from the rule that the next change to the kit path will edit.
-// Not covered by: audit-contracts and loop-stats pin the `audit` and `stats` sentences as literals and case 3 the `implement` parenthetical, each one sentence; only this case checks every host sentence of the three skills against the rule's list, and the opencode-kit-path probe checks a fixed list of three hosts, not the rule's.
-test('Hermes kit path: every host sentence in audit, implement and stats names every host of the never-substituted rule, once each, in any order', () => {
-  const hosts = neverSubstitutedHosts();
-  for (const [name, path] of Object.entries(SKILLS)) {
-    const hostSentences = sentences(read(path)).filter((s) => /\bCodex\b|\bHermes\b/.test(s));
-    assert.ok(hostSentences.length >= 1, `${name}: at least one sentence names the hosts that resolve the kit path themselves`);
-    for (const sentence of hostSentences) {
-      for (const host of hosts) assert.equal(count(sentence, host), 1, `${name}: ${host} is named once in each host sentence, with the other hosts of the never-substituted rule (${hosts.join(', ')}): ${sentence}`);
-    }
-  }
-});
 
 // Contract: the sentences that send an old Claude Code, or a host that does not know the variable, to the "kit not installed" (`audit`) or "update Claude Code" (`stats`) case never name Hermes, because a Hermes session that read its name there would record `Review package: none (kit not installed)` or tell its user to update Claude Code, with the kit installed beside the skill.
 // Breaks when: a maintainer lists Hermes among the hosts of the Claude Code tail ("In Claude Code and Hermes the variable was not substituted…") while leaving the key sentence intact, so the key sentence's test stays green and the Hermes reader meets two contradicting cases.

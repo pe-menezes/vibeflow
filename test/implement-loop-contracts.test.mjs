@@ -28,7 +28,10 @@ const KIT_PATH = {
   copilot: '.github/vibeflow/loop/',
 };
 const INSTALL_HINT = {
-  shared: /updating the Vibeflow plugin installs it/,
+  // In OpenCode the shared skill is installed by the CLI, not by a plugin: the
+  // hint names the folder the reader's SKILL.md sits in and the command that
+  // reinstalls it there.
+  shared: /updating the Vibeflow plugin installs it, and where\s+this SKILL\.md sits in\s+`\.opencode\/skills\/`,\s+`npx setup-vibeflow@latest --opencode --force`\s+\(setup-vibeflow 0\.18\.0 or newer\)\s+installs it/,
   cursor: /`npx setup-vibeflow@latest --cursor --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
   copilot: /`npx setup-vibeflow@latest --copilot --force` \(setup-vibeflow 0\.17\.0 or newer\)/,
 };
@@ -95,10 +98,12 @@ for (const [edition, path] of Object.entries(EDITIONS)) {
   // The stop is a chain: each missing piece names what installs it, and both end the loop before
   // phase 0. Pinned as one predicate, so a clause that lets the loop run anyway breaks it.
   test(`${edition}: the kit-absent and Node stops both end the loop before phase 0`, () => {
+    // The kit-absent stop is one sentence: a period ends it only when a space follows, so a
+    // version (`0.18.0`) or a path (`SKILL.md`, `.opencode/skills/`) stays inside it.
     const section = flat(splitSection(read(path)).section);
     assert.match(
       section,
-      /When the folder is missing, the kit is not installed: (?:[^.]|\d\.\d)*installs it\. When Node\.js is missing or older, install Node\.js 18 or newer \([^)]*\)\. Either way, stop the loop before phase 0, say what to install, and say that `implement` without `--loop` still runs/,
+      /When the folder is missing, the kit is not installed: (?:[^.]|\.(?!\s))*installs it\. When Node\.js is missing or older, install Node\.js 18 or newer \([^)]*\)\. Either way, stop the loop before phase 0, say what to install, and say that `implement` without `--loop` still runs/,
       `${edition}: no kit or no Node 18 stops the loop before phase 0`,
     );
     assert.doesNotMatch(section, /anyway|improvise|run the loop without/i, `${edition}: no path that runs the loop without the kit or Node 18`);
