@@ -53,8 +53,10 @@ The loop kit lives at `${CLAUDE_SKILL_DIR}/../implement/loop/` (in OpenCode,
 Codex and Hermes, the same path relative to the directory of this SKILL.md).
 This command uses two of its scripts, `review-package.mjs` and
 `check-probes.mjs`. When the folder is missing, the kit is not installed:
-updating the Vibeflow plugin installs it, and each step below says how the
-audit runs without it.
+updating the Vibeflow plugin installs it, and where this SKILL.md sits in
+`.opencode/skills/`, `npx setup-vibeflow@latest --opencode --force`
+(setup-vibeflow 0.18.0 or newer) installs it. Each step below says how the audit runs
+without it.
 
 ## Steps
 

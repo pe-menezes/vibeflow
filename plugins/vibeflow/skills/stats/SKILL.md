@@ -64,8 +64,10 @@ Compile and report statistics from audit reports.
      report the rest.
    * Otherwise, when the script is missing (`node` answers "Cannot find
      module" for it on a normal absolute path), the loop kit is not
-     installed: say that updating the Vibeflow plugin installs it, and
-     report the rest.
+     installed: say that updating the Vibeflow plugin installs it, and where
+     this SKILL.md sits in `.opencode/skills/`,
+     `npx setup-vibeflow@latest --opencode --force` (setup-vibeflow 0.18.0 or
+     newer) installs it, and report the rest.
    * From the audit reports, count the finding lines
      (`- [<id>] <severity> · <cause> · confidence ...`) by severity
      (`defect`, `risk-gap`, `low`) and by cause (`spec`, `implementation`,

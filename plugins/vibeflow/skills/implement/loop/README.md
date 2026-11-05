@@ -6,10 +6,10 @@ The portable half of the execution loop, shipped inside the `implement` skill so
 * `briefings.md`: the four briefing templates (executor, fix, auditor, re-auditor) with the artifact paths.
 * `orchestrator.md`: the flow `implement --loop` follows once phases 0 to 3 have run: opening, briefings, fresh sessions per host, the outside check, the audit, the fix loop with its ceiling, the ledger, and the company-mode ending with the pull request.
 * `pr-body.md`: the template of the pull request body that ends the loop in company mode, with the file each section is filled from.
-* `roles/auditor.md`: the auditor's session discipline, which points at the audit workflow for the procedure; the Claude Code agent `agents/auditor.md` carries the same body.
-* `roles/executor.md`: the executor's session discipline for executor and fix rounds; the Claude Code agent `agents/executor.md` carries the same body.
+* `roles/auditor.md`: the auditor's session discipline, which points at the audit workflow for the procedure; the Claude Code agent `agents/auditor.md` and the OpenCode agent `auditor` carry the same body.
+* `roles/executor.md`: the executor's session discipline for executor and fix rounds; the Claude Code agent `agents/executor.md` and the OpenCode agent `executor` carry the same body.
 * `scripts/`: the checks that must run every time, as Node scripts.
-* `manifest.json`: the kit's file list; `setup-vibeflow` installs exactly those files for Cursor and Copilot, and a test keeps the list equal to this folder.
+* `manifest.json`: the kit's file list; `setup-vibeflow` installs exactly those files for Cursor, Copilot and OpenCode, and a test keeps the list equal to this folder.
 
 The commands that use the kit name the script and the moment; this file says what each script does and what its exit code means.
 

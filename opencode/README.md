@@ -6,6 +6,7 @@ Vibeflow configuration files for **OpenCode** (checked against OpenCode 2.2.5).
 
 ```
 opencode/
+├── AGENTS.md                                     → repo root (its Vibeflow block goes into the project's `AGENTS.md`)
 ├── agents/
 │   ├── architect.md                              → .opencode/agents/ (primary agent — the Architect persona)
 │   ├── executor.md                               → .opencode/agents/ (subagent — executor and fix rounds of the loop)
