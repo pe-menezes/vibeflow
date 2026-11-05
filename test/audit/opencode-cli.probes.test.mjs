@@ -416,3 +416,47 @@ test('copilot-instructions.md: --copilot over the file a 0.17 CLI left converges
   }
   assert.equal(texts[2], texts[1]);
 });
+
+// ---- markers the user quotes in prose or code (conserto 2 of part 3, from the Codex review)
+
+// Contract: only a marker that is the whole line (spaces around it aside) is a delimiter; a marker quoted inside a line of the user's text (between backticks, at the head of a sentence) is the user's text, so no line of it is replaced, moved or swept, in any edition and in any position: with no real pair the block is appended below the whole file, and with a real pair only what is between that pair changes.
+// Breaks when: findDelimitedPair, the sweep of an older CLI's leftover start above the pair and ends below it, or withoutOwnDelimiters look the marker up as a substring anywhere in the file again (the code at 12089a9): an AGENTS.md that explains the block format, "Opening token: `<!-- vibeflow:start -->`" over a rule over "Closing token: `<!-- vibeflow:end -->`", loses the rule and gets the block inside the quote, and a sentence that opens with the end marker right after the block loses its marker and the line break before it.
+// Not covered by: every other block case writes the markers as whole lines; test/cli-kit.test.mjs has no quoted marker.
+const QUOTED = [
+  {
+    name: 'a quoted start and end around a rule, and no real pair',
+    body: `# My rules\n\nThe Vibeflow block uses markers:\n\nOpening token: \`${START}\`\nNEVER-DEPLOY-WITHOUT-HUMAN-APPROVAL.\nClosing token: \`${END}\`\n\nEnd.\n`,
+    before: `# My rules\n\nThe Vibeflow block uses markers:\n\nOpening token: \`${START}\`\nNEVER-DEPLOY-WITHOUT-HUMAN-APPROVAL.\nClosing token: \`${END}\`\n\nEnd.\n\n`,
+    after: '\n',
+  },
+  {
+    name: 'a quoted marker in the user\'s text above the real block',
+    body: `# My rules\n\nOpening token: \`${START}\`\nKEEP-ABOVE, and every block opens with ${START}\n\n${START}\nold\n${END}\n\nEnd.\n`,
+    before: `# My rules\n\nOpening token: \`${START}\`\nKEEP-ABOVE, and every block opens with ${START}\n\n`,
+    after: '\n\nEnd.\n',
+  },
+  {
+    name: 'a quoted marker in the user\'s text right below the real block',
+    body: `# My rules\n\n${START}\nold\n${END}\n${END} is a literal token, KEEP-BELOW.\nClosing token: \`${END}\`\n\nEnd.\n`,
+    before: '# My rules\n\n',
+    after: `\n${END} is a literal token, KEEP-BELOW.\nClosing token: \`${END}\`\n\nEnd.\n`,
+  },
+];
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of QUOTED) {
+    test(`AGENTS.md block: --${edition} over ${state.name} keeps every line the user wrote`, async () => {
+      const { texts } = await installOver(edition, 'AGENTS.md', state.body);
+      for (const [run, text] of texts.entries()) {
+        const where = `run ${run + 1}\n${text}`;
+        assert.ok(text.startsWith(state.before + `${START}\n## Vibeflow Methodology\n`), where);
+        assert.ok(text.endsWith(`${END}${state.after}`), where);
+        const block = text.slice(state.before.length, text.length - state.after.length);
+        assert.ok(block.startsWith(`${START}\n`) && block.endsWith(`\n${END}`), where);
+        assert.equal(countOf(block, START), 1, where);
+        assert.equal(countOf(block, END), 1, where);
+        assert.ok(!text.includes('\nold\n'), where);
+      }
+      assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+    });
+  }
+}

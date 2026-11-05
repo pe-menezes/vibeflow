@@ -230,19 +230,35 @@ function extractCopilotInstructionsSnippet(fullContent) {
 // A source that carries its own delimiters, for whoever copies the file by hand (the editions'
 // AGENTS.md and the Copilot snippet do), gives what is between them: upsertDelimitedBlock adds the pair.
 function withoutOwnDelimiters(block) {
-  const startIdx = block.indexOf(VIBEFLOW_START);
-  const endIdx = block.lastIndexOf(VIBEFLOW_END);
-  if (startIdx === -1 || endIdx < startIdx) return block;
+  const starts = markerLines(block, VIBEFLOW_START);
+  const ends = markerLines(block, VIBEFLOW_END);
+  if (starts.length === 0 || ends.length === 0) return block;
+  const startIdx = starts[0];
+  const endIdx = ends[ends.length - 1];
+  if (endIdx < startIdx) return block;
   return block.slice(startIdx + VIBEFLOW_START.length, endIdx);
+}
+
+// A delimiter is a marker that is the whole line, spaces around it aside. A marker quoted inside
+// a line (between backticks, at the head of a sentence) is the user's text, never a delimiter.
+// Gives the offset of the marker in each such line, in file order.
+function markerLines(text, marker) {
+  const offsets = [];
+  const line = new RegExp(`^([ \\t]*)${marker}[ \\t]*\\r?$`, 'gm');
+  for (let match = line.exec(text); match; match = line.exec(text)) {
+    offsets.push(match.index + match[1].length);
+  }
+  return offsets;
 }
 
 // The block in the user's file is a real pair: the first end that has a start above it, with the
 // last start above that end. A start with no end below it, or an end with no start above it, is
 // the user's text and stays where it is, along with everything around it.
 function findDelimitedPair(existing) {
-  for (let endIdx = existing.indexOf(VIBEFLOW_END); endIdx !== -1; endIdx = existing.indexOf(VIBEFLOW_END, endIdx + 1)) {
-    const startIdx = existing.lastIndexOf(VIBEFLOW_START, endIdx);
-    if (startIdx !== -1) return { startIdx, endIdx };
+  const starts = markerLines(existing, VIBEFLOW_START);
+  for (const endIdx of markerLines(existing, VIBEFLOW_END)) {
+    const above = starts.filter((startIdx) => startIdx < endIdx);
+    if (above.length > 0) return { startIdx: above[above.length - 1], endIdx };
   }
   return null;
 }
@@ -259,17 +275,22 @@ function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
   if (pair) {
     // An older CLI wrapped a source that had its own delimiters, and each rerun left one more
     // end delimiter: the extra start right above the block and the ends right below it, with
-    // only blank space between, go with it. Anything else around the pair is left alone.
+    // only blank space between, go with it. Only delimiter lines go; anything else around the
+    // pair, a marker quoted in the user's text included, is left alone.
+    const blank = (text) => text.trim() === '';
     let blockStart = pair.startIdx;
-    const leadingStart = new RegExp(`${VIBEFLOW_START}\\s*$`);
-    for (let match = leadingStart.exec(existing.slice(0, blockStart)); match; match = leadingStart.exec(existing.slice(0, blockStart))) {
-      blockStart = match.index;
+    const starts = markerLines(existing, VIBEFLOW_START);
+    for (let i = starts.length - 1; i >= 0; i -= 1) {
+      if (starts[i] >= blockStart) continue;
+      if (!blank(existing.slice(starts[i] + VIBEFLOW_START.length, blockStart))) break;
+      blockStart = starts[i];
     }
     const before = existing.slice(0, blockStart);
     let blockEnd = pair.endIdx + VIBEFLOW_END.length;
-    const trailingEnd = new RegExp(`^\\s*${VIBEFLOW_END}`);
-    for (let match = trailingEnd.exec(existing.slice(blockEnd)); match; match = trailingEnd.exec(existing.slice(blockEnd))) {
-      blockEnd += match[0].length;
+    for (const endIdx of markerLines(existing, VIBEFLOW_END)) {
+      if (endIdx < blockEnd) continue;
+      if (!blank(existing.slice(blockEnd, endIdx))) break;
+      blockEnd = endIdx + VIBEFLOW_END.length;
     }
     const after = existing.slice(blockEnd);
     const content = before + delimited + after;
