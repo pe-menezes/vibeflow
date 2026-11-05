@@ -795,3 +795,32 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
     });
   }
 }
+
+// ---- reaudit 4 of part 3: a fence opened on a list item's own line
+
+// Contract (conserto 5's, "the code reader agrees with Markdown on what is code"): a fence opened on the line of a list item (`- ```` , `1. ~~~`) is a fenced code block inside the item, as CommonMark (micromark) reads it, so a Vibeflow pair the user writes in it, indented to the item's content, is the user's example: it stays byte for byte, and the real block below it, if any, is the one that updates on every --force.
+// Breaks when: the code reader only recognises a fence at the start of a line (the state at 9541b4c and at c40c166): the pair inside the item's fence is taken for the block and its content is replaced, and the item's closing fence, read as an opening one, turns everything below it, the real block included, into code.
+// Not covered by: every fence in FENCE_STATES, RA3_FENCES and CODE_LINE_FORMS starts its line (indented by spaces or a tab at most); E3 of reaudit 3 nests the fence under a list item on a line of its own. Opened as todo by reaudit 4 of part 3 (defect D1 of that report).
+const LIST_FENCES = [
+  { name: 'a backtick fence opened on a bullet item, above the real block', body: `# Mine\n\n- Example:\n- ${T3}\n  ${START}\n  USER-EXAMPLE\n  ${END}\n  ${T3}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`- ${T3}\n  ${START}\n  USER-EXAMPLE\n  ${END}\n  ${T3}\n`] },
+  { name: 'a tilde fence opened on a numbered item, with no real block', body: `# Mine\n\n1. ~~~\n   ${START}\n   USER-EXAMPLE\n   ${END}\n   ~~~\n\nEnd.\n`, kept: [`1. ~~~\n   ${START}\n   USER-EXAMPLE\n   ${END}\n   ~~~\n\nEnd.\n`], appended: true },
+];
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of LIST_FENCES) {
+    test(`reaudit 4: --${edition} over ${state.name} keeps the user's example and updates the one real block on every pass`, { todo: 'defect D1 of reaudit 4 of part 3: a fence on a list item line is not code for the CLI' }, async () => {
+      const texts = await installStale(edition, state.body);
+      for (const [run, text] of texts.entries()) {
+        const where = `run ${run + 1}\n${JSON.stringify(text)}`;
+        const heading = text.lastIndexOf('## Vibeflow Methodology');
+        assert.equal(text.slice(heading - START.length - 1, heading), `${START}\n`, where);
+        assert.equal(countOf(text, '## Vibeflow Methodology'), 1, where);
+        assert.ok(!/[\r\n]old[\r\n]/.test(text) && !text.includes('STALE-'), where);
+        assert.equal(countOf(text, 'USER-EXAMPLE'), 1, where);
+        for (const piece of state.kept) assert.ok(text.includes(piece), `kept ${JSON.stringify(piece)}\n${where}`);
+        if (state.appended) assert.ok(text.startsWith(state.body), `the user's bytes changed\n${where}`);
+        else assert.equal(countOf(text, 'End.'), 1, where);
+      }
+      assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+    });
+  }
+}
