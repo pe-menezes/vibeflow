@@ -5,7 +5,7 @@
 // Claude Code or an unknown host; the orchestrator's host table opens each OpenCode round through
 // its `subagent` tool; and the auditor role sends OpenCode to the shared audit workflow where the
 // CLI installs it. The contract tests pin the key sentences; these probes pin the routing as a whole
-// (every host mention in the three skills) and the parts of the host table a rewrite would drift
+// (every kit-path sentence of the three skills, against the hosts of the never-substituted rule) and the parts of the host table a rewrite would drift
 // on. Each case states, as comments, the contract it protects, the plausible regression that breaks
 // it and why the contract tests did not catch it.
 // Run with: node --test test/*.test.mjs test/audit/*.test.mjs
@@ -34,18 +34,31 @@ const flat = (text) => text.replace(/\s+/g, ' ');
 const sentences = (text) => flat(text).split(/(?<=\.)\s+/);
 const count = (text, word) => (text.match(new RegExp(`\\b${word}\\b`, 'g')) ?? []).length;
 
-// Contract: in the three skills, every sentence that names a host reaching the kit by itself (Codex, Hermes or OpenCode) names all three, once each, and each skill names OpenCode in as many sentences as it names Codex: the five places that resolve the kit path (the `implement` kit path, the `audit` kit paragraph and its unsubstituted-variable rule, the `stats` command line and its rule) are where an OpenCode reader meets its host's name.
-// Breaks when: one of the five keeps "(in Codex and Hermes, …)" without OpenCode — an OpenCode session reading it would take the Claude Code tail and count the kit as not installed — or OpenCode gets a sentence of its own that drifts from the rule the next change to the kit path edits.
-// Not covered by: audit-contracts and loop-stats pin the `audit` and `stats` sentences as literals, and the Hermes probe's case 3 the `implement` parenthetical; only this case checks every host sentence of the three skills, so it alone catches a host sentence added anywhere that names one or two of the three hosts, and its count per skill catches OpenCode dropped from the `audit` rule and from `implement` together. It took over the Hermes probe's former case 1, which checked a subset of this one while audit-contracts passed.
-test('OpenCode kit path: every host sentence in audit, implement and stats names OpenCode, Codex and Hermes together', () => {
+// The hosts that do not substitute the variable are the ones the `audit` rule "In … the variable is never substituted" lists; OpenCode, Codex and Hermes stay the floor.
+const neverSubstitutedHosts = () => {
+  const ruleHosts = /\bIn ((?:[A-Z]\w*(?:, | and ))*[A-Z]\w*) the variable is never substituted/.exec(flat(read(SKILLS.audit)))?.[1];
+  assert.ok(ruleHosts, 'audit: one sentence lists the hosts where "the variable is never substituted"');
+  const hosts = ruleHosts.split(/, | and /);
+  for (const floor of ['OpenCode', 'Codex', 'Hermes']) assert.ok(hosts.includes(floor), `audit: the never-substituted rule names ${floor}: ${ruleHosts}`);
+  return hosts;
+};
+// A sentence that resolves the kit path: it shows the variable, says the path is the same relative to this SKILL.md, states the never-substituted rule, or says where the kit is without being an install instruction.
+const resolvesKitPath = (s) =>
+  s.includes('${CLAUDE_SKILL_DIR}') || /the same path relative|directory of this SKILL\.md|never substituted/.test(s) || (/\bkit\b/.test(s) && !/install/.test(s));
+
+// Contract: in the three skills, every sentence that resolves the kit path and names a host of the `audit` never-substituted rule names every host of that rule, once each, and each skill has as many such sentences as the five places that resolve the kit path (the `implement` kit path, the `audit` kit paragraph and its never-substituted rule, the `stats` command line and its rule): those are where a reader of a host that does not substitute the variable meets its host's name. The host list is read from the rule, so a host added to the rule has to reach every other kit-path sentence. Install instructions are out of the contract: a sentence that tells one host how to install the kit (the `npx setup-vibeflow@latest --opencode --force` hint names its folder, but could name OpenCode alone) does not route any host to the kit path.
+// Breaks when: one of the five keeps "(in Codex and Hermes, …)" without OpenCode — an OpenCode session reading it would take the Claude Code tail and count the kit as not installed —; a host gets a kit sentence of its own that drifts from the rule the next change to the kit path edits; or a fourth host enters the rule, the `audit` kit paragraph and the `implement` parenthetical, the audit-contracts literals are updated with it, and the `stats` sentences are forgotten (the gesture that added OpenCode).
+// Not covered by: audit-contracts and loop-stats pin the `audit` and `stats` sentences as literals, which the maintainer rewrites when adding a host, and the Hermes probe's case 3 the `implement` parenthetical against the same rule; only this case checks every kit-path sentence of the three skills against the rule's own list. It took over the Hermes probe's former case 1.
+test('OpenCode kit path: every host sentence in audit, implement and stats that resolves the kit path names every host of the never-substituted rule', () => {
+  const hosts = neverSubstitutedHosts();
   const expected = { audit: 2, implement: 1, stats: 2 };
+  const hostPattern = new RegExp(`\\b(?:${hosts.join('|')})\\b`);
   for (const [name, path] of Object.entries(SKILLS)) {
-    const hostSentences = sentences(read(path)).filter((s) => /\bCodex\b|\bHermes\b|\bOpenCode\b/.test(s));
-    const opencode = hostSentences.filter((s) => /\bOpenCode\b/.test(s));
-    assert.ok(opencode.length >= expected[name], `${name}: OpenCode is named in ${opencode.length} sentences, ${expected[name]} expected`);
-    for (const sentence of hostSentences) {
-      for (const host of ['Codex', 'Hermes', 'OpenCode']) {
-        assert.equal(count(sentence, host), 1, `${name}: ${host} is named once in each host sentence: ${sentence}`);
+    const kitSentences = sentences(read(path)).filter((s) => resolvesKitPath(s) && hostPattern.test(s));
+    assert.ok(kitSentences.length >= expected[name], `${name}: ${kitSentences.length} kit-path sentences name a never-substituted host, ${expected[name]} expected`);
+    for (const sentence of kitSentences) {
+      for (const host of hosts) {
+        assert.equal(count(sentence, host), 1, `${name}: ${host} is named once in each kit-path sentence: ${sentence}`);
       }
     }
   }
