@@ -27,7 +27,7 @@ const read = (path) => readFileSync(join(ROOT, path), 'utf8');
 // Not covered by: implement-loop-contracts pins the `subagent` tool, the foreground, the
 // `description` and the `prompt` of the row; the opencode-kit-path probes pin what the row leaves
 // out (`task`, `subagent_type`, the Claude Code agents, install paths); nothing asks for `agent`.
-test('OpenCode host table: the row names the `agent` the `subagent` call requires, and not the read-only `explore`', { todo: 'F1: the OpenCode row names no `agent`, a required field of the `subagent` tool' }, () => {
+test('OpenCode host table: the row names the `agent` the `subagent` call requires, and not the read-only `explore`', () => {
   const row = read(ORCHESTRATOR).split('\n').find((line) => line.startsWith('| OpenCode |'));
   assert.ok(row, 'the host table has an OpenCode row');
   const [, , executor, auditor] = row.split('|').map((cell) => cell.trim());
