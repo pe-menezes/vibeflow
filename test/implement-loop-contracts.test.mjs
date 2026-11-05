@@ -154,6 +154,23 @@ test('orchestrator.md: a fresh session per round on every host, and the user-ope
   // `rg -n 'Hermes' orchestrator.md` shows the row and a paragraph line that names the wait it replaces.
   const hermesLines = orchestrator().split('\n').filter((line) => line.includes('Hermes'));
   assert.ok(hermesLines.some((line) => !line.startsWith('|') && line.includes('watch-round')), 'the Hermes paragraph line names watch-round, the wait it replaces');
+  // OpenCode: one call of its `subagent` tool per round, in the foreground. The child session starts
+  // with fresh context, so the `prompt` carries only the briefing instruction, and the `description`
+  // (the label the user sees) carries the round title of loop principle 9. The row never offers the
+  // Claude Code agents: OpenCode drops an agent file whose `tools:` is a list, as theirs is.
+  assert.match(text, /\| OpenCode \|[^|]*`subagent` tool[^|]*\|[^|]*audit workflow/i, 'OpenCode row');
+  const [, opencodeExecutor] = /\| OpenCode \|([^|]*)\|/.exec(text);
+  assert.match(opencodeExecutor, /foreground/, 'OpenCode: the subagent runs in the foreground');
+  assert.match(opencodeExecutor, /`description`[^|]*`<feature> · <part> · <role> · round <n>`/, 'OpenCode: the description is the round title');
+  assert.match(opencodeExecutor, /`prompt`[^|]*"Read `<briefing path>` and follow it\."/, 'OpenCode: the prompt reads the briefing');
+  assert.doesNotMatch(/\| OpenCode \|[^\n]*/.exec(orchestrator())[0], /vibeflow:/, 'OpenCode: the row does not offer the Claude Code agents');
+  // The foreground call returns the subagent's final response, so on OpenCode the end of a round is
+  // that return; the orchestrator never polls a file or a transcript with watch-round.mjs for it.
+  assert.match(text, /On OpenCode the label the user sees is the `description` of the `subagent` call/, 'OpenCode: the description is the round title of loop principle 9');
+  assert.match(text, /The end of an OpenCode round is the `subagent` call returning the subagent's final response[^.]*instead of running `watch-round\.mjs`/, 'OpenCode: the end of a round is the call returning, instead of watch-round.mjs');
+  assert.match(text, /OpenCode round[^.]*five lines in the response[^.]*final marker in the round's file instead of running `watch-round\.mjs`; a response with no marker in the file[^.]*restarted from the file \(loop principle 3\)/, 'OpenCode: reads the five lines in the response and the marker in the file; no marker restarts the round from the file');
+  const opencodeLines = orchestrator().split('\n').filter((line) => line.includes('OpenCode'));
+  assert.ok(opencodeLines.some((line) => !line.startsWith('|') && line.includes('watch-round')), 'the OpenCode paragraph line names watch-round, the wait it replaces');
   assert.match(text, /\| Cursor, Copilot \|[^|]*new chat the user opens[^|]*one-line instruction/i, 'Cursor and Copilot row');
   assert.match(text, /cannot open a fresh session[^.]*falls back to the chat the user opens[^.]*says so/i, 'fallback to the user-opened chat');
   assert.match(text, /nothing else in the command breaks/i, 'the fallback breaks nothing else');
