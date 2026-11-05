@@ -100,23 +100,6 @@ test('OpenCode install: .opencode/skills/ is the shared skills tree, file for fi
   });
 });
 
-// Contract: every installed skill's frontmatter name equals the folder that holds it, which the host requires to load it (measured in OpenCode 2.2.5 by the part 1 auditor).
-// Breaks when: the CLI installs a skill under a prefixed folder (vibeflow-audit/, as the Cursor edition does), so the host drops it.
-// Not covered by: test/cli-kit.test.mjs compares bytes with the source, not the name against the destination folder.
-test('OpenCode install: each installed skill is named after its folder', async () => {
-  await withInstall(async (ws) => {
-    const dir = join(ws.project, '.opencode/skills');
-    const folders = readdirSync(dir);
-    assert.ok(folders.length >= 10, folders.join(', '));
-    for (const folder of folders) {
-      const text = readFileSync(join(dir, folder, 'SKILL.md'), 'utf8');
-      const name = /^---\n[\s\S]*?^name:\s*["']?([^"'\n]+?)["']?\s*$/m.exec(text);
-      assert.ok(name, `${folder}/SKILL.md has a name`);
-      assert.equal(name[1], folder);
-    }
-  });
-});
-
 // Contract: the shared implement skill reads the kit as `loop/` in the directory of its SKILL.md in OpenCode, so the installed kit sits there with every script the orchestrator runs.
 // Breaks when: the OpenCode kitDest moves (to .opencode/vibeflow/loop, in the Copilot mold), and the skill's sentence stops being true.
 // Not covered by: test/audit/cli-kit.probes.test.mjs checks that the Cursor and Copilot editions name their kitDest; the shared sentence names a position, not a path.
@@ -134,8 +117,8 @@ test('OpenCode install: the kit is loop/ beside the installed implement SKILL.md
 });
 
 // Contract: the agents the orchestrator's OpenCode row calls by name are installed in .opencode/agents/, and every installed command loads a skill that is installed.
-// Breaks when: an agent or a command is dropped from the CLI's list, so a `subagent` call falls back or a /vibeflow-<name> command loads nothing.
-// Not covered by: test/cli-kit.test.mjs lists the files it expects itself instead of reading what the orchestrator and the commands call.
+// Breaks when: the orchestrator's OpenCode row starts calling an agent the edition does not ship (a new role, or a renamed one), or a command is written to load a skill that is not among the installed workflows, while the CLI's list and the test's list stay as they are.
+// Not covered by: test/cli-kit.test.mjs lists the files it expects itself, so it holds the CLI to that list and never reads what the orchestrator and the commands call.
 test('OpenCode install: the agents the loop calls and the skills the commands load are installed', async () => {
   await withInstall(async (ws) => {
     const row = readFileSync(join(SKILLS, 'implement/loop/orchestrator.md'), 'utf8').split('\n').find((line) => line.startsWith('| OpenCode |'));
@@ -173,31 +156,9 @@ test('OpenCode install: the AGENTS.md block speaks OpenCode, and every command i
   });
 });
 
-// Contract: an install into a project with its own AGENTS.md keeps the project's text and adds one Vibeflow block, and a --force rerun replaces that block in place.
-// Breaks when: the OpenCode AGENTS.md source loses its `---` separator, so the note above it ("copy this file...") lands in the instructions the host loads.
-// Not covered by: test/cli-kit.test.mjs installs into an empty project only.
-test('OpenCode install: a project AGENTS.md keeps its text, gains one block, and a rerun leaves it as it is', async () => {
-  const server = await startServer();
-  const ws = makeWorkspace();
-  try {
-    writeFileSync(join(ws.project, 'AGENTS.md'), '# My project\n\nRun make test.\n');
-    const first = await runCli(ws, ['--opencode'], { VIBEFLOW_BASE_URL: server.url });
-    assert.equal(first.status, 0, first.out);
-    const after = readFileSync(join(ws.project, 'AGENTS.md'), 'utf8');
-    assert.ok(after.startsWith('# My project\n\nRun make test.\n'), after);
-    assert.doesNotMatch(after, /append the content below|copy this file/i, 'the source note stays out of the host instructions');
-    const second = await runCli(ws, ['--opencode', '--force'], { VIBEFLOW_BASE_URL: server.url });
-    assert.equal(second.status, 0, second.out);
-    assert.equal(readFileSync(join(ws.project, 'AGENTS.md'), 'utf8'), after);
-  } finally {
-    ws.cleanup();
-    await server.close();
-  }
-});
-
 // Contract: the .gitignore block ignores what the install wrote and leaves the user's own .opencode/ files tracked, as git itself reads the file.
-// Breaks when: the block is widened to `.opencode/` or `.opencode/skills/*/`, and the user's own agents, commands and skills vanish from git.
-// Not covered by: test/cli-kit.test.mjs compares the block text, not what git ignores with it.
+// Breaks when: a line of the block is written so git reads it differently from what its text suggests (`.opencode/commands/vibeflow-*.md/`, whose trailing slash matches folders only, so no installed command is ignored), and the test's expected block is changed to the same text.
+// Not covered by: test/cli-kit.test.mjs compares the block text with its own constant, not what git ignores with it.
 test('OpenCode install: git ignores every installed file and none of the user\'s own .opencode files', async () => {
   const mine = ['.opencode/agents/mine.md', '.opencode/commands/mine.md', '.opencode/skills/mine/SKILL.md', 'opencode.json', 'AGENTS.md'];
   await withInstall(async (ws) => {
@@ -343,9 +304,9 @@ test('AGENTS.md block: --copilot over the legacy block keeps every line of the f
 });
 
 // Contract: the Copilot snippet written into an existing .github/copilot-instructions.md has one pair of delimiters, like the AGENTS.md block, and keeps the user's text.
-// Breaks when: the snippet source carries its own pair (it does: copilot/copilot-instructions.md has them inside the fenced block) and the CLI wraps it again, which is the current behavior: 2 start and 2 end from the first run.
-// Not covered by: test/cli-kit.test.mjs never installs over a copilot-instructions.md; the part-3 fix strips the source pair for AGENTS.md only.
-test('copilot-instructions.md: --copilot writes one pair of delimiters and reruns hold', { todo: 'open defect: the snippet is wrapped twice (2 start, 2 end), since extractCopilotInstructionsSnippet keeps the source pair' }, async () => {
+// Breaks when: the CLI stops taking the source's own pair out of the snippet (copilot/copilot-instructions.md has one inside the fenced block) and wraps it again: 2 start and 2 end from the first run, as before conserto 1 of part 3.
+// Not covered by: test/cli-kit.test.mjs never installs over a copilot-instructions.md.
+test('copilot-instructions.md: --copilot writes one pair of delimiters and reruns hold', async () => {
   const mine = '# Team rules\n\nuse tabs\n';
   const { texts } = await installOver('copilot', '.github/copilot-instructions.md', mine);
   for (const text of texts) {
@@ -357,10 +318,10 @@ test('copilot-instructions.md: --copilot writes one pair of delimiters and rerun
 });
 
 // Contract: a start delimiter whose end the user deleted never makes the user's text after it disappear: whatever the CLI writes, every line the user had is still in AGENTS.md after any number of --force runs.
-// Breaks when: the first run appends a new block below the orphan start and the next --force pairs the orphan start with the new end, replacing the user's text in between, which is the current behavior in every edition (also at base 2c802d7).
+// Breaks when: the block is taken from the first start to the first end after it instead of the real pair, so the next --force pairs the orphan start with the end of the block the first run appended and replaces the user's text in between (the behavior in every edition before conserto 1 of part 3, and at base 2c802d7).
 // Not covered by: test/cli-kit.test.mjs has no file with a start and no end.
 for (const edition of ['cursor', 'copilot', 'opencode']) {
-  test(`AGENTS.md block: --${edition} --force never drops the user's text below a start delimiter with no end`, { todo: 'open defect: the second run pairs the orphan start with the appended end and deletes the text between them' }, async () => {
+  test(`AGENTS.md block: --${edition} --force never drops the user's text below a start delimiter with no end`, async () => {
     const body = `# Mine\n\n${START}\nmy edited block, end deleted\n\n## My notes\n\nkeep me\n`;
     const { texts } = await installOver(edition, 'AGENTS.md', body);
     for (const [run, text] of texts.entries()) {

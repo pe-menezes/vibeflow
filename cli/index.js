@@ -215,15 +215,10 @@ async function loadKitFiles(kitDest) {
   return manifest.files.map((path) => ({ src: path, dest: `${kitDest}/${path}`, baseUrl: KIT_BASE_URL }));
 }
 
-// The text below the source's `---`. A source that carries its own delimiters, for whoever
-// copies the file by hand, gives what is between them, since upsertDelimitedBlock adds the pair.
+// The text below the source's `---`.
 function extractAgentsAppendContent(fullContent) {
   const separatorIndex = fullContent.indexOf('\n---\n');
-  const content = separatorIndex === -1 ? fullContent : fullContent.slice(separatorIndex + '\n---\n'.length);
-  const startIdx = content.indexOf(VIBEFLOW_START);
-  const endIdx = content.lastIndexOf(VIBEFLOW_END);
-  if (startIdx === -1 || endIdx < startIdx) return content;
-  return content.slice(startIdx + VIBEFLOW_START.length, endIdx);
+  return separatorIndex === -1 ? fullContent : fullContent.slice(separatorIndex + '\n---\n'.length);
 }
 
 function extractCopilotInstructionsSnippet(fullContent) {
@@ -232,21 +227,46 @@ function extractCopilotInstructionsSnippet(fullContent) {
   return match[1].trim();
 }
 
+// A source that carries its own delimiters, for whoever copies the file by hand (the editions'
+// AGENTS.md and the Copilot snippet do), gives what is between them: upsertDelimitedBlock adds the pair.
+function withoutOwnDelimiters(block) {
+  const startIdx = block.indexOf(VIBEFLOW_START);
+  const endIdx = block.lastIndexOf(VIBEFLOW_END);
+  if (startIdx === -1 || endIdx < startIdx) return block;
+  return block.slice(startIdx + VIBEFLOW_START.length, endIdx);
+}
+
+// The block in the user's file is a real pair: the first end that has a start above it, with the
+// last start above that end. A start with no end below it, or an end with no start above it, is
+// the user's text and stays where it is, along with everything around it.
+function findDelimitedPair(existing) {
+  for (let endIdx = existing.indexOf(VIBEFLOW_END); endIdx !== -1; endIdx = existing.indexOf(VIBEFLOW_END, endIdx + 1)) {
+    const startIdx = existing.lastIndexOf(VIBEFLOW_START, endIdx);
+    if (startIdx !== -1) return { startIdx, endIdx };
+  }
+  return null;
+}
+
 function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
-  const delimited = `${VIBEFLOW_START}\n${newBlock.trim()}\n${VIBEFLOW_END}`;
+  const delimited = `${VIBEFLOW_START}\n${withoutOwnDelimiters(newBlock).trim()}\n${VIBEFLOW_END}`;
 
   if (!existing) {
     return { content: delimited + '\n', action: 'created' };
   }
 
-  const startIdx = existing.indexOf(VIBEFLOW_START);
-  const endIdx = startIdx === -1 ? -1 : existing.indexOf(VIBEFLOW_END, startIdx);
+  const pair = findDelimitedPair(existing);
 
-  if (startIdx !== -1 && endIdx !== -1) {
-    const before = existing.slice(0, startIdx);
+  if (pair) {
     // An older CLI wrapped a source that had its own delimiters, and each rerun left one more
-    // end delimiter: the ones that follow the block, with only blank space between, go with it.
-    let blockEnd = endIdx + VIBEFLOW_END.length;
+    // end delimiter: the extra start right above the block and the ends right below it, with
+    // only blank space between, go with it. Anything else around the pair is left alone.
+    let blockStart = pair.startIdx;
+    const leadingStart = new RegExp(`${VIBEFLOW_START}\\s*$`);
+    for (let match = leadingStart.exec(existing.slice(0, blockStart)); match; match = leadingStart.exec(existing.slice(0, blockStart))) {
+      blockStart = match.index;
+    }
+    const before = existing.slice(0, blockStart);
+    let blockEnd = pair.endIdx + VIBEFLOW_END.length;
     const trailingEnd = new RegExp(`^\\s*${VIBEFLOW_END}`);
     for (let match = trailingEnd.exec(existing.slice(blockEnd)); match; match = trailingEnd.exec(existing.slice(blockEnd))) {
       blockEnd += match[0].length;
