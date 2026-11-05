@@ -82,18 +82,49 @@ const agent = (name) => {
   return { path, block, body, rules: permissionRules(block, path) };
 };
 
-// Contract: the body after the front matter of each OpenCode agent is byte-identical to its source:
-// `executor` and `auditor` to the loop roles (`roles/executor.md`, `roles/auditor.md`), as the
-// Claude Code agents already are, and `architect` to the body of the Claude Code architect agent.
+// Contract: the body after the front matter of the `executor` and `auditor` agents is byte-identical
+// to the loop roles (`roles/executor.md`, `roles/auditor.md`), as the Claude Code agents already are.
 // Breaks when: a role changes in the kit and the OpenCode agent keeps the old text, or the agent
 // body gets an OpenCode-only line, so an OpenCode round runs a discipline the kit no longer has.
 // Not covered by: implement-loop-contracts and audit-contracts compare only the Claude Code agents
 // with the roles.
-test('OpenCode agents: each body is byte-identical to its source', () => {
-  for (const [name, { source, sourceHasFrontMatter }] of Object.entries(AGENTS)) {
-    const expected = sourceHasFrontMatter ? split(read(source), source).body : read(source);
-    assert.equal(agent(name).body, expected, `opencode/agents/${name}.md body equals ${source}`);
+test('OpenCode agents: each body is byte-identical to its source role', () => {
+  for (const name of ['executor', 'auditor']) {
+    const { source } = AGENTS[name];
+    assert.equal(agent(name).body, read(source), `opencode/agents/${name}.md body equals ${source}`);
   }
+});
+
+// The two places where the Claude Code architect names something this host does not have, each as
+// [Claude Code text, OpenCode text]: the `MEMORY.md` index of Claude Code's project memory, which
+// becomes `.vibeflow/index.md` as in the Copilot agent, and the `/vibeflow:<name>` command form.
+const ARCHITECT_HOST_FORMS = [
+  ['`MEMORY.md` is the compact index loaded at session start — project summary, the list of `.vibeflow/` docs, quick reference rules — and it orients you.',
+    '`.vibeflow/index.md` is the compact overview read first, every session, and it orients you.'],
+  ['A new doc also gets its line in the `MEMORY.md` index, which stays under 200 lines.',
+    'A new doc also gets its line in the `.vibeflow/index.md` index.'],
+];
+const flow = (text) => text.replace(/\s+/g, ' ').trim();
+
+// Contract: the OpenCode architect body is the Claude Code architect body with only the host's
+// forms swapped in: the knowledge index is `.vibeflow/index.md` and every command is
+// `/vibeflow-<name>`; nothing else differs, line wrapping aside.
+// Breaks when: the Claude Code architect changes and the OpenCode copy keeps the old text; or the
+// OpenCode body is recopied from the source as it is, so the architect looks for a `MEMORY.md` at
+// the root and recommends `/vibeflow:gen-spec`, which this host does not have (measured with
+// OpenCode 2.2.5 on 05/11/2026).
+// Not covered by: no other test reads the OpenCode architect body.
+test('OpenCode architect: the Claude Code body with the host memory and command forms', () => {
+  const source = 'plugins/vibeflow/agents/architect.md';
+  const { path, body } = agent('architect');
+  assert.doesNotMatch(body, /\/vibeflow:|MEMORY\.md/, `${path}: no Claude Code memory or command form`);
+  let expected = flow(split(read(source), source).body);
+  for (const [claude, host] of ARCHITECT_HOST_FORMS) {
+    assert.ok(expected.includes(claude), `${source} still says: ${claude}`);
+    expected = expected.replace(claude, host);
+  }
+  expected = expected.replace(/`\/vibeflow:([a-z-]+)`/g, '`/vibeflow-$1`');
+  assert.equal(flow(body), expected, `${path}: the source body with the host forms`);
 });
 
 // Contract: the agent files are exactly `architect`, `executor` and `auditor`, the names the host
@@ -170,7 +201,7 @@ test('OpenCode agents: the architect asks questions and loads the workflows its 
   for (const action of ['read', 'grep', 'glob', 'shell', 'edit', 'webfetch', 'websearch', 'question']) {
     assert.equal(effect(rules, action), 'allow', `${path}: ${action}`);
   }
-  const table = [...body.matchAll(/^\| `\/vibeflow:([a-z-]+)` \|/gm)].map((match) => match[1]);
+  const table = [...body.matchAll(/^\| `\/vibeflow-([a-z-]+)` \|/gm)].map((match) => match[1]);
   assert.ok(table.length >= 8, `${path}: the Available Commands table`);
   for (const workflow of WORKFLOWS) {
     assert.equal(effect(rules, 'skill', workflow), table.includes(workflow) ? 'allow' : 'deny', `${path}: skill ${workflow}`);

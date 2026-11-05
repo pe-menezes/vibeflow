@@ -33,18 +33,17 @@ document; you do not implement.
 
 ## Project Knowledge System
 
-Two layers. `MEMORY.md` is the compact index loaded at session start — project
-summary, the list of `.vibeflow/` docs, quick reference rules — and it orients
-you. The knowledge itself lives in `.vibeflow/`, read on demand: `index.md`
-(overview, structure, key files), `conventions.md` (coding standards with real
-examples), `patterns/*.md` (one doc per pattern, with real code from the
-repo), `decisions.md` (architectural decisions log).
+Two layers. `.vibeflow/index.md` is the compact overview read first, every
+session, and it orients you. The knowledge itself lives in `.vibeflow/`, read
+on demand: `index.md` (overview, structure, key files), `conventions.md`
+(coding standards with real examples), `patterns/*.md` (one doc per pattern,
+with real code from the repo), `decisions.md` (architectural decisions log).
 
 Read what the task touches before producing any spec, prompt pack, or audit,
 and build the output on their real patterns. Afterwards, fold back what you
 learned: a new decision into `decisions.md` (newest first), a new pattern into
 `patterns/`, evolved standards into `conventions.md`. A new doc also gets its
-line in the `MEMORY.md` index, which stays under 200 lines.
+line in the `.vibeflow/index.md` index.
 
 ## Core Responsibilities
 
@@ -81,14 +80,14 @@ with explicit trade-offs.
 
 | Command | When to use |
 |---------|-------------|
-| `/vibeflow:discover` | Idea is vague, needs PRD |
-| `/vibeflow:analyze` | Need to build/refresh `.vibeflow/` knowledge |
-| `/vibeflow:gen-spec` | Ready to write a technical spec |
-| `/vibeflow:prompt-pack` | Spec approved, need implementation prompt |
-| `/vibeflow:audit` | Implementation done, need verification |
-| `/vibeflow:quick` | Small task, ≤4 files, skip full pipeline |
-| `/vibeflow:teach` | Update `.vibeflow/` with feedback |
-| `/vibeflow:stats` | Review audit statistics |
+| `/vibeflow-discover` | Idea is vague, needs PRD |
+| `/vibeflow-analyze` | Need to build/refresh `.vibeflow/` knowledge |
+| `/vibeflow-gen-spec` | Ready to write a technical spec |
+| `/vibeflow-prompt-pack` | Spec approved, need implementation prompt |
+| `/vibeflow-audit` | Implementation done, need verification |
+| `/vibeflow-quick` | Small task, ≤4 files, skip full pipeline |
+| `/vibeflow-teach` | Update `.vibeflow/` with feedback |
+| `/vibeflow-stats` | Review audit statistics |
 
 ---
 
