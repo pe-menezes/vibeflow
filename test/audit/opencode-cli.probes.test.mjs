@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -460,3 +460,211 @@ for (const edition of ['cursor', 'copilot', 'opencode']) {
     });
   }
 }
+
+// ---- reaudit 2 of part 3: the marker and link forms the two fixes did not set up
+
+// A server like startServer, with some paths answered by a given body instead of the file.
+async function startServerWith(overrides) {
+  const server = createServer((req, res) => {
+    const path = decodeURIComponent(new URL(req.url, 'http://local').pathname).replace(/^\/+/, '');
+    if (overrides[path] !== undefined) {
+      res.writeHead(200);
+      res.end(overrides[path]);
+      return;
+    }
+    const full = normalize(join(ROOT, path));
+    if (!full.startsWith(ROOT + sep) || !existsSync(full)) {
+      res.writeHead(404);
+      res.end('not found');
+      return;
+    }
+    res.writeHead(200);
+    res.end(readFileSync(full));
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { url: `http://127.0.0.1:${server.address().port}`, close: () => new Promise((resolve) => server.close(resolve)) };
+}
+
+// Contract: "the whole line" tolerates spaces and tabs around the marker and a CRLF line end, so a real pair the user indented, or a file saved with Windows line ends, is recognised as the block: one pair, its old content gone, the user's lines around it kept, and the same file on every rerun.
+// Breaks when: the marker test is rewritten as a line comparison (`text.split('\n')` and `line === marker`, or `line.trim() === marker` over a split that leaves the `\r`), or the regex loses its `[ \t]*`: the real pair is no longer seen, a second block is appended under it with the old content left in place.
+// Not covered by: every block case of the executor and of the earlier audits writes the markers at column 0 with LF line ends.
+const LINE_FORMS = [
+  { name: 'a real pair indented with spaces', body: `# My rules\r\n\n  ${START}\nold\n  ${END}\n\nKEEP-TAIL.\n` },
+  { name: 'a real pair with a tab before and spaces after', body: `# My rules\n\n\t${START} \t\nold\n${END}\t\n\nKEEP-TAIL.\n` },
+  { name: 'a real pair in a CRLF file, with the orphan end an older CLI left', body: `# My rules\r\n\r\n${START}\r\nold\r\n${END}\r\n${END}\r\n\r\nKEEP-TAIL.\r\n` },
+];
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const form of LINE_FORMS) {
+    test(`AGENTS.md block: --${edition} over ${form.name} replaces that pair and keeps the rest`, async () => {
+      const { texts } = await installOver(edition, 'AGENTS.md', form.body);
+      for (const [run, text] of texts.entries()) {
+        const where = `run ${run + 1}\n${JSON.stringify(text)}`;
+        assert.equal(countOf(text, START), 1, where);
+        assert.equal(countOf(text, END), 1, where);
+        assert.ok(!/\bold\b/.test(text), where);
+        assert.ok(text.startsWith('# My rules'), where);
+        assert.equal(countOf(text, 'KEEP-TAIL.'), 1, where);
+        assert.ok(text.indexOf('KEEP-TAIL.') > text.indexOf(END), where);
+      }
+      assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+    });
+  }
+}
+
+// Contract: the edition's own source loses only its own pair, the first start that is a whole line and the last end that is a whole line; a marker the source quotes in prose, inside or outside that pair, is never taken as its delimiter, so the block in the user's file starts and ends where the source's pair does and has exactly one start and one end line.
+// Breaks when: withoutOwnDelimiters goes back to indexOf and lastIndexOf (the code at 12089a9): a source line that quotes the start above its pair puts the source's prose and its real start inside the user's block, and the user's file ends up with two start lines.
+// Not covered by: the real sources quote no marker, and no test of the executor swaps the source, so the reversal passes the whole suite (sabotage S6 of this reaudit).
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  test(`AGENTS.md block: --${edition} takes off only its source's whole-line pair when the source quotes the markers`, async () => {
+    const source = readFileSync(join(ROOT, edition, 'AGENTS.md'), 'utf8');
+    assert.equal(countOf(source, `\n${START}\n`), 1, 'the source has one whole-line start');
+    const quoted = source
+      .replace(`\n${START}\n`, `\nSOURCE-PROSE-ABOVE opens with \`${START}\`.\n\n${START}\nQUOTED-INSIDE-START \`${END}\`\n`)
+      .replace(`\n${END}`, `\nQUOTED-INSIDE-END \`${START}\`\n${END}\nSOURCE-PROSE-BELOW closes with \`${END}\`.`);
+    const server = await startServerWith({ [`${edition}/AGENTS.md`]: quoted });
+    const ws = makeWorkspace();
+    try {
+      writeFileSync(join(ws.project, 'AGENTS.md'), '# Mine\n\nKEEP.\n');
+      const texts = [];
+      for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+        const result = await runCli(ws, args, { VIBEFLOW_BASE_URL: server.url });
+        assert.equal(result.status, 0, result.out);
+        texts.push(readFileSync(join(ws.project, 'AGENTS.md'), 'utf8'));
+      }
+      for (const text of texts) {
+        const lines = text.split('\n');
+        assert.equal(lines.filter((line) => line === START).length, 1, text);
+        assert.equal(lines.filter((line) => line === END).length, 1, text);
+        const block = text.slice(text.indexOf(`${START}\n`), text.lastIndexOf(END));
+        assert.ok(block.includes('QUOTED-INSIDE-START') && block.includes('QUOTED-INSIDE-END'), text);
+        assert.ok(!text.includes('SOURCE-PROSE-ABOVE') && !text.includes('SOURCE-PROSE-BELOW'), text);
+        assert.equal(countOf(text, 'KEEP.'), 1, text);
+      }
+      assert.equal(texts[1], texts[0], 'a rerun changed AGENTS.md');
+    } finally {
+      ws.cleanup();
+      await server.close();
+    }
+  });
+}
+
+// Contract (the p3b briefing's): nothing the user wrote around a pair is lost. A Vibeflow pair the user writes inside a fenced code block, to document the format, is the user's example.
+// Breaks when: never held: since conserto 2 a marker alone on its line is a delimiter wherever it sits, fences included (the executor's declared decision). With no real pair the example is replaced by the block inside the fence; with a real pair below the fence, the example is replaced and the real block keeps its old content on every rerun.
+// Not covered by: no test fences a marker. Marked todo: it is a defect reproduced by this reaudit, out of this round's written contract, and its leaving the front is Pedro's word (dev-remoto, principle 8).
+const FENCE = '```';
+const FENCED = [
+  { name: 'a fenced example pair and no real pair', body: `# My rules\n\n${FENCE}markdown\n${START}\nUSER-EXAMPLE\n${END}\n${FENCE}\n\nEnd.\n` },
+  { name: 'a fenced example pair above the real block', body: `# My rules\n\n${FENCE}\n${START}\nUSER-EXAMPLE\n${END}\n${FENCE}\n\n${START}\nold\n${END}\n\nEnd.\n` },
+];
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of FENCED) {
+    test(`AGENTS.md block: --${edition} over ${state.name} keeps the example`, { todo: 'defect F1/F2 of reaudit 2 of part 3: fenced markers are read as delimiters' }, async () => {
+      const { texts } = await installOver(edition, 'AGENTS.md', state.body);
+      for (const text of texts) {
+        assert.equal(countOf(text, 'USER-EXAMPLE'), 1, text);
+        assert.ok(!/\nold\n/.test(text), text);
+      }
+    });
+  }
+}
+
+// Every entry under `dir`, links listed and never followed, with each file's content.
+function treeOf(dir) {
+  const out = {};
+  const visit = (current) => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = join(current, entry.name);
+      const key = relative(dir, full).split(sep).join('/');
+      if (entry.isSymbolicLink()) out[key] = 'link';
+      else if (entry.isDirectory()) { out[key] = 'dir'; visit(full); }
+      else out[key] = readFileSync(full, 'utf8');
+    }
+  };
+  visit(dir);
+  return out;
+}
+const PROBE_KIT = { cursor: '.cursor/skills/vibeflow-implement/loop', copilot: '.github/vibeflow/loop', opencode: '.opencode/skills/implement/loop' };
+const PROBE_DIR = { cursor: '.cursor', copilot: '.github', opencode: '.opencode' };
+const PROBE_MARKER = { cursor: '.cursor/rules/vibeflow.mdc', copilot: '.github/prompts/vibeflow-analyze.prompt.md', opencode: '.opencode/commands/vibeflow-analyze.md' };
+const linkAt = (target, at) => { mkdirSync(dirname(at), { recursive: true }); symlinkSync(target, at); };
+
+// Contract: a link that leads out of the project refuses the whole install, with and without --force, whatever the installer would write through it: the files it edits (`.gitignore`, and `.github/copilot-instructions.md` in Copilot) as much as the ones it creates; a folder beside the project whose name starts with the project's own name is outside it; and a link whose first hop stays in the project but whose second leaves it is outside. Nothing is written anywhere, the refusal names the file and says it is outside the project.
+// Breaks when: `.gitignore` or `copilot-instructions.md` leave the list checked before the first download (the writes of the edited files catch their own errors, log them and the install exits 0 with the edition written and the edited file refused late); the inside test compares string prefixes without the separator (`<project>-twin` passes as inside); or the landing follows one readlink hop instead of resolving the chain.
+// Not covered by: the executor's outside folder is named `outside`, never a prefix twin; its forms put the link on the kit folder, the edition folder, a kit file and AGENTS.md, never on `.gitignore` or `copilot-instructions.md`; and every link of its cases points straight at the final target (sabotages S7, S9 and S10 of this reaudit survive its 18 cases; S14, one readlink hop, dies there only because macOS tmp sits under a /var link).
+const OUT_FORMS = [
+  { name: '.gitignore is a link to a file outside', editions: ['cursor', 'copilot', 'opencode'], set: (ws, edition, outside) => linkAt(join(outside, 'gitignore'), join(ws.project, '.gitignore')), names: () => '.gitignore' },
+  { name: 'copilot-instructions.md is a link to a file outside', editions: ['copilot'], set: (ws, edition, outside) => linkAt(join(outside, 'copilot-instructions.md'), join(ws.project, '.github/copilot-instructions.md')), names: () => '.github/copilot-instructions.md' },
+  { name: 'the edition folder links to a twin folder named after the project', editions: ['cursor', 'copilot', 'opencode'], set: (ws, edition) => { mkdirSync(`${ws.project}-twin`); linkAt(`${ws.project}-twin`, join(ws.project, PROBE_DIR[edition])); }, names: (edition) => PROBE_DIR[edition] },
+  { name: 'the kit scripts folder links to a link in the project that leads outside', editions: ['cursor', 'copilot', 'opencode'], set: (ws, edition, outside) => { symlinkSync(outside, join(ws.project, 'bridge')); linkAt(relative(join(ws.project, PROBE_KIT[edition]), join(ws.project, 'bridge')), join(ws.project, PROBE_KIT[edition], 'scripts')); }, names: (edition) => `${PROBE_KIT[edition]}/scripts` },
+];
+for (const form of OUT_FORMS) {
+  for (const edition of form.editions) {
+    test(`--${edition} refuses the whole install when ${form.name}, with or without --force`, async () => {
+      const server = await startServer();
+      const ws = makeWorkspace();
+      try {
+        const outside = join(ws.root, 'outside');
+        mkdirSync(outside);
+        writeFileSync(join(outside, 'gitignore'), 'node_modules/\n');
+        writeFileSync(join(outside, 'copilot-instructions.md'), '# Shared elsewhere\n');
+        form.set(ws, edition, outside);
+        const before = treeOf(ws.root);
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+          const result = await runCli(ws, args, { VIBEFLOW_BASE_URL: server.url });
+          assert.notEqual(result.status, 0, `${args.join(' ')} exited 0\n${result.out}`);
+          assert.match(result.out, /outside the project/, result.out);
+          assert.match(result.out, /Nothing was installed/, result.out);
+          const named = form.names(edition);
+          assert.ok(result.out.includes(named), `the refusal names ${named}\n${result.out}`);
+          assert.deepEqual(treeOf(ws.root), before, `${args.join(' ')} wrote something`);
+        }
+      } finally {
+        ws.cleanup();
+        await server.close();
+      }
+    });
+  }
+}
+
+// Contract: the boundary is where a write lands, links resolved, not whether a link exists: a link that leaves the project and comes back into it, a chain of links that ends in the project, a relative link, and the edited files linked to files of the project (`AGENTS.md` to `CLAUDE.md`, `.gitignore` to a file in a folder of the project) all install, with and without --force, the writes landing in the file or folder the chain ends at and nothing written outside.
+// Breaks when: the landing resolves a single readlink hop instead of the chain, which refuses the out-and-back link; or the monorepo refusal is implemented on the edited files as "refuse when AGENTS.md or .gitignore is a link" instead of "when it lands outside", which refuses `AGENTS.md` -> `CLAUDE.md`. Either way the installer refuses a project it is meant to serve.
+// Not covered by: the executor's one inside case is a single absolute link from the kit scripts folder to a folder of the project; it kills the single hop on macOS only because the tmp folder sits under the /var link, and on the CI's Linux it would pass.
+const IN_FORMS = [
+  { name: 'the edition folder leaves the project and links back into it', set: (ws, edition, outside) => { mkdirSync(join(ws.project, 'real')); symlinkSync(join(ws.project, 'real'), join(outside, 'back')); linkAt(join(outside, 'back'), join(ws.project, PROBE_DIR[edition])); }, lands: (ws) => [join(ws.project, 'real')] },
+  { name: 'the kit scripts folder is a relative link to a link of the project that ends in a folder of it', set: (ws, edition) => { mkdirSync(join(ws.project, 'shared')); symlinkSync('shared', join(ws.project, 'bridge')); linkAt(relative(join(ws.project, PROBE_KIT[edition]), join(ws.project, 'bridge')), join(ws.project, PROBE_KIT[edition], 'scripts')); }, lands: (ws) => [join(ws.project, 'shared')] },
+  { name: 'AGENTS.md links to CLAUDE.md and .gitignore to config/gitignore', set: (ws) => { writeFileSync(join(ws.project, 'CLAUDE.md'), '# Mine\n'); symlinkSync('CLAUDE.md', join(ws.project, 'AGENTS.md')); mkdirSync(join(ws.project, 'config')); writeFileSync(join(ws.project, 'config/gitignore'), 'node_modules/\n'); symlinkSync('config/gitignore', join(ws.project, '.gitignore')); }, lands: (ws) => [join(ws.project, 'CLAUDE.md'), join(ws.project, 'config/gitignore')] },
+];
+for (const form of IN_FORMS) {
+  for (const edition of ['cursor', 'copilot', 'opencode']) {
+    test(`--${edition} installs when ${form.name}, with or without --force`, async () => {
+      const server = await startServer();
+      const ws = makeWorkspace();
+      try {
+        const outside = join(ws.root, 'outside');
+        mkdirSync(outside);
+        form.set(ws, edition, outside);
+        const outsideBefore = treeOf(outside);
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+          const result = await runCli(ws, args, { VIBEFLOW_BASE_URL: server.url });
+          assert.equal(result.status, 0, `${args.join(' ')}\n${result.out}`);
+          assert.doesNotMatch(result.out, /outside the project/, result.out);
+          assert.ok(existsSync(join(ws.project, PROBE_MARKER[edition])), `${args.join(' ')}: the edition is installed`);
+          assert.deepEqual(treeOf(outside), outsideBefore, `${args.join(' ')} wrote outside the project`);
+          for (const landing of form.lands(ws)) assert.ok(existsSync(landing), `${landing} exists`);
+        }
+        if (form.name.startsWith('AGENTS.md')) {
+          assert.match(readFileSync(join(ws.project, 'CLAUDE.md'), 'utf8'), /^# Mine\n[^]*<!-- vibeflow:start -->/, 'the block lands in CLAUDE.md, after the user text');
+          assert.match(readFileSync(join(ws.project, 'config/gitignore'), 'utf8'), /^node_modules\/\n[^]*vibeflow/i, 'the Vibeflow paths land in config/gitignore');
+        } else {
+          const [folder] = form.lands(ws);
+          const wanted = folder.endsWith('shared') ? 'check-briefing.mjs' : PROBE_MARKER[edition].slice(PROBE_DIR[edition].length + 1);
+          assert.ok(walk(folder).includes(wanted), `the writes land in ${folder}: ${wanted}`);
+        }
+      } finally {
+        ws.cleanup();
+        await server.close();
+      }
+    });
+  }
+}
+
