@@ -8,7 +8,7 @@
 
 AI agents write code fast — but without specs, they write the **wrong** code fast. Vibeflow adds a thinking layer before coding: you define **what** to build with specs, guardrails, and quality gates. The agent implements following your project's real patterns.
 
-> Works with **Codex**, **Claude Code** and **Hermes Agent** through one shared plugin, plus **Cursor** (rules + skills) and **GitHub Copilot** (prompts + agents).
+> Works with **Codex**, **Claude Code** and **Hermes Agent** through one shared plugin, plus **Cursor** (rules + skills), **GitHub Copilot** (prompts + agents) and **OpenCode** (agents + commands + the shared skills).
 
 ## 3 commands to start
 
@@ -38,6 +38,11 @@ Run `analyze` once, then `gen-spec` → `implement` for each feature. That's it.
 
 **Utility:** `quick` (fast-track small tasks), `teach` (update knowledge base), `stats` (audit trends, plus the loop's numbers when you use it).
 
+How you call a command depends on the host: `/vibeflow:analyze` in Claude
+Code; `/vibeflow-analyze` in Cursor, Copilot and OpenCode (in OpenCode, from
+its interactive terminal); plain words in Codex and Hermes, which pick the
+skill from its description, as OpenCode also does.
+
 ## The execution loop (opt-in)
 
 `implement --loop` splits the work between sessions that cannot grade
@@ -57,16 +62,16 @@ for the project (`--no-loop` turns it off for one run). Requirements:
 
 - The loop kit, which ships inside the `implement` skill
   (`plugins/vibeflow/skills/implement/loop/`). Claude Code, Codex and Hermes
-  get it with the plugin; the Cursor and Copilot installers copy it into the
-  project.
+  get it with the plugin; the Cursor, Copilot and OpenCode installers copy it
+  into the project.
 - Node.js 18 or later for the kit's scripts.
 - In Claude Code, version 2.1.69 or newer, the one that substitutes
   `${CLAUDE_SKILL_DIR}` in a skill's body. An `audit` run by hand needs it
   too, to build its review package: on an older version it does not find the
   kit, records `Review package: none (kit not installed)` and computes the
-  diff as before, and updating Claude Code, not the plugin, fixes it. In Codex
-  and Hermes the variable is never substituted, and the skills resolve the
-  kit path from their own folder.
+  diff as before, and updating Claude Code, not the plugin, fixes it. In
+  OpenCode, Codex and Hermes the variable is never substituted, and the skills
+  resolve the kit path from their own folder.
 - For the pull request at the end: a remote on GitHub (or GitHub Enterprise)
   and `gh auth status` ok for its host. The `pr ending` line of
   `preflight.mjs` tells you before the first dispatch. Without it, the loop
@@ -84,7 +89,8 @@ the roles, the artifacts and the ceilings.
 
 Each edition adapts the same methodology to the agent's format. Codex, Claude
 and Hermes share the exact same skill sources under `plugins/vibeflow/`; their
-platform-specific manifests only handle packaging and discovery.
+platform-specific manifests only handle packaging and discovery. OpenCode runs
+those same skill files unchanged, copied into the project by the installer.
 
 ### Codex (plugin)
 
@@ -147,7 +153,38 @@ npx setup-vibeflow@latest --copilot
 
 The loop kit goes to `.github/vibeflow/loop/`. See [`copilot/README.md`](copilot/README.md) for details.
 
-> By default the installer adds installed files and the `.vibeflow/` folder to `.gitignore`. Remove the "Vibeflow" block from `.gitignore` if you want to track them in git.
+### OpenCode
+
+```bash
+npx setup-vibeflow@latest --opencode
+```
+
+The installer writes into the project: the `architect`, `executor` and
+`auditor` agents to `.opencode/agents/`, the ten `/vibeflow-<name>` commands to
+`.opencode/commands/`, the ten shared skills to `.opencode/skills/<name>/`, and
+the loop kit to `.opencode/skills/implement/loop/`. The Vibeflow block goes into
+the project's `AGENTS.md`, which OpenCode loads as instructions.
+
+Type `/vibeflow-analyze` in OpenCode's interactive terminal to get started.
+Only that terminal expands a command: `opencode run` passes `/vibeflow-analyze`
+on to the model as plain text. You can also ask in plain words, and
+OpenCode picks the skill by its description. `architect` is a primary agent you
+switch to with Tab; `implement --loop` runs from Build, which sends each round
+to the `executor` and `auditor` subagents. Not checked for this edition: the
+command expanding and the Tab switch, which only the interactive terminal
+shows, and a whole `implement --loop` run. See
+[`opencode/README.md`](opencode/README.md) for what OpenCode does not have.
+
+> If the project already has its own `.opencode/agents/architect.md`,
+> `executor.md` or `auditor.md`, or its own skill named like one of the ten
+> workflows (`audit`, `stats`, ...), the installer skips that file without
+> `--force` and overwrites it with `--force`. Skipped, the Vibeflow agent or
+> skill is missing, and the installer's `.gitignore` block hides your own file
+> from git. The names come from the host: OpenCode names an agent after its
+> file, the loop calls `executor` and `auditor` by name, and a skill's name has
+> to match its folder.
+
+> By default the installer adds installed files and the `.vibeflow/` folder to `.gitignore`. Remove the "Vibeflow" block from `.gitignore` if you want to track them in git. For OpenCode the block lists each installed path, never `.opencode/` as a whole, which also holds your own files.
 
 ### Edition summary
 
@@ -158,6 +195,7 @@ The loop kit goes to `.github/vibeflow/loop/`. See [`copilot/README.md`](copilot
 | **Hermes Agent** | Plugin | `hermes plugins install pe-menezes/vibeflow/plugins/vibeflow`<br>`hermes plugins enable vibeflow` |
 | **Cursor** | npx installer | `npx setup-vibeflow@latest --cursor` |
 | **GitHub Copilot** | npx installer | `npx setup-vibeflow@latest --copilot` |
+| **OpenCode** | npx installer | `npx setup-vibeflow@latest --opencode` |
 
 ## Prompt baseline
 
