@@ -668,3 +668,96 @@ for (const form of IN_FORMS) {
   }
 }
 
+
+// ---- reaudit 3 of part 3: the fence forms the fix did not set up, and the loop refusal on AGENTS.md itself
+
+// Runs `--<edition>` once and then `--<edition> --force` twice over a project whose AGENTS.md starts as
+// `body`; before each --force the real block's content (from its heading to its end) is replaced by
+// STALE-<n>, so each pass has to update the real block again. Returns the file after each run.
+async function installStale(edition, body) {
+  const server = await startServer();
+  const ws = makeWorkspace();
+  const file = join(ws.project, 'AGENTS.md');
+  try {
+    writeFileSync(file, body);
+    const texts = [];
+    for (let run = 0; run < 3; run += 1) {
+      if (run) {
+        const text = readFileSync(file, 'utf8');
+        const heading = text.lastIndexOf('## Vibeflow Methodology');
+        writeFileSync(file, text.slice(0, heading) + `STALE-${run}\n` + text.slice(text.indexOf(END, heading)));
+      }
+      const result = await runCli(ws, [`--${edition}`, ...(run ? ['--force'] : [])], { VIBEFLOW_BASE_URL: server.url });
+      assert.equal(result.status, 0, result.out);
+      texts.push(readFileSync(file, 'utf8'));
+    }
+    return texts;
+  } finally {
+    ws.cleanup();
+    await server.close();
+  }
+}
+
+// Contract (the conserto 4 briefing's fence rule, with the two CommonMark rules the executor added): a fence opens on three or more backticks or tildes indented up to three spaces, never on a backtick line whose info has a backtick; it closes on the first line of the same character, at least as long, with nothing after it, CRLF included; a line indented four spaces or more is never a fence. A marker inside the fence is the user's; a whole-line pair outside it is the real block and updates on every --force. A fence left open at the end is closed with its own run of characters before the block is appended, on the legacy path too.
+// Breaks when: the closing test accepts text after the fence (T1), drops the length (T2: the executor's four-backtick case still passes, because the stray end it frees has no start above it), asks for the same length instead of at least it (T4), closes only at column 0 (T5: the executor's indented fence has no real block below, so the fence left open is closed at the end and the case still passes), or keeps the `\r` of a CRLF line (T11); the opening test takes any indentation (T6) or lets a backtick info open a fence (T7), or bars a tilde fence for a backtick in its info (T8); a fence line inside a fence swaps the fence (T17); the appended close is a fixed ``` (T14); or the legacy append goes around appendBlock (T15). In each, a real pair falls inside what the reader takes for code (or the other way round), and the file ends with two blocks, one of them frozen, or loses the example.
+// Not covered by: the executor's FENCE_STATES write LF, close every fence with a bare run of the opening's length or a different character, never put a backtick in an info string, never indent a fence by four, never end the file in a tilde fence, and never take the legacy path; each sabotage named above passes test/cli-kit.test.mjs and every earlier probe (sabotage table of reaudit 3).
+const T3 = '```';
+const RA3_FENCES = [
+  { name: 'a fence line with text after it, which does not close the fence', body: `# Mine\n\n${T3}\n${START}\nUSER-EXAMPLE\n${END}\n${T3} not a close\n${START}\nUSER-EXAMPLE-2\n${END}\n${T3}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: ['USER-EXAMPLE-2', `${T3} not a close\n`] },
+  { name: 'a four-backtick fence that holds a three-backtick line, above the real block', body: `# Mine\n\n${T3}\`\n${START}\nUSER-EXAMPLE\n${T3}\n${END}\n${T3}\`\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`${T3}\`\n${START}\nUSER-EXAMPLE\n${T3}\n${END}\n${T3}\`\n`] },
+  { name: 'a fence indented by three spaces and closed indented by two, above the real block', body: `# Mine\n\n   ${T3}md\n${START}\nUSER-EXAMPLE\n${END}\n  ${T3}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`   ${T3}md\n${START}\nUSER-EXAMPLE\n${END}\n  ${T3}\n`] },
+  { name: 'a three-backtick fence closed by five backticks', body: `# Mine\n\n${T3}\n${START}\nUSER-EXAMPLE\n${END}\n${T3}\`\`\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`${T3}\`\`\n\n${START}\n`] },
+  { name: 'a backtick line whose info has a backtick, which is prose and not a fence', body: `# Mine\n\n${T3}js \`x\`\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`${T3}js \`x\`\n`], examples: 0 },
+  { name: 'a tilde fence whose info has a backtick', body: `# Mine\n\n~~~ \`x\`\n${START}\nUSER-EXAMPLE\n${END}\n~~~\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`~~~ \`x\`\n${START}\nUSER-EXAMPLE\n${END}\n~~~\n`] },
+  { name: 'a fence above and below the real block in a CRLF file', body: `# Mine\r\n\r\n${T3}\r\n${START}\r\nUSER-EXAMPLE\r\n${END}\r\n${T3}\r\n\r\n${START}\r\nold\r\n${END}\r\n\r\n~~~\r\n${END}\r\n~~~\r\n\r\nEnd.\r\n`, kept: [`${T3}\r\n${START}\r\nUSER-EXAMPLE\r\n${END}\r\n${T3}\r\n`, `~~~\r\n${END}\r\n~~~\r\n`] },
+  { name: 'a backtick line indented by four spaces, which is code and opens no fence', body: `# Mine\n\n    ${T3}\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`    ${T3}\n`], examples: 0 },
+  { name: 'a backtick fence with info inside a tilde fence', body: `# Mine\n\n~~~\n${T3}js\n${START}\nUSER-EXAMPLE\n${END}\n${T3}\n~~~\n\n${START}\nold\n${END}\n\nEnd.\n`, kept: [`~~~\n${T3}js\n${START}\nUSER-EXAMPLE\n${END}\n${T3}\n~~~\n`] },
+  { name: 'a file that ends inside a four-tilde fence indented by two spaces', body: `# Mine\n\n  ~~~~ txt\n${START}\nUSER-EXAMPLE\n${END}\nlast line`, kept: [`  ~~~~ txt\n${START}\nUSER-EXAMPLE\n${END}\nlast line\n~~~~\n`], appended: true },
+  { name: 'a legacy block and a fence left open at the end', body: `# Mine\n\n## Vibeflow Methodology\n\nlegacy text\n\n${T3}\nUSER-EXAMPLE\n`, kept: ['legacy text', `${T3}\nUSER-EXAMPLE\n${T3}\n`], appended: true, legacy: true },
+];
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const state of RA3_FENCES) {
+    test(`reaudit 3: --${edition} over ${state.name} keeps the user's code and updates the one real block on every pass`, async () => {
+      const texts = await installStale(edition, state.body);
+      for (const [run, text] of texts.entries()) {
+        const where = `run ${run + 1}\n${JSON.stringify(text)}`;
+        const heading = text.lastIndexOf('## Vibeflow Methodology');
+        assert.equal(text.slice(heading - START.length - 1, heading), `${START}\n`, where);
+        assert.equal(countOf(text, '## Vibeflow Methodology'), state.legacy ? 2 : 1, where);
+        assert.ok(!/\nold\r?\n/.test(text) && !text.includes('STALE-'), where);
+        assert.equal(countOf(text, 'USER-EXAMPLE'), state.examples ?? countOf(state.body, 'USER-EXAMPLE'), where);
+        for (const piece of state.kept) assert.ok(text.includes(piece), `kept ${JSON.stringify(piece)}\n${where}`);
+        assert.ok(text.startsWith('# Mine'), where);
+        if (!state.appended) assert.equal(countOf(text, 'End.'), 1, where);
+      }
+      assert.equal(texts[2], texts[1], 'a rerun changed AGENTS.md');
+    });
+  }
+}
+
+// Contract: an AGENTS.md that is a loop of links is refused like every other link that lands nowhere inside the project: exit 1, a line that names AGENTS.md and the loop, "Nothing was installed", no raw error, nothing written, with and without --force. The monorepo hint ("run the installer from …") is only for an AGENTS.md that lands outside, so a loop never gets it.
+// Breaks when: the hint is shown for any refusal of AGENTS.md (T18): it resolves the link to name the folder, and on a loop that resolution throws ELOOP raw, after the refusal lines; or the refusal check stops catching the resolution error (T19).
+// Not covered by: the executor's loop case loops the edition folder, which never reaches the hint, and its hint case only links AGENTS.md outside or the kit scripts folder.
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  test(`reaudit 3: --${edition} refuses an AGENTS.md that is a loop of links, names it, and gives no monorepo hint`, async () => {
+    const server = await startServer();
+    const ws = makeWorkspace();
+    try {
+      symlinkSync(join(ws.project, 'loop-b'), join(ws.project, 'AGENTS.md'));
+      symlinkSync(join(ws.project, 'AGENTS.md'), join(ws.project, 'loop-b'));
+      const before = treeOf(ws.root);
+      for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+        const result = await runCli(ws, args, { VIBEFLOW_BASE_URL: server.url });
+        assert.equal(result.status, 1, `${args.join(' ')}\n${result.out}`);
+        assert.ok(!/Error:|ELOOP/.test(result.out), `${args.join(' ')}: a raw error\n${result.out}`);
+        assert.ok(result.out.includes('AGENTS.md — AGENTS.md is a loop of links'), `${args.join(' ')}: names AGENTS.md and the loop\n${result.out}`);
+        assert.match(result.out, /Nothing was installed/, result.out);
+        assert.ok(!result.out.includes('run the installer from'), `${args.join(' ')}: a loop gets no monorepo hint\n${result.out}`);
+        assert.deepEqual(treeOf(ws.root), before, `${args.join(' ')} wrote something`);
+      }
+    } finally {
+      ws.cleanup();
+      await server.close();
+    }
+  });
+}
