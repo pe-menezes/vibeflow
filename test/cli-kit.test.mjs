@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, normalize, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -651,3 +651,93 @@ test('an AGENTS.md written by an older CLI, with the block wrapped twice, is rew
     await server.close();
   }
 });
+
+// A link in the project where the installer expects a folder or a file. Every write lands, links
+// resolved, inside the project's real root; when one would not, the install is refused before
+// anything is written, with or without --force, and says which file and why. A link that stays
+// inside the project installs as before.
+
+const EDITION_ROOT = { cursor: '.cursor', copilot: '.github', opencode: '.opencode' };
+
+// Each form puts one link in a fresh project, pointing into `outside` (a folder beside the project).
+const OUTSIDE_LINKS = [
+  { form: 'the kit scripts folder', link: (edition) => `${KIT_DEST[edition]}/scripts`, target: (outside) => outside },
+  { form: 'a folder in the middle of the path', link: (edition) => EDITION_ROOT[edition], target: (outside) => outside },
+  { form: 'the destination file itself', link: (edition) => `${KIT_DEST[edition]}/scripts/check-briefing.mjs`, target: (outside) => join(outside, 'check-briefing.mjs') },
+  { form: 'a destination file that links to nothing yet', link: (edition) => `${KIT_DEST[edition]}/scripts/check-briefing.mjs`, target: (outside) => join(outside, 'nowhere.mjs') },
+  { form: 'AGENTS.md', link: () => 'AGENTS.md', target: (outside) => join(outside, 'AGENTS.md') },
+];
+
+// Every entry under `dir`, links listed as entries and never followed, with each file's content.
+function snapshot(dir) {
+  const out = {};
+  const visit = (current) => {
+    for (const entry of readdirSync(current, { withFileTypes: true })) {
+      const full = join(current, entry.name);
+      const key = relative(dir, full).split(sep).join('/');
+      if (entry.isSymbolicLink()) out[key] = 'link';
+      else if (entry.isDirectory()) { out[key] = 'dir'; visit(full); }
+      else out[key] = readFileSync(full, 'utf8');
+    }
+  };
+  visit(dir);
+  return out;
+}
+
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  for (const shape of OUTSIDE_LINKS) {
+    test(`--${edition} refuses to install when ${shape.form} is a link out of the project, with or without --force`, async () => {
+      const server = await startServer();
+      const workspace = makeWorkspace();
+      try {
+        const outside = join(workspace.root, 'outside');
+        mkdirSync(outside);
+        writeFileSync(join(outside, 'check-briefing.mjs'), 'OUTSIDE THE PROJECT\n');
+        writeFileSync(join(outside, 'AGENTS.md'), '# Shared elsewhere\n');
+        const link = shape.link(edition);
+        mkdirSync(join(workspace.project, link, '..'), { recursive: true });
+        symlinkSync(shape.target(outside), join(workspace.project, link));
+        const outsideBefore = snapshot(outside);
+        const projectBefore = snapshot(workspace.project);
+        for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+          const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+          assert.notEqual(result.status, 0, `${args.join(' ')} exited 0\n${result.out}`);
+          assert.match(result.out, /outside the project/, result.out);
+          assert.ok(result.out.includes(link), `${args.join(' ')}: the refusal names ${link}\n${result.out}`);
+          assert.match(result.out, /Nothing was installed/, result.out);
+          assert.deepEqual(snapshot(outside), outsideBefore, `${args.join(' ')} wrote outside the project`);
+          assert.deepEqual(snapshot(workspace.project), projectBefore, `${args.join(' ')} wrote in the project`);
+        }
+      } finally {
+        workspace.cleanup();
+        await server.close();
+      }
+    });
+  }
+
+  test(`--${edition} installs through a link that stays inside the project, and --force reruns too`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      const shared = join(workspace.project, 'shared-scripts');
+      mkdirSync(shared);
+      mkdirSync(join(workspace.project, KIT_DEST[edition]), { recursive: true });
+      symlinkSync(shared, join(workspace.project, KIT_DEST[edition], 'scripts'));
+      for (const args of [[`--${edition}`], [`--${edition}`, '--force']]) {
+        const result = await runCli(workspace, args, { [BASE_ENV]: server.url });
+        assert.equal(result.status, 0, `${args.join(' ')}\n${result.out}`);
+        for (const file of manifestFiles()) {
+          const installed = join(workspace.project, KIT_DEST[edition], file);
+          assert.equal(readFileSync(installed, 'utf8'), readFileSync(join(LOOP_DIR, file), 'utf8'), `${args.join(' ')}: ${file}`);
+        }
+        const scripts = manifestFiles().filter((file) => file.startsWith('scripts/')).map((file) => file.slice('scripts/'.length)).sort();
+        assert.ok(scripts.length > 0);
+        assert.deepEqual(readdirSync(shared).sort(), scripts, 'the scripts sit in the folder the link points to');
+        assert.ok(existsSync(join(workspace.project, MARKER[edition])));
+      }
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+}

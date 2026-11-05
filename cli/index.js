@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import pc from 'picocolors';
 
 // --- Config ---
@@ -31,8 +31,9 @@ const KIT_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills/implement/loop`;
 // The shared skills, which an edition that runs them unchanged installs from their one source.
 const SKILLS_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills`;
 const KIT_MANIFEST = 'manifest.json';
-// A manifest entry is a plain relative path: no absolute path, no "..", no hidden segment,
-// so nothing it names can land outside the edition's kit folder.
+// A manifest entry is a plain relative path: no absolute path, no "..", no hidden segment. That
+// stops lexical traversal only: a link already in the user's project can still lead out of it,
+// and what keeps every write inside the project is the check in landsOutside, before any write.
 const KIT_PATH_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*(\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*$/;
 
 const COPILOT_FILES = [
@@ -174,6 +175,51 @@ function ensureDir(dirPath) {
   if (!existsSync(dirPath)) {
     mkdirSync(dirPath, { recursive: true });
   }
+}
+
+// Where a write to `path` lands, every link resolved, including a link to a path that is not
+// there yet (the write would create it) and the folders the installer would create.
+function landing(path) {
+  for (let hops = 0; hops < 64; hops += 1) {
+    try {
+      return realpathSync(path);
+    } catch (err) {
+      if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+    }
+    let stat = null;
+    try {
+      stat = lstatSync(path);
+    } catch (err) {
+      if (err.code !== 'ENOENT' && err.code !== 'ENOTDIR') throw err;
+    }
+    if (!stat) return join(landing(dirname(path)), basename(path));
+    if (!stat.isSymbolicLink()) throw new Error(`${path} cannot be resolved`);
+    path = resolve(dirname(path), readlinkSync(path));
+  }
+  throw new Error(`${path} goes through too many links`);
+}
+
+// Why writing `dest` (relative to cwd) would leave the project, or null when it would not: the
+// file and every folder on its way, links resolved, must land inside the project's real root.
+// --force does not change this: it overwrites Vibeflow's own files, it never follows a link out.
+function landsOutside(root, cwd, dest) {
+  const inside = (path) => path === root || path.startsWith(root.endsWith(sep) ? root : root + sep);
+  const parts = dest.split('/');
+  for (let i = 1; i <= parts.length; i += 1) {
+    const prefix = parts.slice(0, i).join('/');
+    const real = landing(join(cwd, prefix));
+    if (!inside(real)) return `${prefix} leads to ${real}, outside the project (${root})`;
+  }
+  return null;
+}
+
+// Writes `dest` only where landsOutside allows, creating the folders on its way.
+function writeInside(root, cwd, dest, content) {
+  const reason = landsOutside(root, cwd, dest);
+  if (reason) throw new Error(reason);
+  const destPath = join(cwd, dest);
+  ensureDir(dirname(destPath));
+  writeFileSync(destPath, content, 'utf-8');
 }
 
 async function downloadFile(baseUrl, srcPath) {
@@ -479,13 +525,29 @@ async function main() {
   }
   const files = [...edition.files.map((file) => ({ baseUrl: edition.baseUrl, ...file })), ...kitFiles];
 
+  // Every path the install may write is checked before the first download: a link in the project
+  // that leads out of it refuses the whole install, so nothing lands half installed or outside.
+  const root = realpathSync(cwd);
+  const writes = [...files.map((file) => file.dest), 'AGENTS.md', '.gitignore'];
+  if (edition.handleCopilotInstructions) writes.push('.github/copilot-instructions.md');
+  const refused = [];
+  for (const dest of writes) {
+    const reason = landsOutside(root, cwd, dest);
+    if (reason) refused.push({ dest, reason });
+  }
+  if (refused.length > 0) {
+    for (const { dest, reason } of refused) log(pc.red('x'), `${dest} — ${reason}`);
+    log(pc.red('x'), `Nothing was installed: every file Vibeflow writes must land inside the project, and --force does not change that. Replace each link above with a folder or file of its own, or point it inside the project.`);
+    console.log('');
+    process.exit(1);
+  }
+
   // Download and install files
   let created = 0;
   let skipped = 0;
 
   for (const file of files) {
     const destPath = join(cwd, file.dest);
-    const destDir = join(destPath, '..');
 
     if (existsSync(destPath) && !force) {
       log(pc.dim('-'), `${pc.dim(file.dest)} ${pc.dim('(exists, skipped)')}`);
@@ -495,8 +557,7 @@ async function main() {
 
     try {
       const content = await downloadFile(file.baseUrl, file.src);
-      ensureDir(destDir);
-      writeFileSync(destPath, content, 'utf-8');
+      writeInside(root, cwd, file.dest, content);
       log(pc.green('+'), file.dest);
       created++;
     } catch (err) {
@@ -514,7 +575,7 @@ async function main() {
     const appendContent = extractAgentsAppendContent(agentsSource);
     const existing = existsSync(agentsPath) ? readFileSync(agentsPath, 'utf-8') : null;
     const result = upsertDelimitedBlock(existing, appendContent, '## Vibeflow Methodology');
-    writeFileSync(agentsPath, result.content, 'utf-8');
+    writeInside(root, cwd, 'AGENTS.md', result.content);
 
     if (result.action === 'created') {
       log(pc.green('+'), `AGENTS.md ${pc.dim('(created)')}`);
@@ -539,7 +600,7 @@ async function main() {
         const snippet = extractCopilotInstructionsSnippet(snippetSource);
         if (snippet) {
           const result = upsertDelimitedBlock(existing, snippet, '## Vibeflow');
-          writeFileSync(copilotInstrPath, result.content, 'utf-8');
+          writeInside(root, cwd, '.github/copilot-instructions.md', result.content);
 
           if (result.action === 'replaced') {
             log(pc.green('+'), `.github/copilot-instructions.md ${pc.dim('(vibeflow snippet updated)')}`);
@@ -570,7 +631,7 @@ async function main() {
       if (result.action === 'present') {
         log(pc.dim('-'), `${pc.dim('.gitignore')} ${pc.dim('(Vibeflow block already present)')}`);
       } else {
-        writeFileSync(gitignorePath, result.content, 'utf-8');
+        writeInside(root, cwd, '.gitignore', result.content);
         if (result.action === 'appended') {
           log(pc.green('+'), `.gitignore ${pc.dim('(Vibeflow paths added — remove that block to track in git)')}`);
         } else {
