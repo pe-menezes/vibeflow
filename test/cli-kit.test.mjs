@@ -1,4 +1,4 @@
-// The CLI installs the loop kit for Cursor and Copilot, driven by loop/manifest.json.
+// The CLI installs the loop kit for Cursor, Copilot and OpenCode, driven by loop/manifest.json.
 // No network: a local node:http server serves this repository's own files, and the CLI
 // reaches it through its base-URL override. The CLI runs from a scratch copy beside a
 // stand-in `picocolors` (the CI installs no package), so the code under test is the real
@@ -22,7 +22,27 @@ const BASE_ENV = 'VIBEFLOW_BASE_URL';
 const KIT_DEST = {
   cursor: '.cursor/skills/vibeflow-implement/loop',
   copilot: '.github/vibeflow/loop',
+  opencode: '.opencode/skills/implement/loop',
 };
+
+const MARKER = {
+  cursor: '.cursor/rules/vibeflow.mdc',
+  copilot: '.github/prompts/vibeflow-analyze.prompt.md',
+  opencode: '.opencode/commands/vibeflow-analyze.md',
+};
+
+const WORKFLOWS = ['analyze', 'audit', 'discover', 'gen-spec', 'hotfix', 'implement', 'prompt-pack', 'quick', 'stats', 'teach'];
+const OPENCODE_AGENTS = ['architect', 'executor', 'auditor'];
+
+// What a fresh OpenCode install writes in .gitignore: the edition's own files, one line each,
+// so the user's own agents, commands and skills in .opencode/ stay tracked.
+const BLOCK_OPENCODE = [
+  '# Vibeflow — installed + generated (remove to track in git)',
+  '.vibeflow/',
+  ...OPENCODE_AGENTS.map((name) => `.opencode/agents/${name}.md`),
+  '.opencode/commands/vibeflow-*.md',
+  ...WORKFLOWS.map((name) => `.opencode/skills/${name}/`),
+];
 
 function manifestFiles() {
   const manifest = JSON.parse(readFileSync(join(LOOP_DIR, 'manifest.json'), 'utf8'));
@@ -109,7 +129,7 @@ test('manifest.json lists exactly the files in the kit folder', () => {
   assert.deepEqual([...listed].sort(), present);
 });
 
-for (const edition of ['cursor', 'copilot']) {
+for (const edition of ['cursor', 'copilot', 'opencode']) {
   test(`--${edition} installs every manifest file into ${KIT_DEST[edition]} from the plugin path`, async () => {
     const server = await startServer();
     const workspace = makeWorkspace();
@@ -134,10 +154,90 @@ for (const edition of ['cursor', 'copilot']) {
   });
 }
 
-test('the gitignore blocks cover the installed kit: Copilot gains .github/vibeflow/, Cursor keeps .cursor/skills/vibeflow-*/', async () => {
+test('--opencode installs the three agents, the ten commands and the ten shared skills, each from its source', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    const result = await runCli(workspace, ['--opencode'], { [BASE_ENV]: server.url });
+    assert.equal(result.status, 0, result.out);
+    const expected = [
+      ...OPENCODE_AGENTS.map((name) => [`.opencode/agents/${name}.md`, `opencode/agents/${name}.md`]),
+      ...WORKFLOWS.map((name) => [`.opencode/commands/vibeflow-${name}.md`, `opencode/commands/vibeflow-${name}.md`]),
+      ...WORKFLOWS.map((name) => [`.opencode/skills/${name}/SKILL.md`, `plugins/vibeflow/skills/${name}/SKILL.md`]),
+    ];
+    for (const [dest, src] of expected) {
+      const installed = join(workspace.project, dest);
+      assert.ok(existsSync(installed), `${dest} missing\n${result.out}`);
+      assert.equal(readFileSync(installed, 'utf8'), readFileSync(join(ROOT, src), 'utf8'), `${dest} differs from ${src}`);
+      assert.ok(server.requests.includes(src), `${dest} not fetched from ${src}`);
+    }
+    // nothing else of the edition: .opencode/ holds those files and the kit, and the project root
+    // holds AGENTS.md and .gitignore beside it
+    const kit = manifestFiles().map((file) => `${KIT_DEST.opencode}/${file}`);
+    assert.deepEqual(walk(join(workspace.project, '.opencode')).map((path) => `.opencode/${path}`).sort(), [...expected.map(([dest]) => dest), ...kit].sort());
+    assert.deepEqual(readdirSync(workspace.project).sort(), ['.gitignore', '.opencode', 'AGENTS.md']);
+    assert.ok(server.requests.includes('opencode/AGENTS.md'), result.out);
+    const agents = readFileSync(join(workspace.project, 'AGENTS.md'), 'utf8');
+    assert.ok(agents.includes('<!-- vibeflow:start -->') && agents.includes('<!-- vibeflow:end -->'), agents);
+    assert.match(agents, /\/vibeflow-analyze/);
+    assert.match(result.out, /\/vibeflow-analyze/, 'the done message names the first command');
+  } finally {
+    workspace.cleanup();
+    await server.close();
+  }
+});
+
+test('--opencode over an existing install without --force writes nothing, and with --force keeps the user\'s own .opencode files', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    const first = await runCli(workspace, ['--opencode'], { [BASE_ENV]: server.url });
+    assert.equal(first.status, 0, first.out);
+    const mine = {
+      '.opencode/agents/mine.md': 'my agent\n',
+      '.opencode/commands/mine.md': 'my command\n',
+      '.opencode/skills/mine/SKILL.md': 'my skill\n',
+      'opencode.json': '{}\n',
+    };
+    for (const [path, body] of Object.entries(mine)) {
+      mkdirSync(dirname(join(workspace.project, path)), { recursive: true });
+      writeFileSync(join(workspace.project, path), body);
+    }
+    writeFileSync(join(workspace.project, '.opencode/skills/audit/SKILL.md'), 'stale\n');
+    const requestsBefore = server.requests.length;
+    const again = await runCli(workspace, ['--opencode'], { [BASE_ENV]: server.url });
+    assert.equal(again.status, 0, again.out);
+    assert.match(again.out, /already installed/);
+    assert.equal(server.requests.length, requestsBefore, 'a stopped rerun fetches nothing');
+    assert.equal(readFileSync(join(workspace.project, '.opencode/skills/audit/SKILL.md'), 'utf8'), 'stale\n');
+
+    const forced = await runCli(workspace, ['--opencode', '--force'], { [BASE_ENV]: server.url });
+    assert.equal(forced.status, 0, forced.out);
+    assert.equal(readFileSync(join(workspace.project, '.opencode/skills/audit/SKILL.md'), 'utf8'), readFileSync(join(ROOT, 'plugins/vibeflow/skills/audit/SKILL.md'), 'utf8'));
+    for (const [path, body] of Object.entries(mine)) assert.equal(readFileSync(join(workspace.project, path), 'utf8'), body, path);
+  } finally {
+    workspace.cleanup();
+    await server.close();
+  }
+});
+
+test('the OpenCode .gitignore block names each installed file or folder and none of the user\'s', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    const result = await runCli(workspace, ['--opencode'], { [BASE_ENV]: server.url });
+    assert.equal(result.status, 0, result.out);
+    assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), BLOCK_OPENCODE.join('\n') + '\n');
+  } finally {
+    workspace.cleanup();
+    await server.close();
+  }
+});
+
+test('the gitignore blocks cover the installed kit: Copilot gains .github/vibeflow/, Cursor keeps .cursor/skills/vibeflow-*/, OpenCode has .opencode/skills/implement/', async () => {
   const server = await startServer();
   try {
-    for (const [edition, line] of [['copilot', '.github/vibeflow/'], ['cursor', '.cursor/skills/vibeflow-*/']]) {
+    for (const [edition, line] of [['copilot', '.github/vibeflow/'], ['cursor', '.cursor/skills/vibeflow-*/'], ['opencode', '.opencode/skills/implement/']]) {
       const workspace = makeWorkspace();
       try {
         const result = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
@@ -201,16 +301,16 @@ test('--help documents the base-URL override', async () => {
   }
 });
 
-test('cli/package.json is 0.17.0 with no new dependency, and the lockfile agrees', () => {
+test('cli/package.json is 0.18.0 with no new dependency, and the lockfile agrees', () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'cli/package.json'), 'utf8'));
-  assert.equal(pkg.version, '0.17.0');
+  assert.equal(pkg.version, '0.18.0');
   assert.deepEqual(pkg.dependencies, { picocolors: '^1.1.0' });
   assert.equal(pkg.devDependencies, undefined);
   assert.equal(pkg.optionalDependencies, undefined);
   assert.equal(pkg.peerDependencies, undefined);
   const lock = JSON.parse(readFileSync(join(ROOT, 'cli/package-lock.json'), 'utf8'));
-  assert.equal(lock.version, '0.17.0');
-  assert.equal(lock.packages[''].version, '0.17.0');
+  assert.equal(lock.version, '0.18.0');
+  assert.equal(lock.packages[''].version, '0.18.0');
   assert.deepEqual(lock.packages[''].dependencies, { picocolors: '^1.1.0' });
 });
 
@@ -224,7 +324,7 @@ test('the install log opens with setup-vibeflow and the version from the package
   const server = await startServer();
   try {
     const { version } = JSON.parse(readFileSync(join(ROOT, 'cli/package.json'), 'utf8'));
-    for (const edition of ['cursor', 'copilot']) {
+    for (const edition of ['cursor', 'copilot', 'opencode']) {
       const workspace = makeWorkspace();
       try {
         const result = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
@@ -325,7 +425,7 @@ test('the kit line the user already has elsewhere in .gitignore is not added twi
   }
 });
 
-for (const edition of ['cursor', 'copilot']) {
+for (const edition of ['cursor', 'copilot', 'opencode']) {
   test(`--${edition}: a base without the kit manifest (404) installs the edition without the kit and says why`, async () => {
     const server = await startServer({}, [`${KIT_URL_PATH}/manifest.json`]);
     const workspace = makeWorkspace();
@@ -335,8 +435,7 @@ for (const edition of ['cursor', 'copilot']) {
       assert.match(result.out, /loop kit/i);
       assert.match(result.out, /404/);
       assert.ok(existsSync(join(workspace.project, 'AGENTS.md')), result.out);
-      const marker = edition === 'cursor' ? '.cursor/rules/vibeflow.mdc' : '.github/prompts/vibeflow-analyze.prompt.md';
-      assert.ok(existsSync(join(workspace.project, marker)), result.out);
+      assert.ok(existsSync(join(workspace.project, MARKER[edition])), result.out);
       assert.ok(!existsSync(join(workspace.project, KIT_DEST[edition])), 'no kit folder without a manifest');
       assert.deepEqual(server.requests.filter((path) => path.startsWith(`${KIT_URL_PATH}/`)), [`${KIT_URL_PATH}/manifest.json`]);
     } finally {
@@ -384,12 +483,12 @@ const BLOCK_016 = {
 
 const carveOut = (lines) => lines.flatMap((line) => (line === '.vibeflow/' ? ['.vibeflow/*', '!.vibeflow/hotfixes/'] : [line]));
 
-for (const edition of ['copilot', 'cursor']) {
+for (const edition of ['copilot', 'cursor', 'opencode']) {
   test(`--${edition} --force over a current block with the hotfix carve-out leaves .gitignore byte for byte`, async () => {
     const server = await startServer();
     const workspace = makeWorkspace();
     try {
-      const current = edition === 'copilot' ? [...BLOCK_016.copilot, '.github/vibeflow/'] : BLOCK_016.cursor;
+      const current = { copilot: [...BLOCK_016.copilot, '.github/vibeflow/'], cursor: BLOCK_016.cursor, opencode: BLOCK_OPENCODE }[edition];
       const before = ['node_modules/', '', ...carveOut(current), '', '.env', ''].join('\n');
       writeFileSync(join(workspace.project, '.gitignore'), before);
       const result = await runCli(workspace, [`--${edition}`, '--force'], { [BASE_ENV]: server.url });
@@ -437,6 +536,116 @@ test('a Copilot install over a Cursor block with the carve-out adds the Copilot 
       '',
     ].join('\n');
     assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), expected);
+  } finally {
+    workspace.cleanup();
+    await server.close();
+  }
+});
+
+// OpenCode over a .gitignore that already has Vibeflow in it: a rerun, a block the user
+// trimmed, and the block another edition wrote.
+
+test('an OpenCode install run twice with --force writes its .gitignore block once', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    writeFileSync(join(workspace.project, '.gitignore'), 'node_modules/\n');
+    const first = await runCli(workspace, ['--opencode'], { [BASE_ENV]: server.url });
+    assert.equal(first.status, 0, first.out);
+    const expected = ['node_modules/', ...BLOCK_OPENCODE, ''].join('\n');
+    assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), expected);
+    const second = await runCli(workspace, ['--opencode', '--force'], { [BASE_ENV]: server.url });
+    assert.equal(second.status, 0, second.out);
+    assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), expected, 'the rerun changed .gitignore');
+    assert.match(second.out, /\.gitignore.*already/);
+  } finally {
+    workspace.cleanup();
+    await server.close();
+  }
+});
+
+test('an OpenCode block with the carve-out and a line the user deleted is left as it is by --force', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    const block = carveOut(BLOCK_OPENCODE).filter((line) => line !== '.opencode/skills/teach/');
+    const before = [...block, '', '# mine', 'dist/', ''].join('\n');
+    writeFileSync(join(workspace.project, '.gitignore'), before);
+    const result = await runCli(workspace, ['--opencode', '--force'], { [BASE_ENV]: server.url });
+    assert.equal(result.status, 0, result.out);
+    assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), before);
+  } finally {
+    workspace.cleanup();
+    await server.close();
+  }
+});
+
+for (const other of ['cursor', 'copilot']) {
+  test(`an OpenCode install over a 0.16 ${other} block with the carve-out adds the OpenCode paths after it and keeps the carve-out`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      const block = carveOut(BLOCK_016[other]);
+      writeFileSync(join(workspace.project, '.gitignore'), [...block, '', '.env', ''].join('\n'));
+      const result = await runCli(workspace, ['--opencode', '--force'], { [BASE_ENV]: server.url });
+      assert.equal(result.status, 0, result.out);
+      const expected = [...block, ...BLOCK_OPENCODE.slice(2), '', '.env', ''].join('\n');
+      assert.equal(readFileSync(join(workspace.project, '.gitignore'), 'utf8'), expected);
+      const again = await runCli(workspace, [`--${other}`, '--force'], { [BASE_ENV]: server.url });
+      assert.equal(again.status, 0, again.out);
+      const lines = readFileSync(join(workspace.project, '.gitignore'), 'utf8').split('\n');
+      for (const line of new Set(lines.filter(Boolean))) assert.equal(lines.filter((l) => l === line).length, 1, `${line}\n${lines.join('\n')}`);
+      assert.ok(!lines.includes('.vibeflow/'), 'the carve-out holds');
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+}
+
+// The AGENTS.md block: each edition's source carries its own delimiters, for whoever copies
+// the file by hand, and the CLI writes one block with one pair of them, however often it runs.
+
+for (const edition of ['cursor', 'copilot', 'opencode']) {
+  test(`--${edition}: AGENTS.md gets one Vibeflow block with one pair of delimiters, and --force reruns leave it as it is`, async () => {
+    const server = await startServer();
+    const workspace = makeWorkspace();
+    try {
+      writeFileSync(join(workspace.project, 'AGENTS.md'), '# My project\n\nRun make test.\n');
+      const first = await runCli(workspace, [`--${edition}`], { [BASE_ENV]: server.url });
+      assert.equal(first.status, 0, first.out);
+      const after = readFileSync(join(workspace.project, 'AGENTS.md'), 'utf8');
+      const count = (text, needle) => text.split(needle).length - 1;
+      assert.equal(count(after, '<!-- vibeflow:start -->'), 1, after);
+      assert.equal(count(after, '<!-- vibeflow:end -->'), 1, after);
+      assert.ok(after.startsWith('# My project\n\nRun make test.\n\n<!-- vibeflow:start -->\n## Vibeflow Methodology\n'), after);
+      assert.ok(after.endsWith('<!-- vibeflow:end -->\n'), after);
+      for (let run = 0; run < 2; run += 1) {
+        const again = await runCli(workspace, [`--${edition}`, '--force'], { [BASE_ENV]: server.url });
+        assert.equal(again.status, 0, again.out);
+        assert.equal(readFileSync(join(workspace.project, 'AGENTS.md'), 'utf8'), after, `rerun ${run + 1} changed AGENTS.md`);
+      }
+    } finally {
+      workspace.cleanup();
+      await server.close();
+    }
+  });
+}
+
+test('an AGENTS.md written by an older CLI, with the block wrapped twice, is rewritten to one pair of delimiters', async () => {
+  const server = await startServer();
+  const workspace = makeWorkspace();
+  try {
+    const older = '# Mine\n\n<!-- vibeflow:start -->\n<!-- vibeflow:start -->\n## Vibeflow Methodology\n\nold text\n<!-- vibeflow:end -->\n<!-- vibeflow:end -->\n<!-- vibeflow:end -->\n\n## After\n\nkept\n';
+    writeFileSync(join(workspace.project, 'AGENTS.md'), older);
+    const result = await runCli(workspace, ['--cursor', '--force'], { [BASE_ENV]: server.url });
+    assert.equal(result.status, 0, result.out);
+    const after = readFileSync(join(workspace.project, 'AGENTS.md'), 'utf8');
+    assert.equal(after.split('<!-- vibeflow:start -->').length - 1, 1, after);
+    assert.equal(after.split('<!-- vibeflow:end -->').length - 1, 1, after);
+    assert.ok(!after.includes('old text'), after);
+    assert.ok(after.startsWith('# Mine\n\n<!-- vibeflow:start -->\n## Vibeflow Methodology\n'), after);
+    assert.ok(after.endsWith('<!-- vibeflow:end -->\n\n## After\n\nkept\n'), after);
   } finally {
     workspace.cleanup();
     await server.close();

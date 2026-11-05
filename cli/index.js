@@ -28,6 +28,8 @@ const BASE_URL = (process.env[BASE_URL_ENV] || DEFAULT_BASE_URL).replace(/\/+$/,
 // The loop kit has one source, inside the plugin's implement skill; its manifest lists the
 // files, so a kit file added later needs no change here.
 const KIT_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills/implement/loop`;
+// The shared skills, which an edition that runs them unchanged installs from their one source.
+const SKILLS_BASE_URL = `${BASE_URL}/plugins/vibeflow/skills`;
 const KIT_MANIFEST = 'manifest.json';
 // A manifest entry is a plain relative path: no absolute path, no "..", no hidden segment,
 // so nothing it names can land outside the edition's kit folder.
@@ -63,6 +65,20 @@ const CURSOR_FILES = [
   { src: 'skills/vibeflow-stats/SKILL.md', dest: '.cursor/skills/vibeflow-stats/SKILL.md' },
 ];
 
+// OpenCode runs the shared skills as they are: each goes to .opencode/skills/<name>/, keeping
+// its name, because the host loads a skill only when its name matches its folder, and the
+// implement skill reaches the kit as loop/ beside its SKILL.md. An entry with its own baseUrl
+// is fetched from there instead of the edition's base.
+const OPENCODE_WORKFLOWS = ['analyze', 'audit', 'discover', 'gen-spec', 'hotfix', 'implement', 'prompt-pack', 'quick', 'stats', 'teach'];
+
+const OPENCODE_FILES = [
+  { src: 'agents/architect.md', dest: '.opencode/agents/architect.md' },
+  { src: 'agents/executor.md', dest: '.opencode/agents/executor.md' },
+  { src: 'agents/auditor.md', dest: '.opencode/agents/auditor.md' },
+  ...OPENCODE_WORKFLOWS.map((name) => ({ src: `commands/vibeflow-${name}.md`, dest: `.opencode/commands/vibeflow-${name}.md` })),
+  ...OPENCODE_WORKFLOWS.map((name) => ({ src: `${name}/SKILL.md`, dest: `.opencode/skills/${name}/SKILL.md`, baseUrl: SKILLS_BASE_URL })),
+];
+
 const EDITIONS = {
   copilot: {
     name: 'Copilot',
@@ -84,6 +100,17 @@ const EDITIONS = {
     markerLegacy: null,
     agentsSrc: 'AGENTS.md',
     doneMessage: `Type ${pc.bold('/vibeflow-analyze')} in Cursor Agent chat to get started.`,
+    handleCopilotInstructions: false,
+  },
+  opencode: {
+    name: 'OpenCode',
+    baseUrl: `${BASE_URL}/opencode`,
+    files: OPENCODE_FILES,
+    kitDest: '.opencode/skills/implement/loop',
+    marker: '.opencode/commands/vibeflow-analyze.md',
+    markerLegacy: null,
+    agentsSrc: 'AGENTS.md',
+    doneMessage: `Type ${pc.bold('/vibeflow-analyze')} in OpenCode to get started.`,
     handleCopilotInstructions: false,
   },
 };
@@ -109,6 +136,15 @@ const GITIGNORE_BLOCKS = {
 .cursor/rules/vibeflow-architect.mdc
 .cursor/skills/vibeflow-*/
 `,
+  opencode: `
+# Vibeflow — installed + generated (remove to track in git)
+.vibeflow/
+.opencode/agents/architect.md
+.opencode/agents/executor.md
+.opencode/agents/auditor.md
+.opencode/commands/vibeflow-*.md
+${OPENCODE_WORKFLOWS.map((name) => `.opencode/skills/${name}/`).join('\n')}
+`,
 };
 
 // What a reinstall may add to a Vibeflow block that is already in .gitignore. A line that an
@@ -124,6 +160,7 @@ const GITIGNORE_UPDATES = {
       '.github/vibeflow/', // 0.17.0: the loop kit folder
     ],
     cursor: [],
+    opencode: [],
   },
 };
 
@@ -178,10 +215,15 @@ async function loadKitFiles(kitDest) {
   return manifest.files.map((path) => ({ src: path, dest: `${kitDest}/${path}`, baseUrl: KIT_BASE_URL }));
 }
 
+// The text below the source's `---`. A source that carries its own delimiters, for whoever
+// copies the file by hand, gives what is between them, since upsertDelimitedBlock adds the pair.
 function extractAgentsAppendContent(fullContent) {
   const separatorIndex = fullContent.indexOf('\n---\n');
-  if (separatorIndex === -1) return fullContent;
-  return fullContent.slice(separatorIndex + '\n---\n'.length);
+  const content = separatorIndex === -1 ? fullContent : fullContent.slice(separatorIndex + '\n---\n'.length);
+  const startIdx = content.indexOf(VIBEFLOW_START);
+  const endIdx = content.lastIndexOf(VIBEFLOW_END);
+  if (startIdx === -1 || endIdx < startIdx) return content;
+  return content.slice(startIdx + VIBEFLOW_START.length, endIdx);
 }
 
 function extractCopilotInstructionsSnippet(fullContent) {
@@ -198,11 +240,18 @@ function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
   }
 
   const startIdx = existing.indexOf(VIBEFLOW_START);
-  const endIdx = existing.indexOf(VIBEFLOW_END);
+  const endIdx = startIdx === -1 ? -1 : existing.indexOf(VIBEFLOW_END, startIdx);
 
   if (startIdx !== -1 && endIdx !== -1) {
     const before = existing.slice(0, startIdx);
-    const after = existing.slice(endIdx + VIBEFLOW_END.length);
+    // An older CLI wrapped a source that had its own delimiters, and each rerun left one more
+    // end delimiter: the ones that follow the block, with only blank space between, go with it.
+    let blockEnd = endIdx + VIBEFLOW_END.length;
+    const trailingEnd = new RegExp(`^\\s*${VIBEFLOW_END}`);
+    for (let match = trailingEnd.exec(existing.slice(blockEnd)); match; match = trailingEnd.exec(existing.slice(blockEnd))) {
+      blockEnd += match[0].length;
+    }
+    const after = existing.slice(blockEnd);
     const content = before + delimited + after;
     return { content, action: 'replaced' };
   }
@@ -251,6 +300,7 @@ function detectEdition() {
   const args = process.argv.slice(2);
   if (args.includes('--cursor')) return 'cursor';
   if (args.includes('--copilot')) return 'copilot';
+  if (args.includes('--opencode')) return 'opencode';
   if (args.includes('--codex')) return 'codex';
   if (args.includes('--claude') || args.includes('--claude-code')) return 'claude';
   return null;
@@ -301,6 +351,7 @@ function printUsage() {
   console.log(`  ${pc.bold('Editions:')}`);
   console.log(`    ${pc.cyan('--copilot')}   Install for GitHub Copilot ${pc.dim('(.github/prompts, agents, instructions, vibeflow/loop)')}`);
   console.log(`    ${pc.cyan('--cursor')}    Install for Cursor ${pc.dim('(.cursor/rules, skills, the loop kit in skills/vibeflow-implement/loop)')}`);
+  console.log(`    ${pc.cyan('--opencode')}  Install for OpenCode ${pc.dim('(.opencode/agents, commands, skills, the loop kit in skills/implement/loop)')}`);
   console.log(`    ${pc.cyan('--codex')}     Show install instructions for Codex ${pc.dim('(plugin system)')}`);
   console.log(`    ${pc.cyan('--claude')}    Show install instructions for Claude Code ${pc.dim('(plugin system)')}`);
   console.log('');
@@ -314,6 +365,7 @@ function printUsage() {
   console.log(`  ${pc.bold('Examples:')}`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --copilot`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor`);
+  console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --opencode`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --codex`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --claude`);
   console.log(`    ${pc.dim('$')} npx setup-vibeflow@latest --cursor --force`);
@@ -384,7 +436,7 @@ async function main() {
     log(pc.yellow('!'), `loop kit — ${KIT_BASE_URL}/${KIT_MANIFEST} answered 404, so this base has no kit; installing ${edition.name} without it (implement --loop and stats need it: rerun with --force once the base has it)`);
     kitFiles = [];
   }
-  const files = [...edition.files.map((file) => ({ ...file, baseUrl: edition.baseUrl })), ...kitFiles];
+  const files = [...edition.files.map((file) => ({ baseUrl: edition.baseUrl, ...file })), ...kitFiles];
 
   // Download and install files
   let created = 0;
