@@ -256,3 +256,19 @@ test('reaudit 1, discovery: the example count commands leave out hidden files an
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+// --- Reaudit of the PR, fix round 2 -------------------------------------------
+// M2: while an earlier document holds `registry.md`, Step 6 writes nothing,
+// the `index.md` line included: a line under `## Imported Sources` would point
+// gen-spec at a registry that was never written.
+test('reaudit PR 2, earlier registry.md: without a yes, Step 6 writes neither the registry nor the index.md line', () => {
+  const carveOut = /\b(except\w*|but|other than|apart from|still writ\w*|only the registry)\b/i;
+  forEachEdition((raw, edition) => {
+    const unit = units(raw).find((u) => u.startsWith("First read the folder's `registry_md`"));
+    assert.ok(unit, `${edition}: the opening of Step 6`);
+    const stop = clauses(unit).find((c) => /[Ww]ithout a yes/.test(c));
+    assert.ok(stop, `${edition}: what happens without a yes`);
+    assert.match(stop, /stops before writing anything/, `${edition}: Step 6 stops without a yes: ${stop}`);
+    assert.doesNotMatch(stop, carveOut, `${edition}: something is still written without a yes: ${stop}`);
+  });
+});
