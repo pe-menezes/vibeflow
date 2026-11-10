@@ -5,7 +5,9 @@
 //
 // Copies source/ and app/ into <dir>, renames the folders this repository's
 // .gitignore would hide (claude/ -> .claude/, vibeflow/ -> .vibeflow/,
-// _docs/ -> docs/), and turns each copy into a git repository with one commit.
+// _docs/ -> docs/) and the one Cursor would load as this repository's own
+// rules (cursor/ -> .cursor/), and turns each copy into a git repository with
+// one commit.
 // Author, committer, dates and config are fixed, so the source commit sha is
 // the same on every run. Prints one line of JSON:
 //   {"source": "<abs>", "app": "<abs>", "sourceCommit": "<sha>"}
@@ -15,7 +17,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const RENAMES = { claude: '.claude', vibeflow: '.vibeflow', _docs: 'docs' };
+const RENAMES = { claude: '.claude', cursor: '.cursor', vibeflow: '.vibeflow', _docs: 'docs' };
 const SKIP = new Set(['.DS_Store']);
 const FIXED_DATE = '2026-01-15T12:00:00+0000';
 
