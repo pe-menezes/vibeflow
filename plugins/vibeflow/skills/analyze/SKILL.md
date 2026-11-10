@@ -15,7 +15,7 @@ allowed-tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 
 **Examples:**
 - `analyze` — First run or incremental (only re-analyzes what changed since last run).
-- `analyze --fresh` — Rebuild everything from scratch; ignore existing `.vibeflow/`.
+- `analyze --fresh` — Rebuild everything from scratch, except what `teach --from` imported.
 - `analyze --scope src/app` — Deep-dive into `src/app` only; requires `.vibeflow/` to already exist. Enriches pattern docs with examples from that module.
 - `analyze --interactive` — Run analysis with interactive review: validate patterns, remove false positives, add tribal knowledge before saving.
 - `analyze --fresh --interactive` — Full rebuild with interactive review.
@@ -82,8 +82,9 @@ when the user passed `--measure`.
 Nothing changed and the block is not due → report "No changes detected since
 <date>. .vibeflow/ is up to date." and stop. The block is due but nothing else
 changed → regenerate only the block and move `Analyzed:` to today's date
-(Phase 4), report "Tests and Pitfalls refreshed; no structural changes since
-<date>." and stop. With `--measure`, the report also says which commands were
+(Phase 4), run the disk check against the index, report "Tests and Pitfalls
+refreshed; no structural changes since <date>." with the result of the check,
+and stop. With `--measure`, the report also says which commands were
 measured, with their times, or that the project has no test runner and nothing
 was measured.
 No git → warn "Git not available. Falling back to full analysis." and run
@@ -94,6 +95,15 @@ Through phases 1–4, incremental means: redo only what the affected modules
 touch, reuse what `index.md` already records for everything else, and preserve
 every byte outside the `vibeflow:auto` markers. Phases 3 and 4 add file-specific
 preservation rules where the generic one isn't enough.
+
+**Imported sources.** Every mode that writes — incremental, `--fresh`,
+`--scope` and `--satellite` — leaves `patterns/external-*/` and the
+`## Imported Sources` block of `index.md` (between
+`<!-- vibeflow:sources:start -->` and `<!-- vibeflow:sources:end -->`) exactly
+as they are: they belong to `teach --from`, and every run carries them over
+byte for byte. `--fresh` rebuilds everything else from scratch. An imported
+doc never keeps a local pattern doc from being written: the imported rule is
+the norm, and the local doc is the example of how the code does it today.
 
 ## Phase 1: Discovery (broad scan)
 
@@ -193,19 +203,14 @@ sampling gets read, then judged on whether it deserves a pattern doc.
 data access, navigation, design-system usage, state management) needs examples
 from at least 3 different features — otherwise it documents an outlier.
 
-**Imported pattern protection.** Before creating or updating a pattern doc,
-check whether one with the same name exists in `.vibeflow/patterns/external-*/`
-(imported via `teach --from`). If it does, skip that pattern entirely — an
-external source of truth outranks auto-discovery — and log "Skipping `<name>` —
-imported version exists in `external-<repo>/`."
-
 **Incremental preservation.** For docs being updated, keep everything outside
 the `<!-- vibeflow:auto:start/end -->` markers, including the YAML frontmatter.
 If the doc has frontmatter and the content inside the markers did not change,
 leave the frontmatter untouched — the dev may have edited tags via
 `teach`. If the auto content did change, regenerate the frontmatter
 from it. Legacy docs with no markers get rewritten with markers and frontmatter
-added; new patterns are created with both.
+added; new patterns are created with both. That rule is for local docs: a doc in
+`patterns/external-*/` has no markers by design and stays as it is.
 
 What counts as significant depends on the project: API/route definitions,
 component architecture, data access and repositories, navigation, design-system
@@ -318,7 +323,7 @@ Incremental specifics, on top of the general rule in Phase 0:
 
 ```
 .vibeflow/
-├── index.md              # Overview: stack, structure, list of all pattern docs
+├── index.md              # Overview: stack, structure, Pattern Registry, imported sources
 ├── conventions.md        # Coding conventions (naming, style, organization)
 ├── patterns/
 │   └── <whatever>.md     # One file per discovered pattern (varies by repo)
@@ -353,8 +358,14 @@ patterns:
     modules: [src/path3/]
 <!-- vibeflow:patterns:end -->
 
+## Imported Sources
+
+<!-- vibeflow:sources:start -->
+<one line per source, written only by `teach --from`; carried over as is, and the section left out when there is none>
+<!-- vibeflow:sources:end -->
+
 ## Pattern Docs Available
-<list each .vibeflow/patterns/*.md with 1-line description>
+<list each local doc, `.vibeflow/patterns/*.md` at the root and `.vibeflow/patterns/satellite-*/*.md`, with 1-line description; never `patterns/external-*/`>
 
 ## Key Files
 <10-15 most critical files with 1-line descriptions>
@@ -375,12 +386,15 @@ patterns:
 <!-- vibeflow:auto:end -->
 ```
 
-**Pattern Registry generation.** After all pattern docs are written, read each
-one's YAML frontmatter (`tags`, `modules`) and build the registry block between
-the `<!-- vibeflow:patterns:start/end -->` markers, keeping the human-readable
-"Pattern Docs Available" list below it with links and 1-line descriptions. The
-registry is always regenerated from the frontmatters and never edited by hand —
-that is what keeps it in sync.
+**Pattern Registry generation.** After all pattern docs are written, read the
+YAML frontmatter (`tags`, `modules`) of the local docs, the `patterns/*.md` at
+the root and `patterns/satellite-*/*.md`, and build the registry block between the
+`<!-- vibeflow:patterns:start/end -->` markers, keeping the human-readable
+"Pattern Docs Available" list below it with links and 1-line descriptions of the
+same docs. Only the docs in `patterns/external-*/` stay out of both: they reach
+`gen-spec` through `## Imported Sources` and their own `registry.md`.
+The registry is always regenerated from the frontmatters and never edited by
+hand — that is what keeps it in sync.
 
 **Tests and Pitfalls.** These two sections tell the implementer and the audit
 how to prove a change cheaply and what has already gone wrong here, so they
@@ -502,6 +516,25 @@ When you learn something new about this project, update:
 Match the length of the generated docs to what the project needs: cover the
 substance, without filler sections, redundant summaries, or boilerplate.
 
+## Disk check against the index
+
+**Disk check against the index.** It runs last, once `index.md` is final:
+after Phase 5 in a full or incremental run, right after the block in the
+incremental path that refreshes only Tests and Pitfalls, at the end of Step 5
+in `--scope`, and at the end of Step 5 in `--satellite`. Its result goes in
+the report. List the disk with `find .vibeflow/patterns -name '*.md'` or `ls`
+through Bash, never with Glob or Grep: both respect `.gitignore`, find an
+ignored `.vibeflow/` empty, and the check would then pass on nothing. Compare
+the disk with the index: every `patterns/*.md` at the root and every
+`patterns/satellite-*/*.md` has an entry in the Pattern Registry; every
+`patterns/external-*/` folder has a line in the `vibeflow:sources` block; and
+every `.md` in it except `registry.md` has an entry in that source's
+registry. The first check also catches a local doc that an earlier run created
+and never indexed. Report each divergence with the file, without fixing what
+belongs to `teach`: the imported folders, their registries and the sources
+block change only through `teach --from`. No divergence → "Disk check: index
+matches the disk."
+
 ---
 
 ## Scoped analysis mode (`--scope <path>`)
@@ -536,7 +569,9 @@ add this module's examples inside the `<!-- vibeflow:auto:start/end -->`
 markers, preserving everything outside them (frontmatter included); add the
 module as a location under `## Where`; add 1–2 examples under `## Examples from
 this codebase`; and add the module's path to the frontmatter's `modules` field
-if it isn't there, leaving `tags` and `applies_to` as they are.
+if it isn't there, leaving `tags` and `applies_to` as they are. Only a doc at
+the root of `patterns/` counts as a match: what sits under `patterns/satellite-*/`
+or `patterns/external-*/` stays as it is.
 
 **The pattern is specific to this module** — create a new doc in `patterns/`
 with the standard structure, frontmatter, and markers, named descriptively and
@@ -561,14 +596,16 @@ Add or update a `## Scoped Analyses` section in `index.md`:
 - `<path>` — analyzed on <date>, N files sampled, M patterns enriched/created
 ```
 
-Then regenerate the `## Pattern Registry` block from all pattern doc
-frontmatters, and update `## Pattern Docs Available` if new docs were created.
+Then regenerate the `## Pattern Registry` block from the frontmatters of the
+`patterns/*.md` at the root and `patterns/satellite-*/*.md`, update
+`## Pattern Docs Available` if new docs were created, and close with the disk
+check against the index (its section follows Phase 5).
 
 ### Report
 
 Module analyzed and how many of its source files you sampled; which pattern docs
 were enriched and which were created; module-specific conventions; divergences
-from the global ones. Then suggest: "Run `gen-spec` or `prompt-pack` — the
+from the global ones; the result of the disk check. Then suggest: "Run `gen-spec` or `prompt-pack` — the
 enriched patterns from `<path>` are now available."
 
 ---
@@ -609,18 +646,25 @@ direct dependency, include it. Write them to
 `.vibeflow/patterns/satellite-<satellite-name>/`, each one prefixed with
 `> Patterns from satellite repo: <satellite-name> (ingested on YYYY-MM-DD for use by the main repo).`
 Only pattern docs cross over — not the satellite's `index.md` or `conventions.md`.
+Then regenerate the `## Pattern Registry` block and `## Pattern Docs Available`
+in `index.md` from the frontmatters of the `patterns/*.md` at the root and
+`patterns/satellite-*/*.md`, so the merged docs reach the specs.
 
 ### Step 5: Cleanup and report
 
 Remove the temp directory (`rm -rf <temp_dir>`) whether the merge succeeded or
-failed. Report the satellite URL and name, that the clone was removed, how many
-pattern docs were merged, and the provenance. Then suggest: "Run
+failed, and close with the disk check against the index. Report the satellite
+URL and name, that the clone was removed, how many pattern docs were merged, the
+provenance and the result of the disk check. Then suggest: "Run
 `gen-spec` or `prompt-pack` — patterns from
 `<satellite-name>` are now available under
 `.vibeflow/patterns/satellite-<satellite-name>/`."
 
 Rules: one repo per invocation, the clone is always ephemeral, provenance is
-always written, and the filter is by actual use.
+always written, and the filter is by actual use. The merge writes pattern docs only under
+`patterns/satellite-<satellite-name>/`, and in `index.md` only the Pattern
+Registry and Pattern Docs Available: `patterns/external-*/` and the
+`## Imported Sources` block stay as they are.
 
 ---
 
@@ -630,6 +674,7 @@ always written, and the filter is by actual use.
 - Number of structural units mapped
 - Knowledge sources found and incorporated (how many `.cursorrules`, `CLAUDE.md`, `docs/`)
 - Pattern docs created, listed, and the top 3 that matter most for future work
+- The result of the disk check against the index: each divergence with its file, or that the index matches the disk
 - Conflicts detected between rules and code, if any
 - Red flags, inconsistencies, or tech debt found
 - That these docs persist and feed every future spec, prompt pack, and audit

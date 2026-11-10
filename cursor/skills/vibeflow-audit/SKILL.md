@@ -247,7 +247,10 @@ restore.
 
    **B. Pattern compliance** — for each applicable pattern: is it followed
    (evidence), are conventions respected (naming, file organization, error
-   handling), and are deviations justified or mistakes?
+   handling), and are deviations justified or mistakes? A deviation from an
+   imported document the spec lists
+   (`patterns/external-<repo-name>/<entry-name>.md`) is a finding that names
+   the document and the `source_file` from its frontmatter.
 
    **C. Scenarios** — read the code and test scenarios: the edge cases, error
    paths and inputs the DoD implies. Each tested scenario becomes a probe case
@@ -376,6 +379,7 @@ Base: <sha>
 ### Pattern Compliance
 - [x] <pattern name> — follows correctly. Evidence: <file:line>
 - [ ] <pattern name> — DEVIATION: <what's wrong, what it should be>
+- [ ] patterns/external-<repo-name>/<entry-name>.md — DEVIATION: <what's wrong, what it should be> — imported from <repo-name> (<source_file>)
 
 ### Convention Violations (if any)
 - <file> — <violation> — <what the convention says>
