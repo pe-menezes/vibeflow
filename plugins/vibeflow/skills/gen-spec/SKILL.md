@@ -52,7 +52,9 @@ Generate a complete spec for the feature in the user's current request.
    - Patterns: read the `## Pattern Registry` block in `index.md` (between
      `<!-- vibeflow:patterns:start/end -->` markers), cross-reference its tags
      and modules against the feature, and load the top 3–5 matches. With no
-     registry, fall back to reading all pattern docs.
+     registry, fall back to reading the local pattern docs only, the
+     `patterns/*.md` at the root and the `patterns/satellite-*/*.md`; imported
+     entries come in only through the next item.
    - Imported sources: read the `## Imported Sources` block in `index.md`
      (between `<!-- vibeflow:sources:start/end -->` markers) and open each
      source's `patterns/external-<repo-name>/registry.md`. The choice among
@@ -66,9 +68,12 @@ Generate a complete spec for the feature in the user's current request.
    imported registry entry of `kind` `pattern` or `convention` when (a) a
    glob in its `paths` matches the path of a planned file, whether that file
    exists yet or not, or (b) the entry has no `paths` and its `tags` or
-   `description` match the feature's subject. An entry of `kind` `workflow`
-   is never chosen. Read every applicable entry; they are listed outside the
-   3–5 cut.
+   `description` match the feature's subject, or (c) the document's
+   `source_file` is under `.claude/rules/` and the entry has no `paths`, or the
+   entry has `alwaysApply: true`. An entry under (c) is always applicable: at
+   its source it loads in every session (its `source_file` is in the
+   document's frontmatter). An entry of `kind` `workflow` is never chosen.
+   Read every applicable entry; they are listed outside the 3–5 cut.
 4. Collect what the input points at — test files, mockups, code to port, the
    URL of a reference implementation — and what each one is for. A reference in
    code pins the target behavior better than a paragraph describing it.
@@ -125,8 +130,9 @@ questions about the failures, then generate with the answers. One round only.
 - **Applicable Patterns** — Which patterns from `.vibeflow/patterns/` the
   implementation must follow. Note it when the feature introduces a new one.
   Every applicable imported entry is listed too, outside the 3–5 cut, one line
-  each:
-  `- patterns/external-<repo-name>/<entry-name>.md — imported from <repo-name> (<source_file> @ <sha7>): <why it applies: the glob that matched and the file, or the subject>`
+  each, after a line that counts them by criterion,
+  `Imported entries that apply: <N> (<g> by glob, <s> by subject, <a> always on)`:
+  `- patterns/external-<repo-name>/<entry-name>.md — imported from <repo-name> (<source_file> @ <sha7>): <why it applies: the glob that matched and the file, the subject, or always on>`
   When a local pattern covers the same subject, both are listed: the imported
   rule is the norm, the local pattern the example of how the code does it
   today, and the divergence between them is written in Technical Decisions,
