@@ -93,3 +93,51 @@ test('analyze: the satellite report promises gen-spec only if the registry carri
       + 'but the Pattern Registry is built without patterns/satellite-*/');
   }
 });
+
+// Reaudit, round 1 (I4 (c) and the count, amendment of round 1).
+// The contract test pins that (c) exists and that a `workflow` entry is never
+// chosen; it does not catch a sentence that lets a `workflow` entry back in
+// through (c). Every sentence that names the `workflow` kind says it is never
+// chosen, with no exception attached.
+test('gen-spec: an always-on entry of kind workflow is never chosen', () => {
+  for (const [edition, path] of Object.entries(editions('gen-spec'))) {
+    const named = sentences(read(path)).filter((s) => s.includes('`workflow`'));
+    assert.ok(named.length > 0, `${edition}/gen-spec: names the workflow kind`);
+    for (const s of named) {
+      assert.match(s, /`workflow`[^.]*never chosen/, `${edition}/gen-spec: a workflow entry can be chosen: "${s}"`);
+      assert.doesNotMatch(s, /\b(except|unless|but|too|also|included|including|whatever)\b/i,
+        `${edition}/gen-spec: the workflow exclusion has an exception: "${s}"`);
+    }
+  }
+});
+
+// The 3–5 cut belongs to the local patterns: an imported entry, always-on ones
+// included, sits outside it and never takes a local slot. Every sentence that
+// names the cut is either the local load or says "outside the 3–5 cut".
+test('gen-spec: no always-on or imported entry takes a slot of the local 3–5 cut', () => {
+  for (const [edition, path] of Object.entries(editions('gen-spec'))) {
+    for (const s of sentences(read(path))) {
+      if (!/3[–-]5/.test(s)) continue;
+      if (/load the top 3[–-]5 matches/.test(s)) {
+        assert.doesNotMatch(s, /import|always|\(c\)|external/i, `${edition}/gen-spec: the local cut takes in others: "${s}"`);
+        continue;
+      }
+      assert.match(s, /outside the 3[–-]5 cut/i, `${edition}/gen-spec: a sentence reopens the 3–5 cut: "${s}"`);
+    }
+  }
+});
+
+// analyze never deletes a pattern doc: the imported folders are teach's, and
+// the local docs are rebuilt, not dropped. The contract test and probes 1–2
+// look only at sentences that name `--fresh` or `patterns/external-`; a
+// sentence that drops `.vibeflow/patterns/` under another name ("full
+// analysis", "rebuilding from scratch") passes both.
+test('analyze: no sentence deletes docs under .vibeflow/patterns/', () => {
+  for (const [edition, path] of Object.entries(editions('analyze'))) {
+    for (const s of sentences(read(path))) {
+      if (!/\.vibeflow\/patterns|`patterns\//.test(s)) continue;
+      assert.doesNotMatch(s, /\b(delet|remov|wipe|wiping|eras|discard|prun|purg)\w*|\brm -r/i,
+        `${edition}/analyze: a sentence drops pattern docs: "${s}"`);
+    }
+  }
+});
