@@ -70,13 +70,15 @@ its resolved absolute path; nothing to clean up.
 ### Step 3: Detect knowledge sources
 
 Count the sources with commands, one per glob, run against `$REPO_PATH` — for
-example `find "$REPO_PATH/.claude/rules" \( -type f -o -type l \) -name '*.md'`
+example `find "$REPO_PATH/.claude/rules" -mindepth 1 -name '.*' -prune -o \( -type f -o -type l \) -name '*.md' -print`
 for a `**` glob,
-`find "$REPO_PATH/.claude/skills" -mindepth 2 -maxdepth 2 \( -type f -o -type l \) -name SKILL.md`
+`find "$REPO_PATH/.claude/skills" -mindepth 2 -maxdepth 2 \( -type f -o -type l \) -name SKILL.md ! -path '*/.claude/skills/.*'`
 for the skills, and
-`find "$REPO_PATH/.cursor/rules" -maxdepth 1 \( -type f -o -type l \) -name '*.mdc'`
+`find "$REPO_PATH/.cursor/rules" -maxdepth 1 \( -type f -o -type l \) -name '*.mdc' ! -name '.*'`
 for a one-level glob such as `.cursor/rules/*.mdc`. `-type l` counts a file
-that is a symbolic link, as the glob does. The count never comes from a
+that is a symbolic link, as the glob does; the `.*` tests leave out a hidden
+file or folder below the glob's root, as the glob does (`.claude/` and
+`.cursor/` are part of the root and still count). The count never comes from a
 sampled read: the same source once gave 108 items in one run and 84 in another. No "top N", no folder summary, no cut by
 size.
 
@@ -115,7 +117,8 @@ cleanup if you cloned.
 For each file, read it and take a **title** (the first `#` heading, else the
 filename), a **summary** (the `description` from its YAML frontmatter, else the
 first 3-5 lines of real content), its frontmatter `paths` and `description`
-exactly as they came (and, for a `.mdc`, its `alwaysApply`), and a `kind`:
+exactly as they came (and, for a `.mdc`, its `globs` and `alwaysApply`), and a
+`kind`:
 
 - `pattern` — how code is written in one area: architecture, module, layer,
   API, library, error handling.
@@ -134,8 +137,10 @@ path segment, replace `/` with `-`, and lowercase it.
 `.claude/knowledge/x.md` → `claude-knowledge-x`; `knowledge/x.md` →
 `knowledge-x`; `docs/architecture.md` → `docs-architecture`; `CLAUDE.md` →
 `claude`; `.cursorrules` → `cursorrules`; `.cursor/rules/x.mdc` →
-`cursor-rules-x`. No name starts with a dot. The same source file always lands
-on the same name.
+`cursor-rules-x`. No name starts with a dot. No name is `registry`: every glob
+of the table starts with a folder or is a fixed file name, so the folder's
+`registry.md` is never an entry. The same source file always lands on the same
+name.
 
 ### Step 4: Interactive review
 
@@ -158,8 +163,8 @@ total as Step 3:
 [ ] 6. [workflow] .claude/knowledge/onboarding.md — Local setup for new members
 ```
 
-Each line carries `[kind]`, the `source_file`, the summary, and the `paths`
-when the source has them. `pattern` and `convention` lines come checked,
+Each line carries `[kind]`, the `source_file`, the summary, and the `paths` or
+`globs` when the source has them. `pattern` and `convention` lines come checked,
 `workflow` lines unchecked. The person answers with numbers, `all`, `none`, or
 `defaults` (the checked lines), and can correct a kind before anything is saved
 with `<n>=<kind>` — `7=pattern`. Wait for the answer. `none` → report "No
@@ -174,7 +179,13 @@ two selected items land on the same `<entry-name>` (`.claude/rules/a/b.md` and
 writing any file and show both source paths with the name they share; the
 person answers with a selection that leaves one of them out, or ends the
 import. The import never overwrites one item with another within the same
-import.
+import. Then, for every selected item whose
+`.vibeflow/patterns/external-<repo-name>/<entry-name>.md` already exists, read
+the `source_file` in that document's frontmatter: when it is missing or differs
+from the item's, stop before writing any file and show both source paths, the
+item's and the document's, with the name they share; the person answers the
+same way. Across imports too, the import never writes one source file over the
+document of another.
 
 Read the source commit once: `git -C "$REPO_PATH" rev-parse HEAD` (works on the
 shallow clone of Step 2); outside any git repository it is `none`. A local path
@@ -186,8 +197,9 @@ already holds documents from an earlier import, note their `source_commit`
 before overwriting them.
 
 Each selected item becomes `.vibeflow/patterns/external-<repo-name>/<entry-name>.md`
-(create the directory if needed). A file that already exists is overwritten
-with the warning "Previously imported, updating." — never a second copy.
+(create the directory if needed). A file that already exists, with the same
+`source_file` as the item, is overwritten with the warning "Previously
+imported, updating." — never a second copy.
 
 ```markdown
 ---
@@ -195,6 +207,7 @@ kind: pattern | convention | workflow
 tags: [<3 to 7 lowercase subject tags>]
 paths: <the source's frontmatter `paths`, as it came (list or string)>
 description: <the source's frontmatter `description`, as it came>
+globs: <the .mdc source's frontmatter `globs`, as it came (list or string)>
 alwaysApply: <the .mdc source's frontmatter `alwaysApply`, as it came>
 modules: []
 applies_to: []
@@ -217,6 +230,10 @@ imported: YYYY-MM-DD
   glob never becomes `modules`.
 - A `.mdc` source with an `alwaysApply` field keeps it as it came (`true` or
   `false`); the `alwaysApply` line is dropped for every other source.
+- A `.mdc` source with a `globs` field keeps it as it came, empty or not, in
+  its own `globs` line, the way `paths` is kept: it is the rule's scope at the
+  source. `globs` never becomes `paths`, nor `paths` `globs`; the `globs` line
+  is dropped for every other source.
 - `tags` are subject tags derived from the title, the description and the
   content, the way the vibeflow-analyze skill derives pattern tags: specific domain words
   (`navigation`, `api-client`, `error-handling`), never `external` or the repo
@@ -243,6 +260,15 @@ the report says the two imports can't be compared.
 
 ### Step 6: Index the source
 
+First read the folder's `registry.md`, when there is one. A `registry.md`
+without the `<!-- vibeflow:imported:start -->` marker is a document an earlier
+version of this import wrote under that name, not this registry, and Step 6
+never writes over it: the report lists it with the other documents without
+`kind` and asks whether to remove it. Without a yes, Step 6 stops before
+writing anything, the registry and the line in `index.md` included, and the
+report says the registry was not written and why: an earlier document holds
+its name.
+
 Regenerate `.vibeflow/patterns/external-<repo-name>/registry.md` from the
 frontmatter of every `.md` in that folder except `registry.md` itself, in name
 order — documents kept from earlier imports included:
@@ -263,11 +289,16 @@ entries:
     kind: convention
     tags: [formatting, style, linting]
     alwaysApply: true
+  - file: patterns/external-<repo-name>/cursor-rules-storage.md
+    kind: pattern
+    tags: [storage, persistence, cache]
+    globs: "src/legacy/**"
+    alwaysApply: false
 <!-- vibeflow:imported:end -->
 ```
 
 An entry drops `paths` and `description` when its document has none, and
-carries `alwaysApply` when its document has it. A document without `kind` was
+carries `alwaysApply` and `globs` when its document has them. A document without `kind` was
 written by an earlier version of this import under another name, so a reimport
 does not replace it: it enters as `kind: pattern` with the tags it has, and the
 report lists it.
@@ -310,6 +341,9 @@ happy-path step.
   stay, in the registry as `kind: pattern`; a yes removes only the documents
   the person named, inside `patterns/external-<repo-name>/`, and Step 6 runs
   again.
+- A `registry.md` without the `<!-- vibeflow:imported:start -->` marker is
+  listed with them, under the same question; while it stays, the report says
+  the registry was not written and why.
 - A leftover `## External Conventions: <repo-name>` section in
   `conventions.md`, with the question about it.
 - For a local source inside another git repository, that its `source_commit`

@@ -233,8 +233,7 @@ test('reaudit 1, entry-name guard: nothing in the guard writes one item over ano
   });
 });
 
-test('reaudit 1, discovery: the example count commands leave out hidden files and folders, as the glob does',
-  { todo: 'open gap B15 of reaudit 1 of part 2: find counts .hidden.md and files under a dot folder, which the glob leaves out' }, () => {
+test('reaudit 1, discovery: the example count commands leave out hidden files and folders, as the glob does', () => {
     const repo = mkdtempSync(join(tmpdir(), 'vf-reaudit-dot-'));
     try {
       for (const file of ['.claude/rules/a.md', '.claude/rules/.hidden.md', '.claude/rules/.private/x.md',

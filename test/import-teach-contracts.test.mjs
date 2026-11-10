@@ -361,6 +361,13 @@ test('teach import: example count commands match their glob, symlinks and first 
       '.cursor/rules/style.mdc',
       '.cursor/rules/nested/deep.mdc',
       'outside/target.md',
+      // B15: hidden entries below the glob's root, which the glob leaves out.
+      '.claude/rules/.hidden.md',
+      '.claude/rules/.private/x.md',
+      '.claude/rules/area/.draft.md',
+      '.claude/skills/.hidden-skill/SKILL.md',
+      '.claude/knowledge/.private/setup.md',
+      '.cursor/rules/.h.mdc',
     ];
     for (const file of files) {
       mkdirSync(dirname(join(repo, file)), { recursive: true });
@@ -388,4 +395,82 @@ test('teach import: example count commands match their glob, symlinks and first 
   } finally {
     rmSync(repo, { recursive: true, force: true });
   }
+});
+
+// --- Round 2 fix (PR review) ---------------------------------------------
+
+// The prose outside fences cut into units: paragraphs, and each bullet on its
+// own. A period inside a code span does not end a sentence there.
+function proseUnits(raw) {
+  return outsideFences(raw).split(/\n\s*\n|\n(?=\s*- )/).map(flat).map((u) => u.trim()).filter(Boolean);
+}
+
+// M1: a reimport whose entry name falls on a document of another source file
+// stops before any write; "Previously imported, updating." only for the same
+// source file.
+test('teach import: a document already on disk from another source file stops the import before any write (M1)', () => {
+  forEachEdition((content, label, raw) => {
+    const guard = proseUnits(raw).find((u) => u.startsWith('Before writing anything'));
+    assert.ok(guard, `${label}: the guard paragraph`);
+    assert.match(guard, /already exists[^.]*read the `source_file` (in|of) (its|that document's) frontmatter/,
+      `${label}: the guard reads the source_file of the document on disk`);
+    assert.match(guard, /missing or differs from the item's[^.]*stop before writing any file/,
+      `${label}: a different source_file stops the import before any write`);
+    assert.match(guard, /never writes one source file over the document of another/,
+      `${label}: never writes one source over another, across imports`);
+    const updating = sentences(raw).filter((s) => s.includes('Previously imported, updating.'));
+    assert.ok(updating.length > 0, `${label}: the updating warning`);
+    for (const s of updating) {
+      if (/overwrit/.test(s)) assert.match(s, /same `source_file`/, `${label}: overwrites without the same source_file: ${s}`);
+    }
+  });
+});
+
+// M2: a registry.md without the imported marker is a document an earlier
+// version wrote under that name; Step 6 never writes over it.
+test('teach import: a registry.md without the imported marker is an earlier document, never written over (M2)', () => {
+  forEachEdition((content, label, raw) => {
+    const step6 = flat(section(raw, '### Step 6: Index the source'));
+    assert.match(step6, /`registry\.md` without the `<!-- vibeflow:imported:start -->` marker/,
+      `${label}: names the earlier registry.md by the missing marker`);
+    assert.match(step6, /Step 6 never writes over it/, `${label}: never written over`);
+    assert.match(step6, /asks whether to remove it/, `${label}: asks before removing`);
+    assert.match(step6, /[Ww]ithout a yes, Step 6 stops before writing anything/, `${label}: stops before writing without a yes`);
+    assert.match(step6, /the registry was not written and why/, `${label}: the report says the registry was not written and why`);
+    const report = flat(section(raw, '### Step 8: Report'));
+    assert.match(report, /`registry\.md` without the `<!-- vibeflow:imported:start -->` marker/,
+      `${label}: the report lists the earlier registry.md`);
+    assert.match(content, /No name is `registry`/, `${label}: no entry is named registry`);
+  });
+});
+
+// M2: by the stated rule, a file named registry under any table glob never
+// lands on registry.md.
+test('teach import: no source the table can find is named registry (M2)', () => {
+  const entryName = (p) => p.replace(/\/SKILL\.md$/, '').replace(/\.(md|mdc)$/, '')
+    .split('/').map((s) => s.replace(/^\./, '')).join('-').toLowerCase();
+  forEachEdition((content, label, raw) => {
+    const table = [...raw.matchAll(/^\|[^|\n]+\|\s*`([^`]+)`\s*\|\s*$/gm)].map((m) => m[1]);
+    for (const glob of table) {
+      for (const path of [glob.replace('**/', '').replace('*', 'registry'), glob.replace('**/', 'registry/').replace('*', 'registry')]) {
+        assert.notEqual(entryName(path), 'registry', `${label}: ${path} lands on registry.md`);
+      }
+    }
+  });
+});
+
+// M3: a Cursor rule keeps its globs as they came, in a field of its own, and
+// gen-spec uses them as the entry's scope.
+test('teach import: a .mdc keeps its globs as they came, in a field of its own, carried to the registry (M3)', () => {
+  forEachEdition((content, label, raw) => {
+    const blocks = fences(raw);
+    const i1 = blocks.find((b) => b.startsWith('---\nkind: pattern | convention | workflow'));
+    assert.ok(i1 && /^globs: /m.test(i1), `${label}: I1 frontmatter has globs`);
+    const registry = blocks.find((b) => b.includes('<!-- vibeflow:imported:start -->'));
+    assert.ok(registry && /^\s+globs: /m.test(registry), `${label}: a registry entry carries globs`);
+    assert.match(content, /`globs`[^.]*as it came/, `${label}: globs kept as it came`);
+    assert.match(content, /`globs` never becomes `paths`/, `${label}: globs is never converted into paths`);
+    assert.match(flat(section(raw, '### Step 6: Index the source')), /carries `alwaysApply` and `globs` when its document has them/,
+      `${label}: the registry entry carries globs`);
+  });
 });

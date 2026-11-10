@@ -306,3 +306,21 @@ test('audit cites the imported document and its source_file on a deviation', () 
       `${label}: the report line for an imported deviation cites its source`);
   });
 });
+
+// M3 (PR review): a Cursor rule is scoped by its `globs`, kept as it came; the
+// subject criterion (b) never picks an entry that has a scope.
+test('gen-spec matches a planned file against paths or globs, and picks by subject only an entry with neither', () => {
+  forEachEdition('gen-spec', (content, label, raw) => {
+    const before = flat(section(raw, '## Before writing the spec'));
+    assert.match(before, /\(a\) a glob in its `paths` matches the path of a planned file, whether that file exists yet or not, or a glob in its `globs` does/,
+      `${label}: (a) matches paths or globs`);
+    assert.match(before, /\(b\) the entry has no `paths` and no non-empty `globs`, and its `tags` or `description` match the feature's subject/,
+      `${label}: (b) only without paths and without a non-empty globs`);
+    assert.match(before, /`alwaysApply: true`/, `${label}: (c) alwaysApply stays always applicable`);
+    // Neither field is read as the other.
+    for (const s of sentences(before)) {
+      if (/`globs`/.test(s)) assert.doesNotMatch(s, /\b(convert|becomes|turn\w* into|treat\w* as `paths`)/i,
+        `${label}: globs converted into paths: "${s}"`);
+    }
+  });
+});

@@ -57,7 +57,9 @@ other commands match them byte for byte: the `## References` and
    or changes, and which patterns apply to it. Then mark as applicable each
    imported registry entry of `kind` `pattern` or `convention` when (a) a
    glob in its `paths` matches the path of a planned file, whether that file
-   exists yet or not, or (b) the entry has no `paths` and its `tags` or
+   exists yet or not, or a glob in its `globs` does (a Cursor rule's scope, as
+   it came: a string can hold several globs separated by commas), or (b) the
+   entry has no `paths` and no non-empty `globs`, and its `tags` or
    `description` match the feature's subject, or (c) the document's
    `source_file` is under `.claude/rules/` and the entry has no `paths`, or the
    entry has `alwaysApply: true`. An entry under (c) is always applicable: at
