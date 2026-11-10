@@ -41,6 +41,13 @@ Generate a self-contained prompt pack for the spec in the user's current request
    `<!-- vibeflow:patterns:start/end -->` markers) and cross-reference its tags
    and modules against the spec's scope — top 3–5 matches; with no registry,
    infer which are relevant.
+   The spec's `Documents to read:` line counts these documents; a spec without
+   that line is read as before. Read each of these documents whole, one file
+   per read: open it with your file-reading tool, without an offset or a limit,
+   and never several files in one shell command. When a read comes back cut (a
+   preview, a notice that the output was saved to a file, a line or size
+   limit), keep reading from where it stopped to the last line. A list of
+   headings or a keyword search is not a read.
 3. Read the codebase files this task touches, plus anything the spec lists
    under References.
 4. Generate the pack.
@@ -117,6 +124,20 @@ Flag any path you could not verify with `<!-- TODO: verify this path -->`.
 
 Save the prompt pack to `.vibeflow/prompt-packs/<feature-slug>.md` (create the
 directory if it doesn't exist).
+
+The reply ends with the read receipt, its labels in English in any language:
+
+```
+Read in full: <n> of <m>
+- <path> (<lines> lines)
+Not read whole: none
+```
+
+One `- <path> (<lines> lines)` line per document read whole, its path relative
+to the project root. When a document was not read whole, `Not read whole:`
+stands alone and each such document follows on its own line, `- <path>: <why>`,
+and the reply says so. The receipt is what this session actually read: a
+document read in pieces goes under `Not read whole`.
 
 After saving, suggest: "Prompt pack saved. Hand it off to the coding agent.
 After implementation, run `audit` with the spec to verify."

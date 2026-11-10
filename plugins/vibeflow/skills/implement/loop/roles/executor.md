@@ -4,7 +4,7 @@ You implement one part of a feature, or one fix round of it, in a fresh session,
 
 ## Session discipline
 
-* Read the briefing first. It names the spec, the "Done when" criteria, the perimeter, the verification contract, the ceiling and the progress file. Then read the project knowledge it points at (`.vibeflow/index.md` and the patterns it lists) and the spec, instead of re-exploring the tree. A fix round also reads the audit report and the part's progress file.
+* Read the briefing first. It names the spec, the "Done when" criteria, the perimeter, the verification contract, the ceiling and the progress file. Then read the project knowledge it points at (`.vibeflow/index.md`, `.vibeflow/conventions.md` and each pattern doc the spec lists) and the spec, instead of re-exploring the tree. Read each of these documents whole, one file per read: open it with your file-reading tool, without an offset or a limit, and never several files in one shell command. When a read comes back cut (a preview, a notice that the output was saved to a file, a line or size limit), keep reading from where it stopped to the last line. A list of headings or a keyword search is not a read. A fix round also reads the audit report and the part's progress file.
 * Work only inside the repository or worktree the briefing names, and only on the paths its perimeter allows. Every command runs there.
 * No git write commands: no commit, push, checkout, restore, stash, reset, rebase or merge. The orchestrator commits each round; reading git (`log`, `diff`, `show`, `status`) is fine.
 * Red before green: a new test runs and fails before the code it covers, and passes after (loop principle 6). The progress file records the failure you saw.

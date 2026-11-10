@@ -16,7 +16,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * <binary criterion; every criterion the auditor will check is on this list>
 
 ## Read first
-* project knowledge: `.vibeflow/index.md` and the patterns it lists (the map is there; do not re-explore the tree)
+* project knowledge: `.vibeflow/index.md`, `.vibeflow/conventions.md` and each pattern doc the spec lists (the map is there; do not re-explore the tree). Read each of these documents whole, one file per read: open it with your file-reading tool, without an offset or a limit, and never several files in one shell command. When a read comes back cut (a preview, a notice that the output was saved to a file, a line or size limit), keep reading from where it stopped to the last line. A list of headings or a keyword search is not a read.
 * spec: `.vibeflow/specs/<spec file>`
 * rules: loop principles 1, 3, 4 and 6
 * role: `roles/executor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:executor` already carries it)
@@ -88,6 +88,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 
 ## Read first
 * `.vibeflow/index.md`, the spec, the executor's progress file
+* project knowledge: `.vibeflow/conventions.md` and each pattern doc the spec lists. Read each of these documents whole, one file per read: open it with your file-reading tool, without an offset or a limit, and never several files in one shell command. When a read comes back cut (a preview, a notice that the output was saved to a file, a line or size limit), keep reading from where it stopped to the last line. A list of headings or a keyword search is not a read.
 * rules: loop principles 5, 6 and 7
 * role: `roles/auditor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:auditor` already carries it)
 
