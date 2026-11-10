@@ -1,11 +1,14 @@
 // Audit probes for vibeflow-import part 1: the external-import fixture's
 // prepare.mjs, which writes into and runs git in a directory it is given.
 // Behavior only: each probe pins what prepare.mjs does with the caller's
-// environment and directory, not a sha, a line number or a date.
+// environment and directory, not a sha, a line number or a date. Each case
+// states, as comments, the contract it protects, the plausible regression
+// that breaks it and why the implementer's tests missed it at the audit.
+// Run with: node --test test/*.test.mjs test/audit/*.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -66,9 +69,9 @@ function decoyRepo(dir) {
 // Breaks when: the GIT_* filter in gitEnv() goes away or narrows (for example
 //   to a fixed list that misses GIT_DIR); run from a git hook, init/add/commit
 //   then act on the hook's repository.
-// Not covered by: test/import-fixture.test.mjs strips GIT_* itself (cleanEnv)
-//   before spawning prepare.mjs, so its tests pass with the filter removed
-//   (audit sabotage S2: 7 of 7 green).
+// Not covered by: at the audit, test/import-fixture.test.mjs stripped GIT_*
+//   itself before spawning prepare.mjs, so its tests passed with the filter
+//   removed (audit sabotage S2: 7 of 7 green).
 test('prepare.mjs ignores GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE inherited from a hook', () => {
   scratch((root) => {
     const decoy = join(root, 'decoy');
@@ -103,7 +106,8 @@ test('prepare.mjs ignores GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE inherited fr
 // Breaks when: the emptiness check starts ignoring dot entries, for example by
 //   reusing the copy's SKIP set or filtering names that start with '.', and
 //   prepare.mjs then runs git init/add/commit inside the caller's repository.
-// Not covered by: the executor's refusal test plants a visible keep.txt only.
+// Not covered by: at the audit, the implementer's refusal test planted a
+//   visible keep.txt only (audit sabotage S4: 7 of 7 green).
 test('prepare.mjs refuses a directory whose only entry is hidden and leaves it alone', () => {
   scratch((dir) => {
     writeFileSync(join(dir, '.keep'), 'mine');
@@ -114,23 +118,11 @@ test('prepare.mjs refuses a directory whose only entry is hidden and leaves it a
   });
 });
 
-// Report only (no plausible regression apart from the executor's refusal
-// test): a target that is a file fails and the file stays.
-test('prepare.mjs refuses a target that is a file and leaves it alone', () => {
-  scratch((dir) => {
-    const file = join(dir, 'target');
-    writeFileSync(file, 'mine');
-    const result = prepare(file, cleanEnv());
-    assert.notEqual(result.status, 0);
-    assert.deepEqual(readdirSync(dir), ['target']);
-  });
-});
-
 // Contract: prepare.mjs never writes into the fixture it copies from.
 // Breaks when (open today, low finding A5): a target inside source/ or app/ of
 //   the fixture makes copyTree recurse into its own output until ENAMETOOLONG,
 //   leaving a deep tree inside the fixture.
-// Not covered by: the executor's tests always prepare into os.tmpdir().
+// Not covered by: the implementer's tests always prepare into os.tmpdir().
 // Marked todo so the file stays green while the gap is open; drop `todo` once
 // prepare.mjs refuses such a target.
 test('prepare.mjs never writes into the fixture it copies from', { todo: 'audit finding A5 (low): a target inside the fixture recurses into its own output' }, () => {
@@ -144,20 +136,5 @@ test('prepare.mjs never writes into the fixture it copies from', { todo: 'audit 
     });
     assert.notEqual(result.status, 0, 'a target inside the fixture is refused');
     assert.deepEqual(readdirSync(join(copy, 'source')).sort(), before, 'the fixture source is left as it was');
-  });
-});
-
-// Report only (no plausible regression apart from the executor's refusal
-// test): a symlink to a non-empty directory is refused like the directory.
-test('prepare.mjs refuses a symlink to a non-empty directory and leaves it alone', () => {
-  scratch((dir) => {
-    const real = join(dir, 'real');
-    mkdirSync(real);
-    writeFileSync(join(real, 'keep.txt'), 'mine');
-    const link = join(dir, 'link');
-    symlinkSync(real, link);
-    const result = prepare(link, cleanEnv());
-    assert.notEqual(result.status, 0);
-    assert.deepEqual(readdirSync(real), ['keep.txt']);
   });
 });

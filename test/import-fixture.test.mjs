@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -204,6 +204,87 @@ test('prepare.mjs refuses a directory that is not empty and leaves it alone', ()
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /not empty/i);
     assert.deepEqual(readdirSync(dir), ['keep.txt']);
+  });
+});
+
+test('prepare.mjs refuses a directory whose only entry is a hidden .git and leaves it alone', () => {
+  scratch((dir) => {
+    mkdirSync(join(dir, '.git'));
+    const result = prepare(dir);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /not empty/i);
+    assert.deepEqual(readdirSync(dir), ['.git'], 'nothing was added next to .git');
+    assert.deepEqual(readdirSync(join(dir, '.git')), [], 'the .git folder is still empty');
+  });
+});
+
+test('prepare.mjs drops GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE inherited from the caller', () => {
+  scratch((root) => {
+    const decoy = join(root, 'decoy');
+    mkdirSync(decoy);
+    writeFileSync(join(decoy, 'mine.txt'), 'caller data\n');
+    const decoyGit = (...args) => {
+      const result = spawnSync('git', args, {
+        cwd: decoy,
+        encoding: 'utf8',
+        env: {
+          ...cleanEnv(),
+          GIT_CONFIG_NOSYSTEM: '1',
+          GIT_CONFIG_GLOBAL: '/dev/null',
+          GIT_AUTHOR_NAME: 'Decoy',
+          GIT_AUTHOR_EMAIL: 'decoy@example.com',
+          GIT_COMMITTER_NAME: 'Decoy',
+          GIT_COMMITTER_EMAIL: 'decoy@example.com',
+        },
+      });
+      assert.equal(result.status, 0, `git ${args.join(' ')} failed in the decoy: ${result.stderr}`);
+      return result.stdout.trim();
+    };
+    decoyGit('init', '--quiet');
+    decoyGit('add', 'mine.txt');
+    decoyGit('-c', 'commit.gpgsign=false', 'commit', '--quiet', '--no-verify', '-m', 'decoy');
+    const decoyHead = decoyGit('rev-parse', 'HEAD');
+    const reference = scratch((dir) => prepared(dir).sourceCommit);
+
+    const target = join(root, 'out');
+    const result = spawnSync(process.execPath, [PREPARE, target], {
+      encoding: 'utf8',
+      env: {
+        ...cleanEnv(),
+        GIT_DIR: join(decoy, '.git'),
+        GIT_WORK_TREE: decoy,
+        GIT_INDEX_FILE: join(decoy, '.git', 'index'),
+      },
+    });
+    assert.equal(result.status, 0, `prepare.mjs failed: ${result.stderr}`);
+    const out = JSON.parse(result.stdout);
+
+    assert.equal(decoyGit('rev-parse', 'HEAD'), decoyHead, 'the caller repository HEAD did not move');
+    assert.equal(decoyGit('rev-list', '--count', 'HEAD'), '1', 'no commit was added to the caller repository');
+    assert.equal(decoyGit('status', '--porcelain'), '', 'nothing was staged in the caller repository');
+    assert.deepEqual(readdirSync(decoy).sort(), ['.git', 'mine.txt'], 'no file was copied into the caller repository');
+
+    for (const repo of [out.source, out.app]) {
+      assert.equal(git(repo, 'rev-parse', '--show-toplevel'), realpathSync(repo), `${repo} is the top of its own repository`);
+      assert.equal(git(repo, 'rev-list', '--count', 'HEAD'), '1', `${repo} has its own single commit`);
+    }
+    assert.equal(git(out.source, 'rev-parse', 'HEAD'), out.sourceCommit, 'the printed sha is the source repository HEAD');
+    assert.equal(out.sourceCommit, reference, 'inherited GIT_* do not change the source commit');
+  });
+});
+
+// The README declares the fixed commit date; both prepared repositories carry
+// it as author and committer date. A constant, not the clock: without the
+// fixed date each commit takes the time of the run.
+test('both prepared repositories carry the fixed commit date the README declares', () => {
+  const declared = /fixed commit date is `([^`]+)`/i.exec(readmeSection('Prepare'));
+  assert.ok(declared, 'the Prepare section declares "the fixed commit date is `<ISO 8601>`"');
+  scratch((dir) => {
+    const out = prepared(dir);
+    for (const repo of [out.source, out.app]) {
+      assert.equal(git(repo, 'log', '-1', '--format=%aI'), declared[1], `${repo} author date`);
+      assert.equal(git(repo, 'log', '-1', '--format=%cI'), declared[1], `${repo} committer date`);
+    }
   });
 });
 

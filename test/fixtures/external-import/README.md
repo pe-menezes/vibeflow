@@ -39,7 +39,12 @@ the source commit is the same on every run) and prints one line of JSON:
 {"source":"<dir>/source","app":"<dir>/app","sourceCommit":"<40-char sha>"}
 ```
 
-A directory that is not empty is refused and left untouched.
+The fixed commit date is `2026-01-15T12:00:00Z`, as author and committer
+date of both repositories (`git log -1 --format=%aI` and `%cI`).
+
+A directory that is not empty, even with only a hidden entry such as `.git`,
+is refused and left untouched. Inherited `GIT_*` variables are dropped, so a
+run from inside a git hook never touches the hook's repository.
 
 ## Expected counts per glob
 
@@ -111,18 +116,24 @@ cd <app>
 ```
 
 `teach` asks for a selection; in print mode answer it with a second call that
-continues the session (`claude -p --continue "<answer>"`).
+continues the session, with the same model declared again
+(`claude -p --model <model> --continue "<answer>"`). Every `claude -p` call
+below declares `--model <model>`, the `--continue` ones included.
+
+The imported entries are named after their source path (suffix and leading
+dots dropped, `/` turned into `-`, lower case): `.claude/rules/navigation.md`
+becomes `claude-rules-navigation`.
 
 1. **Before the fix, the defect reproduces.** With the plugin at the base
    version: `claude -p --model <model> "/vibeflow:teach --from <source> --name team-conventions"`,
-   then `claude -p --continue "all"`. Expect: the list shows 5 documents and
+   then `claude -p --model <model> --continue "all"`. Expect: the list shows 5 documents and
    none from `.claude/rules/` or `.claude/knowledge/`; the Pattern Registry
    block of `.vibeflow/index.md` is byte-identical to the prepared one; then
    step 4's `gen-spec` request produces a spec whose Applicable Patterns has
    no imported document.
 2. **After the fix, teach lists the `.claude/` rules and notes by kind.** Same
    two calls, but answer the selection with the default instead of `all`
-   (`claude -p --continue "accept the default selection"`). Expect: the list
+   (`claude -p --model <model> --continue "accept the default selection"`). Expect: the list
    shows 12 documents grouped as pattern, convention and workflow, with the
    per-glob counts of the table above (5 from `.claude/rules/`, 2 from
    `.claude/knowledge/`), and the 4 workflow documents shown unselected.
@@ -133,33 +144,43 @@ continues the session (`claude -p --continue "<answer>"`).
    Pattern Registry with one line for `external-team-conventions` pointing at
    `patterns/external-team-conventions/registry.md`, with the entry count and
    `commit <sha7>`; the registry entry for
-   `patterns/external-team-conventions/rules-navigation.md` has
+   `patterns/external-team-conventions/claude-rules-navigation.md` has
    `paths: ["**/navigation/**"]`; every imported file has
    `source_commit: <sha>`; `wc -l .vibeflow/conventions.md` is unchanged.
 4. **`gen-spec` for a navigation feature picks the imported rule.**
    `claude -p --model <model> "/vibeflow:gen-spec Add a profile feature with an edit-profile screen. Create src/features/profile/navigation/profile-routes.js with the profile routes and src/features/profile/profile-edit-screen.js, and register the routes in src/app.js."`
    (`profile-routes.js` does not exist yet.) Expect: Applicable Patterns lists
-   `patterns/external-team-conventions/rules-navigation.md — imported from team-conventions (.claude/rules/navigation.md @ <sha7>): ...`
+   `patterns/external-team-conventions/claude-rules-navigation.md — imported from team-conventions (.claude/rules/navigation.md @ <sha7>): ...`
    with the glob `**/navigation/**` and the planned file as the reason, the
    local `patterns/navigation.md` is listed too, and Technical Decisions writes
    down the divergence between them (for example the plain `ROUTES` object).
 5. **A feature on another subject leaves the navigation rule out.**
    `claude -p --model <model> "/vibeflow:gen-spec Add formatCurrency(amountInCents, currencyCode) in src/utils/currency.js that formats an integer amount of cents as a currency string with two decimals, with tests."`
-   Expect: Applicable Patterns does not list `rules-navigation.md`.
+   Expect: Applicable Patterns does not list `claude-rules-navigation.md`.
 6. **`implement` follows, and `audit` catches a deviation that only the
    imported rule forbids.** `claude -p --model <model> "/vibeflow:implement <step 4 spec path>"`.
-   Then pick one of the five navigation rules above whose text is not in the
-   spec's Definition of Done (check with `grep`), break it by hand in
-   `src/features/profile/navigation/profile-routes.js` (for example remove
-   `Object.freeze`, or rename a route to `edit` without the prefix), and run
+   Then pick rule 1 or rule 2 of the five navigation rules above, one whose
+   text is not in the spec's Definition of Done (check with `grep`). Before
+   breaking it, check that the generated file follows it, and stop if it does
+   not (the deviation would not be yours):
+   rule 1, `grep -c 'Object.freeze' src/features/profile/navigation/profile-routes.js`
+   prints 1 or more; rule 2, `grep -oE 'profile/[a-z-]+' src/features/profile/navigation/profile-routes.js`
+   prints a `profile/<name>` for every route the file declares. Then break it by hand in that file (remove
+   `Object.freeze`, or rename one route to `edit` without the prefix), and run
    `claude -p --model <model> "/vibeflow:audit <step 4 spec path>"`.
-   Expect: a finding on `profile-routes.js` that names
-   `patterns/external-team-conventions/rules-navigation.md` and
-   `.claude/rules/navigation.md`.
+   Expect: a finding on `profile-routes.js` that names the broken rule (the
+   missing `Object.freeze`, or the route name without the `profile/` prefix)
+   and cites `patterns/external-team-conventions/claude-rules-navigation.md`
+   and `.claude/rules/navigation.md`. A finding on `profile-routes.js` about
+   anything else does not count as catching the deviation.
 7. **Reimport followed by `analyze --scope` keeps the entries.** Save
-   `ls .vibeflow/patterns/external-team-conventions/` and the
-   `## Imported Sources` block. Run step 2's two calls again, then
+   `ls .vibeflow/patterns/external-team-conventions/`, the
+   `## Imported Sources` block and the entry count
+   `grep -c '^  - file: ' .vibeflow/patterns/external-team-conventions/registry.md`.
+   Run step 2's two calls again, then
    `claude -p --model <model> "/vibeflow:analyze --scope src/features/home"`.
-   Expect: the same file list, no duplicate entry in `registry.md`, one line
-   for the source in the `vibeflow:sources` block, and the local Pattern
-   Registry still lists only the three local patterns.
+   Expect: the same file list, the same entry count in `registry.md` (the
+   `grep -c` above prints the same number, equal to the `<N> entries` of its
+   header line), no duplicate entry, `claude-rules-navigation.md` still listed
+   in it, one line for the source in the `vibeflow:sources` block, and the
+   local Pattern Registry still lists only the three local patterns.
