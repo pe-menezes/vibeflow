@@ -123,7 +123,7 @@ them, and the expansion in that terminal was not checked for this edition.
 | `hotfix` | Fixes an evidenced defect with a trace document and regression test |
 | `prompt-pack` | Creates a self-contained handoff for another agent or task |
 | `quick` | Fast-tracks a clear task that fits in four files or fewer |
-| `teach` | Adds corrections, conventions, decisions, or imported patterns |
+| `teach` | Adds corrections, conventions, or decisions; `--from` imports another repository's rules and docs, which `gen-spec` selects per feature |
 | `stats` | Aggregates audit verdicts, gaps, and quality trends, plus the loop's numbers |
 
 ## The execution loop
