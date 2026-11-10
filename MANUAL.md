@@ -133,7 +133,7 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 **Quando usar:**
 - Primeira vez no projeto (setup obrigatório)
 - Depois de mudanças grandes no código
-- Com `--fresh` para reconstruir do zero
+- Com `--fresh` para reconstruir do zero (menos o que o `teach --from` importou)
 - Com `--scope <path>` para deep-dive num módulo/diretório específico
 - Com `--interactive` para validar padrões com feedback humano antes de salvar
 - Com `--satellite <url>` para analisar um repo de dependência (ex.: design system)
@@ -150,7 +150,11 @@ Faz um deep scan do codebase e gera a pasta `.vibeflow/` com a documentação do
 
 O `conventions.md` inclui uma seção **Don'ts** com regras proibitivas explícitas — o que NÃO fazer. Don'ts são minerados dos anti-patterns nos pattern docs, regras de projeto (.cursorrules, CLAUDE.md), e pitfalls comuns da stack.
 
-**Modo incremental:** Se `.vibeflow/` já existe, detecta mudanças via git e atualiza só o que mudou. A busca é `git log --since="<data> 00:00"`, com a data do `Analyzed:` do `index.md` e a hora explícita: com a data sozinha, o git conta a partir da hora atual daquele dia e perderia os commits feitos mais cedo. Patterns importados (em `patterns/external-*/` via `teach --from`) são protegidos: o analyze nunca sobrescreve um pattern que tem versão importada.
+**Modo incremental:** Se `.vibeflow/` já existe, detecta mudanças via git e atualiza só o que mudou. A busca é `git log --since="<data> 00:00"`, com a data do `Analyzed:` do `index.md` e a hora explícita: com a data sozinha, o git conta a partir da hora atual daquele dia e perderia os commits feitos mais cedo.
+
+**O que o `teach --from` importou:** nenhum modo que escreve (incremental, `--fresh`, `--scope`, `--satellite`) toca em `patterns/external-*/` nem na seção `## Imported Sources` do `index.md`; os dois passam de uma rodada para a outra byte a byte, e o `--fresh` reconstrói só o resto. Um pattern importado não impede mais o analyze de escrever o doc local do mesmo assunto: a regra importada é a norma, e o doc local é o exemplo de como o código faz hoje. O Pattern Registry e o "Pattern Docs Available" listam os docs da raiz de `patterns/` e de `patterns/satellite-*/`, nunca os de `external-*/`, que chegam ao `gen-spec` pelo registry da própria fonte.
+
+**Check de disco contra o índice:** todo modo que escreve fecha conferindo o disco com o `index.md`, listado com `find` ou `ls` (Glob e Grep respeitam o `.gitignore` e acham vazio um `.vibeflow/` ignorado). Doc local fora do Pattern Registry, pasta importada sem linha em `## Imported Sources` ou doc importado fora do registry da fonte sai no relatório com o arquivo; o analyze não conserta o que é do `teach`.
 
 **Testes e pitfalls no `index.md`:** dentro dos marcadores auto-gerados, o `index.md` traz o comando da suíte inteira e o comando mais estreito que roda só os testes afetados por uma mudança (por arquivo, pacote ou tag, como a stack permitir), com o tempo medido e a data da medida, ou `unmeasured` quando nunca foi medido; e os pitfalls que já custaram tempo ao projeto, cada um com a fonte (`decisions.md`, uma linha da CI, um commit de revert ou de fix). No modo incremental o bloco é refeito quando falta (index de antes do bloco) ou quando mudou um arquivo de teste, a configuração da CI ou a do test runner, mesmo sem mudança estrutural; nesse caso o analyze refaz só o bloco e move o `Analyzed:` para a data de hoje.
 
@@ -160,7 +164,7 @@ O `conventions.md` inclui uma seção **Don'ts** com regras proibitivas explíci
 
 **Modo interactive (`--interactive`):** Adiciona um checkpoint de review entre a descoberta de padrões e o salvamento. Apresenta os padrões encontrados, pergunta sobre falsos positivos, padrões faltantes e rationale ("por quê?"). Feedback incorporado antes de salvar. Compõe com todos os modos.
 
-**Modo satellite (`--satellite <url>`):** Analisa um repo de dependência (ex.: design system, lib compartilhada) sob a ótica do repo principal. Clona o repo, roda analyze no clone, detecta o que o repo principal realmente usa, e incorpora só esses patterns em `.vibeflow/patterns/satellite-<nome>/` com provenance.
+**Modo satellite (`--satellite <url>`):** Analisa um repo de dependência (ex.: design system, lib compartilhada) sob a ótica do repo principal. Clona o repo, roda analyze no clone, detecta o que o repo principal realmente usa, e incorpora só esses patterns em `.vibeflow/patterns/satellite-<nome>/` com provenance. No fim da junção, refaz o Pattern Registry e o "Pattern Docs Available", e os docs do satélite passam a chegar às specs.
 
 ---
 
@@ -221,6 +225,8 @@ princípio de auto-contenção do pack, ou passa o caminho verificado quando nã
 **DoD ancorado em teste:** onde o projeto tem test runner detectável, pelo menos
 um check do DoD nomeia um teste executável — um que já existe e precisa passar,
 ou um a escrever, nomeado. Sem runner, os checks continuam como antes.
+
+**Padrões importados:** quando o `index.md` tem a seção `## Imported Sources` (escrita pelo `teach --from`), o gen-spec abre o registry de cada fonte e, depois de planejar os arquivos que a feature cria ou muda, marca como aplicável a entrada de tipo `pattern` ou `convention` quando um glob dos `paths` dela casa com um arquivo planejado (exista ele ou não), quando ela não tem `paths` e as tags ou a descrição casam com o assunto da feature, ou quando ela é regra sempre ligada na origem (regra em `.claude/rules/` sem `paths`, ou com `alwaysApply: true`). Entrada `workflow` nunca é escolhida. As aplicáveis são lidas e entram em Applicable Patterns fora do corte de 3 a 5 dos padrões locais, depois da linha `Imported entries that apply: <N> (<g> by glob, <s> by subject, <a> always on)`, cada uma com o arquivo da fonte, o commit e o critério que a escolheu. Quando um padrão local cobre o mesmo assunto, os dois entram: a regra importada é a norma, o local é o exemplo de como o código faz hoje, e a divergência entre eles vai escrita em Technical Decisions. Sem a seção, nada muda.
 
 **PRD Validation Gate:** Quando o input é um PRD (arquivo `.md` ou texto >3 linhas), o gen-spec roda 5 sanity checks antes de gerar a spec:
 1. Problema concreto?
@@ -344,6 +350,8 @@ Audita a implementação contra o DoD da spec e os padrões do projeto. Roda os 
 - **PARTIAL** — Alguns checks passaram, gaps listados (ou warning do gate)
 - **FAIL** — DoD não atendido, testes falhando, ou finding CRITICAL/HIGH do gate
 
+**Padrões importados:** na conformidade com padrões, o desvio de um documento importado que a spec lista (`patterns/external-<repo>/<entrada>.md`) vira finding que nomeia o documento e o `source_file` dele, o arquivo de onde a regra veio no repositório de origem.
+
 **Critical Gate:** scan determinístico do `git diff` em busca de operações destrutivas/perigosas que o DoD não cobre — auth removida, `DROP TABLE`, secret hardcoded, `0.0.0.0/0`, mass delete, etc. ~40 regras em 6 domínios (DB, Security, IaC, K8s, Config, Data). Severidade: CRITICAL/HIGH bloqueiam (FAIL), WARNING vira PARTIAL, INFO é nota. Suprima um finding intencional com `vibeflow:allow <RULE_ID>: <justificativa>` (CRITICAL/HIGH exigem justificativa). Design: `proposals/critical-gate.md`.
 
 **Reporta tudo:** todo finding entra no relatório, inclusive os incertos e os de
@@ -421,16 +429,18 @@ vibeflow-teach --from https://github.com/org/repo --name plataforma
 ```
 
 **Fluxo:**
-1. Clona o repo (ou usa path local)
-2. Detecta fontes de conhecimento (skills, CLAUDE.md, docs/, knowledge/, .cursorrules, etc.)
-3. Apresenta review interativo — você escolhe o que importar
-4. Salva em `.vibeflow/patterns/external-<nome>/` com provenance
-5. Convenções selecionadas são incorporadas em `conventions.md`
-6. Clone efêmero é removido ao final
+1. Clona o repo (clone raso, efêmero) ou usa o path local.
+2. Varre `.claude/skills/*/SKILL.md`, `.claude/rules/**/*.md`, `.claude/knowledge/**/*.md`, `CLAUDE.md`, `knowledge/**/*.md`, `docs/**/*.md`, `.cursorrules`, `.cursor/rules/*.mdc` e `AGENTS.md`. Conta cada glob por comando e mostra a tabela glob → contagem e o total antes de ler qualquer arquivo: todo arquivo achado vira um item, sem amostra, sem "top N" e sem corte por tamanho.
+3. Classifica cada item como `pattern` (como o código é escrito numa área: arquitetura, módulo, camada, API), `convention` (regra transversal de código: nome, formato, estilo, testes) ou `workflow` (processo do time: planejamento, PR, review, release, deploy) e mostra o review em três grupos numerados com o mesmo total. `pattern` e `convention` vêm marcados, `workflow` vem desmarcado. Você responde com números, `all`, `none` ou `defaults` (os marcados), e corrige um tipo antes de salvar com `<n>=<tipo>` (`7=pattern`).
+4. Grava cada item escolhido em `.vibeflow/patterns/external-<nome>/<entrada>.md`. O nome sai do caminho na fonte (`.claude/rules/navigation.md` → `claude-rules-navigation`), então o mesmo arquivo cai sempre no mesmo documento. O frontmatter leva o tipo, de 3 a 7 tags de assunto, os `paths`, a `description` e, num `.mdc`, o `alwaysApply` como vieram da fonte, o `source_file` e o `source_commit`. Se dois itens escolhidos caem no mesmo nome, o teach para antes de gravar qualquer arquivo e mostra os dois caminhos.
+5. Refaz o `registry.md` da fonte, na mesma pasta, e põe uma linha por fonte na seção `## Imported Sources` do `index.md`. É por ali que o `gen-spec` escolhe o que se aplica a cada feature (ver `vibeflow-gen-spec`); `workflow` fica guardado como referência e nunca é escolhido sozinho.
+6. Remove o clone efêmero, mesmo quando um passo anterior falhou.
 
-**Detecção de conflito:** Se um pattern importado tem o mesmo nome de um pattern local (gerado pelo analyze), o teach pergunta qual manter. Se o externo prevalece, o local é removido. Se o local prevalece, o externo não é importado. Ao criar um pattern novo (sem `--from`), o teach também verifica se já existe um local ou importado com o mesmo nome.
+**Regra importada e padrão local:** o import nunca apaga nem pula um padrão local. Quando um doc local de `.vibeflow/patterns/` cobre o mesmo assunto de um importado, os dois ficam e são usados juntos: o importado como norma, o local como exemplo de como o código faz hoje. Vale também ao criar um padrão local novo com o teach sem `--from`.
 
-**Re-import:** Rodar `--from` de novo no mesmo repo sobrescreve os padrões com aviso.
+**O `conventions.md` não muda:** convenção importada é um documento `kind: convention` como os outros, e nada é anexado ao `conventions.md`. Uma seção `## External Conventions: <nome>` deixada por versão anterior fica até você responder a pergunta do relatório sobre removê-la.
+
+**Re-import:** Rodar `--from` de novo na mesma fonte sobrescreve os documentos com aviso ("Previously imported, updating."), nunca cria segunda cópia. Quando o commit do import anterior está alcançável na fonte, o relatório lista os arquivos que mudaram desde então; num clone raso ele diz que não dá para comparar. Um import feito antes da 1.18 não tem registry nem linha em `## Imported Sources`, então o `gen-spec` só o enxerga depois de um re-import. Os documentos antigos, sem `kind`, não são substituídos: o relatório lista e pergunta se remove; sem resposta eles ficam, no registry como `kind: pattern`, e o sim remove só os que você nomear.
 
 **`--name <alias>`:** Sobrescreve o nome auto-detectado do repo.
 

@@ -62,7 +62,7 @@ Type `/` in the Agent chat and search for the skill's name:
 
 **Utilities:**
 - `/vibeflow-quick` — fast-track for small tasks (≤4 files)
-- `/vibeflow-teach` — updates `.vibeflow/` with corrections, conventions or decisions; `--from <url|path>` imports patterns from external repos
+- `/vibeflow-teach` — updates `.vibeflow/` with corrections, conventions or decisions; `--from <url|path>` imports another repository's rules, skills and docs as indexed documents that `gen-spec` selects per feature
 - `/vibeflow-stats` — audit statistics: rates, violations, trends, and the loop's numbers when there are ledgers in `.vibeflow/loop/`
 
 ### Execution loop (opt-in)
