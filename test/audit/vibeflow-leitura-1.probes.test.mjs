@@ -12,7 +12,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -359,14 +359,22 @@ test('meter: a persisted cat followed by a Read of the saved output is whole', (
 // (135 of 135 on 10/11), and so does `grep -n pattern file` in Bash. The
 // line was shown to the model. Regression: the meter strips `path:N:` only.
 // Not caught: the implementer's grep cases all carry a path prefix.
+// Rewritten in re-audit 1 (authorized by its briefing): the first version showed
+// one context line, `press back.`, which has 11 characters and so is not
+// distinctive under the 20-character rule that `showing only the short lines`
+// pins; it asked `seen === 2` from two lines of which one cannot count. This
+// version shows two context lines before C4, one distinctive and one short:
+// the distinctive one (`N-`) and the canary (`N:`) count, the short one does not.
 test('meter: a Grep tool call on one file, with -n, sees its matched and context lines', () => {
   const lines = docLines(SCREENS);
   const n = lineNumberOf(SCREENS, canaryText('C4'));
-  const u = use('Grep', { pattern: 'saves goes back', path: join(app, SCREENS), output_mode: 'content', '-n': true, '-B': 1 });
-  const content = `${n - 1}-${lines[n - 2]}\n${n}:${lines[n - 1]}`;
-  const report = measure([transcript([u.record, result(u.id, content, { mode: 'content', numFiles: 1, filenames: [], content, numLines: 2 })])]);
+  assert.ok(lines[n - 3].trim().length >= 20, 'the first context line is long enough to be distinctive');
+  assert.ok(lines[n - 2].trim().length < 20, 'the second context line is short');
+  const u = use('Grep', { pattern: 'saves goes back', path: join(app, SCREENS), output_mode: 'content', '-n': true, '-B': 2 });
+  const content = `${n - 2}-${lines[n - 3]}\n${n - 1}-${lines[n - 2]}\n${n}:${lines[n - 1]}`;
+  const report = measure([transcript([u.record, result(u.id, content, { mode: 'content', numFiles: 1, filenames: [], content, numLines: 3 })])]);
   assert.equal(canarySeen(report, 'C4'), true);
-  assert.equal(doc(report, SCREENS).seen, 2);
+  assert.equal(doc(report, SCREENS).seen, 2, 'the distinctive context line (N-) and the matched line (N:)');
   assert.deepEqual(doc(report, SCREENS).methods, ['Grep']);
 });
 
@@ -398,31 +406,79 @@ test('meter: a Read through the real path of an app given by a symlink is opened
 
 // --- the audit stage of prepare.mjs ------------------------------------------
 
-// Contract: the audit stage is the implement stage plus one commit that adds
-// the feature, and that commit touches no document under .vibeflow/ (else the
-// docs an audit reads would differ from the ones the implement stage read).
-// Regression: laying feature/ over the app before the first commit, or a
-// feature/ folder that carries a .vibeflow/ file. Not caught: the implementer
-// checks the commit count and that some file under src/features/profile/ was
-// added, not the tree of the first commit nor what else the second touches.
-test('audit stage: the first commit is the implement tree and the second touches no .vibeflow/ file', () => {
+// The files git reports as changed in the working tree of an app, new files
+// listed one by one, with their status.
+function changedFiles(appDir) {
+  return git(appDir, 'status', '--porcelain', '--untracked-files=all').split('\n').filter(Boolean)
+    .map((line) => ({ status: line.slice(0, 2), path: line.slice(3) }));
+}
+
+// Contract: the audit stage is the implement stage with the feature laid over
+// it as uncommitted work (decision of 10/11, 20:09: an audit reads it as the
+// diff, the way an implement run leaves it), and that work touches no
+// document under .vibeflow/ (else the docs an audit reads would differ from
+// the ones the implement stage read). Regression: laying feature/ over the app
+// before the commit, committing it, or a feature/ folder (or prepare) that
+// writes under .vibeflow/. Not caught before re-audit 1: the implementer
+// checked a commit count and that some feature file was added; its test of
+// the uncommitted stage (fix 1) now pins the same, so this probe overlaps it.
+// Rewritten in re-audit 1 (authorized by its briefing): the first version
+// asked for HEAD~1, the second commit the 20:09 decision removed.
+test('audit stage: HEAD is the implement tree and the uncommitted feature touches no .vibeflow/ file', () => {
   const implement = prepare(join(dir, 'tree-implement'), 'implement').app;
   const audit = prepare(join(dir, 'tree-audit'), 'audit').app;
-  assert.equal(git(audit, 'rev-parse', 'HEAD~1^{tree}').trim(), git(implement, 'rev-parse', 'HEAD^{tree}').trim());
-  const touched = git(audit, 'diff', '--name-only', 'HEAD~1', 'HEAD').trim().split('\n');
-  assert.ok(touched.length > 0);
-  for (const f of touched) assert.ok(!f.startsWith('.vibeflow/'), `the feature commit touches ${f}`);
+  assert.equal(git(audit, 'rev-parse', 'HEAD^{tree}').trim(), git(implement, 'rev-parse', 'HEAD^{tree}').trim());
+  const touched = changedFiles(audit);
+  assert.ok(touched.some((f) => f.path.startsWith('src/features/profile/')), `the feature is in the working tree: ${touched.map((f) => f.path)}`);
+  for (const f of touched) assert.ok(!f.path.startsWith('.vibeflow/'), `the uncommitted feature touches ${f.path}`);
 });
 
-// Contract: the violations are discreet; nothing in the feature commit (code,
-// tests, message) names a canary, a violation or a rule id. Regression: a
-// comment like "// TODO: LIMITS" or "deliberately" left in feature/. Not
-// caught: the implementer checks the markers and the message, not words that
-// point at the trick.
-test('audit stage: the feature commit has no word that points at the planted violations', () => {
+// Contract: the violations are discreet; nothing the audit sees as the change
+// (every modified or new file of the working tree, and the commit message)
+// names a canary, a violation or a rule id. Regression: a comment like
+// "// TODO: LIMITS" or "deliberately" left in feature/, or prepare leaving a
+// note file next to the feature. Not caught before re-audit 1: the
+// implementer checked the markers and the message only; its test of the
+// uncommitted stage (fix 1) now reads every feature file and pins the status
+// list, so this probe overlaps it (it reads what git shows as changed).
+// Rewritten in re-audit 1 (authorized by its briefing): the first version read
+// the patch of the second commit, which the 20:09 decision removed; the
+// message read now is the implement commit's.
+test('audit stage: the uncommitted change has no word that points at the planted violations', () => {
   const audit = prepare(join(dir, 'words-audit'), 'audit').app;
-  const patch = git(audit, 'log', '-1', '-p', '--format=%B');
-  assert.doesNotMatch(patch, /canar|violat|deliberat|on purpose|intentional|\bC[1-4]\b|planted/i);
+  const POINTERS = /canar|violat|deliberat|on purpose|intentional|\bC[1-4]\b|planted/i;
+  const touched = changedFiles(audit);
+  assert.ok(touched.length > 0);
+  for (const f of touched) assert.doesNotMatch(readFileSync(join(audit, f.path), 'utf8'), POINTERS, f.path);
+  assert.doesNotMatch(git(audit, 'diff', 'HEAD'), POINTERS);
+  assert.doesNotMatch(git(audit, 'log', '-1', '--format=%B'), POINTERS);
+});
+
+// Contract (found in re-audit 1, on the base Sonnet audit run of 10/11): a
+// relative path is read against where the command's own `cd`s lead, in order.
+// The real command was `cd .vibeflow/patterns/external-team-conventions && cat
+// docs-screens.md ...; cd ../..; cat patterns/forms.md ...`, run from the app
+// (the record's cwd), and its output came back persisted: the second `cd` is
+// relative to the first, so `patterns/forms.md` is `.vibeflow/patterns/forms.md`
+// and that document was opened by Bash and cut. Regression: resolving every
+// `cd` of a command against the record's cwd only (fix 1's commandCwds), which
+// opens nothing after a chained `cd` and drops the cut mark that the meter of
+// round 1 gave. Not caught: the implementer's cd test changes directory once
+// per command, from the record's cwd.
+test('meter: a relative path after a cd relative to an earlier cd of the same command is opened, and its cut is marked', { todo: 'defeito R1: commandCwds resolves each cd from the record cwd, not from the cd before it' }, () => {
+  const realApp = realpathSync(app);
+  const u = use('Bash', { command: `cd .vibeflow/patterns/external-team-conventions && cat docs-screens.md; cd ../..; cat patterns/forms.md` });
+  u.record.cwd = realApp;
+  const content = `<persisted-output>\nOutput too large (24.1KB). Full output saved to: /scratch/tool-results/${u.id}.txt\n\nPreview (first 2KB):\n${docText(SCREENS).slice(0, 2048)}\n...\n</persisted-output>`;
+  const r = result(u.id, content, { stdout: '', stderr: '', interrupted: false });
+  r.cwd = realApp;
+  const report = measure([transcript([u.record, r])]);
+  for (const rel of [SCREENS, FORMS]) {
+    assert.equal(doc(report, rel).opened, true, `${rel} is opened`);
+    assert.deepEqual(doc(report, rel).methods, ['Bash'], rel);
+    assert.equal(doc(report, rel).truncated, true, `${rel} came back cut`);
+  }
+  assert.equal(doc(report, CONVENTIONS).opened, false, 'a document the command did not name stays closed');
 });
 
 // Contract (finding A3): the feature is right in everything the spec and its
