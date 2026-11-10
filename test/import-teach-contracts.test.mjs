@@ -2,10 +2,13 @@
 // analyze and audit, so the document format (I1), the per-source registry
 // (I2) and the sources block in index.md (I3) are pinned literally here, in
 // every edition. The assertions pin globs, markers, field names and section
-// names, never a whole sentence of prose.
+// names, and short phrases where the risk is in the prose (what the import
+// overwrites, writes to conventions.md or deletes); never a whole paragraph.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -121,13 +124,6 @@ test('teach import: I1 document format and deterministic entry name (req. 4, 5)'
     ]) includes(content, field, label);
     includes(content, '# <Pattern|Convention|Workflow>: <title>', label);
     includes(content, '> Imported from <repo-name> (<source_file> @ ', label);
-    for (const example of [
-      '`.claude/rules/navigation.md` → `rules-navigation`',
-      '`.claude/skills/api-client/SKILL.md` → `skills-api-client`',
-      '`docs/architecture.md` → `docs-architecture`',
-      '`CLAUDE.md` → `claude`',
-      '`.cursorrules` → `cursorrules`',
-    ]) includes(content, example, label);
     includes(content, 'Previously imported, updating.', label);
     includes(content, 'git -C "$REPO_PATH" rev-parse HEAD', label);
     assert.doesNotMatch(content, /tags: \[external, <repo-name>\]/, `${label}: old external tags gone`);
@@ -194,4 +190,202 @@ test('teach import: the templates are identical across editions', () => {
   );
   assert.deepEqual(blocks.cursor, blocks.shared, 'cursor fences match shared');
   assert.deepEqual(blocks.copilot, blocks.shared, 'copilot fences match shared');
+});
+
+// --- Round 1 fix (amendment of the r1 spec, audit 2) ---------------------
+
+// Sentences of the prose outside code fences, flattened.
+const sentences = (raw) => flat(outsideFences(raw)).split(/(?<=[.;:])\s+/);
+
+test('teach import: entry name drops the leading dot of every segment, with the eight examples (I1, D1, D2)', () => {
+  forEachEdition((content, label) => {
+    for (const example of [
+      '`.claude/rules/navigation.md` → `claude-rules-navigation`',
+      '`.claude/skills/api-client/SKILL.md` → `claude-skills-api-client`',
+      '`.claude/knowledge/x.md` → `claude-knowledge-x`',
+      '`knowledge/x.md` → `knowledge-x`',
+      '`docs/architecture.md` → `docs-architecture`',
+      '`CLAUDE.md` → `claude`',
+      '`.cursorrules` → `cursorrules`',
+      '`.cursor/rules/x.mdc` → `cursor-rules-x`',
+    ]) includes(content, example, label);
+    assert.doesNotMatch(content, /drop the `\.claude\/` prefix/, `${label}: old prefix rule gone`);
+    assert.match(content, /leading dot of every (path )?segment/, `${label}: the rule drops leading dots`);
+    assert.match(content, /No name starts with a dot/, `${label}: no hidden file`);
+  });
+});
+
+test('teach import: two selected items on the same entry name stop the import before any write (I1, D1)', () => {
+  forEachEdition((content, label) => {
+    assert.match(content, /two selected items land on the same `<entry-name>`/,
+      `${label}: the collision inside one import is named`);
+    assert.match(content, /stop before writing any file/, `${label}: the import stops before writing`);
+    assert.match(content, /shows? both source paths/, `${label}: both paths are shown`);
+    assert.match(content, /never overwrites one item with another within the same import/,
+      `${label}: never overwrites within one import`);
+  });
+});
+
+test('teach import: alwaysApply is kept from a .mdc and carried to the registry (I1 amendment)', () => {
+  forEachEdition((content, label, raw) => {
+    const blocks = fences(raw);
+    const i1 = blocks.find((b) => b.startsWith('---\nkind: pattern | convention | workflow'));
+    assert.ok(i1 && /^alwaysApply: /m.test(i1), `${label}: I1 frontmatter has alwaysApply`);
+    const registry = blocks.find((b) => b.includes('<!-- vibeflow:imported:start -->'));
+    assert.ok(registry && /^\s+alwaysApply: true$/m.test(registry), `${label}: registry entry carries alwaysApply`);
+    assert.match(content, /`alwaysApply`[^.]*as it came/, `${label}: alwaysApply kept as it came`);
+    assert.match(content, /`\.mdc`/, `${label}: read from .mdc`);
+  });
+});
+
+test('teach import: a document from an earlier version is listed and asked about, never claimed to need a reimport (D3)', () => {
+  forEachEdition((content, label) => {
+    assert.doesNotMatch(content, /needs? a reimport/, `${label}: the false reimport claim is gone`);
+    assert.match(content, /without `kind`[^.]*earlier version/, `${label}: names the earlier version`);
+    assert.match(content, /a reimport does not replace (it|them)/, `${label}: says the reimport does not replace it`);
+    assert.match(content, /asks whether to remove them/, `${label}: asks before removing`);
+    assert.match(content, /[Ww]ithout an answer they stay/, `${label}: without an answer they stay`);
+  });
+});
+
+test('teach (d): a new pattern on the subject of an imported one is a local example, never an override (D4)', () => {
+  for (const [edition, path] of Object.entries(EDITIONS)) {
+    const label = `${edition}/teach (d)`;
+    const d = flat(section(read(path), '### (d) A pattern with no doc yet'));
+    assert.ok(d.length > 0, `${label}: section`);
+    assert.doesNotMatch(d, /override/i, `${label}: no local override`);
+    assert.doesNotMatch(d, /skipping stops here/, `${label}: no skip on an imported subject`);
+    assert.match(d, /patterns\/external-\*\//, `${label}: checks the imported documents`);
+    assert.match(d, /both will be used/, `${label}: both are used`);
+    assert.match(d, /imported one as the rule/, `${label}: imported is the rule`);
+    assert.match(d, /local one as the example/, `${label}: local is the example`);
+  }
+});
+
+// R1: any verb that puts content in conventions.md, in any sentence of the
+// import, has to sit in a sentence that says "never".
+test('teach import: no sentence writes to conventions.md unless it says never (R1)', () => {
+  const write = /\b(add\w*|append\w*|writ\w*|insert\w*|sav\w*|put\w*|merg\w*|replac\w*|updat\w*|cop(y|ies|ied)|mov\w*|stor\w*|record\w*|includ\w*)\b/i;
+  forEachEdition((content, label, raw) => {
+    const hits = sentences(raw).filter((s) => s.includes('conventions.md'));
+    assert.ok(hits.length > 0, `${label}: conventions.md is mentioned`);
+    for (const s of hits.filter((x) => write.test(x))) {
+      assert.match(s, /\bnever\b/, `${label}: writes to conventions.md: ${s}`);
+    }
+    assert.match(content, /only write it can make there is removing/, `${label}: the only write is the approved removal`);
+  });
+});
+
+// R2: no sentence of the import removes, deletes or overwrites a local
+// pattern, and the only removal command is the clone's.
+test('teach import: no local pattern is deleted, and only the clone is removed (R2)', () => {
+  const destroy = /\b(delet\w*|remov\w*|overwrit\w*|replac\w*|rm|clean\w*|discard\w*|drop\w*|keep only|keeps only)\b/i;
+  forEachEdition((content, label, raw) => {
+    assert.match(content, /never deletes a local pattern/, `${label}: local patterns are never deleted`);
+    for (const s of sentences(raw).filter((x) => /\blocal\b/i.test(x) && destroy.test(x))) {
+      assert.match(s, /\bnever\b|nothing to clean up/, `${label}: touches a local file: ${s}`);
+    }
+    for (const s of sentences(raw).filter((x) => /\bdelet\w*/i.test(x))) {
+      assert.match(s, /\bnever\b/, `${label}: a delete instruction: ${s}`);
+    }
+    const removals = [...content.matchAll(/`(rm [^`]*)`/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(removals)].filter((c) => c !== 'rm -rf'), ['rm -rf "$REPO_PATH"'],
+      `${label}: the clone is the only thing removed by command`);
+    assert.match(content, /local path[^.]*nothing to clean up/, `${label}: a local --from path is never cleaned up`);
+  });
+});
+
+// B1: the source table itself lists every glob, not only the printed template.
+test('teach import: the source table lists every glob (B1)', () => {
+  forEachEdition((content, label, raw) => {
+    const table = [...raw.matchAll(/^\|[^|\n]+\|\s*`([^`]+)`\s*\|\s*$/gm)].map((m) => m[1]);
+    assert.deepEqual(table, [
+      '.claude/skills/*/SKILL.md',
+      '.claude/rules/**/*.md',
+      '.claude/knowledge/**/*.md',
+      'CLAUDE.md',
+      'knowledge/**/*.md',
+      'docs/**/*.md',
+      '.cursorrules',
+      '.cursor/rules/*.mdc',
+      'AGENTS.md',
+    ], `${label}: source table`);
+  });
+});
+
+test('teach import: the prose keeps workflow unchecked, saves it as workflow, one copy, one line per source (B2-B7)', () => {
+  forEachEdition((content, label) => {
+    assert.match(content, /`workflow` lines unchecked/, `${label}: B2 workflow unchecked in the prose`);
+    assert.doesNotMatch(content, /[Aa]ll lines come checked/, `${label}: B2`);
+    assert.match(content, /One line per source, never one per document/, `${label}: B3`);
+    assert.match(content, /never a second copy/, `${label}: B4`);
+    assert.match(content, /every `\.md` in that folder except `registry\.md`/, `${label}: B5 whole folder`);
+    assert.match(content, /documents kept from earlier imports included/, `${label}: B5 earlier documents`);
+    assert.match(content, /A selected `workflow` is saved with `kind: workflow`/, `${label}: B6`);
+    assert.match(content, /outside any git repository it is `none`/, `${label}: B7`);
+  });
+});
+
+test('teach import: a local source inside another repository records that repository\'s commit and says so (B12)', () => {
+  forEachEdition((content, label) => {
+    includes(content, 'git -C "$REPO_PATH" rev-parse --show-toplevel', label);
+    assert.match(content, /inside another git repository[^.]*commit of (that|the containing) repository/,
+      `${label}: source_commit is the containing repository's`);
+    assert.match(content, /the report says (so|the commit is the containing repository's)/, `${label}: the report says so`);
+  });
+});
+
+test('teach import: the conventions.md promise names the one approved removal (B10)', () => {
+  forEachEdition((content, label) => {
+    assert.match(content, /never writes to `\.vibeflow\/conventions\.md`/, `${label}: never writes`);
+    assert.match(content, /removing the `## External Conventions: <repo-name>` section[^.]*approves/,
+      `${label}: the only write is the removal the person approves`);
+  });
+});
+
+// B9: every example count command, run on a fixture with nested files and
+// symbolic links, finds exactly what its table glob matches; .cursor/rules has
+// its own example, first level only.
+test('teach import: example count commands match their glob, symlinks and first level included (B9)', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'vf-teach-count-'));
+  try {
+    const files = [
+      '.claude/rules/top.md',
+      '.claude/rules/area/deep.md',
+      '.claude/skills/api-client/SKILL.md',
+      '.claude/skills/api-client/nested/SKILL.md',
+      '.claude/knowledge/setup.md',
+      '.claude/knowledge/team/setup.md',
+      'knowledge/team/setup.md',
+      'docs/architecture.md',
+      '.cursor/rules/style.mdc',
+      '.cursor/rules/nested/deep.mdc',
+      'outside/target.md',
+    ];
+    for (const file of files) {
+      mkdirSync(dirname(join(repo, file)), { recursive: true });
+      writeFileSync(join(repo, file), '# x\n');
+    }
+    symlinkSync(join(repo, 'outside/target.md'), join(repo, '.claude/rules/linked.md'));
+    symlinkSync(join(repo, 'outside/target.md'), join(repo, '.cursor/rules/linked.mdc'));
+    mkdirSync(join(repo, '.claude/skills/linked-skill'));
+    symlinkSync(join(repo, 'outside/target.md'), join(repo, '.claude/skills/linked-skill/SKILL.md'));
+    forEachEdition((content, label, raw) => {
+      const table = [...raw.matchAll(/^\|[^|\n]+\|\s*`([^`]+)`\s*\|\s*$/gm)].map((m) => m[1]);
+      const commands = [...content.matchAll(/`(find "\$REPO_PATH[^`]*)`/g)].map((m) => m[1]);
+      const dirs = commands.map((c) => /find "\$REPO_PATH\/([^"]+)"/.exec(c)[1]);
+      assert.ok(dirs.includes('.cursor/rules'), `${label}: an example for .cursor/rules/*.mdc`);
+      for (const [i, command] of commands.entries()) {
+        const glob = table.find((g) => g.startsWith(`${dirs[i]}/`));
+        assert.ok(glob, `${label}: a table glob for ${dirs[i]}`);
+        const run = spawnSync('sh', ['-c', command], { env: { PATH: process.env.PATH, REPO_PATH: repo } });
+        const found = run.stdout.toString().split('\n').filter(Boolean).map((p) => p.slice(repo.length + 1)).sort();
+        const want = globSync(glob, { cwd: repo }).sort();
+        assert.ok(want.some((p) => /linked/.test(p)), `${label}: fixture has a link under ${glob}`);
+        assert.deepEqual(found, want, `${label}: ${command} against ${glob}`);
+      }
+    });
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });

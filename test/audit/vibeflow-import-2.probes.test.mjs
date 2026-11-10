@@ -1,7 +1,7 @@
 // Audit probes for vibeflow-import, part 2 (teach --from). Each probe pins a
 // behavior of the import contract (I1 naming, discovery counts, what the
 // import may write or delete) in every edition of the teach workflow. Run with
-// `node --test test/auditoria/vibeflow-import-2.test.mjs`.
+// `node --test test/audit/vibeflow-import-2.probes.test.mjs`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -47,12 +47,12 @@ function tableGlobs(raw) {
   return [...raw.matchAll(/^\|[^|\n]+\|\s*`([^`]+)`\s*\|\s*$/gm)].map((m) => m[1]);
 }
 
-// The I1 entry-name rule, as the teach states it: drop the `.claude/` prefix,
-// drop the `/SKILL.md` or `.md`/`.mdc` suffix, replace `/` with `-`, lowercase.
+// The I1 entry-name rule, as the teach states it (amendment of round 1): drop
+// the `/SKILL.md`, `.md` or `.mdc` suffix, drop the leading dot of every path
+// segment, replace `/` with `-`, lowercase.
 function entryName(sourceFile) {
-  let name = sourceFile.replace(/^\.claude\//, '');
-  name = name.replace(/\/SKILL\.md$/, '').replace(/\.(md|mdc)$/, '');
-  return name.replace(/\//g, '-').toLowerCase();
+  const name = sourceFile.replace(/\/SKILL\.md$/, '').replace(/\.(md|mdc)$/, '');
+  return name.split('/').map((segment) => segment.replace(/^\./, '')).join('-').toLowerCase();
 }
 
 // One plausible file per glob, plus a nested one for `**` globs.

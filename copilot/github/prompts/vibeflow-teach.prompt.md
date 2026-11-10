@@ -50,8 +50,10 @@ Imports a reference repo's knowledge — architecture and module patterns,
 coding conventions, team workflows — as documents that the vibeflow-gen-spec prompt can select.
 Each imported file becomes one document under
 `.vibeflow/patterns/external-<repo-name>/`, indexed by a registry for that
-source and by one line in `.vibeflow/index.md`. The import never writes to
-`.vibeflow/conventions.md` and never deletes a local pattern.
+source and by one line in `.vibeflow/index.md`. The import never deletes a
+local pattern and never writes to `.vibeflow/conventions.md`; the only write it
+can make there is removing the `## External Conventions: <repo-name>` section
+an earlier import left, when the person approves it.
 
 ### Step 1: Parse arguments
 
@@ -71,10 +73,14 @@ its resolved absolute path; nothing to clean up.
 ### Step 3: Detect knowledge sources
 
 Count the sources with commands, one per glob, run against `$REPO_PATH` — for
-example `find "$REPO_PATH/.claude/rules" -type f -name '*.md'` for a `**` glob,
-`find "$REPO_PATH/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md` for
-the skills. The count never comes from a sampled read: the same source once gave
-108 items in one run and 84 in another. No "top N", no folder summary, no cut by
+example `find "$REPO_PATH/.claude/rules" \( -type f -o -type l \) -name '*.md'`
+for a `**` glob,
+`find "$REPO_PATH/.claude/skills" -mindepth 2 -maxdepth 2 \( -type f -o -type l \) -name SKILL.md`
+for the skills, and
+`find "$REPO_PATH/.cursor/rules" -maxdepth 1 \( -type f -o -type l \) -name '*.mdc'`
+for a one-level glob such as `.cursor/rules/*.mdc`. `-type l` counts a file
+that is a symbolic link, as the glob does. The count never comes from a
+sampled read: the same source once gave 108 items in one run and 84 in another. No "top N", no folder summary, no cut by
 size.
 
 | Source | Glob pattern |
@@ -112,7 +118,7 @@ cleanup if you cloned.
 For each file, read it and take a **title** (the first `#` heading, else the
 filename), a **summary** (the `description` from its YAML frontmatter, else the
 first 3-5 lines of real content), its frontmatter `paths` and `description`
-exactly as they came, and a `kind`:
+exactly as they came (and, for a `.mdc`, its `alwaysApply`), and a `kind`:
 
 - `pattern` — how code is written in one area: architecture, module, layer,
   API, library, error handling.
@@ -124,12 +130,15 @@ A mixed document gets the kind of most of its content and the mark `mixed` on
 its review line.
 
 Each file gets an `<entry-name>` from its path in the source, deterministically:
-drop the `.claude/` prefix, drop the `/SKILL.md` or `.md`/`.mdc` suffix,
-replace `/` with `-`, and lowercase it. `.claude/rules/navigation.md` →
-`rules-navigation`; `.claude/skills/api-client/SKILL.md` → `skills-api-client`;
-`docs/architecture.md` → `docs-architecture`; `CLAUDE.md` → `claude`;
-`.cursorrules` → `cursorrules`. The same source file always lands on the same
-name.
+drop the `/SKILL.md`, `.md` or `.mdc` suffix, drop the leading dot of every
+path segment, replace `/` with `-`, and lowercase it.
+`.claude/rules/navigation.md` → `claude-rules-navigation`;
+`.claude/skills/api-client/SKILL.md` → `claude-skills-api-client`;
+`.claude/knowledge/x.md` → `claude-knowledge-x`; `knowledge/x.md` →
+`knowledge-x`; `docs/architecture.md` → `docs-architecture`; `CLAUDE.md` →
+`claude`; `.cursorrules` → `cursorrules`; `.cursor/rules/x.mdc` →
+`cursor-rules-x`. No name starts with a dot. The same source file always lands
+on the same name.
 
 ### Step 4: Interactive review
 
@@ -162,8 +171,20 @@ patterns imported." and stop, after cleanup. A selected `workflow` is saved with
 
 ### Step 5: Write the selection
 
+Before writing anything, take the `<entry-name>` of every selected item. When
+two selected items land on the same `<entry-name>` (`.claude/rules/a/b.md` and
+`.claude/rules/a-b.md`, or two paths that differ only in case), stop before
+writing any file and show both source paths with the name they share; the
+person answers with a selection that leaves one of them out, or ends the
+import. The import never overwrites one item with another within the same
+import.
+
 Read the source commit once: `git -C "$REPO_PATH" rev-parse HEAD` (works on the
-shallow clone of Step 2); outside a git repository it is `none`. When the folder
+shallow clone of Step 2); outside any git repository it is `none`. A local path
+inside another git repository has no commit of its own: when
+`git -C "$REPO_PATH" rev-parse --show-toplevel` prints a directory other than
+`$REPO_PATH`, the recorded `source_commit` is the commit of that repository,
+and the report says the commit is the containing repository's. When the folder
 already holds documents from an earlier import, note their `source_commit`
 before overwriting them.
 
@@ -177,6 +198,7 @@ kind: pattern | convention | workflow
 tags: [<3 to 7 lowercase subject tags>]
 paths: <the source's frontmatter `paths`, as it came (list or string)>
 description: <the source's frontmatter `description`, as it came>
+alwaysApply: <the .mdc source's frontmatter `alwaysApply`, as it came>
 modules: []
 applies_to: []
 confidence: imported
@@ -196,6 +218,8 @@ imported: YYYY-MM-DD
 - `kind` holds one of the three values; the heading word matches it.
 - The `paths` and `description` lines are dropped when the source has none. A
   glob never becomes `modules`.
+- A `.mdc` source with an `alwaysApply` field keeps it as it came (`true` or
+  `false`); the `alwaysApply` line is dropped for every other source.
 - `tags` are subject tags derived from the title, the description and the
   content, the way the vibeflow-analyze prompt derives pattern tags: specific domain words
   (`navigation`, `api-client`, `error-handling`), never `external` or the repo
@@ -238,12 +262,18 @@ entries:
     tags: [navigation, routing, screens]
     paths: ["**/navigation/**"]
     description: "<as it came>"
+  - file: patterns/external-<repo-name>/cursor-rules-style.md
+    kind: convention
+    tags: [formatting, style, linting]
+    alwaysApply: true
 <!-- vibeflow:imported:end -->
 ```
 
-An entry drops `paths` and `description` when its document has none. A
-document without `kind` (an import from an earlier version) enters as
-`kind: pattern` with the tags it has, and the report says it needs a reimport.
+An entry drops `paths` and `description` when its document has none, and
+carries `alwaysApply` when its document has it. A document without `kind` was
+written by an earlier version of this import under another name, so a reimport
+does not replace it: it enters as `kind: pattern` with the tags it has, and the
+report lists it.
 
 Then upsert this source's line in `.vibeflow/index.md`, inside the
 `## Imported Sources` section, replacing the source's earlier line on a
@@ -278,8 +308,15 @@ happy-path step.
 - Local patterns covering the same subject as an imported one, each named
   with the imported document: both will be used, the imported as the rule and
   the local as the example.
-- Documents without `kind` that need a reimport, and a leftover
-  `## External Conventions: <repo-name>` section with the question about it.
+- Documents without `kind`, written by an earlier version under another name:
+  the report lists them and asks whether to remove them. Without an answer they
+  stay, in the registry as `kind: pattern`; a yes removes only the documents
+  the person named, inside `patterns/external-<repo-name>/`, and Step 6 runs
+  again.
+- A leftover `## External Conventions: <repo-name>` section in
+  `conventions.md`, with the question about it.
+- For a local source inside another git repository, that its `source_commit`
+  is the containing repository's commit.
 - On a reimport, the source files changed since the earlier commit, or that the
   shallow clone can't compare them.
 
@@ -320,9 +357,10 @@ Add an entry at the top of `decisions.md` (newest first):
 
 Check for a name collision first. One in `patterns/` (local) → ask whether to
 update the existing doc or create a separate one; updating makes it category (a).
-One in `patterns/external-*/` (imported) → warn that `<name>.md` came from
-`<repo-name>` and ask whether to create a local override or skip; skipping stops
-here.
+An imported document in `patterns/external-*/` on the same subject is not a
+collision: create the local pattern as the example, and tell the person both
+will be used, the imported one as the rule and the local one as the example of
+how the code does it today.
 
 With no collision, create `.vibeflow/patterns/<name>.md`:
 
