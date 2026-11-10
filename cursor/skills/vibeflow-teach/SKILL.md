@@ -43,8 +43,12 @@ repo**; anything else goes to **Classify the feedback**.
 
 ## Import from external repo
 
-Imports patterns and conventions from an external reference repo — shared
-architecture docs, coding guidelines.
+Imports a reference repo's knowledge — architecture and module patterns,
+coding conventions, team workflows — as documents that the vibeflow-gen-spec skill can select.
+Each imported file becomes one document under
+`.vibeflow/patterns/external-<repo-name>/`, indexed by a registry for that
+source and by one line in `.vibeflow/index.md`. The import never writes to
+`.vibeflow/conventions.md` and never deletes a local pattern.
 
 ### Step 1: Parse arguments
 
@@ -63,11 +67,18 @@ its resolved absolute path; nothing to clean up.
 
 ### Step 3: Detect knowledge sources
 
-Scan `$REPO_PATH` for these sources, in order:
+Count the sources with commands, one per glob, run against `$REPO_PATH` — for
+example `find "$REPO_PATH/.claude/rules" -type f -name '*.md'` for a `**` glob,
+`find "$REPO_PATH/.claude/skills" -mindepth 2 -maxdepth 2 -name SKILL.md` for
+the skills. The count never comes from a sampled read: the same source once gave
+108 items in one run and 84 in another. No "top N", no folder summary, no cut by
+size.
 
 | Source | Glob pattern |
 |--------|-------------|
 | Claude Code skills | `.claude/skills/*/SKILL.md` |
+| Claude Code rules | `.claude/rules/**/*.md` |
+| Claude Code knowledge | `.claude/knowledge/**/*.md` |
 | CLAUDE.md | `CLAUDE.md` |
 | Knowledge docs | `knowledge/**/*.md` |
 | Documentation | `docs/**/*.md` |
@@ -75,82 +86,179 @@ Scan `$REPO_PATH` for these sources, in order:
 | Cursor rule files | `.cursor/rules/*.mdc` |
 | AGENTS.md | `AGENTS.md` |
 
-For each one found, take a **title** (the first `#` heading, else the filename),
-a **summary** (the `description` from YAML frontmatter, else the first 3-5 lines
-of real content), and a classification: architecture, module structure, or code
-organization → `pattern`; coding rules, naming, formatting, or process →
-`convention`.
+Print the glob → count table and the total before reading any file:
 
-No sources found → report "No knowledge sources found in `<repo>`." and stop,
-after cleanup if you cloned.
+```
+glob → count
+.claude/skills/*/SKILL.md     <n>
+.claude/rules/**/*.md         <n>
+.claude/knowledge/**/*.md     <n>
+CLAUDE.md                     <n>
+knowledge/**/*.md             <n>
+docs/**/*.md                  <n>
+.cursorrules                  <n>
+.cursor/rules/*.mdc           <n>
+AGENTS.md                     <n>
+total                         <N>
+```
+
+Every counted file is one item; the review in Step 4 has exactly `<N>` lines.
+A total of 0 → report "No knowledge sources found in `<repo>`." and stop, after
+cleanup if you cloned.
+
+For each file, read it and take a **title** (the first `#` heading, else the
+filename), a **summary** (the `description` from its YAML frontmatter, else the
+first 3-5 lines of real content), its frontmatter `paths` and `description`
+exactly as they came, and a `kind`:
+
+- `pattern` — how code is written in one area: architecture, module, layer,
+  API, library, error handling.
+- `convention` — a cross-cutting code rule: naming, formatting, style, tests.
+- `workflow` — a team process: planning, implementing, PRs, review, release,
+  deploy, onboarding, operations.
+
+A mixed document gets the kind of most of its content and the mark `mixed` on
+its review line.
+
+Each file gets an `<entry-name>` from its path in the source, deterministically:
+drop the `.claude/` prefix, drop the `/SKILL.md` or `.md`/`.mdc` suffix,
+replace `/` with `-`, and lowercase it. `.claude/rules/navigation.md` →
+`rules-navigation`; `.claude/skills/api-client/SKILL.md` → `skills-api-client`;
+`docs/architecture.md` → `docs-architecture`; `CLAUDE.md` → `claude`;
+`.cursorrules` → `cursorrules`. The same source file always lands on the same
+name.
 
 ### Step 4: Interactive review
 
-Present what you found:
+Present every item in three numbered groups, with the group counts and the same
+total as Step 3:
 
 ```
-## Found N knowledge sources in <repo-name>
+## Found <N> knowledge sources in <repo-name>: <P> patterns, <C> conventions, <W> workflows
 
-### Patterns
-1. [SKILL] kmp-architecture — KMP module structure, layers, DI, navigation
-2. [SKILL] kmp-best-practices — XCFramework, build, logging, lint guidelines
-3. [DOC] docs/api-conventions.md — REST API naming and versioning rules
+### Patterns (<P>)
+[x] 1. [pattern] .claude/rules/navigation.md — Screen routing and deep links · paths: **/navigation/**
+[x] 2. [pattern] .claude/skills/api-client/SKILL.md — HTTP client layer and error mapping
 
-### Conventions
-4. [CLAUDE.md] Coding standards — Import ordering, error handling patterns
-5. [CURSOR] .cursorrules — Cursor-specific coding rules
+### Conventions (<C>)
+[x] 3. [convention] .claude/rules/naming.md — File, type and test naming · paths: src/**
+[x] 4. [convention] CLAUDE.md — Formatting and test rules (mixed)
 
-Select which to import (comma-separated numbers, "all", or "none"):
+### Workflows (<W>)
+[ ] 5. [workflow] docs/release.md — Release checklist and versioning
+[ ] 6. [workflow] .claude/knowledge/onboarding.md — Local setup for new members
 ```
 
-Wait for the selection. "none" → report "No patterns imported." and stop, after
-cleanup.
+Each line carries `[kind]`, the `source_file`, the summary, and the `paths`
+when the source has them. `pattern` and `convention` lines come checked,
+`workflow` lines unchecked. The person answers with numbers, `all`, `none`, or
+`defaults` (the checked lines), and can correct a kind before anything is saved
+with `<n>=<kind>` — `7=pattern`. Wait for the answer. `none` → report "No
+patterns imported." and stop, after cleanup. A selected `workflow` is saved with
+`kind: workflow`.
 
-### Step 5: Import the selection
+### Step 5: Write the selection
 
-**Pattern items** go to `.vibeflow/patterns/external-<repo-name>/<source-name>.md`
-(create the directory if needed), in this format:
+Read the source commit once: `git -C "$REPO_PATH" rev-parse HEAD` (works on the
+shallow clone of Step 2); outside a git repository it is `none`. When the folder
+already holds documents from an earlier import, note their `source_commit`
+before overwriting them.
+
+Each selected item becomes `.vibeflow/patterns/external-<repo-name>/<entry-name>.md`
+(create the directory if needed). A file that already exists is overwritten
+with the warning "Previously imported, updating." — never a second copy.
 
 ```markdown
 ---
-tags: [external, <repo-name>]
+kind: pattern | convention | workflow
+tags: [<3 to 7 lowercase subject tags>]
+paths: <the source's frontmatter `paths`, as it came (list or string)>
+description: <the source's frontmatter `description`, as it came>
 modules: []
 applies_to: []
 confidence: imported
+source: <repo-name>
+source_file: <path relative to the source, e.g. .claude/rules/navigation.md>
+source_ref: <URL or absolute path given to --from>
+source_commit: <full sha from git -C <source> rev-parse HEAD, or none>
+imported: YYYY-MM-DD
 ---
-# Pattern: <title>
+# <Pattern|Convention|Workflow>: <title>
 
-> Imported from: <repo-name> (<url or path>) on YYYY-MM-DD
+> Imported from <repo-name> (<source_file> @ <7-char sha or none>) on YYYY-MM-DD.
 
-<full content of the source file>
+<full content of the source file, without its original frontmatter>
 ```
 
-Before saving each one, check for a name collision against the local
-`.vibeflow/patterns/*.md` (the root directory, not inside `external-*/`). On a
-collision, show the user both versions — name plus description or opening lines
-— and ask whether to keep the local one or replace it with the external. Keeping
-local skips the import for that pattern; choosing external deletes the local file
-and saves the external version under `external-<repo-name>/`. A file already
-imported before is overwritten, with a "Previously imported, updating." warning.
+- `kind` holds one of the three values; the heading word matches it.
+- The `paths` and `description` lines are dropped when the source has none. A
+  glob never becomes `modules`.
+- `tags` are subject tags derived from the title, the description and the
+  content, the way the vibeflow-analyze skill derives pattern tags: specific domain words
+  (`navigation`, `api-client`, `error-handling`), never `external` or the repo
+  name on their own.
 
-**Convention items** are appended to `.vibeflow/conventions.md`, outside the
-markers, replacing the section if it already exists:
+**Local patterns are kept.** When a local `.vibeflow/patterns/*.md` (the root
+directory, not `external-*/`) covers the same subject as an imported document,
+both stay, and the report says both will be used: the imported one as the
+rule, the local one as the example of how the code does it today.
 
-```markdown
-## External Conventions: <repo-name>
+**`conventions.md` stays untouched.** The import never writes to
+`.vibeflow/conventions.md`: a convention is a document with
+`kind: convention` like any other. When `conventions.md` still has a
+`## External Conventions: <repo-name>` section, it was left by an earlier
+import: the report says so and asks whether to remove it; without an answer it
+stays.
 
-> Imported from: <repo-name> (<url or path>) on YYYY-MM-DD
+**Changes since the last import.** On a reimport whose earlier `source_commit`
+is recorded and reachable in `$REPO_PATH` (`git -C "$REPO_PATH" cat-file -e
+<old>^{commit}`), list the imported files that changed with
+`git -C "$REPO_PATH" diff --name-only <old> HEAD -- <source files>`, before
+Step 7 removes the clone. On a shallow clone the old commit is not there, and
+the report says the two imports can't be compared.
 
-<extracted convention content>
+### Step 6: Index the source
+
+Regenerate `.vibeflow/patterns/external-<repo-name>/registry.md` from the
+frontmatter of every `.md` in that folder except `registry.md` itself, in name
+order — documents kept from earlier imports included:
+
+```
+# Imported from <repo-name>
+
+> Source: <source_ref> · commit <7-char sha or none> · imported YYYY-MM-DD · <N> entries (<p> pattern, <c> convention, <w> workflow)
+
+<!-- vibeflow:imported:start -->
+entries:
+  - file: patterns/external-<repo-name>/<entry-name>.md
+    kind: pattern
+    tags: [navigation, routing, screens]
+    paths: ["**/navigation/**"]
+    description: "<as it came>"
+<!-- vibeflow:imported:end -->
 ```
 
-### Step 6: Update index.md
+An entry drops `paths` and `description` when its document has none. A
+document without `kind` (an import from an earlier version) enters as
+`kind: pattern` with the tags it has, and the report says it needs a reimport.
 
-Add the imported directory to the "Pattern Docs Available" section:
+Then upsert this source's line in `.vibeflow/index.md`, inside the
+`## Imported Sources` section, replacing the source's earlier line on a
+reimport. When the section is missing, create it with its markers right after
+the `## Pattern Registry` section (after `<!-- vibeflow:patterns:end -->`,
+before `## Pattern Docs Available`):
 
 ```
-- `patterns/external-<repo-name>/` — Patterns imported from <repo-name> (YYYY-MM-DD)
+## Imported Sources
+
+<!-- vibeflow:sources:start -->
+- external-<repo-name>: `patterns/external-<repo-name>/registry.md` — <N> entries (<p> pattern, <c> convention, <w> workflow), commit <7-char sha or none>, imported YYYY-MM-DD
+<!-- vibeflow:sources:end -->
 ```
+
+One line per source, never one per document: `index.md` stays within its 80 to
+120 lines. An old `patterns/external-<repo-name>/ — Patterns imported from ...`
+line under "Pattern Docs Available" is removed; this block replaces it.
 
 ### Step 7: Cleanup
 
@@ -160,10 +268,21 @@ happy-path step.
 
 ### Step 8: Report
 
-How many sources were found and how many imported, which files were created or
-updated, and where the imported patterns live. Then suggest: "Review the imported
-patterns in `.vibeflow/patterns/external-<repo-name>/`. They are ready to be used
-by `gen-spec` and `implement`."
+- The glob → count table and the total from Step 3.
+- How many were selected, by kind.
+- The files written, with "Previously imported, updating." where it applied.
+- The registry path, `.vibeflow/patterns/external-<repo-name>/registry.md`.
+- Local patterns covering the same subject as an imported one, each named
+  with the imported document: both will be used, the imported as the rule and
+  the local as the example.
+- Documents without `kind` that need a reimport, and a leftover
+  `## External Conventions: <repo-name>` section with the question about it.
+- On a reimport, the source files changed since the earlier commit, or that the
+  shallow clone can't compare them.
+
+Close with what the import does downstream: the vibeflow-gen-spec skill selects these entries by
+the `paths` and tags in the registry, and `workflow` entries stay stored for
+reference and are never selected on their own.
 
 ---
 
