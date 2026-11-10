@@ -1,0 +1,17 @@
+---
+description: "Logging convention for every module: a scoped logger, dot-separated event names, details in a data object, no console calls."
+globs:
+alwaysApply: true
+---
+
+# Logging
+
+* Log through the scoped logger, `createLogger('<feature>')`; no module calls
+  `console.log`, `console.warn` or `console.error` directly.
+* The first argument is an event name, lower case and dot-separated as
+  `<feature>.<event>`: `profile.saved`, `profile.load_failed`. Never a
+  sentence, never a value interpolated into it.
+* Details go in a second argument, a plain object:
+  `logger.info('profile.saved', { id })`.
+* Never log the value of a field named `password`, `token` or `secret`; log
+  that the field was present instead.
