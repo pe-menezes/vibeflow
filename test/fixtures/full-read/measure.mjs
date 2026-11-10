@@ -12,8 +12,8 @@
 // keeps output the model did not see. The canary lines come from the table in
 // this folder's README. Reads only the files it is given, the README and the
 // default spec; no network, no model.
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -90,8 +90,10 @@ function contentText(content) {
 }
 
 // Every way a document line can show up in a result line: as it is, behind the
-// Read line-number prefix, or behind grep's path:line: (or path-line- for
-// context lines) prefix.
+// Read line-number prefix, behind grep's path:line: (or path-line- for context
+// lines) prefix, or behind the line: (line-) prefix grep prints when it
+// searches one file. A variant only takes a prefix off; the rest of the result
+// line still has to equal the document line.
 function variants(line) {
   return [
     line,
@@ -99,13 +101,25 @@ function variants(line) {
     line.replace(/^\s*\d+→/, ''),
     line.replace(/^.*?:\d+:/, ''),
     line.replace(/^.*?-\d+-/, ''),
+    line.replace(/^\d+[:-]/, ''),
   ].map((v) => v.trim());
+}
+
+// The real path of a file, so that /tmp and /private/tmp (or any link) name
+// the same file. A path that does not exist is resolved as text.
+function realPath(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
 }
 
 function readTranscripts(paths) {
   const uses = new Map();
   const results = [];
   for (const path of paths) {
+    let lastCwd = null;
     for (const raw of readText(path, 'transcript').split('\n')) {
       if (!raw.trim()) continue;
       let record;
@@ -116,9 +130,17 @@ function readTranscripts(paths) {
       }
       const content = record?.message?.content;
       if (!Array.isArray(content)) continue;
+      // The cwd of a record is the session's directory after the call (a `cd`
+      // in the command already shows); the one before it is kept too. The
+      // duplicate copy of a record comes without cwd and keeps the first's.
+      const cwds = [...new Set([record.cwd, lastCwd].filter((c) => typeof c === 'string' && c))];
+      if (typeof record.cwd === 'string' && record.cwd) lastCwd = record.cwd;
       const resultBlocks = content.filter((block) => block?.type === 'tool_result');
       for (const block of content) {
-        if (block?.type === 'tool_use') uses.set(block.id, { name: block.name, input: block.input ?? {} });
+        if (block?.type !== 'tool_use') continue;
+        const known = uses.get(block.id);
+        const kept = typeof record.cwd === 'string' && record.cwd ? cwds : (known?.cwds ?? []);
+        uses.set(block.id, { name: block.name, input: block.input ?? {}, cwds: kept });
       }
       for (const block of resultBlocks) {
         results.push({
@@ -146,14 +168,22 @@ function globRegExp(glob) {
   return new RegExp(`^(?:.*/)?${out.replace(/^\\?\.\//, '')}$`);
 }
 
-function citesPath(token, rel, full) {
+// Whether a path named by a call is the document. `target` holds the
+// document's path relative to the app (`rel`), its path under --app as given
+// (`full`) and its real path (`real`). An absolute path is compared by its real
+// path. A relative one is read against the session's directories when the
+// transcript records them, and only by its end when it does not.
+function citesPath(token, target, cwds = []) {
+  const { rel, full, real } = target;
   const t = token.replace(/^\.\//, '');
   if (!t) return false;
   if (/[*?]/.test(t)) {
     const re = globRegExp(t);
-    return re.test(rel) || re.test(full);
+    return re.test(rel) || re.test(full) || re.test(real);
   }
-  return t === rel || t === full || full.endsWith(`/${t}`);
+  if (isAbsolute(t)) return t === full || t === real || realPath(t) === real;
+  if (cwds.length > 0) return cwds.some((cwd) => realPath(join(cwd, t)) === real);
+  return t === rel || full.endsWith(`/${t}`);
 }
 
 function commandTokens(command) {
@@ -163,26 +193,42 @@ function commandTokens(command) {
     .filter(Boolean);
 }
 
+// The directories a command can read a relative path from: the ones the
+// record holds, and each one a `cd` of the command moves to from them. The
+// record's cwd is sometimes the one before the call and sometimes the one
+// after it (both measured in real runs), so both sides are kept.
+function commandCwds(command, cwds) {
+  const out = [...cwds];
+  for (const match of String(command).matchAll(/(?:^|[;&|(]\s*)cd\s+("[^"]*"|'[^']*'|[^\s;&|)]+)/g)) {
+    const dir = match[1].replace(/^['"]|['"]$/g, '');
+    if (isAbsolute(dir)) out.push(dir);
+    else for (const cwd of cwds) out.push(join(cwd, dir));
+  }
+  return out;
+}
+
 // Which call opened a document, and how.
-function methodFor(use, result, rel, full) {
-  const input = use.input;
+function methodFor(use, result, target) {
+  const { input, cwds } = use;
+  const { rel } = target;
   if (use.name === 'Read') {
     const path = String(input.file_path ?? '');
-    if (!citesPath(path, rel, full)) return null;
+    if (!citesPath(path, target, cwds)) return null;
     const file = result.toolUseResult?.file;
     const ranged = input.offset !== undefined || input.limit !== undefined
       || (file && Number.isFinite(file.numLines) && Number.isFinite(file.totalLines) && file.numLines < file.totalLines);
     return ranged ? 'Read range' : 'Read whole';
   }
   if (use.name === 'Bash') {
-    const named = commandTokens(input.command ?? '').some((token) => citesPath(token, rel, full));
+    const dirs = commandCwds(input.command ?? '', cwds);
+    const named = commandTokens(input.command ?? '').some((token) => citesPath(token, target, dirs));
     return named || result.text.includes(`${rel}:`) ? 'Bash' : null;
   }
   if (use.name === 'Grep') {
     const path = String(input.path ?? '');
-    const named = path && citesPath(path, rel, full);
+    const named = path && citesPath(path, target, cwds);
     const filenames = result.toolUseResult?.filenames ?? [];
-    const listed = filenames.some((f) => citesPath(String(f), rel, full));
+    const listed = filenames.some((f) => citesPath(String(f), target, cwds));
     return named || listed || result.text.includes(rel) ? 'Grep' : null;
   }
   return null;
@@ -190,6 +236,7 @@ function methodFor(use, result, rel, full) {
 
 function measure({ transcripts, app, spec }) {
   const appDir = resolve(app);
+  const realApp = realPath(appDir);
   const specPath = resolve(spec ?? DEFAULT_SPEC);
   const canaries = readCanaries();
   const { uses, results } = readTranscripts(transcripts.map((t) => resolve(t)));
@@ -202,7 +249,7 @@ function measure({ transcripts, app, spec }) {
   const documents = targetPaths(readText(specPath, 'spec')).map((rel) => {
     const full = join(appDir, rel);
     const text = existsSync(full) ? readFileSync(full, 'utf8') : null;
-    return { path: rel, full, missing: text === null, lines: text === null ? [] : text.split('\n').map((l) => l.trim()) };
+    return { path: rel, full, real: realPath(join(realApp, rel)), missing: text === null, lines: text === null ? [] : text.split('\n').map((l) => l.trim()) };
   });
 
   const counts = new Map();
@@ -216,7 +263,7 @@ function measure({ transcripts, app, spec }) {
     for (const result of results) {
       const use = uses.get(result.id);
       if (!use) continue;
-      const method = methodFor(use, result, doc.path, doc.full);
+      const method = methodFor(use, result, { rel: doc.path, full: doc.full, real: doc.real });
       if (!method) continue;
       if (!methods.includes(method)) methods.push(method);
       if (TRUNCATION_MARKS.some((mark) => result.text.includes(mark))) truncated = true;

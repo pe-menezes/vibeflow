@@ -11,9 +11,11 @@
 //
 //   genspec    one commit, no .vibeflow/specs/
 //   implement  one commit, with the fixed spec at .vibeflow/specs/profile-edit.md
-//   audit      the implement commit plus a second one with the feature
+//   audit      the implement commit, with the feature laid over it and left
+//              uncommitted (changed files modified, new files untracked), as
+//              an implement run leaves it, so an audit reads it as the diff
 //
-// Author, committer, dates and config are fixed. No model is called. Prints
+// Author, committer, date and config are fixed. No model is called. Prints
 // one line of JSON: {"stage": "...", "app": "<abs>", "spec": "<abs>" | null}
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -27,7 +29,6 @@ const SKIP = new Set(['.DS_Store']);
 const STAGES = ['genspec', 'implement', 'audit'];
 const SPEC_PATH = '.vibeflow/specs/profile-edit.md';
 const FIRST_DATE = '2026-01-20T12:00:00+0000';
-const SECOND_DATE = '2026-01-21T12:00:00+0000';
 
 function fail(message) {
   process.stderr.write(`${message}\n`);
@@ -117,9 +118,6 @@ if (stage !== 'genspec') {
 git(app, FIRST_DATE, 'init', '--quiet', '--initial-branch=main');
 commit(app, FIRST_DATE, 'sample-app: initial commit');
 
-if (stage === 'audit') {
-  copyTree(join(HERE, 'feature'), app, false);
-  commit(app, SECOND_DATE, 'Add the profile edit screen');
-}
+if (stage === 'audit') copyTree(join(HERE, 'feature'), app, false);
 
 process.stdout.write(`${JSON.stringify({ stage, app, spec })}\n`);

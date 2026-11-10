@@ -15,6 +15,14 @@ const RULES = {
   bio: [maxLength('Bio', 160)],
 };
 
+export const EVENTS = Object.freeze({
+  SAVED: 'profile.saved',
+  SAVE_REJECTED: 'profile.save-rejected',
+  SAVE_FAILED: 'profile.save-failed',
+});
+
+const SAVE_FAILED_MESSAGE = 'Your profile was not saved. Try again in a moment.';
+
 function profileKey(id) {
   return `profile.${id}`;
 }
@@ -31,6 +39,7 @@ function renderFields(form, errors) {
     lines.push(`${field.label} [${field.id}]: ${values[field.name]}`);
     if (errors[field.name]) lines.push(`! ${errors[field.name]}`);
   }
+  if (errors.form) lines.push(`! ${errors.form}`);
   return lines.join('\n');
 }
 
@@ -61,13 +70,19 @@ export function createProfileEditScreen({ navigator, storage, logger, confirmDis
     save() {
       const found = this.validate();
       if (Object.keys(found).length > 0) {
-        logger.warn('profile.save-rejected', { id: loaded.id, fields: Object.keys(found) });
+        logger.warn(EVENTS.SAVE_REJECTED, { id: loaded.id, fields: Object.keys(found) });
         return { ok: false, errors: found };
       }
       const values = draftValues(form);
       const record = { ...loaded, ...values };
-      storage.write(profileKey(loaded.id), record);
-      logger.info('profile.saved', { id: loaded.id });
+      try {
+        storage.write(profileKey(loaded.id), record);
+      } catch (error) {
+        logger.error(EVENTS.SAVE_FAILED, { id: loaded.id, code: error?.code ?? 'unexpected' });
+        errors = { form: SAVE_FAILED_MESSAGE };
+        return { ok: false, errors };
+      }
+      logger.info(EVENTS.SAVED, { id: loaded.id });
       loaded = record;
       form.reset(values);
       return { ok: true, rendered: navigator.back() };

@@ -41,7 +41,11 @@ the code.
   that own them under Applicable Patterns but copies none of their text.
 * **`feature/`** is that feature implemented, laid over the app in the audit
   stage: right in everything the spec and its documents ask, except the four
-  canaries.
+  canaries. Where an example of an imported document and a rule of another
+  disagree, the feature follows the rule: the logging convention's example
+  types event names in the call, and the code style rule says event names are
+  declared once and imported, so the feature logs through a frozen `EVENTS`
+  object.
 
 ## Prepare
 
@@ -59,11 +63,15 @@ It builds `<dir>/app` as a git repository and prints one line of JSON:
 |---|---|---|---|
 | `genspec` | 1 | absent (`"spec": null`) | absent |
 | `implement` | 1 | the fixed spec | absent |
-| `audit` | 2 | the fixed spec | added by the second commit |
+| `audit` | 1 | the fixed spec | laid over the commit, uncommitted |
 
-Author, committer and dates are fixed (`2026-01-20T12:00:00Z` for the first
-commit, `2026-01-21T12:00:00Z` for the second). A directory that is not
-empty is refused and left untouched; a missing or unknown stage is refused
+In the audit stage the feature is left the way an `implement` run leaves its
+work: the changed files (`src/app.js`, `test/home.test.js`) are modified and
+the new ones are untracked, nothing staged, so an audit finds the feature in
+the diff against `HEAD` and the documents it must read unchanged.
+
+Author, committer and date are fixed (`2026-01-20T12:00:00Z`). A directory
+that is not empty is refused and left untouched; a missing or unknown stage is refused
 before anything is created. Inherited `GIT_*` variables are dropped.
 
 ## Canaries
@@ -112,9 +120,9 @@ read sum 52,519 bytes: one `cat` of all of them comes back as a preview.
 
 ## Audit stage
 
-The second commit (`Add the profile edit screen`) adds the feature and its
-tests; the app's suite is green. Each canary is broken once or more, without
-a comment, a name or a commit message that points at the rule:
+The uncommitted feature and its tests sit over the implement commit; the
+app's suite is green. Each canary is broken once or more, without
+a comment or a name that points at the rule:
 
 | Id | File | Line | Code |
 |---|---|---|---|
@@ -122,7 +130,7 @@ a comment, a name or a commit message that points at the rule:
 | C1 | `src/features/profile/navigation/profile-routes.js` | 1 | `// Routes of the profile feature:` |
 | C2 | `src/features/profile/profile-edit-screen.js` | 9 | `id: 'display-name'` |
 | C3 | `src/features/profile/profile-edit-screen.js` | 14 | `maxLength('Display name', 40)` |
-| C4 | `src/features/profile/profile-edit-screen.js` | 73 | `rendered: navigator.back()` |
+| C4 | `src/features/profile/profile-edit-screen.js` | 88 | `rendered: navigator.back()` |
 
 C1: both new files open with a module comment instead of the feature line.
 C2: the field ids carry the field only (`display-name`, `bio`). C3: the limits
@@ -141,12 +149,18 @@ README; it calls no model and no network. The target documents are
 lists under Applicable Patterns (without `--spec`, the fixed spec of this
 folder). For each one it prints:
 
-* **opened**: some `Read`, `Bash` or `Grep` call pointed at it;
+* **opened**: some `Read`, `Bash` or `Grep` call pointed at it. Paths are
+  compared by their real path, so `--app /tmp/...` matches a session that
+  ran in `/private/tmp/...`; a relative path in a command is read against the
+  `cwd` the transcript records for the call (and the one before it, since the
+  record already shows a `cd` of the command), or by its end when the
+  transcript has no `cwd`;
 * **seen / distinctive** and **coverage**: a line counts as distinctive when
   it has 20 characters or more after trimming and occurs once across the
   target documents; it counts as seen when it appears whole, trimmed, as a
   line of the `content` of a tool result, after the `Read` line-number prefix
-  and the `path:line:` prefix of `grep -n` are taken off. Only `content`
+  and the `path:line:` prefix of `grep -n` (or the `line:` prefix it prints
+  for one file, and `-` for context lines) are taken off. Only `content`
   counts, never `toolUseResult.stdout`, which keeps output the model never
   saw;
 * **canary**: whether the canary line of this README's table owned by the

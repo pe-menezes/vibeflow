@@ -146,7 +146,7 @@ test('prepare refuses a directory that is not empty and an unknown stage', () =>
   });
 });
 
-test('every stage is a clean git repository; the spec and the feature arrive by stage', () => {
+test('each stage has one commit, genspec and implement with a clean tree; the spec and the feature arrive by stage', () => {
   scratch((dir) => {
     const out = prepared(join(dir, 'genspec'), 'genspec');
     assert.equal(out.stage, 'genspec');
@@ -167,18 +167,39 @@ test('every stage is a clean git repository; the spec and the feature arrive by 
   });
   scratch((dir) => {
     const out = prepared(join(dir, 'audit'), 'audit');
-    assert.equal(git(out.app, 'status', '--porcelain'), '');
-    assert.equal(git(out.app, 'rev-list', '--count', 'HEAD'), '2');
+    assert.equal(git(out.app, 'rev-list', '--count', 'HEAD'), '1');
     assert.equal(readFileSync(out.spec, 'utf8'), readFileSync(SPEC, 'utf8'));
-    const added = git(out.app, 'diff', '--name-only', 'HEAD~1', 'HEAD').split('\n');
-    assert.ok(added.some((f) => f.startsWith('src/features/profile/')), `the second commit adds the feature: ${added}`);
-    const message = git(out.app, 'log', '-1', '--format=%B');
-    for (const c of readmeCanaries()) {
-      assert.ok(!message.includes(c.marker), `the commit message does not point at ${c.id}`);
-    }
     // The implemented feature works: the app's own suite is green.
     const run = spawnSync(process.execPath, ['--test'], { cwd: out.app, encoding: 'utf8', env: cleanEnv() });
     assert.equal(run.status, 0, `the app's tests pass at the audit stage:\n${run.stdout}\n${run.stderr}`);
+  });
+});
+
+// The audit stage is what an implement run leaves: the implement commit, and
+// the feature on top of it as changes nobody committed (changed files
+// modified, new files untracked), so an audit finds its work in the diff
+// against HEAD.
+test('the audit stage is the implement commit plus the feature, uncommitted', () => {
+  scratch((dir) => {
+    const implement = prepared(join(dir, 'implement'), 'implement');
+    const audit = prepared(join(dir, 'audit'), 'audit');
+    assert.equal(git(audit.app, 'rev-list', '--count', 'HEAD'), '1');
+    assert.equal(git(audit.app, 'rev-parse', 'HEAD^{tree}'), git(implement.app, 'rev-parse', 'HEAD^{tree}'), 'HEAD is the implement commit');
+
+    const porcelain = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: audit.app, encoding: 'utf8', env: cleanEnv() });
+    assert.equal(porcelain.status, 0, porcelain.stderr);
+    const status = porcelain.stdout.split('\n').filter(Boolean).sort();
+    const feature = listFiles(join(FIXTURE, 'feature'));
+    const expected = feature.map((f) => (existsSync(join(implement.app, f)) ? ` M ${f}` : `?? ${f}`)).sort();
+    assert.deepEqual(status, expected, 'every feature file is a change: the changed ones modified, the new ones untracked');
+    assert.ok(expected.some((line) => line.startsWith('??')), 'the feature adds files');
+    assert.ok(expected.some((line) => line.startsWith(' M')), 'the feature changes files');
+    for (const line of status) assert.ok(!line.slice(3).startsWith('.vibeflow/'), `the feature touches no document: ${line}`);
+    assert.equal(git(audit.app, 'diff', '--cached', '--name-only'), '', 'nothing is staged');
+    // Nothing in the feature's files points at the planted violations.
+    for (const f of feature) {
+      assert.doesNotMatch(readFileSync(join(audit.app, f), 'utf8'), /canar|violat|deliberat|on purpose|intentional|\bC[1-4]\b|planted/i, f);
+    }
   });
 });
 
@@ -356,5 +377,21 @@ test('at the audit stage each canary is broken where the README says', () => {
     assert.ok(!existsSync(join(app, 'src/features/profile/constants.js')), 'C3 is broken: no constants.js');
     assert.match(code, /navigator\.back\(\)/, 'C4 is broken: back without saved');
     for (const c of readmeCanaries()) assert.ok(!code.includes(c.marker), `the feature code does not name ${c.id}`);
+  });
+});
+
+// Outside the four canaries the feature is right: the code style the spec
+// imports declares event names once and imports them, so no log call of the
+// feature types its event name, even where the imported logging example does.
+test('at the audit stage the feature declares its event names once and never retypes them in a log call', () => {
+  scratch((dir) => {
+    const { app } = prepared(join(dir, 'p'), 'audit');
+    const feature = listFiles(join(app, 'src/features/profile')).map((f) => readFileSync(join(app, 'src/features/profile', f), 'utf8'));
+    const code = feature.join('\n');
+    const calls = [...code.matchAll(/logger\.(info|warn|error)\(([^,)]+)/g)];
+    assert.ok(calls.length >= 3, 'the feature logs the save, the rejected save and the refused write');
+    for (const [, , first] of calls) assert.doesNotMatch(first.trim(), /^['"`]/, `a log call names its event through a constant: ${first}`);
+    const names = [...code.matchAll(/'profile\.[a-z-]+'/g)].map((m) => m[0]);
+    assert.equal(new Set(names).size, names.length, `each event name is written once: ${names}`);
   });
 });

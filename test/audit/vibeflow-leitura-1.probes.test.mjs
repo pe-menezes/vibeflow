@@ -359,7 +359,7 @@ test('meter: a persisted cat followed by a Read of the saved output is whole', (
 // (135 of 135 on 10/11), and so does `grep -n pattern file` in Bash. The
 // line was shown to the model. Regression: the meter strips `path:N:` only.
 // Not caught: the implementer's grep cases all carry a path prefix.
-test('meter: a Grep tool call on one file, with -n, sees its matched and context lines', { todo: 'defeito A1: N: and N- prefixes are not taken off' }, () => {
+test('meter: a Grep tool call on one file, with -n, sees its matched and context lines', () => {
   const lines = docLines(SCREENS);
   const n = lineNumberOf(SCREENS, canaryText('C4'));
   const u = use('Grep', { pattern: 'saves goes back', path: join(app, SCREENS), output_mode: 'content', '-n': true, '-B': 1 });
@@ -370,7 +370,7 @@ test('meter: a Grep tool call on one file, with -n, sees its matched and context
   assert.deepEqual(doc(report, SCREENS).methods, ['Grep']);
 });
 
-test('meter: grep -n through Bash over one file sees the matched line', { todo: 'defeito A1: N: prefix is not taken off' }, () => {
+test('meter: grep -n through Bash over one file sees the matched line', () => {
   const n = lineNumberOf(FORMS, canaryText('C2'));
   const report = measure([transcript(bashRecords(`grep -n 'field id' ${FORMS}`, `${n}:${docLines(FORMS)[n - 1]}`))]);
   assert.equal(canarySeen(report, 'C2'), true);
@@ -383,7 +383,7 @@ test('meter: grep -n through Bash over one file sees the matched line', { todo: 
 // README's run passes `/tmp/...` to --app. Regression: comparing paths as
 // strings without resolving links. Not caught: the implementer's tests pass
 // to --app the same string the transcript uses.
-test('meter: a Read through the real path of an app given by a symlink is opened as Read whole', { todo: 'defeito A2: --app is not resolved to its real path' }, () => {
+test('meter: a Read through the real path of an app given by a symlink is opened as Read whole', () => {
   const realBase = join(dir, 'real');
   mkdirSync(realBase);
   const realApp = prepare(join(realBase, 'p'), 'implement').app;
@@ -433,7 +433,7 @@ test('audit stage: the feature commit has no word that points at the planted vio
 // error escape, so an audit that reads the handbook whole finds a fifth
 // violation the README does not list. Regression: none, it is open. Not
 // caught: the app's suite never makes the adapter throw.
-test('audit stage: a save the storage adapter refuses returns { ok: false, errors.form } instead of throwing', { todo: 'defeito A3: save() has no handling for a refused write' }, async () => {
+test('audit stage: a save the storage adapter refuses returns { ok: false, errors.form } instead of throwing', async () => {
   const audit = prepare(join(dir, 'refuse-audit'), 'audit').app;
   const { createApp } = await import(pathToFileURL(join(audit, 'src/app.js')).href);
   const { container, navigator, screens } = createApp();

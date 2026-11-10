@@ -6,7 +6,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -342,4 +342,99 @@ test('missing arguments and unreadable inputs are refused', () => {
   assert.notEqual(measure('--app', app).status, 0, 'a transcript is required');
   assert.notEqual(measure('--transcript', writeTranscript([])).status, 0, 'the app is required');
   assert.notEqual(measure('--transcript', join(dir, 'missing.jsonl'), '--app', app).status, 0);
+});
+
+// --- the session's working directory ------------------------------------------
+// A real transcript carries the session's working directory in a `cwd` field
+// on each record, the real path (/tmp is /private/tmp on macOS), and it
+// follows `cd`. A relative path in a command is read against it.
+
+function withCwd(records, cwd) {
+  for (const record of records) record.cwd = cwd;
+  return records;
+}
+
+test('a relative path in a Bash command is resolved against the cwd of the record', () => {
+  const inside = withCwd(bash('cd .vibeflow; cat conventions.md', 'nothing useful\n'), join(app, '.vibeflow'));
+  assert.deepEqual(doc(measureJson([writeTranscript(inside)]), CONVENTIONS).methods, ['Bash']);
+
+  const elsewhere = join(dir, 'elsewhere');
+  mkdirSync(elsewhere, { recursive: true });
+  writeFileSync(join(elsewhere, 'conventions.md'), 'another document\n');
+  const outside = withCwd(bash('cat conventions.md', 'another document\n'), elsewhere);
+  assert.equal(doc(measureJson([writeTranscript(outside)]), CONVENTIONS).opened, false, 'a file of the same name in another folder is not the target');
+});
+
+// Measured in the base audit run of 10/11: the record of
+// `cd .vibeflow/patterns && cat forms.md ...` carries the cwd from before the
+// call, and the next record the one after it; in the implement run the record
+// of `cd .vibeflow; cat conventions.md` already carried the one after it.
+test('a cd in the command moves the directory a relative path is read against, whichever cwd the record holds', () => {
+  const before = withCwd(bash('cd .vibeflow/patterns && cat forms.md external-team-conventions/claude-rules-code-style.md', 'nothing useful\n'), app);
+  const back = withCwd(bash(`cd ../.. && cat ${CONVENTIONS}`, 'nothing useful\n'), join(app, '.vibeflow/patterns'));
+  const report = measureJson([writeTranscript([...before, ...back])]);
+  assert.deepEqual(doc(report, FORMS).methods, ['Bash']);
+  assert.deepEqual(doc(report, CODE_STYLE).methods, ['Bash']);
+  assert.deepEqual(doc(report, CONVENTIONS).methods, ['Bash']);
+  assert.equal(doc(report, VALIDATION).opened, false);
+});
+
+test('the duplicate copy of a record, written without cwd, keeps the cwd of the first', () => {
+  const records = withCwd(bash('cat conventions.md', 'nothing useful\n'), join(app, '.vibeflow'));
+  const copies = records.map((r) => {
+    const c = JSON.parse(JSON.stringify(r));
+    delete c.cwd;
+    delete c.toolUseResult;
+    return c;
+  });
+  const elsewhere = join(dir, 'elsewhere-dup');
+  mkdirSync(elsewhere, { recursive: true });
+  const report = measureJson([writeTranscript([...records, ...copies, ...withCwd(bash('ls', ''), elsewhere)])]);
+  assert.deepEqual(doc(report, CONVENTIONS).methods, ['Bash']);
+});
+
+test('paths are compared by their real path: --app through a link, the session on the real path', () => {
+  const realBase = join(dir, 'real-base');
+  mkdirSync(realBase);
+  const prepared = spawnSync(process.execPath, [PREPARE, join(realBase, 'p'), '--stage', 'implement'], { encoding: 'utf8', env: cleanEnv() });
+  assert.equal(prepared.status, 0, prepared.stderr);
+  const realApp = realpathSync(JSON.parse(prepared.stdout).app);
+  symlinkSync(realBase, join(dir, 'link-base'));
+  const linkedApp = join(dir, 'link-base', 'p', 'app');
+
+  const grep = toolUse('Grep', { pattern: 'back', path: join(realApp, SCREENS), output_mode: 'files_with_matches' });
+  const records = [
+    ...bash(`cat ${join(realApp, FORMS)}`, 'nothing useful\n'),
+    grep.record, toolResult(grep.id, 'Found 1 file', { mode: 'files_with_matches', numFiles: 1, filenames: [join(realApp, SCREENS)] }),
+    ...withCwd(bash(`cat ${CODE_STYLE}`, 'nothing useful\n'), realApp),
+  ];
+  const result = measure('--transcript', writeTranscript(records), '--app', linkedApp, '--json');
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.deepEqual(doc(report, FORMS).methods, ['Bash']);
+  assert.deepEqual(doc(report, SCREENS).methods, ['Grep']);
+  assert.deepEqual(doc(report, CODE_STYLE).methods, ['Bash']);
+});
+
+// A grep over one file prints `N:` and `N-` with no path; the line was shown.
+test('a grep -n over one file, with no path in the prefix, sees the matched and context lines', () => {
+  const all = lines(FORMS);
+  const n = all.length;
+  const context = all.findIndex((l) => l.startsWith('- Building field ids')) + 1;
+  assert.ok(context > 0 && all[context - 1].trim().length >= 20, 'the context line is distinctive');
+  const use = toolUse('Grep', { pattern: 'kebab|Building', path: abs(FORMS), output_mode: 'content', '-n': true, '-A': 1 });
+  const content = `${context}:${all[context - 1]}\n${context + 1}-${all[context]}\n--\n${n}:${all[n - 1]}`;
+  const report = measureJson([writeTranscript([use.record, toolResult(use.id, content, { mode: 'content', numFiles: 1, filenames: [], content })])]);
+  assert.equal(canary(report, 'C2').seen, true);
+  assert.equal(doc(report, FORMS).seen, 3, 'the matched line (N:), its context line (N-) and the canary (N:)');
+  assert.deepEqual(doc(report, FORMS).methods, ['Grep']);
+});
+
+test('a number prefix is taken off only as a whole prefix: a line cut after it is still not seen', () => {
+  const all = lines(FORMS);
+  const n = all.length;
+  const content = `${n}:${all[n - 1].slice(0, 40)}`;
+  const report = measureJson([writeTranscript(bash(`grep -n kebab ${FORMS}`, content))]);
+  assert.equal(canary(report, 'C2').seen, false);
+  assert.equal(doc(report, FORMS).seen, 0);
 });

@@ -60,6 +60,26 @@ test('saving a valid draft stores it merged and returns to home', () => {
   assert.equal(navigator.current(), HOME_ROUTES.HOME);
 });
 
+test('a save the storage refuses keeps the draft, stays and returns a form message', () => {
+  const { navigator, container, screen } = openProfile({}, ADA);
+  const storage = container.get('storage');
+  const write = storage.write;
+  storage.write = () => {
+    const error = new Error('quota exceeded');
+    error.code = 'storage-full';
+    throw error;
+  };
+  screen.set('displayName', 'Grace');
+  const result = screen.save();
+  storage.write = write;
+  assert.equal(result.ok, false);
+  assert.equal(typeof result.errors.form, 'string');
+  assert.doesNotMatch(result.errors.form, /quota exceeded/);
+  assert.equal(navigator.current(), ROUTES.EDIT);
+  assert.deepEqual(storage.read('profile.u1'), ADA);
+  assert.match(screen.render({ id: 'u1' }), /Grace/);
+});
+
 test('leaving a dirty draft stays on the screen by default', () => {
   const { navigator, screen } = openProfile({}, ADA);
   screen.set('bio', 'Physics');
