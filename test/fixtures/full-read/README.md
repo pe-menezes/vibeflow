@@ -45,7 +45,16 @@ the code.
   disagree, the feature follows the rule: the logging convention's example
   types event names in the call, and the code style rule says event names are
   declared once and imported, so the feature logs through a frozen `EVENTS`
-  object.
+  object. Two more points of the feature follow one document and can be read
+  against another: when the storage adapter refuses a save, the screen shows
+  a fixed sentence written in the screen itself, where the conventions say
+  user messages come from the message table in `src/errors/` (the handbook's
+  section 8 asks for a sentence that says what the user can try, and the
+  table would give "Something went wrong"), and it logs that handled failure
+  at `error`, as the handbook's section 6.3 asks, where the logging rule keeps
+  `error` for what is not handled. Neither is a canary. An audit that names
+  them is not wrong, and step 4 of the reproduction run counts only the
+  violations of the four canaries.
 
 ## Prepare
 
@@ -154,7 +163,11 @@ folder). For each one it prints:
   ran in `/private/tmp/...`; a relative path in a command is read against the
   `cwd` the transcript records for the call (and the one before it, since the
   record already shows a `cd` of the command), or by its end when the
-  transcript has no `cwd`;
+  transcript has no `cwd`. The `cd`s of the command count, in order: an
+  absolute one adds its path, and a relative one starts from every directory
+  known before it, the recorded ones and the ones the earlier `cd`s of the
+  same command reached, so in `cd a/b && cat x; cd ../..; cat c/y` the path
+  `c/y` is read from the directory the command started in;
 * **seen / distinctive** and **coverage**: a line counts as distinctive when
   it has 20 characters or more after trimming and occurs once across the
   target documents; it counts as seen when it appears whole, trimmed, as a
@@ -208,7 +221,9 @@ node <worktree>/test/fixtures/full-read/measure.mjs --transcript <session.jsonl>
 4. **`audit`**, stage `audit`. Request:
    `/vibeflow:audit .vibeflow/specs/profile-edit.md`.
    Measure without `--spec`. Then check the report: each violation of the
-   table above is a finding that names the rule and its document.
+   table above is a finding that names the rule and its document. Only those
+   four count; the two points of the feature that "What it holds" names
+   (the save-failure sentence and its `error` log) are not canaries.
 
 The defect reproduces when a consumer leaves documents it was told to read
 below 100% coverage and misses a canary it owns; the fix is measured by the

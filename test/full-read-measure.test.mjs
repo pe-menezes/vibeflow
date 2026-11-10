@@ -379,6 +379,18 @@ test('a cd in the command moves the directory a relative path is read against, w
   assert.equal(doc(report, VALIDATION).opened, false);
 });
 
+// Measured in the base Sonnet audit of 10/11: one command ran
+// `cd .vibeflow/patterns/external-team-conventions && cat ...; cd ../..; cat patterns/forms.md ...`
+// from the app. The second `cd` starts where the first one left.
+test('a relative cd starts from where an earlier cd of the same command left', () => {
+  const chained = withCwd(bash('cd .vibeflow/patterns/external-team-conventions && cat claude-rules-code-style.md; cd ../..; cat patterns/forms.md', 'nothing useful\n'), app);
+  const report = measureJson([writeTranscript(chained)]);
+  assert.deepEqual(doc(report, CODE_STYLE).methods, ['Bash']);
+  assert.deepEqual(doc(report, FORMS).methods, ['Bash']);
+  assert.equal(doc(report, VALIDATION).opened, false);
+  assert.equal(doc(report, CONVENTIONS).opened, false);
+});
+
 test('the duplicate copy of a record, written without cwd, keeps the cwd of the first', () => {
   const records = withCwd(bash('cat conventions.md', 'nothing useful\n'), join(app, '.vibeflow'));
   const copies = records.map((r) => {

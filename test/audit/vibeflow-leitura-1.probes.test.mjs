@@ -465,7 +465,7 @@ test('audit stage: the uncommitted change has no word that points at the planted
 // opens nothing after a chained `cd` and drops the cut mark that the meter of
 // round 1 gave. Not caught: the implementer's cd test changes directory once
 // per command, from the record's cwd.
-test('meter: a relative path after a cd relative to an earlier cd of the same command is opened, and its cut is marked', { todo: 'defeito R1: commandCwds resolves each cd from the record cwd, not from the cd before it' }, () => {
+test('meter: a relative path after a cd relative to an earlier cd of the same command is opened, and its cut is marked', () => {
   const realApp = realpathSync(app);
   const u = use('Bash', { command: `cd .vibeflow/patterns/external-team-conventions && cat docs-screens.md; cd ../..; cat patterns/forms.md` });
   u.record.cwd = realApp;

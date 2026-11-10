@@ -194,17 +194,19 @@ function commandTokens(command) {
 }
 
 // The directories a command can read a relative path from: the ones the
-// record holds, and each one a `cd` of the command moves to from them. The
-// record's cwd is sometimes the one before the call and sometimes the one
-// after it (both measured in real runs), so both sides are kept.
+// record holds, and each one the `cd`s of the command move to, in order. A
+// relative `cd` starts from every directory known before it, the record's and
+// the ones the earlier `cd`s of the same command reached. The record's cwd is
+// sometimes the one before the call and sometimes the one after it (both
+// measured in real runs), so both sides are kept.
 function commandCwds(command, cwds) {
-  const out = [...cwds];
+  const out = new Set(cwds);
   for (const match of String(command).matchAll(/(?:^|[;&|(]\s*)cd\s+("[^"]*"|'[^']*'|[^\s;&|)]+)/g)) {
     const dir = match[1].replace(/^['"]|['"]$/g, '');
-    if (isAbsolute(dir)) out.push(dir);
-    else for (const cwd of cwds) out.push(join(cwd, dir));
+    if (isAbsolute(dir)) out.add(dir);
+    else for (const from of [...out]) out.add(join(from, dir));
   }
-  return out;
+  return [...out];
 }
 
 // Which call opened a document, and how.
