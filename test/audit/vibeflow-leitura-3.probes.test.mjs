@@ -196,3 +196,97 @@ test('gen-spec (shared): the volume in `Documents to read:` is a number the skil
   assert.match(tools, /\bRead\b/, `gen-spec shared: the file-reading tool is granted (allowed-tools: ${tools})`);
   assert.match(definition, /line counts[^.]*as the file-reading tool reports them/, `gen-spec shared: "${definition}"`);
 });
+
+// ---------------------------------------------------------------- re-audit 2
+
+// The reading point of each consumer: where it finds the list and reads it.
+const READING_POINTS = {
+  implement: ['## Phase 2', '## Phase 3'],
+  'prompt-pack': ['2. Read `.vibeflow/conventions.md`', '3. Read the codebase files'],
+  audit: ['2. **Spec** (`2/7 spec`)', '3. **Tests** (`3/7 tests`)'],
+};
+
+function section(raw, from, to, label) {
+  const start = raw.indexOf(from);
+  assert.notEqual(start, -1, `${label}: anchor "${from}"`);
+  const end = raw.indexOf(to, start + from.length);
+  assert.notEqual(end, -1, `${label}: anchor "${to}"`);
+  return raw.slice(start, end);
+}
+
+// Finding N1. Contract: a spec written before the `Documents to read:` line
+// (an old spec) changes only how its list is found; its documents are read
+// whole like any other. Regression: any sentence of the reading point that
+// talks about a spec without the line and gives it another reading ("is read
+// as before", "keeps reading by sections as before"). The executor's test pins
+// one exact sentence and refuses only "is read as before", so a second
+// sentence that exempts the old spec in other words passes it; this probe
+// reads every such sentence, whatever its wording.
+test('consumers: every sentence about a spec without the line keeps the whole read', () => {
+  for (const [workflow, [from, to]] of Object.entries(READING_POINTS)) {
+    for (const [edition, path] of Object.entries(editions(workflow))) {
+      const point = section(read(path), from, to, `${workflow} ${edition}`);
+      const old = sentences(point).filter((s) => /without (that|the|a) (`Documents to read:` )?line/i.test(s));
+      assert.ok(old.length > 0, `${workflow} ${edition}: the reading point says what an old spec does`);
+      for (const s of old) {
+        assert.match(s, /read whole/, `${workflow} ${edition}: "${s}"`);
+        assert.doesNotMatch(s, /\bis read as before\b|\bread (it|them) as before\b/, `${workflow} ${edition}: "${s}"`);
+      }
+    }
+  }
+});
+
+// Finding N2. Contract: every reply with which the loop's orchestrator stops
+// ends with the Phase 2 read receipt, not only the final report of step 7.
+// Regression: the rule narrowed back to the final report, or one of the stops
+// that leave the loop unfinished dropped from it: the first verdict without
+// the OK to commit, the end with no PR that follows from it (the ending
+// "never reaches this section"), the handoff at a part boundary. The
+// executor's test names four stops but not the end with no PR.
+test('orchestrator: the receipt rule covers every stop, the end with no PR included', () => {
+  const raw = read(`${KIT}/orchestrator.md`);
+  const discipline = section(raw, '## Orchestrator discipline', '\n## ', 'orchestrator');
+  const rule = sentences(discipline).filter((s) => /read receipt/.test(s));
+  assert.equal(rule.length, 1, `orchestrator: one receipt rule in the discipline: ${JSON.stringify(rule)}`);
+  const [s] = rule;
+  assert.match(s, /\bEvery reply that stops the loop\b/, `orchestrator: "${s}"`);
+  assert.match(s, /first verdict without the OK to commit/, `orchestrator: "${s}"`);
+  assert.match(s, /\bno PR\b/, `orchestrator: "${s}"`);
+  assert.match(s, /handoff at a part boundary/, `orchestrator: "${s}"`);
+  assert.match(raw, /stops at its first verdict/, 'orchestrator: the stop the rule names still exists');
+  assert.match(raw, /At a part boundary[^.]*write the handoff/, 'orchestrator: the handoff the rule names still exists');
+});
+
+// Finding N3. Contract: the re-auditor reads the same project knowledge as the
+// fix round it re-audits, with the same rule. Oracle: the fix template's
+// "project knowledge" line. Regression: one of the two templates edited and
+// the other left behind (the executor's test pins each template's literal on
+// its own).
+test('briefing templates: the re-auditor reads the spec and the same project knowledge as the fix', () => {
+  const raw = read(`${KIT}/briefings.md`);
+  const readFirst = (from, to) => {
+    const template = section(raw, from, to, from);
+    return section(template, '## Read first', '\n## ', `${from} Read first`);
+  };
+  const knowledge = (text) => text.split('\n').find((l) => l.startsWith('* project knowledge:'));
+  const fix = readFirst('## Fix', '## Auditor');
+  const reaudit = raw.slice(raw.indexOf('## Re-auditor'));
+  const reauditFirst = section(reaudit, '## Read first', '\n## ', 're-auditor Read first');
+  assert.ok(knowledge(fix), 'fix: project knowledge line');
+  assert.equal(knowledge(reauditFirst), knowledge(fix), 're-auditor: the same project knowledge line as the fix');
+  assert.match(reauditFirst, /`\.vibeflow\/specs\/<spec file>`/, 're-auditor: the spec');
+});
+
+// Executor's caveat in fix 2 (low, a follow-up). Contract: implement's Phase 2
+// says where the receipt goes in loop mode the same way the orchestrator does
+// (every reply that stops the loop). Today the parenthesis says "at the end of
+// the orchestrator's final report", narrower than the orchestrator's rule;
+// implement/SKILL.md was outside the perimeter of fix 2.
+test('implement: the loop-mode placement of the receipt agrees with the orchestrator', { todo: 'follow-up from fix 2: the Phase 2 parenthesis still says "final report"' }, () => {
+  for (const [edition, path] of Object.entries(editions('implement'))) {
+    const point = flat(section(read(path), '## Phase 2', '## Phase 3', `implement ${edition}`));
+    const loop = point.match(/\(in loop mode, ([^)]*)\)/);
+    assert.ok(loop, `implement ${edition}: the loop-mode placement`);
+    assert.match(loop[1], /every reply that stops the loop|Orchestrator discipline/, `implement ${edition}: "${loop[1]}"`);
+  }
+});
