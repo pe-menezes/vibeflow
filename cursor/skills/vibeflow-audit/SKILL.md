@@ -126,8 +126,9 @@ restore.
    `<!-- vibeflow:patterns:start/end -->` markers) and cross-reference its
    tags and modules against the spec's scope — top 3–5 matches; with no
    registry, infer which are relevant. The spec's `Documents to read:` line
-   counts `.vibeflow/conventions.md` and these pattern docs; a spec without
-   that line is read as before. Read each of these documents whole, one file
+   counts `.vibeflow/conventions.md` and these pattern docs; in a spec
+   without that line, the list is found as before, and only the list: its
+   documents are read whole all the same. Read each of these documents whole, one file
    per read: open it with your file-reading tool, without an offset or a limit,
    and never several files in one shell command. When a read comes back cut (a
    preview, a notice that the output was saved to a file, a line or size

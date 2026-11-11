@@ -126,7 +126,8 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * open findings: <finding ids>, and the fix decision for each
 
 ## Read first
-* the audit report, the fix briefing, the progress file
+* the audit report, the fix briefing, the progress file and the spec: `.vibeflow/specs/<spec file>`
+* project knowledge: `.vibeflow/index.md`, `.vibeflow/conventions.md` and each pattern doc the spec lists. Read each of these documents whole, one file per read: open it with your file-reading tool, without an offset or a limit, and never several files in one shell command. When a read comes back cut (a preview, a notice that the output was saved to a file, a line or size limit), keep reading from where it stopped to the last line. A list of headings or a keyword search is not a read.
 * rules: loop principles 5 and 7
 * role: `roles/auditor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:auditor` already carries it)
 

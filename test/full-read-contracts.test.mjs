@@ -184,6 +184,17 @@ test('briefing templates: "Read first" of the fix points at the spec, convention
   assert.equal(count(readFirst, RULE), 1, 'fix template: the rule in "Read first"');
 });
 
+// Finding N3: the re-auditor template points at the spec and at the project
+// knowledge with the rule, like the fix template.
+test('briefing templates: "Read first" of the re-auditor points at the spec, conventions.md and each pattern doc the spec lists', () => {
+  const raw = read(`${KIT}/briefings.md`);
+  const reauditor = rest(raw, '## Re-auditor', 'briefings re-auditor');
+  const readFirst = between(reauditor, '## Read first', '\n## ', 'briefings re-auditor');
+  assert.ok(readFirst.includes('`.vibeflow/specs/<spec file>`'), 're-auditor template: the spec in "Read first"');
+  assert.match(flat(readFirst), /project knowledge: `\.vibeflow\/index\.md`, `\.vibeflow\/conventions\.md` and each pattern doc the spec lists\./, 're-auditor template: the project knowledge');
+  assert.equal(count(readFirst, RULE), 1, 're-auditor template: the rule in "Read first"');
+});
+
 // ------------------------------------------------------------------ the receipt
 
 function assertReceiptProse(raw, label) {
@@ -238,7 +249,22 @@ test('implement: the receipt follows the Phase 8 message, and the loop\'s final 
   const orchestrator = read(`${KIT}/orchestrator.md`);
   const step7 = orchestrator.split('\n').find((line) => line.startsWith('7. Give the user the final report:'));
   assert.ok(step7, 'orchestrator.md: step 7 of the ending');
-  assert.match(step7, /, and ends with the read receipt of `implement`'s Phase 2\. Then stop\.$/, 'orchestrator.md: the final report ends with the receipt');
+  assert.match(step7, /, pointing at the ledger; the report ends with the read receipt of `implement`'s Phase 2\. Then stop\.$/, 'orchestrator.md: the final report ends with the receipt');
+});
+
+// Finding N2: the orchestrator's other stops (the first verdict without the OK
+// to commit, which is also the end with no PR, and the handoff at a part
+// boundary) end their reply with the receipt too, said once in the discipline.
+test('orchestrator: every reply that stops the loop ends with the read receipt, its stops named', () => {
+  const orchestrator = read(`${KIT}/orchestrator.md`);
+  const discipline = between(orchestrator, '## Orchestrator discipline', '\n## ', 'orchestrator discipline');
+  const bullet = discipline.split('\n').find((line) => line.startsWith('* Every reply that stops the loop ends with the read receipt'));
+  assert.ok(bullet, 'orchestrator.md: the receipt rule in the discipline');
+  assert.match(bullet, /^\* Every reply that stops the loop ends with the read receipt of `implement`'s Phase 2, after everything else in it:/, 'orchestrator.md: the receipt closes the reply');
+  for (const stop of ["the final report of the ending's step 7", 'the stop at the first verdict without the OK to commit', 'the handoff at a part boundary', 'any stop that goes to the user']) {
+    assert.ok(bullet.includes(stop), `orchestrator.md: the receipt rule names "${stop}"`);
+  }
+  assert.equal(count(orchestrator, 'Every reply that stops the loop ends with the read receipt'), 1, 'orchestrator.md: said once');
 });
 
 test('audit: the report carries the read receipt right after its Base line', () => {
@@ -303,10 +329,22 @@ test('gen-spec: Applicable Patterns ends with the documents to read and their vo
   });
 });
 
-test('consumers: a spec without the Documents to read line is read as before', () => {
-  for (const workflow of ['implement', 'prompt-pack', 'audit']) {
+// Findings L5 and N1: an old spec, without the `Documents to read:` line,
+// finds its list as before, and only the list: the reading rule that follows,
+// in the same reading point, holds for its documents all the same.
+test('consumers: a spec without the Documents to read line finds its list as before and is still read whole', () => {
+  const points = {
+    implement: ['## Phase 2: Load context from .vibeflow/', '## Phase 3'],
+    'prompt-pack': ['2. Read `.vibeflow/conventions.md`', '3. Read the codebase files'],
+    audit: ['2. **Spec** (`2/7 spec`)', '3. **Tests** (`3/7 tests`)'],
+  };
+  for (const [workflow, [from, to]] of Object.entries(points)) {
     forEachEdition(workflow, (raw, label) => {
-      assert.match(flat(raw), /a spec without that line[^.]*as before/, `${label}: old specs keep working`);
+      const point = flat(between(raw, from, to, label));
+      const old = point.search(/[Aa] spec without that line, the list is found as before, and only the list: its documents are read whole all the same\./);
+      assert.notEqual(old, -1, `${label}: an old spec finds its list as before and is still read whole`);
+      assert.ok(point.indexOf(RULE) > old, `${label}: the reading rule follows, in the same reading point`);
+      assert.doesNotMatch(flat(raw), /without that line[^.]*is read as before/, `${label}: no wording that exempts an old spec from the rule`);
     });
   }
 });
