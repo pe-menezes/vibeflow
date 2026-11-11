@@ -19,9 +19,11 @@ const RULE = 'Read each of these documents whole, one file per read: open it wit
 
 const RECEIPT = ['Read in full: <n> of <m>', '- <path> (<lines> lines)', 'Not read whole: none'];
 // Fix 3, C1: the criterion is reaching the last line, so a document read over
-// several reads to its last line is read whole, as the rule asks.
+// several reads to its last line is read whole, as the rule asks. PR fix, B1:
+// only when each read starts where the one before stopped, so a read that
+// skips the middle and then reaches the last line is not whole.
 const NOT_TO_LAST = 'a document not read to its last line goes under `Not read whole`';
-const OVER_READS = 'a document read to its last line over more than one read counts as read whole';
+const OVER_READS = 'a document read to its last line over more than one read, each read starting from where the previous read stopped, counts as read whole';
 const RECEIPT_TRUTH = `The receipt is what this session actually read: ${NOT_TO_LAST}, and ${OVER_READS}.`;
 const RECEIPT_GAP = '`Not read whole:` stands alone and each such document follows on its own line, `- <path>: <why>`';
 const RECEIPT_LINE = 'One `- <path> (<lines> lines)` line per document read whole, its path relative to the project root.';
@@ -432,7 +434,11 @@ test('audit: 5B goes through every document, one by one', () => {
   forEachEdition('audit', (raw, label) => {
     const review = flat(between(raw, '**B. Pattern compliance**', '**C. Scenarios**', label));
     assert.match(review, /go through `\.vibeflow\/conventions\.md` and each document the spec lists, one by one/, `${label}: every document`);
-    assert.match(review, /each of its rules that the package's files touch/, `${label}: every rule the diff touches`);
+    // PR fix, M1: with no package (step 1's committed work) the files under
+    // review are the ones the spec names, and the report line's "changed
+    // files" are those same files.
+    assert.match(review, /each of its rules that the files under review touch: the package's files, or, when step 1 found no package, the files the spec names/, `${label}: every rule the files under review touch`);
+    assert.match(review, /`\[x\] <path>: no rule touches the changed files` for a document whose rules the files under review do not touch/, `${label}: the untouched line speaks of the files under review`);
     assert.match(review, /one line per document, in the receipt's order/, `${label}: one report line per document`);
   });
 });

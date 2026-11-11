@@ -73,9 +73,37 @@ function readCanaries() {
   return rows;
 }
 
-function targetPaths(specText) {
-  const listed = section(specText, 'Applicable Patterns').match(/patterns\/[A-Za-z0-9_./-]+\.md/g) ?? [];
-  return ['.vibeflow/conventions.md', ...new Set(listed.map((p) => `.vibeflow/${p}`))];
+// The spec's list of patterns. A 1.19.0 spec ends it with the
+// `Documents to read:` line, which stays in English while the heading above it
+// is in the user's language, so the list runs from the last `## ` heading
+// before that line to it. A spec without that line (1.18.0) is read under
+// `## Applicable Patterns`, to the next heading.
+function patternList(specText) {
+  const lines = specText.split('\n');
+  const end = lines.findIndex((line) => line.startsWith('Documents to read:'));
+  if (end < 0) return section(specText, 'Applicable Patterns');
+  let start = end;
+  while (start > 0 && !lines[start - 1].startsWith('## ')) start -= 1;
+  return lines.slice(start, end).join('\n');
+}
+
+// A target is the document a list line opens with, followed by `:` or a dash,
+// the way gen-spec writes both local and imported entries. Another path in the
+// line (an imported entry's provenance) is not one, and neither is a line that
+// opens with a document and goes on to say it does not apply. A bare file name
+// is the local pattern of that name when `.vibeflow/patterns/` has it.
+const LIST_ITEM = /^\s*[-*]\s+`?(?:\.vibeflow\/)?([A-Za-z0-9_./-]+\.md)`?\s*(?::|\s[—–-]\s)/;
+
+function targetPaths(specText, appDir) {
+  const found = [];
+  for (const line of patternList(specText).split('\n')) {
+    const match = line.match(LIST_ITEM);
+    if (!match) continue;
+    const name = match[1];
+    if (name.startsWith('patterns/')) found.push(`.vibeflow/${name}`);
+    else if (!name.includes('/') && existsSync(join(appDir, '.vibeflow/patterns', name))) found.push(`.vibeflow/patterns/${name}`);
+  }
+  return ['.vibeflow/conventions.md', ...new Set(found)];
 }
 
 function contentText(content) {
@@ -92,17 +120,20 @@ function contentText(content) {
 // Every way a document line can show up in a result line: as it is, behind the
 // Read line-number prefix, behind grep's path:line: (or path-line- for context
 // lines) prefix, or behind the line: (line-) prefix grep prints when it
-// searches one file. A variant only takes a prefix off; the rest of the result
-// line still has to equal the document line.
+// searches one file. A saved grep output read back with Read carries both,
+// Read's in front of grep's, and both come off. A variant only takes prefixes
+// off; the rest of the result line still has to equal the document line.
 function variants(line) {
-  return [
-    line,
-    line.replace(/^\s*\d+\t/, ''),
-    line.replace(/^\s*\d+→/, ''),
-    line.replace(/^.*?:\d+:/, ''),
-    line.replace(/^.*?-\d+-/, ''),
-    line.replace(/^\d+[:-]/, ''),
-  ].map((v) => v.trim());
+  const out = [];
+  for (const base of [line, line.replace(/^\s*\d+\t/, ''), line.replace(/^\s*\d+→/, '')]) {
+    out.push(
+      base,
+      base.replace(/^.*?:\d+:/, ''),
+      base.replace(/^.*?-\d+-/, ''),
+      base.replace(/^\d+[:-]/, ''),
+    );
+  }
+  return out.map((v) => v.trim());
 }
 
 // The real path of a file, so that /tmp and /private/tmp (or any link) name
@@ -248,7 +279,7 @@ function measure({ transcripts, app, spec }) {
     for (const line of result.text.split('\n')) for (const v of variants(line)) if (v) seen.add(v);
   }
 
-  const documents = targetPaths(readText(specPath, 'spec')).map((rel) => {
+  const documents = targetPaths(readText(specPath, 'spec'), appDir).map((rel) => {
     const full = join(appDir, rel);
     const text = existsSync(full) ? readFileSync(full, 'utf8') : null;
     return { path: rel, full, real: realPath(join(realApp, rel)), missing: text === null, lines: text === null ? [] : text.split('\n').map((l) => l.trim()) };

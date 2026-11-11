@@ -384,7 +384,7 @@ test('watch-round: the executor receipt written before the marker does not end t
 // last section of a 529-line document reached its last line over two reads, and
 // by the letter of the sentence counts it as read whole. The case turns green
 // when the criterion sentence says the reads leave no gap.
-test('receipt: the criterion counts as whole only reads that leave no gap', { todo: 'open gap: "to its last line over more than one read" admits a read that skips the middle' }, () => {
+test('receipt: the criterion counts as whole only reads that leave no gap', () => {
   const paths = [];
   for (const workflow of CONSUMERS) paths.push(...Object.values(editions(workflow)));
   paths.push(...EXECUTOR_PLACES, ...AUDITOR_PLACES);

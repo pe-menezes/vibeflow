@@ -450,3 +450,122 @@ test('a number prefix is taken off only as a whole prefix: a line cut after it i
   assert.equal(canary(report, 'C2').seen, false);
   assert.equal(doc(report, FORMS).seen, 0);
 });
+
+// --- PR fix, M2: a saved grep -n output read back with Read --------------------
+// A session that saves the output of `grep -n` over one file and reads that
+// file with Read gets each line behind two prefixes: Read's `N\t` and grep's
+// `N:`. Both come off; the rest still has to equal the document line.
+
+function readOfSavedGrep(rel, lineNumbers, { withPath = false } = {}) {
+  const all = lines(rel);
+  const saved = lineNumbers.map((n) => `${withPath ? `${rel}:` : ''}${n}:${all[n - 1]}`);
+  const use = toolUse('Read', { file_path: '/scratch/grep-out.txt' });
+  const content = saved.map((line, i) => `${String(i + 1).padStart(6)}\t${line}`).join('\n');
+  return [use.record, toolResult(use.id, content, {
+    type: 'text',
+    file: { filePath: '/scratch/grep-out.txt', content: saved.join('\n'), numLines: saved.length, startLine: 1, totalLines: saved.length },
+  })];
+}
+
+test('a saved single-file grep -n output read with Read: both prefixes come off', () => {
+  const n = lines(SCREENS).length;
+  const all = Array.from({ length: n }, (_, i) => i + 1);
+  const report = measureJson([writeTranscript(readOfSavedGrep(SCREENS, all))]);
+  const d = doc(report, SCREENS);
+  assert.equal(d.seen, d.distinctive, `every distinctive line was shown: ${d.seen}/${d.distinctive}`);
+  assert.equal(canary(report, 'C4').seen, true);
+});
+
+test('a saved grep -n output with the path, read with Read: both prefixes come off', () => {
+  const report = measureJson([writeTranscript(readOfSavedGrep(SCREENS, [251], { withPath: true }))]);
+  assert.equal(doc(report, SCREENS).seen, 1);
+  assert.equal(canary(report, 'C4').seen, true);
+});
+
+test('two prefixes taken off do not make a cut line seen', () => {
+  const all = lines(FORMS);
+  const n = all.length;
+  const use = toolUse('Read', { file_path: '/scratch/grep-out.txt' });
+  const content = `     1\t${n}:${all[n - 1].slice(0, 40)}`;
+  const report = measureJson([writeTranscript([use.record, toolResult(use.id, content, { type: 'text' })])]);
+  assert.equal(canary(report, 'C2').seen, false);
+  assert.equal(doc(report, FORMS).seen, 0);
+});
+
+// --- PR fix, M3: the list of the spec ------------------------------------------
+// A 1.19.0 spec ends its list of patterns with the `Documents to read:` line,
+// which stays in English; the heading above it is written in the user's
+// language. A target is the document a list line opens with, followed by `:`
+// or a dash; a path elsewhere in the line (the provenance of an imported
+// entry) or a line that opens with a document and says it does not apply is
+// not one. A bare file name is a local pattern when `.vibeflow/patterns/` has it.
+
+function specFile(body) {
+  counter += 1;
+  const path = join(dir, `spec-${counter}.md`);
+  writeFileSync(path, `# Spec: profile\n\n## Objective\nEdit the profile.\n\n${body}\n## Risks\n- \`patterns/dates.md\` is not in the list.\n`);
+  return path;
+}
+
+const targetsOf = (spec) => measureJson([writeTranscript([])], ['--spec', spec]).documents.map((d) => d.path);
+
+test('a translated heading: the list is found by its Documents to read line', () => {
+  const spec = specFile([
+    '## Padrões aplicáveis',
+    '- `patterns/forms.md`: o rascunho fica no `createForm`.',
+    '',
+    'Imported entries that apply: 1 (0 by glob, 1 by subject, 0 always on)',
+    `- ${SCREENS.replace('.vibeflow/', '')} — imported from team-conventions (docs/screens.md @ 3f6a9c2): assunto, uma tela de edição`,
+    '',
+    'Documents to read: 3 (748 lines): .vibeflow/conventions.md and the pattern docs listed above',
+    '',
+  ].join('\n'));
+  assert.deepEqual(targetsOf(spec), [CONVENTIONS, FORMS, SCREENS]);
+});
+
+test('the provenance of an imported entry is not a target', () => {
+  const spec = specFile([
+    '## Applicable Patterns',
+    'Imported entries that apply: 1 (1 by glob, 0 by subject, 0 always on)',
+    `- ${CODE_STYLE.replace('.vibeflow/', '')} — imported from team-conventions (patterns/code-style.md @ 3f6a9c2): glob \`**/*.js\` matches all 5 files`,
+    '',
+    'Documents to read: 2 (222 lines): .vibeflow/conventions.md and the pattern docs listed above',
+    '',
+  ].join('\n'));
+  assert.deepEqual(targetsOf(spec), [CONVENTIONS, CODE_STYLE]);
+});
+
+// Measured in the final Sonnet gen-spec run of 10/11: the spec wrote
+// "Local (`.vibeflow/patterns/`):" and, under it, items such as "`navigation.md` — ...".
+test('a bare file name under the list is the local pattern of that name', () => {
+  const spec = specFile([
+    '## Applicable Patterns',
+    'Local (`.vibeflow/patterns/`):',
+    '- `navigation.md` — routes file, register function.',
+    '- `forms.md` — `createForm`, `FIELDS` descriptors.',
+    '- `nowhere.md` — no such pattern.',
+    '',
+    'Not applicable: `claude-rules-dependency-injection.md` (paths `**/di/**`; no planned file matches).',
+    '',
+    'Documents to read: 3 (295 lines): .vibeflow/conventions.md and the pattern docs listed above',
+    '',
+  ].join('\n'));
+  assert.deepEqual(targetsOf(spec), [CONVENTIONS, '.vibeflow/patterns/navigation.md', FORMS]);
+});
+
+// Measured in the target-repository Opus run of 10/11 (audit at 21:03): the
+// spec listed a pattern it had read and found not to apply, and counted it
+// out of `Documents to read:`.
+test('a document the list says does not apply is not a target', () => {
+  const spec = specFile([
+    '## Applicable Patterns',
+    '',
+    '- `patterns/storage.md` — the record is stored under `profile.<id>`.',
+    '- `conventions.md` § Flags — static config at the top.',
+    '- `patterns/testing.md` was read and does not apply: the tests are not screens.',
+    '',
+    'Documents to read: 2 (122 lines): .vibeflow/conventions.md and the pattern docs listed above',
+    '',
+  ].join('\n'));
+  assert.deepEqual(targetsOf(spec), [CONVENTIONS, '.vibeflow/patterns/storage.md']);
+});

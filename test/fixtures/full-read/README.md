@@ -156,7 +156,21 @@ It reads only the transcripts, the app's documents, the spec and this
 README; it calls no model and no network. The target documents are
 `.vibeflow/conventions.md` plus every `.vibeflow/patterns/**.md` that the spec
 lists under Applicable Patterns (without `--spec`, the fixed spec of this
-folder). For each one it prints:
+folder). The list is found by its structure: in a 1.19.0 spec it ends at the
+`Documents to read:` line, which stays in English, and starts at the `## `
+heading above it, whatever its language; a spec without that line is read
+under `## Applicable Patterns`. A target is the document a list line opens
+with (`- ` or `* `, the path in backticks or not) when a `:` or a dash follows
+it, which is how gen-spec writes local and imported entries. So the
+provenance of an imported entry, `(<source_file> @ <sha7>)`, is not a target
+even when its path has `patterns/`, a line that opens with a document and goes
+on to say it was read and does not apply is not one, and neither is a
+`Not applicable:` line, which is not a list line. A bare file name such as
+`navigation.md` is the local pattern `.vibeflow/patterns/navigation.md` when
+that file exists. A spec that writes "does not apply" right after a dash is
+read as listing the document; the rule was chosen as the simplest that reads
+the specs of the 10/11 runs as their `Documents to read:` count them. For
+each target it prints:
 
 * **opened**: some `Read`, `Bash` or `Grep` call pointed at it. Paths are
   compared by their real path, so `--app /tmp/...` matches a session that
@@ -173,9 +187,10 @@ folder). For each one it prints:
   target documents; it counts as seen when it appears whole, trimmed, as a
   line of the `content` of a tool result, after the `Read` line-number prefix
   and the `path:line:` prefix of `grep -n` (or the `line:` prefix it prints
-  for one file, and `-` for context lines) are taken off. Only `content`
-  counts, never `toolUseResult.stdout`, which keeps output the model never
-  saw;
+  for one file, and `-` for context lines) are taken off; a saved `grep -n`
+  output read back with `Read` carries both, the `Read` prefix in front, and
+  both come off. Only `content` counts, never `toolUseResult.stdout`, which
+  keeps output the model never saw;
 * **canary**: whether the canary line of this README's table owned by the
   document was seen;
 * **how**: `Read whole` (no `offset` or `limit` and `numLines` equal to

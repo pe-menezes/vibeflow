@@ -141,7 +141,7 @@ restore.
    document follows on its own line, `- <path>: <why>`, and the report says so.
    The receipt is what this session actually read: a document not read to its
    last line goes under `Not read whole`, and a document read to its last line
-   over more than one read counts as read whole. Read the files the package
+   over more than one read, each read starting from where the previous read stopped, counts as read whole. Read the files the package
    changes and the ones the spec says should change.
 3. **Tests** (`3/7 tests`). Run the tests. Prefer commands listed in the spec;
    otherwise detect the project's runner from the stack (`.vibeflow/index.md`,
@@ -264,12 +264,15 @@ restore.
 
    **B. Pattern compliance** — go through `.vibeflow/conventions.md` and each
    document the spec lists, one by one, and check each of its rules that the
-   package's files touch (naming, file organization, error handling and the
-   rest): is it followed (evidence), and is a deviation justified or a mistake?
+   files under review touch: the package's files, or, when step 1 found no
+   package, the files the spec names, which are the changed files of the
+   report line below. For each rule (naming, file organization, error
+   handling and the rest): is it followed (evidence), and is a deviation
+   justified or a mistake?
    The Pattern Compliance section has one line per document, in the receipt's
    order: `[x]` with the evidence when no rule of it was violated, `[ ]` with
    the deviation, and `[x] <path>: no rule touches the changed files` for a
-   document whose rules the changed files do not touch. A deviation from an
+   document whose rules the files under review do not touch. A deviation from an
    imported document the spec lists
    (`patterns/external-<repo-name>/<entry-name>.md`) is a finding that names
    the document and the `source_file` from its frontmatter.
@@ -507,7 +510,7 @@ Save the report as `<feature>-<part>-reaudit-<n>.md` in `.vibeflow/audits/`
 (a standalone audit: `<feature-slug>-reaudit-<n>.md`), with `Round: reaudit <n>`,
 the same header, its read receipt listing what this re-audit itself read (a
 document not read to its last line goes under `Not read whole`, and a document
-read to its last line over more than one read counts as read whole), the stage
+read to its last line over more than one read, each read starting from where the previous read stopped, counts as read whole), the stage
 rule with four stages (`1/4 package`, `2/4 tests`, `3/4 findings`,
 `4/4 new defects`) and the same verdict rules.
 
