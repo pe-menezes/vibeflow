@@ -147,11 +147,21 @@ test('audit: the receipt labels are among the labels that stay in English', () =
 // user's language except the literals its Language section exempts.
 // Regression: a spec written in Portuguese with "Documentos a ler:", which the
 // consumers read as a spec without the line.
+// Rewritten by the fact in re-audit 1: the first version cut the section at the
+// first "## " of the flattened text, which is the `## References` heading quoted
+// inside the exempt list itself, so a literal listed after it never counted.
+// The section now runs from its heading line to the next heading at the start
+// of a line, and the literal has to sit in a sentence that keeps literals in
+// English.
 test('gen-spec: `Documents to read:` is among the literals that stay in English', () => {
   for (const [edition, path] of Object.entries(editions('gen-spec'))) {
-    const raw = flat(read(path));
-    const language = raw.slice(raw.indexOf('## Language'), raw.indexOf('## ', raw.indexOf('## Language') + 3));
-    assert.match(language, /`Documents to read:`/, `gen-spec ${edition}`);
+    const raw = read(path);
+    const start = raw.search(/^## Language[ \t]*$/m);
+    assert.notEqual(start, -1, `gen-spec ${edition}: the Language section`);
+    const next = raw.slice(start + 1).search(/^## /m);
+    const language = raw.slice(start, next === -1 ? raw.length : start + 1 + next);
+    const exempt = sentences(language).filter((s) => /stay (literally )?in English/.test(s));
+    assert.ok(exempt.some((s) => s.includes('`Documents to read:`')), `gen-spec ${edition}: ${JSON.stringify(exempt)}`);
   }
 });
 
