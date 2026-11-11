@@ -20,9 +20,9 @@ Write ALL output in that same language.
 Technical terms in English are acceptable regardless of the detected language.
 A few literals are exempt and stay in English in any output language, because
 other commands match them byte for byte: the `## References` and
-`## Clarifications` headings, the `Scenarios:` and `Risk code:` labels, the
-`[NEEDS CLARIFICATION: …]` marker, and the EARS keywords `WHEN` and
-`THE SYSTEM SHALL`.
+`## Clarifications` headings, the `Scenarios:`, `Risk code:` and
+`Documents to read:` labels, the `[NEEDS CLARIFICATION: …]` marker, and the
+EARS keywords `WHEN` and `THE SYSTEM SHALL`.
 
 ## Before writing the spec
 
@@ -48,6 +48,15 @@ other commands match them byte for byte: the `## References` and
      its entries waits for step 3. No `## Imported Sources` block → nothing
      changes: the Pattern Registry alone picks the patterns.
 
+   The documents of this step are `conventions.md` and each pattern doc you
+   load, and each imported entry step 3 marks applicable. Read each of these
+   documents whole, one file per read: open it with your file-reading tool,
+   without an offset or a limit, and never several files in one shell
+   command. When a read comes back cut (a preview, a notice that the output
+   was saved to a file, a line or size limit), keep reading from where it
+   stopped to the last line. A list of headings or a keyword search is not a
+   read.
+
    No `.vibeflow/` → warn that results improve after the vibeflow-analyze
    skill, then read the relevant code directly.
 3. Identify what exists today for this feature, the files the feature creates
@@ -62,7 +71,8 @@ other commands match them byte for byte: the `## References` and
    entry has `alwaysApply: true`. An entry under (c) is always applicable: at
    its source it loads in every session (its `source_file` is in the
    document's frontmatter). An entry of `kind` `workflow` is never chosen.
-   Read every applicable entry; they are listed outside the 3–5 cut.
+   Read every applicable entry whole, by the reading rule of step 2; they are
+   listed outside the 3–5 cut.
 4. Collect what the input points at — test files, mockups, code to port, the
    URL of a reference implementation — and what each one is for. A reference in
    code pins the target behavior better than a paragraph describing it.
@@ -125,7 +135,13 @@ questions about the failures, then generate with the answers. One round only.
   When a local pattern covers the same subject, both are listed: the imported
   rule is the norm, the local pattern the example of how the code does it
   today, and the divergence between them is written in Technical Decisions,
-  never settled silently.
+  never settled silently. The section ends with one line that counts what the
+  consumers read,
+  `Documents to read: <m> (<lines> lines): .vibeflow/conventions.md and the pattern docs listed above`,
+  where `<lines>` is the sum of the line counts of the documents read, as the
+  file-reading tool reports them. Above 2,500 lines the same line ends with
+  `; over 2,500 lines, consider splitting this spec`, and the reply says so;
+  nothing is cut from the list.
 - **Risks** — Premortem: what can go wrong, and the mitigation. End it with a
   `Risk code:` list inside `## Risks`: the concrete paths or functions this
   change touches in four categories — money and totals, credentials and
@@ -185,6 +201,22 @@ The split is the architect's call.
 
 Save the spec to `.vibeflow/specs/<feature-slug>.md` (create the directory if
 it doesn't exist).
+
+The reply ends with the read receipt, its labels in English in any language;
+only the next-step suggestion below comes after it:
+
+```
+Read in full: <n> of <m>
+- <path> (<lines> lines)
+Not read whole: none
+```
+
+One `- <path> (<lines> lines)` line per document read whole, its path relative
+to the project root. When a document was not read whole, `Not read whole:`
+stands alone and each such document follows on its own line, `- <path>: <why>`,
+and the reply says so. The receipt is what this session actually read: a
+document not read to its last line goes under `Not read whole`, and a document
+read to its last line over more than one read, each read starting from where the previous read stopped, counts as read whole.
 
 After saving, suggest: "Spec saved to `.vibeflow/specs/<feature-slug>.md`.
 Use the vibeflow-implement skill to implement with guardrails (budget, DoD, patterns).

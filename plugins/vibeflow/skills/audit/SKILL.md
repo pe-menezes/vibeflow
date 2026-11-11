@@ -35,7 +35,8 @@ The report's machine-read labels stay literally in English in any output
 language, because `watch-round.mjs`, `stats` and the smoke harness match them:
 the header labels and their fixed values (`Independence`, `Round`, `Stage`,
 `final`, `Review package`, `Base`, `Verdict` with `pending`, PASS, PARTIAL and
-FAIL), the `###` headings of the report, and the severity, cause and
+FAIL), the read receipt's labels (`Read in full`, `Not read whole`, `none`),
+the `###` headings of the report, and the severity, cause and
 `closed-by-probe` tokens of a finding line.
 
 Audit the implementation identified in the user's current request.
@@ -152,8 +153,24 @@ restore.
    the `## Pattern Registry` block in `index.md` (between
    `<!-- vibeflow:patterns:start/end -->` markers) and cross-reference its
    tags and modules against the spec's scope — top 3–5 matches; with no
-   registry, infer which are relevant. Read the files the package changes and
-   the ones the spec says should change.
+   registry, infer which are relevant. The spec's `Documents to read:` line
+   counts `.vibeflow/conventions.md` and these pattern docs; in a spec
+   without that line, the list is found as before, and only the list: its
+   documents are read whole all the same. Read each of these documents whole, one file
+   per read: open it with your file-reading tool, without an offset or a limit,
+   and never several files in one shell command. When a read comes back cut (a
+   preview, a notice that the output was saved to a file, a line or size
+   limit), keep reading from where it stopped to the last line. A list of
+   headings or a keyword search is not a read. Record them in the report's read
+   receipt, its labels in English in any language, right after its `Base:`
+   line. One `- <path> (<lines> lines)` line
+   per document read whole, its path relative to the project root. When a
+   document was not read whole, `Not read whole:` stands alone and each such
+   document follows on its own line, `- <path>: <why>`, and the report says so.
+   The receipt is what this session actually read: a document not read to its
+   last line goes under `Not read whole`, and a document read to its last line
+   over more than one read, each read starting from where the previous read stopped, counts as read whole. Read the files the package
+   changes and the ones the spec says should change.
 3. **Tests** (`3/7 tests`). Run the tests. Prefer commands listed in the spec;
    otherwise detect the project's runner from the stack (`.vibeflow/index.md`,
    then test scripts in package.json, pyproject.toml, Cargo.toml, go.mod, and
@@ -273,9 +290,19 @@ restore.
 
    **A. DoD compliance** — each DoD check is PASS or FAIL, with evidence.
 
-   **B. Pattern compliance** — for each applicable pattern: is it followed
-   (evidence), are conventions respected (naming, file organization, error
-   handling), and are deviations justified or mistakes? A deviation from an
+   **B. Pattern compliance** — go through `.vibeflow/conventions.md` and each
+   document the spec lists, one by one, and check each of its rules that the
+   files under review touch, which are the changed files: the package's
+   files when step 1 wrote one, the files of the diff step 1 computed by hand
+   when the kit or Node.js 18+ is missing, and only for work already
+   committed, with no diff at all, the files the spec names. They are the
+   changed files of the report line below. For each rule (naming, file organization, error
+   handling and the rest): is it followed (evidence), and is a deviation
+   justified or a mistake?
+   The Pattern Compliance section has one line per document, in the receipt's
+   order: `[x]` with the evidence when no rule of it was violated, `[ ]` with
+   the deviation, and `[x] <path>: no rule touches the changed files` for a
+   document whose rules the files under review do not touch. A deviation from an
    imported document the spec lists
    (`patterns/external-<repo-name>/<entry-name>.md`) is a finding that names
    the document and the `source_file` from its frontmatter.
@@ -396,6 +423,9 @@ Round: audit | reaudit <n>
 Stage: <k>/<total> <name> | final
 Review package: <path> | none (<reason>)
 Base: <sha>
+Read in full: <n> of <m>
+- <path> (<lines> lines)
+Not read whole: none
 
 **Verdict: PASS | PARTIAL | FAIL**
 
@@ -404,8 +434,9 @@ Base: <sha>
 - [ ] Check 2 — what's missing and why it fails
 
 ### Pattern Compliance
-- [x] <pattern name> — follows correctly. Evidence: <file:line>
-- [ ] <pattern name> — DEVIATION: <what's wrong, what it should be>
+- [x] <path> — follows correctly. Evidence: <file:line>
+- [x] <path>: no rule touches the changed files
+- [ ] <path> — DEVIATION: <what's wrong, what it should be>
 - [ ] patterns/external-<repo-name>/<entry-name>.md — DEVIATION: <what's wrong, what it should be> — imported from <repo-name> (<source_file>)
 
 ### Convention Violations (if any)
@@ -506,8 +537,11 @@ standalone, one more than the re-audit reports already there).
 
 Save the report as `<feature>-<part>-reaudit-<n>.md` in `.vibeflow/audits/`
 (a standalone audit: `<feature-slug>-reaudit-<n>.md`), with `Round: reaudit <n>`,
-the same header, the stage rule with four stages (`1/4 package`, `2/4 tests`,
-`3/4 findings`, `4/4 new defects`) and the same verdict rules.
+the same header, its read receipt listing what this re-audit itself read (a
+document not read to its last line goes under `Not read whole`, and a document
+read to its last line over more than one read, each read starting from where the previous read stopped, counts as read whole), the stage
+rule with four stages (`1/4 package`, `2/4 tests`, `3/4 findings`,
+`4/4 new defects`) and the same verdict rules.
 
 ## Consolidation mode — `--consolidate-hotfixes`
 

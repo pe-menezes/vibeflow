@@ -104,6 +104,35 @@ Otherwise:
 
 Load only what this spec needs.
 
+The documents of items 1 and 2 are `.vibeflow/conventions.md` and each pattern
+doc the spec lists, counted by its `Documents to read:` line, or, when the
+spec lists none, each doc item 2 resolves. In a spec without that line, the
+list is found as before, and only the list: its documents are read whole all
+the same. Read each of these documents whole, one file per
+read: open it with your file-reading tool, without an offset or a limit, and
+never several files in one shell command. When a read comes back cut (a
+preview, a notice that the output was saved to a file, a line or size limit),
+keep reading from where it stopped to the last line. A list of headings or a
+keyword search is not a read.
+
+The final reply ends with the read receipt, its labels in English in any
+language, after the Phase 8 message (in loop mode, at the end of every reply
+that stops the loop, by the receipt rule of the orchestrator's "Orchestrator
+discipline"):
+
+```
+Read in full: <n> of <m>
+- <path> (<lines> lines)
+Not read whole: none
+```
+
+One `- <path> (<lines> lines)` line per document read whole, its path relative
+to the project root. When a document was not read whole, `Not read whole:`
+stands alone and each such document follows on its own line, `- <path>: <why>`,
+and the reply says so. The receipt is what this session actually read: a
+document not read to its last line goes under `Not read whole`, and a document
+read to its last line over more than one read, each read starting from where the previous read stopped, counts as read whole.
+
 ## Phase 3: Plan the implementation
 
 1. Target files: list what you'll create and modify, read the existing ones,
@@ -231,3 +260,5 @@ PASS/FAIL. Gaps: [list]. The audit will likely return PARTIAL or FAIL —
 consider fixing the gaps above, then use the vibeflow-audit prompt."
 
 Audit is always the next step.
+
+The read receipt from Phase 2 follows the message and ends the reply.
