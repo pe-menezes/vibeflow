@@ -228,6 +228,20 @@ ou um a escrever, nomeado. Sem runner, os checks continuam como antes.
 
 **Padrões importados:** quando o `index.md` tem a seção `## Imported Sources` (escrita pelo `teach --from`), o gen-spec abre o registry de cada fonte e, depois de planejar os arquivos que a feature cria ou muda, marca como aplicável a entrada de tipo `pattern` ou `convention` quando um glob dos `paths` dela, ou dos `globs` de uma regra do Cursor, casa com um arquivo planejado (exista ele ou não), quando ela não tem `paths` nem `globs` não vazio e as tags ou a descrição casam com o assunto da feature, ou quando ela é regra sempre ligada na origem (regra em `.claude/rules/` sem `paths`, ou com `alwaysApply: true`). Entrada `workflow` nunca é escolhida. As aplicáveis são lidas e entram em Applicable Patterns fora do corte de 3 a 5 dos padrões locais, depois da linha `Imported entries that apply: <N> (<g> by glob, <s> by subject, <a> always on)`, cada uma com o arquivo da fonte, o commit e o critério que a escolheu. Quando um padrão local cobre o mesmo assunto, os dois entram: a regra importada é a norma, o local é o exemplo de como o código faz hoje, e a divergência entre eles vai escrita em Technical Decisions. Sem a seção, nada muda.
 
+**Leitura inteira:** desde a 1.19, o gen-spec lê inteiros o `conventions.md`, cada pattern doc que carrega e cada entrada importada que marca como aplicável, um arquivo por leitura: abre cada um com a ferramenta de leitura de arquivo, sem offset nem limite, e nunca vários arquivos num comando de shell só. Quando a leitura volta cortada (uma prévia, um aviso de que a saída foi salva num arquivo, um limite de linhas ou de tamanho), continua de onde parou até a última linha. Lista de títulos ou busca por palavra não conta como leitura. A mesma regra vale para o `implement`, o `prompt-pack`, o `audit`, o `quick` e os papéis do loop, porque uma regra que só existia no fim de um documento lido pela metade não chegava ao código nem ao audit.
+
+**`Documents to read:`:** a seção Applicable Patterns termina com a linha `Documents to read: <m> (<linhas> lines): .vibeflow/conventions.md and the pattern docs listed above`, que conta o que os consumidores da spec vão ler; `<linhas>` é a soma das linhas dos documentos lidos, como a ferramenta de leitura as conta. Acima de 2.500 linhas, a mesma linha termina com `; over 2,500 lines, consider splitting this spec` e a resposta avisa; nada sai da lista. O rótulo `Documents to read:` fica em inglês em qualquer idioma, como `Scenarios:` e `Risk code:`, porque o `implement`, o `prompt-pack` e o `audit` contam os documentos por ele. Spec escrita antes da 1.19, sem essa linha, continua valendo: a lista se acha como antes, e os documentos dela são lidos inteiros do mesmo jeito.
+
+**Recibo de leitura:** a resposta termina com o recibo, e só a sugestão do próximo passo vem depois dele. Os rótulos ficam em inglês em qualquer idioma:
+
+```
+Read in full: <n> of <m>
+- <caminho> (<linhas> lines)
+Not read whole: none
+```
+
+Uma linha `- <caminho> (<linhas> lines)` por documento lido inteiro, com o caminho relativo à raiz do projeto. Quando algum documento não foi lido inteiro, `Not read whole:` fica sozinho na linha, cada documento vem embaixo como `- <caminho>: <motivo>`, e a resposta diz isso. O recibo é o que a sessão de fato leu: documento lido por pedaços vai para `Not read whole`. O `implement`, o `prompt-pack` e o `quick` usam o mesmo formato.
+
 **PRD Validation Gate:** Quando o input é um PRD (arquivo `.md` ou texto >3 linhas), o gen-spec roda 5 sanity checks antes de gerar a spec:
 1. Problema concreto?
 2. Audiência definida?
@@ -257,6 +271,8 @@ Gera um prompt pack auto-contido a partir de uma spec. O prompt pack é o que o 
 
 **Salva em:** `.vibeflow/prompt-packs/<slug>.md`
 
+**Leitura inteira e recibo:** os documentos de onde o pack tira os padrões são o `.vibeflow/conventions.md` e cada pattern doc que a spec lista, contados pela linha `Documents to read:` da spec, e cada um é lido inteiro, um arquivo por leitura, pela regra descrita em [`vibeflow-gen-spec`](#vibeflow-gen-spec). Numa spec sem essa linha, a lista se acha como antes. A resposta termina com o recibo de leitura, no mesmo formato, e só a sugestão do próximo passo vem depois dele.
+
 O prompt pack é **agent-agnostic** — funciona no Codex, Copilot, Cursor, Claude Code, OpenCode, ou qualquer outro.
 
 ---
@@ -276,7 +292,7 @@ Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec
 
 0. **Encontra e valida** a spec (resolve caminho ou nome, valida seções obrigatórias)
 1. **Extrai guardrails** — DoD, escopo, anti-escopo, budget, decisões técnicas
-2. **Carrega contexto** — `conventions.md`, pattern docs aplicáveis, `index.md`
+2. **Carrega contexto** — `conventions.md`, pattern docs aplicáveis, `index.md`; o `conventions.md` e cada pattern doc que a spec lista são lidos inteiros
 3. **Planeja** — identifica arquivos, verifica budget e anti-escopo, mapeia DoD → código
 4. **Implementa** — segue padrões, minimum change, budget hard limit, sem decisões arquiteturais
 5. **Roda testes** — detecta test runner, fixa falhas próprias (máx 2 tentativas)
@@ -287,6 +303,8 @@ Implementa uma feature a partir da spec, com guardrails automáticos. Lê a spec
 **Papel:** Coding Agent. Segue a spec, NÃO faz decisões arquiteturais. Se a spec for ambígua, para e pergunta ao invés de assumir.
 
 **Input:** caminho da spec (`vibeflow/specs/minha-feature.md`) ou nome da feature.
+
+**Leitura inteira e recibo:** na fase 2, o `.vibeflow/conventions.md` e cada pattern doc que a spec lista, contados pela linha `Documents to read:` (ou, quando a spec não lista nenhum, os que a fase 2 resolve), são lidos inteiros, um arquivo por leitura, pela regra descrita em [`vibeflow-gen-spec`](#vibeflow-gen-spec). Numa spec sem essa linha, só a forma de achar a lista é a de antes: os documentos dela são lidos inteiros do mesmo jeito. A resposta final termina com o recibo de leitura, depois da mensagem da fase 8; no modo loop, no fim do relatório final da orquestradora.
 
 **Modo loop (`--loop`):** com `--loop`, ou `loop: true` no front matter de `.vibeflow/loop/config.md`, as fases 0 a 3 rodam como acima e, no lugar das fases 4 a 8, a sessão vira a orquestradora do loop de execução: o executor implementa numa sessão nova e a auditoria independente roda em outra. `--no-loop` desliga o loop numa rodada mesmo com o config ligado. Sem o kit ou sem Node.js 18 ou mais novo, o comando para antes da fase 0, diz o que instalar e lembra que `implement` sem `--loop` continua rodando. Veja [O loop de execução](#o-loop-de-execução).
 
@@ -335,6 +353,8 @@ Fast-track para tarefas pequenas. Pula discover, gera spec efêmera (em memória
 - Ideia vaga → use `discover` primeiro
 - Tarefa grande ou arquiteturalmente significativa → use `gen-spec`
 
+**Leitura inteira e recibo:** com `.vibeflow/`, o `conventions.md` e cada pattern doc que a spec efêmera lista são lidos inteiros, um arquivo por leitura, pela regra descrita em [`vibeflow-gen-spec`](#vibeflow-gen-spec), e o relatório final traz o recibo de leitura, no mesmo formato, antes da sugestão de rodar o `audit`. Sem `.vibeflow/`, não há documento a ler nem recibo.
+
 ---
 
 ### `vibeflow-audit`
@@ -351,6 +371,8 @@ Audita a implementação contra o DoD da spec e os padrões do projeto. Roda os 
 - **FAIL** — DoD não atendido, testes falhando, ou finding CRITICAL/HIGH do gate
 
 **Padrões importados:** na conformidade com padrões, o desvio de um documento importado que a spec lista (`patterns/external-<repo>/<entrada>.md`) vira finding que nomeia o documento e o `source_file` dele, o arquivo de onde a regra veio no repositório de origem.
+
+**Documento por documento:** desde a 1.19, o audit lê inteiros o `.vibeflow/conventions.md` e cada pattern doc que a spec lista, contados pela linha `Documents to read:` da spec, um arquivo por leitura, pela regra descrita em [`vibeflow-gen-spec`](#vibeflow-gen-spec); numa spec sem essa linha, a lista se acha como antes. O relatório traz o recibo de leitura logo depois da linha `Base:`, no mesmo formato (`Read in full: <n> of <m>`, uma linha `- <caminho> (<linhas> lines)` por documento lido inteiro, e `Not read whole: none` ou, embaixo, cada documento que não foi lido inteiro com o motivo). Na conformidade com padrões, o audit percorre esses documentos um a um e confere cada regra deles que os arquivos mudados tocam. A seção Pattern Compliance tem uma linha por documento, na ordem do recibo e nomeada pelo caminho: `[x]` com a evidência quando nenhuma regra dele foi violada, `[ ]` com o desvio, e `[x] <caminho>: no rule touches the changed files` para o documento cujas regras os arquivos mudados não tocam. Até a 1.18, a linha nomeava o padrão e só os padrões aplicáveis entravam; quem lê essa seção por script passa a achar o caminho do documento no lugar do nome. O re-audit grava o próprio recibo, com o que ele mesmo leu.
 
 **Critical Gate:** scan determinístico do `git diff` em busca de operações destrutivas/perigosas que o DoD não cobre — auth removida, `DROP TABLE`, secret hardcoded, `0.0.0.0/0`, mass delete, etc. ~40 regras em 6 domínios (DB, Security, IaC, K8s, Config, Data). Severidade: CRITICAL/HIGH bloqueiam (FAIL), WARNING vira PARTIAL, INFO é nota. Suprima um finding intencional com `vibeflow:allow <RULE_ID>: <justificativa>` (CRITICAL/HIGH exigem justificativa). Design: `proposals/critical-gate.md`.
 
@@ -382,7 +404,7 @@ Pacote vazio onde se espera mudança (parte do loop, `--package`, `--base` ou re
 - Node.js ausente ou abaixo de 18: `Review package: none (Node.js 18+ not found)`.
 Nesses dois últimos, o diff é calculado como antes (`git diff HEAD` ou `git diff <base>...HEAD`).
 
-**Cabeçalho do relatório:** `Independence: fresh session | same session`, `Round: audit | reaudit <n>`, `Stage: <k>/<total> <nome> | final`, `Review package: <caminho> | none (<motivo>)` e `Base: <sha>`. O relatório é regravado a cada etapa com `Verdict: pending` até a última escrita, que põe `Stage: final` e o veredicto, então um relatório parcial nunca se passa por pronto. Um audit interrompido deixa o relatório com `Verdict: pending` no lugar do relatório final anterior daquela feature; o `stats` conta esses relatórios à parte, como audits em andamento ou interrompidos, e os deixa fora de todas as outras contagens. Rodado na sessão que fez o trabalho, o audit grava `Independence: same session` em vez de recusar. Esses rótulos ficam em inglês em qualquer idioma, porque scripts os leem, e o mesmo vale para o rótulo `Verdict` com PASS, PARTIAL e FAIL e para todos os cabeçalhos `###` do relatório, inclusive `### DoD Checklist`, `### Critical Gate` e `### Gaps`; o resto do relatório sai no seu idioma.
+**Cabeçalho do relatório:** `Independence: fresh session | same session`, `Round: audit | reaudit <n>`, `Stage: <k>/<total> <nome> | final`, `Review package: <caminho> | none (<motivo>)` e `Base: <sha>`, seguido do recibo de leitura. O relatório é regravado a cada etapa com `Verdict: pending` até a última escrita, que põe `Stage: final` e o veredicto, então um relatório parcial nunca se passa por pronto. Um audit interrompido deixa o relatório com `Verdict: pending` no lugar do relatório final anterior daquela feature; o `stats` conta esses relatórios à parte, como audits em andamento ou interrompidos, e os deixa fora de todas as outras contagens. Rodado na sessão que fez o trabalho, o audit grava `Independence: same session` em vez de recusar. Esses rótulos ficam em inglês em qualquer idioma, porque scripts os leem, e o mesmo vale para os rótulos do recibo (`Read in full`, `Not read whole`, `none`), para o rótulo `Verdict` com PASS, PARTIAL e FAIL e para todos os cabeçalhos `###` do relatório, inclusive `### DoD Checklist`, `### Critical Gate` e `### Gaps`; o resto do relatório sai no seu idioma.
 
 **Severidade e causa:** todo finding é uma linha com severidade (`defect`, comportamento errado; `risk-gap`, código certo sem prova em código de risco; `low`, o resto), causa (`spec`, `implementation`, `proof`, `fix`), confiança, evidência e sonda. `defect` ou `risk-gap` aberto segura o veredicto abaixo de PASS; `low` vai para `### Follow-ups` e não bloqueia; causa `spec` vai para você ou para uma emenda registrada da spec antes de qualquer conserto. Uma lacuna de prova que a própria sonda do auditor já fecha sai como `closed-by-probe` e não segura o veredicto sozinha.
 
@@ -562,6 +584,8 @@ Desligado por padrão. Sem `--loop`, o `implement` roda o pipeline de sempre (fa
 - **Orquestradora:** a sessão onde você chamou o `implement`. Corta o trabalho em partes, escreve o briefing de cada rodada, despacha cada rodada para uma sessão nova, confere de fora e mantém o ledger. Não implementa.
 - **Executor:** implementa uma parte (ou uma rodada de conserto) numa sessão nova, vermelho antes do verde, com arquivo de progresso a cada marco; não commita nem chama outro agente. Responde em cinco linhas: estado (DONE, DONE WITH CAVEATS, NEEDS CONTEXT ou BLOCKED), arquivos, placar dos testes, ressalvas, caminho do progresso.
 - **Auditor e reauditor:** o audit e o re-audit, cada um numa sessão nova, escrevendo só o relatório e o arquivo de sondas; nunca consertam.
+
+**O que cada sessão lê:** desde a 1.19, o executor e o auditor leem, depois do briefing, o `.vibeflow/index.md`, o `.vibeflow/conventions.md` e cada pattern doc que a spec lista, cada documento inteiro e um arquivo por leitura, pela regra descrita em [`vibeflow-gen-spec`](#vibeflow-gen-spec): abre com a ferramenta de leitura, sem offset nem limite, nunca vários arquivos num comando de shell; leitura que volta cortada continua até a última linha; lista de títulos ou busca por palavra não é leitura. Antes, eles liam o `index.md` e os padrões que ele lista. A regra está nos papéis (`roles/executor.md` e `roles/auditor.md`, os mesmos nos agentes do Claude Code e do OpenCode) e nos modelos de briefing do executor, do conserto e do auditor; o do conserto também passou a apontar a spec. O relatório do auditor traz o recibo de leitura e uma linha por documento em Pattern Compliance, como no [`vibeflow-audit`](#vibeflow-audit), e o relatório final da orquestradora termina com o recibo de leitura da fase 2 do `implement`.
 
 **Sessão nova em cada host:** no Claude Code, os agentes `vibeflow:executor` e `vibeflow:auditor` do plugin; no Codex, o subagente nativo ou uma task nova com o caminho do briefing; no Hermes, uma task do `delegate_task`, com o `goal` apontando o briefing e o `context` nomeando o arquivo do papel no kit — o fim da rodada é o resultado da task chegando como um turno novo, então a orquestradora encerra o turno depois do despacho em vez de ficar observando o arquivo da rodada, e um resultado sem o marcador final no arquivo reinicia a rodada a partir dele; numa sessão sem quem receba o resultado depois, como uma execução de um disparo pela CLI ou um cron, a própria chamada do `delegate_task` devolve o resultado, e a orquestradora o lê ali e segue, porque encerrar o turno encerraria a sessão com o loop parado na primeira rodada; no OpenCode, uma chamada da ferramenta `subagent` em primeiro plano, ao agente `executor` nas rodadas de executor e de conserto e ao `auditor` nas de auditoria (ao `general` do host quando a edição não está instalada, nunca ao `explore`, que nega edição), com a `description` levando o título da rodada: o fim da rodada é a chamada retornando a resposta final do subagente, e uma resposta sem o marcador final no arquivo reinicia a rodada a partir dele; no Cursor e no Copilot, um chat novo que você abre com a linha que a orquestradora escreve ("Read `<briefing>` and follow it."). Host que não abre sessão nova cai nesse chat aberto por você, e diz isso. Os papéis moram uma vez só, em `roles/executor.md` e `roles/auditor.md` do kit, e os agentes do Claude Code e o `executor` e o `auditor` do OpenCode têm o mesmo texto depois do front matter.
 
