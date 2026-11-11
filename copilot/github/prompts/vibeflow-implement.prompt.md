@@ -116,8 +116,9 @@ keep reading from where it stopped to the last line. A list of headings or a
 keyword search is not a read.
 
 The final reply ends with the read receipt, its labels in English in any
-language, after the Phase 8 message (in loop mode, at the end of the
-orchestrator's final report):
+language, after the Phase 8 message (in loop mode, at the end of every reply
+that stops the loop, by the receipt rule of the orchestrator's "Orchestrator
+discipline"):
 
 ```
 Read in full: <n> of <m>
@@ -129,7 +130,8 @@ One `- <path> (<lines> lines)` line per document read whole, its path relative
 to the project root. When a document was not read whole, `Not read whole:`
 stands alone and each such document follows on its own line, `- <path>: <why>`,
 and the reply says so. The receipt is what this session actually read: a
-document read in pieces goes under `Not read whole`.
+document not read to its last line goes under `Not read whole`, and a document
+read to its last line over more than one read counts as read whole.
 
 ## Phase 3: Plan the implementation
 

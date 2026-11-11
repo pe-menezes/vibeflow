@@ -88,7 +88,8 @@ One `- <path> (<lines> lines)` line per document read whole, its path relative
 to the project root. When a document was not read whole, `Not read whole:`
 stands alone and each such document follows on its own line, `- <path>: <why>`,
 and the reply says so. The receipt is what this session actually read: a
-document read in pieces goes under `Not read whole`.
+document not read to its last line goes under `Not read whole`, and a document
+read to its last line over more than one read counts as read whole.
 
 ## Phase 3: Generate the prompt pack
 

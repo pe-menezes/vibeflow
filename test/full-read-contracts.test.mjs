@@ -18,7 +18,11 @@ const KIT = 'plugins/vibeflow/skills/implement/loop';
 const RULE = 'Read each of these documents whole, one file per read: open it with your file-reading tool, without an offset or a limit, and never several files in one shell command. When a read comes back cut (a preview, a notice that the output was saved to a file, a line or size limit), keep reading from where it stopped to the last line. A list of headings or a keyword search is not a read.';
 
 const RECEIPT = ['Read in full: <n> of <m>', '- <path> (<lines> lines)', 'Not read whole: none'];
-const RECEIPT_TRUTH = 'The receipt is what this session actually read: a document read in pieces goes under `Not read whole`.';
+// Fix 3, C1: the criterion is reaching the last line, so a document read over
+// several reads to its last line is read whole, as the rule asks.
+const NOT_TO_LAST = 'a document not read to its last line goes under `Not read whole`';
+const OVER_READS = 'a document read to its last line over more than one read counts as read whole';
+const RECEIPT_TRUTH = `The receipt is what this session actually read: ${NOT_TO_LAST}, and ${OVER_READS}.`;
 const RECEIPT_GAP = '`Not read whole:` stands alone and each such document follows on its own line, `- <path>: <why>`';
 const RECEIPT_LINE = 'One `- <path> (<lines> lines)` line per document read whole, its path relative to the project root.';
 
@@ -160,6 +164,57 @@ for (const [role, places] of Object.entries(ROLE_PLACES)) {
   });
 }
 
+// Fix 3, C2: each role declares what it read. The executor writes the receipt
+// into the progress file before the round's final marker and names, in line 4
+// of its five lines, any document not read whole; the auditor writes it into
+// the report's header right after `Base:`, as the audit workflow does. The
+// five lines the orchestrator reads keep their count and order. Each bullet is
+// the same in the role's three places, and so is the whole body.
+function body(path) {
+  const content = read(path);
+  const match = /^---\n[\s\S]*?\n---\n/.exec(content);
+  return match ? content.slice(match[0].length) : content;
+}
+
+function bulletOf(path, start) {
+  const line = read(path).split('\n').find((l) => l.startsWith(start));
+  assert.ok(line, `${path}: the bullet "${start}"`);
+  return line;
+}
+
+const RECEIPT_FORM = 'the block `Read in full: <n> of <m>`, one `- <path> (<lines> lines)` line per document read whole, and `Not read whole: none`, or `Not read whole:` alone followed by one `- <path>: <why>` line per document not read whole, its labels in English in any language';
+
+test('executor role: the receipt goes into the progress file before the final marker, and line 4 names a document not read whole', () => {
+  const places = ROLE_PLACES.executor;
+  for (const path of places) {
+    const bullet = bulletOf(path, '* Before the round\'s final marker, write the read receipt');
+    assert.ok(bullet.includes('into the progress file'), `${path}: the receipt in the progress file`);
+    assert.ok(bullet.includes('in a fix round, its "Fix <round>" section'), `${path}: the fix round's section`);
+    assert.ok(bullet.includes(RECEIPT_FORM), `${path}: the receipt's form`);
+    assert.ok(bullet.includes(RECEIPT_TRUTH), `${path}: the last-line criterion`);
+    const text = read(path);
+    assert.ok(text.indexOf(bullet) > text.indexOf('* Write the progress file at every milestone'), `${path}: after the progress-file discipline`);
+    const answer = rest(text, '## Final answer', path).split('\n').filter((l) => /^\d\. /.test(l));
+    assert.equal(answer.length, 5, `${path}: five lines`);
+    assert.equal(answer[3], '4. caveats, any document not read whole, and any decision the user must take', `${path}: line 4 names a document not read whole`);
+    assert.equal(answer[4], "5. the progress file's path", `${path}: line 5 unchanged`);
+    assert.equal(body(path), body(places[0]), `${path}: the same body as ${places[0]}`);
+  }
+});
+
+test('auditor role: the receipt goes into the report header right after `Base:`', () => {
+  const places = ROLE_PLACES.auditor;
+  for (const path of places) {
+    const bullet = bulletOf(path, '* The report\'s header carries the read receipt right after its `Base:` line');
+    assert.ok(bullet.includes('as the audit workflow\'s report template does'), `${path}: as the audit does`);
+    assert.ok(bullet.includes(RECEIPT_FORM), `${path}: the receipt's form`);
+    assert.ok(bullet.includes(RECEIPT_TRUTH), `${path}: the last-line criterion`);
+    const answer = rest(read(path), '## Final answer', path).split('\n').filter((l) => /^\d\. /.test(l));
+    assert.equal(answer.length, 5, `${path}: five lines`);
+    assert.equal(body(path), body(places[0]), `${path}: the same body as ${places[0]}`);
+  }
+});
+
 test('briefing templates: "Read first" of the executor and the auditor carry the rule', () => {
   const raw = read(`${KIT}/briefings.md`);
   const executor = between(raw, '## Executor', '## Fix', 'briefings executor');
@@ -242,7 +297,10 @@ test('quick: the receipt comes before the suggestion, in Phase 2 and in the Afte
 test('implement: the receipt follows the Phase 8 message, and the loop\'s final report ends with it', () => {
   forEachEdition('implement', (raw, label) => {
     const phase2 = flat(between(raw, '## Phase 2: Load context from .vibeflow/', '## Phase 3', label));
-    assert.match(phase2, /The final reply ends with the read receipt, its labels in English in any language, after the Phase 8 message \(in loop mode, at the end of the orchestrator's final report\):/, `${label}: where the receipt goes`);
+    // Fix 3, R3: in loop mode the placement is the orchestrator's rule, every
+    // reply that stops the loop, not only its final report.
+    assert.match(phase2, /The final reply ends with the read receipt, its labels in English in any language, after the Phase 8 message \(in loop mode, at the end of every reply that stops the loop, by the receipt rule of the orchestrator's "Orchestrator discipline"\):/, `${label}: where the receipt goes`);
+    assert.doesNotMatch(phase2, /orchestrator's final report/, `${label}: not only the final report`);
     const phase8 = flat(rest(raw, '## Phase 8: Finish', label));
     assert.match(phase8, /The read receipt from Phase 2 follows the message and ends the reply\./, `${label}: Phase 8 agrees`);
   });
@@ -305,8 +363,27 @@ test('Language: `Documents to read:` in gen-spec and the receipt labels in audit
 test('audit: the re-audit header carries the receipt of what the re-audit read', () => {
   forEachEdition('audit', (raw, label) => {
     const reaudit = flat(between(raw, '## Re-audit mode', '## Consolidation mode', label));
-    assert.match(reaudit, /the same header, its read receipt listing what this re-audit itself read \(a document it read in pieces goes under `Not read whole`\)/, `${label}: the re-audit's receipt`);
+    assert.ok(reaudit.includes(`the same header, its read receipt listing what this re-audit itself read (${NOT_TO_LAST}, and ${OVER_READS})`), `${label}: the re-audit's receipt`);
   });
+});
+
+// Fix 3, C1: no consumer, role or template keeps "in pieces" as the criterion
+// of the receipt, which counted a document read over several reads to its last
+// line as not read whole.
+test('receipt: the criterion is the last line, never "read in pieces"', () => {
+  const paths = [];
+  for (const workflow of ['gen-spec', 'implement', 'prompt-pack', 'audit', 'quick']) paths.push(...Object.values(editions(workflow)));
+  paths.push(...ROLE_PLACES.executor, ...ROLE_PLACES.auditor, `${KIT}/briefings.md`, `${KIT}/orchestrator.md`);
+  for (const path of paths) {
+    assert.doesNotMatch(flat(read(path)), /read in pieces/, `${path}: no "read in pieces" criterion`);
+  }
+  for (const workflow of ['gen-spec', 'implement', 'prompt-pack', 'audit', 'quick']) {
+    forEachEdition(workflow, (raw, label) => {
+      const text = flat(raw);
+      assert.ok(text.includes(NOT_TO_LAST), `${label}: the last-line criterion`);
+      assert.ok(text.includes(OVER_READS), `${label}: several reads to the last line count as whole`);
+    });
+  }
 });
 
 // ------------------------------------------------------------------ the list in the spec

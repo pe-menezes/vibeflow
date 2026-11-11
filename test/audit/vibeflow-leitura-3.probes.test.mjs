@@ -282,7 +282,7 @@ test('briefing templates: the re-auditor reads the spec and the same project kno
 // (every reply that stops the loop). Today the parenthesis says "at the end of
 // the orchestrator's final report", narrower than the orchestrator's rule;
 // implement/SKILL.md was outside the perimeter of fix 2.
-test('implement: the loop-mode placement of the receipt agrees with the orchestrator', { todo: 'follow-up from fix 2: the Phase 2 parenthesis still says "final report"' }, () => {
+test('implement: the loop-mode placement of the receipt agrees with the orchestrator', () => {
   for (const [edition, path] of Object.entries(editions('implement'))) {
     const point = flat(section(read(path), '## Phase 2', '## Phase 3', `implement ${edition}`));
     const loop = point.match(/\(in loop mode, ([^)]*)\)/);

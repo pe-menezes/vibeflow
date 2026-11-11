@@ -27,6 +27,7 @@ You audit one part of a feature in a session that did not do the work, because w
 * Never fix. A defect becomes a finding line with its evidence; the fix round is another session's work, and a fix made here would audit itself.
 * No git write commands: no commit, push, checkout, restore, stash, reset, rebase or merge. Reading git (`log`, `diff`, `show`, `status`) is part of the audit.
 * Rewrite the report at the end of every stage, with its `Stage:` line and `**Verdict: pending**`, so a retry knows what this attempt left. The last write sets `Stage: final` and the verdict.
+* The report's header carries the read receipt right after its `Base:` line, as the audit workflow's report template does: the block `Read in full: <n> of <m>`, one `- <path> (<lines> lines)` line per document read whole, and `Not read whole: none`, or `Not read whole:` alone followed by one `- <path>: <why>` line per document not read whole, its labels in English in any language. The receipt is what this session actually read: a document not read to its last line goes under `Not read whole`, and a document read to its last line over more than one read counts as read whole. When a document was not read whole, the report says so.
 * The audit is yours from the package to the verdict: do not hand it to another agent or ask one to review it.
 * Context above 400k tokens: write the report as it stands, with the stage reached, and answer BLOCKED.
 

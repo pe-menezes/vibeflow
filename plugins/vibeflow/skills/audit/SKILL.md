@@ -167,9 +167,10 @@ restore.
    per document read whole, its path relative to the project root. When a
    document was not read whole, `Not read whole:` stands alone and each such
    document follows on its own line, `- <path>: <why>`, and the report says so.
-   The receipt is what this session actually read: a document read in pieces
-   goes under `Not read whole`. Read the files the package changes and the ones
-   the spec says should change.
+   The receipt is what this session actually read: a document not read to its
+   last line goes under `Not read whole`, and a document read to its last line
+   over more than one read counts as read whole. Read the files the package
+   changes and the ones the spec says should change.
 3. **Tests** (`3/7 tests`). Run the tests. Prefer commands listed in the spec;
    otherwise detect the project's runner from the stack (`.vibeflow/index.md`,
    then test scripts in package.json, pyproject.toml, Cargo.toml, go.mod, and
@@ -532,9 +533,10 @@ standalone, one more than the re-audit reports already there).
 Save the report as `<feature>-<part>-reaudit-<n>.md` in `.vibeflow/audits/`
 (a standalone audit: `<feature-slug>-reaudit-<n>.md`), with `Round: reaudit <n>`,
 the same header, its read receipt listing what this re-audit itself read (a
-document it read in pieces goes under `Not read whole`), the stage rule with four
-stages (`1/4 package`, `2/4 tests`,
-`3/4 findings`, `4/4 new defects`) and the same verdict rules.
+document not read to its last line goes under `Not read whole`, and a document
+read to its last line over more than one read counts as read whole), the stage
+rule with four stages (`1/4 package`, `2/4 tests`, `3/4 findings`,
+`4/4 new defects`) and the same verdict rules.
 
 ## Consolidation mode — `--consolidate-hotfixes`
 
