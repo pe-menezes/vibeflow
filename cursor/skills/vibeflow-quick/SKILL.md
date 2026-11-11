@@ -72,7 +72,8 @@ was saved to a file, a line or size limit), keep reading from where it stopped
 to the last line. A list of headings or a keyword search is not a read.
 
 With `.vibeflow/`, the reply ends with the read receipt, its labels in English
-in any language:
+in any language; in the "After saving" report only the suggestion comes after
+it:
 
 ```
 Read in full: <n> of <m>

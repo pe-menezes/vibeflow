@@ -57,7 +57,8 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 
 ## Read first
 * audit report: `.vibeflow/audits/<feature>-<part>-audit.md`; from fix 2 on, also the previous re-audit report, `.vibeflow/audits/<feature>-<part>-reaudit-<round - 1>.md`, where the open findings are
-* the part's progress file and `.vibeflow/index.md`
+* the part's progress file and the spec: `.vibeflow/specs/<spec file>`
+* project knowledge: `.vibeflow/index.md`, `.vibeflow/conventions.md` and each pattern doc the spec lists. Read each of these documents whole, one file per read: open it with your file-reading tool, without an offset or a limit, and never several files in one shell command. When a read comes back cut (a preview, a notice that the output was saved to a file, a line or size limit), keep reading from where it stopped to the last line. A list of headings or a keyword search is not a read.
 * rules: loop principles 1, 6 and 7
 * role: `roles/executor.md` in the loop kit at `<kit folder>` (the Claude Code agent `vibeflow:executor` already carries it)
 

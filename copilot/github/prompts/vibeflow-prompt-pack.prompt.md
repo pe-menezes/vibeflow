@@ -120,7 +120,8 @@ Flag any path you could not verify with `<!-- TODO: verify this path -->`.
 Save the prompt pack to `.vibeflow/prompt-packs/<feature-slug>.md` (create the
 directory if it doesn't exist).
 
-The reply ends with the read receipt, its labels in English in any language:
+The reply ends with the read receipt, its labels in English in any language;
+only the next-step suggestion below comes after it:
 
 ```
 Read in full: <n> of <m>

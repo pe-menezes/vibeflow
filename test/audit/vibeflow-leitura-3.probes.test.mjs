@@ -133,7 +133,7 @@ test('consumers: no sentence reads the listed documents in parts', () => {
 // its other header labels. Regression: a run in another language translating
 // `Read in full`; the audit's Language section lists the labels that stay in
 // English and the receipt's are not on it, and step 2 does not say it either.
-test('audit: the receipt labels are among the labels that stay in English', { todo: 'open gap L2: the audit Language list and step 2 do not name `Read in full` and `Not read whole`' }, () => {
+test('audit: the receipt labels are among the labels that stay in English', () => {
   for (const [edition, path] of Object.entries(editions('audit'))) {
     const raw = flat(read(path));
     const language = raw.slice(raw.indexOf('## Language'), raw.indexOf('## ', raw.indexOf('## Language') + 3));
@@ -147,7 +147,7 @@ test('audit: the receipt labels are among the labels that stay in English', { to
 // user's language except the literals its Language section exempts.
 // Regression: a spec written in Portuguese with "Documentos a ler:", which the
 // consumers read as a spec without the line.
-test('gen-spec: `Documents to read:` is among the literals that stay in English', { todo: 'open gap L2: the gen-spec Language list exempts `Risk code:` and `Scenarios:` but not `Documents to read:`' }, () => {
+test('gen-spec: `Documents to read:` is among the literals that stay in English', () => {
   for (const [edition, path] of Object.entries(editions('gen-spec'))) {
     const raw = flat(read(path));
     const language = raw.slice(raw.indexOf('## Language'), raw.indexOf('## ', raw.indexOf('## Language') + 3));
@@ -155,18 +155,34 @@ test('gen-spec: `Documents to read:` is among the literals that stay in English'
   }
 });
 
-// Finding D1. Contract: the number in `Documents to read: <m> (<kb> KB)` is a
+// Finding D1. Contract: the number in the `Documents to read:` line is a
 // measurement the session can take with the tools the skill grants, or the
-// skill says it is an estimate. Regression: the shared gen-spec asks for "the
-// sum of their sizes on disk" while its allowed-tools (Read, Grep, Glob,
-// WebSearch, WebFetch) report no size, so the number is guessed and written as
-// measured.
-test('gen-spec (shared): a size "on disk" is asked only with a tool that measures it, or as an estimate', { todo: 'open gap D1: <kb> is "the sum of their sizes on disk" with no tool in allowed-tools that reports a size' }, () => {
+// skill says it is an estimate. Regression: the shared gen-spec asks for a size
+// (KB, bytes, "on disk") while its allowed-tools (Read, Grep, Glob, WebSearch,
+// WebFetch) report no size, so the number is guessed and written as measured.
+// Rewritten by the fact in fix 1: the volume's unit is read from the line
+// itself; a size needs a shell in allowed-tools or the word "estimate", and a
+// line count is defined as what the file-reading tool reports, with Read
+// granted. A "size on disk" anywhere in the skill keeps the original check.
+test('gen-spec (shared): the volume in `Documents to read:` is a number the skill\'s tools report, or an estimate', () => {
   const raw = read(editions('gen-spec').shared);
   const front = raw.slice(0, raw.indexOf('\n---', 3));
   const tools = (front.match(/^allowed-tools:\s*(.*)$/m) || [])[1] ?? '';
+  const shell = /\bBash\b/.test(tools);
+  for (const s of sentences(raw).filter((x) => /sizes? on disk/.test(x))) {
+    assert.ok(shell || /estimat/i.test(s), `gen-spec shared: "${s}" with allowed-tools: ${tools}`);
+  }
   const text = flat(raw);
-  if (!/sizes? on disk/.test(text) || /\bBash\b/.test(tools)) return;
-  const sentence = sentences(raw).find((s) => /sizes? on disk/.test(s));
-  assert.match(sentence, /estimat/i, `gen-spec shared: "${sentence}" with allowed-tools: ${tools}`);
+  const line = text.match(/`Documents to read: <m> \(<(\w+)> (\w+)\)/);
+  assert.ok(line, 'gen-spec shared: the `Documents to read:` line with its volume');
+  const [, placeholder, unit] = line;
+  const definition = sentences(raw).find((s) => s.includes(`\`<${placeholder}>\` is`));
+  assert.ok(definition, `gen-spec shared: a sentence defines <${placeholder}>`);
+  if (/^(KB|MB|bytes?)$/i.test(unit)) {
+    assert.ok(shell || /estimat/i.test(definition), `gen-spec shared: "${definition}" with allowed-tools: ${tools}`);
+    return;
+  }
+  assert.equal(unit, 'lines', `gen-spec shared: the volume is a size or a line count, not "${unit}"`);
+  assert.match(tools, /\bRead\b/, `gen-spec shared: the file-reading tool is granted (allowed-tools: ${tools})`);
+  assert.match(definition, /line counts[^.]*as the file-reading tool reports them/, `gen-spec shared: "${definition}"`);
 });

@@ -22,8 +22,8 @@ const RECEIPT_TRUTH = 'The receipt is what this session actually read: a documen
 const RECEIPT_GAP = '`Not read whole:` stands alone and each such document follows on its own line, `- <path>: <why>`';
 const RECEIPT_LINE = 'One `- <path> (<lines> lines)` line per document read whole, its path relative to the project root.';
 
-const DOCS_LINE = '`Documents to read: <m> (<kb> KB): .vibeflow/conventions.md and the pattern docs listed above`';
-const DOCS_OVER = '`; over 100 KB, consider splitting this spec`';
+const DOCS_LINE = '`Documents to read: <m> (<lines> lines): .vibeflow/conventions.md and the pattern docs listed above`';
+const DOCS_OVER = '`; over 2,500 lines, consider splitting this spec`';
 
 function editions(workflow) {
   return {
@@ -57,6 +57,14 @@ function between(content, from, to, label) {
   return content.slice(start, end);
 }
 
+// The raw text from a literal to the end of the file (a last section, which
+// the Cursor and Copilot editions end without a closing rule).
+function rest(content, from, label) {
+  const start = content.indexOf(from);
+  assert.notEqual(start, -1, `${label}: anchor "${from}"`);
+  return content.slice(start);
+}
+
 // Every fenced block of the text, as arrays of trimmed lines.
 function fences(content) {
   return [...content.matchAll(/^[ \t]*```[^\n]*\n([\s\S]*?)^[ \t]*```/gm)]
@@ -69,13 +77,18 @@ function forEachEdition(workflow, fn) {
 
 // ------------------------------------------------------------------ the rule
 
-test('gen-spec: the reading rule in step 2 and after "Read every applicable entry" in step 3', () => {
+// The rule is stated once, in step 2, which counts step 3's applicable
+// imported entries among "these documents"; step 3 reads them by step 2's rule
+// without restating it (finding L6).
+test('gen-spec: the reading rule once in step 2, and step 3 reads its entries by it', () => {
   forEachEdition('gen-spec', (raw, label) => {
     const step2 = between(raw, '2. Load context from `.vibeflow/`', '3. Identify what exists today', label);
     assert.equal(count(step2, RULE), 1, `${label}: the rule, word for word, in step 2`);
     assert.match(flat(step2), /`conventions\.md` and each pattern doc you load/, `${label}: step 2 names what "these documents" are`);
+    assert.match(flat(step2), /each imported entry step 3 marks applicable/, `${label}: step 2 counts step 3's entries among them`);
     const step3 = between(raw, 'Read every applicable entry', '4. Collect what the input points at', label);
-    assert.equal(count(step3, RULE), 1, `${label}: the rule, word for word, after "Read every applicable entry"`);
+    assert.equal(count(step3, RULE), 0, `${label}: step 3 does not restate the rule`);
+    assert.match(flat(step3), /^Read every applicable entry whole, by the reading rule of step 2;/, `${label}: step 3 points at step 2's rule`);
   });
 });
 
@@ -85,6 +98,10 @@ test('implement: the reading rule in Phase 2', () => {
     assert.equal(count(phase2, RULE), 1, `${label}: the rule in Phase 2`);
     assert.match(flat(phase2), /`\.vibeflow\/conventions\.md` and each pattern doc the spec lists/, `${label}: what "these documents" are`);
     assert.match(flat(phase2), /`Documents to read:` line/, `${label}: the spec's list is the one read`);
+    // Finding L5: the docs item 2 resolves from the registry fall under the
+    // rule too, and an old spec changes only how the list is found.
+    assert.match(flat(phase2), /or, when the spec lists none, each doc item 2 resolves\./, `${label}: the resolved docs are among "these documents"`);
+    assert.match(flat(phase2), /a spec without that line, the list is found as before, and only the list: its documents are read whole all the same\./, `${label}: an old spec is still read whole`);
   });
 });
 
@@ -113,7 +130,7 @@ test('quick: the reading rule where it embeds patterns and conventions', () => {
 });
 
 test('the rule is stated once per point: no edition repeats it beyond its reading points', () => {
-  const points = { 'gen-spec': 2, implement: 1, 'prompt-pack': 1, audit: 1, quick: 1 };
+  const points = { 'gen-spec': 1, implement: 1, 'prompt-pack': 1, audit: 1, quick: 1 };
   for (const [workflow, n] of Object.entries(points)) {
     forEachEdition(workflow, (raw, label) => assert.equal(count(raw, RULE), n, `${label}: ${n} reading point(s)`));
   }
@@ -155,6 +172,18 @@ test('briefing templates: "Read first" of the executor and the auditor carry the
   }
 });
 
+// Finding L1: the fix round runs with the executor role, which reads "the
+// project knowledge it points at"; the fix template points at the spec and at
+// what the role reads, like the executor template.
+test('briefing templates: "Read first" of the fix points at the spec, conventions.md and each pattern doc the spec lists', () => {
+  const raw = read(`${KIT}/briefings.md`);
+  const fix = between(raw, '## Fix', '## Auditor', 'briefings fix');
+  const readFirst = between(fix, '## Read first', '\n## ', 'briefings fix');
+  assert.ok(readFirst.includes('`.vibeflow/specs/<spec file>`'), 'fix template: the spec in "Read first"');
+  assert.match(flat(readFirst), /project knowledge: `\.vibeflow\/index\.md`, `\.vibeflow\/conventions\.md` and each pattern doc the spec lists\./, 'fix template: what the executor role reads');
+  assert.equal(count(readFirst, RULE), 1, 'fix template: the rule in "Read first"');
+});
+
 // ------------------------------------------------------------------ the receipt
 
 function assertReceiptProse(raw, label) {
@@ -174,6 +203,44 @@ for (const workflow of ['gen-spec', 'implement', 'prompt-pack', 'quick']) {
   });
 }
 
+// Finding L4: "the reply ends with the read receipt" meets each skill's own
+// closing (the next-step suggestion, quick's report list, implement's Phase 8
+// message, the loop's final report). Each skill says where the receipt goes
+// against that closing, and the closing agrees.
+test('gen-spec and prompt-pack: the receipt comes right before the next-step suggestion', () => {
+  for (const workflow of ['gen-spec', 'prompt-pack']) {
+    forEachEdition(workflow, (raw, label) => {
+      const close = between(raw, 'reply ends with the read receipt', 'After saving, suggest', label);
+      assert.match(flat(close), /^reply ends with the read receipt, its labels in English in any language; only the next-step suggestion below comes after it:/, `${label}: where the receipt goes`);
+      assert.ok(fences(close).some((lines) => lines.join('\n') === RECEIPT.join('\n')), `${label}: the receipt block before the suggestion`);
+    });
+  }
+});
+
+test('quick: the receipt comes before the suggestion, in Phase 2 and in the After saving list', () => {
+  forEachEdition('quick', (raw, label) => {
+    const generate = flat(between(raw, '## Phase 2: Generate the ephemeral spec', '## Phase 3', label));
+    assert.match(generate, /the reply ends with the read receipt, its labels in English in any language; in the "After saving" report only the suggestion comes after it:/, `${label}: where the receipt goes`);
+    const report = rest(raw, '## After saving', label);
+    const receipt = report.indexOf('- The read receipt from Phase 2');
+    assert.notEqual(receipt, -1, `${label}: the receipt item`);
+    assert.ok(receipt < report.indexOf('- Suggest:'), `${label}: the receipt item before the suggestion`);
+  });
+});
+
+test('implement: the receipt follows the Phase 8 message, and the loop\'s final report ends with it', () => {
+  forEachEdition('implement', (raw, label) => {
+    const phase2 = flat(between(raw, '## Phase 2: Load context from .vibeflow/', '## Phase 3', label));
+    assert.match(phase2, /The final reply ends with the read receipt, its labels in English in any language, after the Phase 8 message \(in loop mode, at the end of the orchestrator's final report\):/, `${label}: where the receipt goes`);
+    const phase8 = flat(rest(raw, '## Phase 8: Finish', label));
+    assert.match(phase8, /The read receipt from Phase 2 follows the message and ends the reply\./, `${label}: Phase 8 agrees`);
+  });
+  const orchestrator = read(`${KIT}/orchestrator.md`);
+  const step7 = orchestrator.split('\n').find((line) => line.startsWith('7. Give the user the final report:'));
+  assert.ok(step7, 'orchestrator.md: step 7 of the ending');
+  assert.match(step7, /, and ends with the read receipt of `implement`'s Phase 2\. Then stop\.$/, 'orchestrator.md: the final report ends with the receipt');
+});
+
 test('audit: the report carries the read receipt right after its Base line', () => {
   forEachEdition('audit', (raw, label) => {
     const template = between(raw, '## Output format', '## Verdict rules', label);
@@ -185,6 +252,37 @@ test('audit: the report carries the read receipt right after its Base line', () 
   });
 });
 
+// Finding L2: the machine-read labels of this contract stay in English in any
+// output language. The Language section runs to the next heading at the start
+// of a line, so a heading quoted inside its list does not end it.
+test('Language: `Documents to read:` in gen-spec and the receipt labels in audit stay in English', () => {
+  const language = (raw, label) => {
+    const start = raw.indexOf('\n## Language\n');
+    assert.notEqual(start, -1, `${label}: the Language section`);
+    const end = raw.indexOf('\n## ', start + 1);
+    return flat(raw.slice(start, end === -1 ? raw.length : end));
+  };
+  forEachEdition('gen-spec', (raw, label) => {
+    assert.match(language(raw, label), /stay in English in any output language[^.]*`Documents to read:`/, `${label}: the label is exempt`);
+  });
+  forEachEdition('audit', (raw, label) => {
+    const text = language(raw, label);
+    const list = text.slice(text.indexOf("The report's machine-read labels stay literally in English in any output language"));
+    assert.match(list, /^The report's machine-read labels[\s\S]*the read receipt's labels \(`Read in full`, `Not read whole`, `none`\)/, `${label}: the receipt labels are exempt`);
+    const step2 = flat(between(raw, '2. **Spec** (`2/7 spec`)', '3. **Tests** (`3/7 tests`)', label));
+    assert.match(step2, /read receipt, its labels in English in any language, right after its `Base:` line/, `${label}: step 2 says it too`);
+  });
+});
+
+// Finding L7: a re-audit keeps "the same header", receipt included, and says
+// the receipt is what the re-audit itself read.
+test('audit: the re-audit header carries the receipt of what the re-audit read', () => {
+  forEachEdition('audit', (raw, label) => {
+    const reaudit = flat(between(raw, '## Re-audit mode', '## Consolidation mode', label));
+    assert.match(reaudit, /the same header, its read receipt listing what this re-audit itself read \(a document it read in pieces goes under `Not read whole`\)/, `${label}: the re-audit's receipt`);
+  });
+});
+
 // ------------------------------------------------------------------ the list in the spec
 
 test('gen-spec: Applicable Patterns ends with the documents to read and their volume', () => {
@@ -192,11 +290,16 @@ test('gen-spec: Applicable Patterns ends with the documents to read and their vo
     const patterns = between(raw, '- **Applicable Patterns**', '- **Risks**', label);
     const text = flat(patterns);
     assert.ok(text.includes(DOCS_LINE), `${label}: the Documents to read line, literal`);
-    assert.ok(text.includes(DOCS_OVER), `${label}: the 100 KB suffix, literal`);
+    assert.ok(text.includes(DOCS_OVER), `${label}: the 2,500-line suffix, literal`);
     assert.ok(text.indexOf(DOCS_LINE) > text.indexOf('Imported entries that apply:'), `${label}: after the imported lines`);
-    assert.match(text, /sum of their sizes on disk, rounded to a whole KB/, `${label}: how <kb> is computed`);
+    // Finding D1: the volume is counted in lines, which the file-reading tool
+    // reports and the receipt already uses, never a size the skill's tools
+    // cannot measure.
+    assert.match(text, /where `<lines>` is the sum of the line counts of the documents read, as the file-reading tool reports them\./, `${label}: how <lines> is computed`);
+    assert.doesNotMatch(text, /\bKB\b|on disk|bytes?\b/, `${label}: no size the skill cannot measure`);
+    assert.match(text, /Above 2,500 lines the same line ends with/, `${label}: the ceiling in lines`);
     assert.match(text, /nothing is cut from the list/, `${label}: the list is never trimmed`);
-    assert.match(text, /reply says so/, `${label}: the reply warns above 100 KB`);
+    assert.match(text, /consider splitting this spec`, and the reply says so/, `${label}: the reply warns above 2,500 lines`);
   });
 });
 

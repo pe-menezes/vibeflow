@@ -29,7 +29,8 @@ The report's machine-read labels stay literally in English in any output
 language, because `watch-round.mjs`, `stats` and the smoke harness match them:
 the header labels and their fixed values (`Independence`, `Round`, `Stage`,
 `final`, `Review package`, `Base`, `Verdict` with `pending`, PASS, PARTIAL and
-FAIL), the `###` headings of the report, and the severity, cause and
+FAIL), the read receipt's labels (`Read in full`, `Not read whole`, `none`),
+the `###` headings of the report, and the severity, cause and
 `closed-by-probe` tokens of a finding line.
 
 ## Independence and the loop kit
@@ -135,7 +136,8 @@ restore.
    preview, a notice that the output was saved to a file, a line or size
    limit), keep reading from where it stopped to the last line. A list of
    headings or a keyword search is not a read. Record them in the report's read
-   receipt, right after its `Base:` line. One `- <path> (<lines> lines)` line
+   receipt, its labels in English in any language, right after its `Base:`
+   line. One `- <path> (<lines> lines)` line
    per document read whole, its path relative to the project root. When a
    document was not read whole, `Not read whole:` stands alone and each such
    document follows on its own line, `- <path>: <why>`, and the report says so.
@@ -504,7 +506,9 @@ standalone, one more than the re-audit reports already there).
 
 Save the report as `<feature>-<part>-reaudit-<n>.md` in `.vibeflow/audits/`
 (a standalone audit: `<feature-slug>-reaudit-<n>.md`), with `Round: reaudit <n>`,
-the same header, the stage rule with four stages (`1/4 package`, `2/4 tests`,
+the same header, its read receipt listing what this re-audit itself read (a
+document it read in pieces goes under `Not read whole`), the stage rule with four
+stages (`1/4 package`, `2/4 tests`,
 `3/4 findings`, `4/4 new defects`) and the same verdict rules.
 
 ## Consolidation mode — `--consolidate-hotfixes`
