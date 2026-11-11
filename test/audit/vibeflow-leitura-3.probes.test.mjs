@@ -8,7 +8,9 @@
 // for: it runs and prints without failing the suite.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -277,16 +279,120 @@ test('briefing templates: the re-auditor reads the spec and the same project kno
   assert.match(reauditFirst, /`\.vibeflow\/specs\/<spec file>`/, 're-auditor: the spec');
 });
 
-// Executor's caveat in fix 2 (low, a follow-up). Contract: implement's Phase 2
-// says where the receipt goes in loop mode the same way the orchestrator does
-// (every reply that stops the loop). Today the parenthesis says "at the end of
-// the orchestrator's final report", narrower than the orchestrator's rule;
-// implement/SKILL.md was outside the perimeter of fix 2.
+// Finding R3 (executor's caveat in fix 2), closed in fix 3. Contract:
+// implement's Phase 2 says where the receipt goes in loop mode the same way the
+// orchestrator does (every reply that stops the loop). Regression: the
+// parenthesis narrowed back to "at the end of the orchestrator's final report",
+// which it said until fix 3.
 test('implement: the loop-mode placement of the receipt agrees with the orchestrator', () => {
   for (const [edition, path] of Object.entries(editions('implement'))) {
     const point = flat(section(read(path), '## Phase 2', '## Phase 3', `implement ${edition}`));
     const loop = point.match(/\(in loop mode, ([^)]*)\)/);
     assert.ok(loop, `implement ${edition}: the loop-mode placement`);
     assert.match(loop[1], /every reply that stops the loop|Orchestrator discipline/, `implement ${edition}: "${loop[1]}"`);
+  }
+});
+
+// ---------------------------------------------------------------- re-audit 3
+
+const EXECUTOR_PLACES = [`${KIT}/roles/executor.md`, 'plugins/vibeflow/agents/executor.md', 'opencode/agents/executor.md'];
+const AUDITOR_PLACES = [`${KIT}/roles/auditor.md`, 'plugins/vibeflow/agents/auditor.md', 'opencode/agents/auditor.md'];
+const discipline = (path) => section(read(path), '## Session discipline', '## Final answer', path);
+
+// Finding C2. Contract: the orchestrator and watch-round.mjs end a round on
+// the progress file's final marker (orchestrator "Watching a round"), so the
+// executor's receipt goes before the marker and the marker stays the round's
+// last line. Regression: the sentence that makes the marker the last line
+// dropped from the role, or any instruction that writes something after the
+// marker. The executor's test pins that the receipt bullet opens with "Before
+// the round's final marker" and comes after the progress bullet, but not that
+// the progress bullet still makes the marker the last line (sabotage S2 of
+// re-audit 3 survives it).
+test('executor role: the receipt goes before the final marker, and the marker stays the round\'s last line', () => {
+  for (const path of EXECUTOR_PLACES) {
+    const lines = discipline(path).split('\n');
+    const progress = lines.findIndex((l) => l.startsWith('* Write the progress file at every milestone'));
+    assert.notEqual(progress, -1, `${path}: the progress bullet`);
+    assert.match(lines[progress], /The round's last line is its final marker/, `${path}: the marker is the last line`);
+    const receipt = lines.findIndex((l) => /\bread receipt\b/.test(l));
+    assert.ok(receipt > progress, `${path}: the receipt bullet after the marker is defined`);
+    assert.match(lines[receipt], /^\* Before the round's final marker\b/, `${path}: "${lines[receipt].slice(0, 80)}"`);
+    for (const s of sentences(lines.join('\n'))) {
+      assert.doesNotMatch(s, /\bafter (the|its) (round's )?(final )?marker\b/i, `${path}: nothing written after the marker: "${s}"`);
+    }
+  }
+  const fix = section(read(`${KIT}/briefings.md`), '## Fix', '## Auditor', 'briefings Fix');
+  assert.match(section(fix, '## Progress and delivery', '```', 'Fix delivery'), /ending with its own line `State: final · fix <round>`/, 'Fix template: the section ends with its marker');
+});
+
+// Runs watch-round.mjs on a file and plays timed appends while it waits; resolves
+// with the exit code, the output and the file's text at the exit. No clock is
+// compared: the order of the appends is what the case reads.
+function watchWhile(file, steps) {
+  return new Promise((done) => {
+    const child = spawn(process.execPath, [join(ROOT, KIT, 'scripts/watch-round.mjs'), '--file', file, '--stale-min', '60', '--timeout-min', '0.5', '--interval-sec', '0.05']);
+    let out = '';
+    child.stdout.on('data', (chunk) => { out += chunk; });
+    child.stderr.on('data', (chunk) => { out += chunk; });
+    const timers = steps.map(([delay, action]) => setTimeout(action, delay));
+    const guard = setTimeout(() => child.kill(), 20_000);
+    child.on('exit', (code) => {
+      for (const timer of [...timers, guard]) clearTimeout(timer);
+      done({ code, out, atExit: existsSync(file) ? readFileSync(file, 'utf8') : null });
+    });
+  });
+}
+
+// Finding C2, by behavior. Contract: a fix round's receipt, in the form the
+// executor role gives it (both forms: everything read whole, and a document
+// not read whole), written into the progress file before the marker, does not
+// end the watch; the marker after it does. The receipt's lines are built from
+// the role's own text, so a label the role changes to something the watcher
+// reads as a marker breaks this case. Regression: a receipt label or line form
+// that watch-round counts as a final marker, or a watcher loosened to read one.
+// The executor's tests read the role's text and never run the watcher.
+test('watch-round: the executor receipt written before the marker does not end the round; the marker does', async () => {
+  const bullet = discipline(EXECUTOR_PLACES[0]).split('\n').find((l) => /\bread receipt\b/.test(l));
+  const forms = [...bullet.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  for (const form of ['Read in full: <n> of <m>', '- <path> (<lines> lines)', 'Not read whole: none', 'Not read whole:', '- <path>: <why>']) {
+    assert.ok(forms.includes(form), `executor role: the receipt form "${form}" (forms: ${JSON.stringify(forms)})`);
+  }
+  const fill = (form) => form.replace('<n>', '10').replace('<m>', '11').replace('<path>', '.vibeflow/conventions.md').replace('<lines>', '529').replace('<why>', 'stopped at line 300, then read the final section');
+  const receipt = [fill('Read in full: <n> of <m>'), fill('- <path> (<lines> lines)'), fill('Not read whole:'), fill('- <path>: <why>'), '', fill('Read in full: <n> of <m>').replace('10 of', '11 of'), fill('- <path> (<lines> lines)'), fill('Not read whole: none')];
+  const dir = mkdtempSync(join(tmpdir(), 'vibeflow-leitura-3-reaudit-3-'));
+  try {
+    const file = join(dir, 'feature-part.md');
+    writeFileSync(file, ['# feature · part · progress', '## Milestone 1', '* done', '', 'State: final', ''].join('\n'));
+    const result = await watchWhile(file, [
+      [300, () => appendFileSync(file, ['', '## Fix 1', '* fixed the finding', '', ...receipt, ''].join('\n'))],
+      [900, () => appendFileSync(file, '\nState: final · fix 1\n')],
+    ]);
+    assert.equal(result.code, 0, result.out);
+    assert.ok(result.atExit.includes('State: final · fix 1'), `the receipt ended the watch before the marker: ${result.out}`);
+    const last = result.atExit.trimEnd().split('\n').at(-1);
+    assert.equal(last, 'State: final · fix 1', 'the marker is the last line, after the receipt');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// Finding C1, open gap (low, cause spec). Contract: the receipt says "read
+// whole" only for a document whose every line was read, as the reading rule
+// asks (keep reading from where the read stopped). Today the criterion is
+// reaching the last line ("a document read to its last line over more than one
+// read counts as read whole"): a session that read lines 1 to 300 and then the
+// last section of a 529-line document reached its last line over two reads, and
+// by the letter of the sentence counts it as read whole. The case turns green
+// when the criterion sentence says the reads leave no gap.
+test('receipt: the criterion counts as whole only reads that leave no gap', { todo: 'open gap: "to its last line over more than one read" admits a read that skips the middle' }, () => {
+  const paths = [];
+  for (const workflow of CONSUMERS) paths.push(...Object.values(editions(workflow)));
+  paths.push(...EXECUTOR_PLACES, ...AUDITOR_PLACES);
+  for (const path of paths) {
+    const criterion = sentences(read(path)).filter((s) => /over more than one read/.test(s));
+    assert.ok(criterion.length > 0, `${path}: the criterion`);
+    for (const s of criterion) {
+      assert.match(s, /\bno gap\b|without a gap|every line|each line|consecutive|from where (it|the previous read) stopped|from its first line/, `${path}: "${s}"`);
+    }
   }
 });
