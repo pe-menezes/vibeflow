@@ -508,3 +508,48 @@ test('audit stage: a save the storage adapter refuses returns { ok: false, error
   assert.equal(outcome.ok, false);
   assert.equal(typeof outcome.errors.form, 'string');
 });
+
+// --- re-audit 2 (fix 2 of R1) --------------------------------------------------
+
+// Contract (R1, README "Measure"): the `cd`s of a command count in order, and a
+// relative one starts from where the earlier ones left, at any depth. Here the
+// command walks down three levels one `cd` at a time and comes back up one
+// level at a time, reading a document at each stop, from the app (the record's
+// cwd). Regression: resolving a relative `cd` against the record's cwd only
+// (fix 1), or against the record's cwd and the first `cd` only; either leaves
+// a document the command read closed. Not caught: the implementer's chained
+// test has two `cd`s and reads one document after the second.
+test('meter: cds chained one level at a time, down three and back up, open the document read at each stop', () => {
+  const realApp = realpathSync(app);
+  const u = use('Bash', { command: 'cd .vibeflow && cd patterns && cd external-team-conventions && cat claude-rules-code-style.md; cd ..; cat forms.md; cd ..; cat conventions.md' });
+  u.record.cwd = realApp;
+  const r = result(u.id, 'nothing useful', { stdout: 'nothing useful', stderr: '', interrupted: false });
+  r.cwd = realApp;
+  const report = measure([transcript([u.record, r])]);
+  for (const rel of [CODE_STYLE, FORMS, CONVENTIONS]) {
+    assert.equal(doc(report, rel).opened, true, `${rel} is opened`);
+    assert.deepEqual(doc(report, rel).methods, ['Bash'], rel);
+  }
+  assert.equal(doc(report, SCREENS).opened, false, 'a document the command did not name stays closed');
+});
+
+// Contract (README "Measure": "an absolute one adds its path, and a relative
+// one starts from every directory known before it"): a relative `cd` after an
+// absolute one starts from the absolute one, even when the record's cwd is
+// somewhere unrelated. The absolute `cd` names the app by the path given, not
+// its real path, so the chain also goes through the real-path comparison.
+// Regression: a relative `cd` that starts only from the record's cwds and not
+// from what earlier `cd`s added (fix 1's loop over `cwds`). Not caught: the
+// implementer's tests never chain a relative `cd` after an absolute one.
+test('meter: a relative cd after an absolute cd of the same command starts from the absolute one', () => {
+  const elsewhere = join(dir, 'elsewhere-abs-chain');
+  mkdirSync(elsewhere, { recursive: true });
+  const u = use('Bash', { command: `cd ${join(app, '.vibeflow')} && cd patterns && cat forms.md` });
+  u.record.cwd = realpathSync(elsewhere);
+  const r = result(u.id, 'nothing useful', { stdout: 'nothing useful', stderr: '', interrupted: false });
+  r.cwd = realpathSync(elsewhere);
+  const report = measure([transcript([u.record, r])]);
+  assert.equal(doc(report, FORMS).opened, true, 'forms.md is opened');
+  assert.deepEqual(doc(report, FORMS).methods, ['Bash']);
+  assert.equal(doc(report, CONVENTIONS).opened, false, 'conventions.md was not named');
+});
