@@ -376,14 +376,15 @@ test('watch-round: the executor receipt written before the marker does not end t
   }
 });
 
-// Finding C1, open gap (low, cause spec). Contract: the receipt says "read
-// whole" only for a document whose every line was read, as the reading rule
-// asks (keep reading from where the read stopped). Today the criterion is
-// reaching the last line ("a document read to its last line over more than one
-// read counts as read whole"): a session that read lines 1 to 300 and then the
-// last section of a 529-line document reached its last line over two reads, and
-// by the letter of the sentence counts it as read whole. The case turns green
-// when the criterion sentence says the reads leave no gap.
+// Finding C1 (low, cause spec), closed in the PR fix. Contract: the receipt
+// says "read whole" only for a document whose every line was read, as the
+// reading rule asks (keep reading from where the read stopped). The criterion
+// sentence counts only chained reads ("a document read to its last line over
+// more than one read, each read starting from where the previous read stopped,
+// counts as read whole"), so a session that read lines 1 to 300 and then the
+// last section of a 529-line document does not count it as read whole. The case
+// fails if a criterion sentence goes back to reaching the last line alone,
+// without saying the reads leave no gap.
 test('receipt: the criterion counts as whole only reads that leave no gap', () => {
   const paths = [];
   for (const workflow of CONSUMERS) paths.push(...Object.values(editions(workflow)));

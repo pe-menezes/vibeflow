@@ -434,10 +434,16 @@ test('audit: 5B goes through every document, one by one', () => {
   forEachEdition('audit', (raw, label) => {
     const review = flat(between(raw, '**B. Pattern compliance**', '**C. Scenarios**', label));
     assert.match(review, /go through `\.vibeflow\/conventions\.md` and each document the spec lists, one by one/, `${label}: every document`);
-    // PR fix, M1: with no package (step 1's committed work) the files under
-    // review are the ones the spec names, and the report line's "changed
-    // files" are those same files.
-    assert.match(review, /each of its rules that the files under review touch: the package's files, or, when step 1 found no package, the files the spec names/, `${label}: every rule the files under review touch`);
+    // PR fix 2, M1: the files under review are the changed files, in each of
+    // step 1's three cases: the package's files; with no package because the
+    // kit or Node 18 is missing, the files of the diff step 1 computed by
+    // hand; and only for work already committed, with no diff at all, the
+    // files the spec names. The report line's "changed files" are those.
+    assert.match(review, /each of its rules that the files under review touch, which are the changed files:/, `${label}: the files under review are the changed files`);
+    assert.match(review, /the package's files when step 1 wrote one/, `${label}: case 1, the package's files`);
+    assert.match(review, /the files of the diff step 1 computed by hand when the kit or Node\.js 18\+ is missing/, `${label}: case 2, the hand-computed diff's files`);
+    assert.match(review, /only for work already committed, with no diff at all, the files the spec names/, `${label}: case 3, the spec's files only with no diff`);
+    assert.doesNotMatch(review, /when step 1 found no package, the files the spec names/, `${label}: no package does not by itself narrow the review to the spec's files`);
     assert.match(review, /`\[x\] <path>: no rule touches the changed files` for a document whose rules the files under review do not touch/, `${label}: the untouched line speaks of the files under review`);
     assert.match(review, /one line per document, in the receipt's order/, `${label}: one report line per document`);
   });

@@ -264,9 +264,11 @@ restore.
 
    **B. Pattern compliance** — go through `.vibeflow/conventions.md` and each
    document the spec lists, one by one, and check each of its rules that the
-   files under review touch: the package's files, or, when step 1 found no
-   package, the files the spec names, which are the changed files of the
-   report line below. For each rule (naming, file organization, error
+   files under review touch, which are the changed files: the package's
+   files when step 1 wrote one, the files of the diff step 1 computed by hand
+   when the kit or Node.js 18+ is missing, and only for work already
+   committed, with no diff at all, the files the spec names. They are the
+   changed files of the report line below. For each rule (naming, file organization, error
    handling and the rest): is it followed (evidence), and is a deviation
    justified or a mistake?
    The Pattern Compliance section has one line per document, in the receipt's
