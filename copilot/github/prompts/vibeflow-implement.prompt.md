@@ -38,6 +38,47 @@ Architectural decisions belong to the architect. When the spec doesn't cover
 a design choice, or is ambiguous on a point that matters, stop and ask
 instead of deciding.
 
+## Knowledge base
+
+The knowledge base is what the analyze workflow writes: `.vibeflow/index.md`,
+`.vibeflow/conventions.md`, `.vibeflow/decisions.md` and `.vibeflow/patterns/`.
+Its signal is `.vibeflow/index.md`, which only analyze writes: a `.vibeflow/`
+folder that holds only `specs/` or `prds/` is not a knowledge base. Check
+`.vibeflow/index.md` by its path, because search tools respect `.gitignore`
+and miss it. Before phase 0, with or without `--loop`, settle which of
+three states holds:
+
+- `present`: `.vibeflow/index.md` exists at the root of this checkout.
+- `missing here`: it does not, this checkout is a linked worktree, and the
+  main checkout has `<main>/.vibeflow/index.md`. `<main>` is the path on the
+  first `worktree <path>` line of `git worktree list --porcelain`; this
+  checkout is a linked worktree when that path differs from
+  `git rev-parse --show-toplevel` run here, both resolved with `realpath`
+  (macOS puts `/private` in front of `/var` and `/tmp`). Where the host gives
+  no shell, read `.git` at the root by its path: a file that says
+  `gitdir: <path>/.git/worktrees/<name>` makes this checkout a linked worktree
+  whose main checkout is `<path>`.
+- `none`: neither here nor in the main checkout, including the main checkout
+  itself without `index.md` and a folder outside git.
+
+In the `missing here` state, stop. The reply's first line is
+`Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`
+Then comes, in a code block, the command that brings the base into this
+worktree, run from its root. It lists only the items the main checkout
+has, in the order `index.md`, `conventions.md`, `decisions.md`, `patterns`,
+each path in single quotes (a single quote inside a path becomes `'\''`), as in:
+
+```
+mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/patterns' .vibeflow/
+```
+
+The reply ends saying that this command goes on without the base only when
+the person says so in the conversation; with that word, it runs as in the
+`none` state.
+With `--loop`, that word does not open the loop: the preflight's
+`[stop] knowledge base:` line stops it before any dispatch, and `--no-loop`
+runs the pipeline below without the base.
+
 ## Loop mode
 
 With `--loop` in the input, or `loop: true` in the front matter of
@@ -88,8 +129,8 @@ Pull these from the spec into working context:
 
 ## Phase 2: Load context from .vibeflow/
 
-If `.vibeflow/` doesn't exist, warn that implementation proceeds without
-pattern guidance (suggest the vibeflow-analyze prompt) and skip to Phase 3.
+In the `none` state of the knowledge base, warn that implementation proceeds
+without pattern guidance (suggest the vibeflow-analyze prompt) and skip to Phase 3.
 Otherwise:
 
 1. Read `.vibeflow/conventions.md` — always.

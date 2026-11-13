@@ -1,6 +1,6 @@
 # PR body
 
-The body of the pull request that ends a loop in company mode (`orchestrator.md`, "Ending: company mode"). The reviewer reads the proof before the diff, so every section is filled from a file the loop wrote, never from memory: the ledger (`.vibeflow/loop/<feature>.md`), the audit and re-audit reports (`.vibeflow/audits/`) and the progress files (`.vibeflow/progress/`). Each section's comment names its source and is deleted when the section is filled. A section with nothing to list says so in one line (`None.`) instead of disappearing, so the reviewer can tell an empty section from a forgotten one. Findings and `Decision:` lines are copied in their own format, word for word.
+The body of the pull request that ends a loop in company mode (`orchestrator.md`, "Ending: company mode"). The reviewer reads the proof before the diff, so every section is filled from a file the loop wrote, never from memory: the ledger (`.vibeflow/loop/<feature>.md`), the audit and re-audit reports (`.vibeflow/audits/`) and the progress files (`.vibeflow/progress/`). Each section's comment names its source and is deleted when the section is filled. A section with nothing to list says so in one line (`None.`) instead of disappearing, so the reviewer can tell an empty section from a forgotten one. Findings and `Decision:` lines are copied in their own format, word for word. The `Knowledge base:` line under "Verdict per part" is the same line as in the audit reports, word for word: `Knowledge base: .vibeflow/index.md`, or the `none` line when the project had no knowledge base. In the `none` state the `Knowledge base:` line is required, because a PASS without patterns and conventions reads like any other PASS.
 
 ```markdown
 ## Summary
@@ -10,7 +10,9 @@ The body of the pull request that ends a loop in company mode (`orchestrator.md`
 
 ## Verdict per part
 
-<!-- from: the ledger's rounds table and the last audit or re-audit report of each part -->
+<!-- from: the ledger's rounds table and the last audit or re-audit report of each part; the Knowledge base line from the header of those reports -->
+Knowledge base: .vibeflow/index.md | none (no .vibeflow/index.md); patterns and conventions were not checked
+
 | Part | Verdict | Rounds | Last report | Round commit |
 |---|---|---|---|---|
 | <n> | PASS | <audit, fix 1, reaudit 1> | <path> | <sha> |

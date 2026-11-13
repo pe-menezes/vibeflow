@@ -28,11 +28,49 @@ files, when you want a prompt pack now rather than a paper trail. Not for:
 - You need full documentation for the team → use the full pipeline.
 - The task is large or architecturally significant → use the vibeflow-gen-spec skill.
 
+## Knowledge base
+
+The knowledge base is what the analyze workflow writes: `.vibeflow/index.md`,
+`.vibeflow/conventions.md`, `.vibeflow/decisions.md` and `.vibeflow/patterns/`.
+Its signal is `.vibeflow/index.md`, which only analyze writes: a `.vibeflow/`
+folder that holds only `specs/` or `prds/` is not a knowledge base. Check
+`.vibeflow/index.md` by its path, because search tools respect `.gitignore`
+and miss it. Before writing anything, settle which of three states
+holds:
+
+- `present`: `.vibeflow/index.md` exists at the root of this checkout.
+- `missing here`: it does not, this checkout is a linked worktree, and the
+  main checkout has `<main>/.vibeflow/index.md`. `<main>` is the path on the
+  first `worktree <path>` line of `git worktree list --porcelain`; this
+  checkout is a linked worktree when that path differs from
+  `git rev-parse --show-toplevel` run here, both resolved with `realpath`
+  (macOS puts `/private` in front of `/var` and `/tmp`). Where the host gives
+  no shell, read `.git` at the root by its path: a file that says
+  `gitdir: <path>/.git/worktrees/<name>` makes this checkout a linked worktree
+  whose main checkout is `<path>`.
+- `none`: neither here nor in the main checkout, including the main checkout
+  itself without `index.md` and a folder outside git.
+
+In the `missing here` state, stop. The reply's first line is
+`Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`
+Then comes, in a code block, the command that brings the base into this
+worktree, run from its root. It lists only the items the main checkout
+has, in the order `index.md`, `conventions.md`, `decisions.md`, `patterns`,
+each path in single quotes (a single quote inside a path becomes `'\''`), as in:
+
+```
+mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/patterns' .vibeflow/
+```
+
+The reply ends saying that this command goes on without the base only when
+the person says so in the conversation; with that word, it runs as in the
+`none` state.
+
 ## Phase 0: Check context
 
-`.vibeflow/` exists → skip to Phase 2 and use it. Otherwise → Phase 1.
+Knowledge base `present` → skip to Phase 2 and use it. `none` → Phase 1.
 
-## Phase 1: Lightweight scan (only without `.vibeflow/`)
+## Phase 1: Lightweight scan (only in the `none` state)
 
 Enough to understand the project, and no more — this doesn't generate
 `.vibeflow/` and writes nothing to disk:
@@ -59,11 +97,11 @@ never saved to a file — containing:
 - **Budget** — ≤4 files, tighter than the standard ≤6. A task that clearly
   needs more gets a warning in the user's language: "This task may be too
   large for quick. Consider using the vibeflow-gen-spec skill."
-- **Applicable Patterns** — from `.vibeflow/patterns/`, when it exists.
+- **Applicable Patterns** — from `.vibeflow/patterns/`, when the base is `present`.
 
 No Technical Decisions and no Risks sections — this is the fast track.
 
-With `.vibeflow/`, the documents the pack draws on are
+When the base is `present`, the documents the pack draws on are
 `.vibeflow/conventions.md` and each pattern doc the ephemeral spec lists. Read
 each of these documents whole, one file per read: open it with your
 file-reading tool, without an offset or a limit, and never several files in one
@@ -71,7 +109,7 @@ shell command. When a read comes back cut (a preview, a notice that the output
 was saved to a file, a line or size limit), keep reading from where it stopped
 to the last line. A list of headings or a keyword search is not a read.
 
-With `.vibeflow/`, the reply ends with the read receipt, its labels in English
+When the base is `present`, the reply ends with the read receipt, its labels in English
 in any language; in the "After saving" report only the suggestion comes after
 it:
 
@@ -100,8 +138,9 @@ then, in order:
 1. **Objective and Definition of Done** — from the ephemeral spec.
 2. **Anti-scope** — what not to do.
 3. **Budget** — the ≤4 files from Phase 2.
-4. **Patterns to follow** — with `.vibeflow/`, embed real code examples from the
-   pattern docs and conventions.md; without it, what the Phase 1 scan observed.
+4. **Patterns to follow** — when the base is `present`, embed real code examples
+   from the pattern docs and conventions.md; in the `none` state, what the Phase 1
+   scan observed.
 5. **Where to work** — real file paths, verified, with the relevant snippets.
 6. **Directional guidance** — architectural direction, not step-by-step.
 7. **How to run and test** — required. Detect the runner and include the
@@ -115,8 +154,8 @@ it doesn't exist).
 
 - Path of the generated prompt pack
 - Objective and DoD in 2-3 lines
-- The read receipt from Phase 2, with `.vibeflow/`
-- If `.vibeflow/` didn't exist: remind them the vibeflow-analyze skill makes the next
+- The read receipt from Phase 2, when the base is `present`
+- In the `none` state: remind them the vibeflow-analyze skill makes the next
   run richer
 - Suggest: "After implementing, run the vibeflow-audit skill to verify."
 

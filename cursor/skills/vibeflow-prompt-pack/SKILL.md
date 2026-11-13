@@ -17,6 +17,44 @@ context beyond the prompt itself. Real patterns from `.vibeflow/` go in it.
 Write the whole pack — opening line, objective, DoD, anti-scope, guidance — in
 the user's detected language. Code, paths, and technical names stay in English.
 
+## Knowledge base
+
+The knowledge base is what the analyze workflow writes: `.vibeflow/index.md`,
+`.vibeflow/conventions.md`, `.vibeflow/decisions.md` and `.vibeflow/patterns/`.
+Its signal is `.vibeflow/index.md`, which only analyze writes: a `.vibeflow/`
+folder that holds only `specs/` or `prds/` is not a knowledge base. Check
+`.vibeflow/index.md` by its path, because search tools respect `.gitignore`
+and miss it. Before step 0, and before any file is written, settle which
+of three states holds:
+
+- `present`: `.vibeflow/index.md` exists at the root of this checkout.
+- `missing here`: it does not, this checkout is a linked worktree, and the
+  main checkout has `<main>/.vibeflow/index.md`. `<main>` is the path on the
+  first `worktree <path>` line of `git worktree list --porcelain`; this
+  checkout is a linked worktree when that path differs from
+  `git rev-parse --show-toplevel` run here, both resolved with `realpath`
+  (macOS puts `/private` in front of `/var` and `/tmp`). Where the host gives
+  no shell, read `.git` at the root by its path: a file that says
+  `gitdir: <path>/.git/worktrees/<name>` makes this checkout a linked worktree
+  whose main checkout is `<path>`.
+- `none`: neither here nor in the main checkout, including the main checkout
+  itself without `index.md` and a folder outside git.
+
+In the `missing here` state, stop. The reply's first line is
+`Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`
+Then comes, in a code block, the command that brings the base into this
+worktree, run from its root. It lists only the items the main checkout
+has, in the order `index.md`, `conventions.md`, `decisions.md`, `patterns`,
+each path in single quotes (a single quote inside a path becomes `'\''`), as in:
+
+```
+mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/patterns' .vibeflow/
+```
+
+The reply ends saying that this command goes on without the base only when
+the person says so in the conversation; with that word, it runs as in the
+`none` state.
+
 ## Steps
 
 0. **Validate spec size.** Read the spec: more than 7 DoD checks, or over the
@@ -41,6 +79,9 @@ the user's detected language. Code, paths, and technical names stay in English.
    preview, a notice that the output was saved to a file, a line or size
    limit), keep reading from where it stopped to the last line. A list of
    headings or a keyword search is not a read.
+   In the `none` state, skip this step: warn that the pack improves after the
+   vibeflow-analyze skill, and section 4 carries the conventions the codebase
+   files of step 3 show.
 3. Read the codebase files this task touches, plus anything the spec lists
    under References.
 4. Generate the pack.
