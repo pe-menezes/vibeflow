@@ -7,8 +7,7 @@
 // comments, the contract it protects, the plausible regression that breaks it
 // and why the implementer's tests (test/missing-base-contracts.test.mjs) miss
 // it: those tests pin strings and never run git, the copy command or the
-// templates. A case marked `todo` asserts what a known open finding asks for:
-// it runs and prints without failing the suite.
+// templates.
 // Run with: node --test test/*.test.mjs test/audit/*.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -181,39 +180,86 @@ function copyCommand(main) {
 // the main checkout has, in order, single quotes, `'\''` for a quote in the
 // path) and run from the worktree root, brings the base in with patterns/ kept
 // as a folder, and leaves the worktree's own specs alone. The guard's example
-// is that same command for a main checkout without decisions.md.
+// is that same command for a main checkout that has all four items; for a main
+// checkout without decisions.md the rule's command is the example with that
+// one item left out, and running it does not invent decisions.md.
 // Breaks when: the example gains a trailing slash on patterns (BSD cp then
 //   copies its contents flat into .vibeflow/), double quotes, a missing
-//   `mkdir -p`, or an escape rule that does not survive a quote in the path.
+//   `mkdir -p`, an escape rule that does not survive a quote in the path, or
+//   the example drops back to three items (the G1 regression: a model copying
+//   the example left decisions.md out though the main checkout had it).
 // Not covered by: missing-base-contracts compares the example to a string and
 //   never runs it.
+// Rewritten in reaudit 1 (authorized by the reaudit briefing): before, the
+// fixture had no decisions.md and the example had to equal that three-item
+// command; G1 made the example four items on purpose.
+function fillExample(example, main) {
+  return example.replaceAll("'<main>/", `'${main.replace(/'/g, "'\\''")}/`);
+}
+
+function examplesOfGuard() {
+  const out = [];
+  for (const w of WORKFLOWS) {
+    for (const path of EDITIONS(w)) {
+      const example = guardOf(read(path)).split('\n').find((l) => l.startsWith('mkdir -p .vibeflow && cp -R '));
+      assert.ok(example, `${path}: the example command`);
+      out.push([path, example]);
+    }
+  }
+  return out;
+}
+
+function baseInMain(main, { decisions }) {
+  mkdirSync(join(main, '.vibeflow', 'patterns', 'api'), { recursive: true });
+  writeFileSync(join(main, '.vibeflow', 'index.md'), '# index\n');
+  writeFileSync(join(main, '.vibeflow', 'conventions.md'), '# conventions\n');
+  if (decisions) writeFileSync(join(main, '.vibeflow', 'decisions.md'), '# decisions\n');
+  writeFileSync(join(main, '.vibeflow', 'patterns', 'api', 'routes.md'), '# routes\n');
+}
+
+function runFromRoot(command, linked) {
+  mkdirSync(join(linked, '.vibeflow', 'specs'), { recursive: true });
+  writeFileSync(join(linked, '.vibeflow', 'specs', 'feature.md'), '# spec\n');
+  const run = spawnSync('sh', ['-c', command], { cwd: linked, env: cleanEnv(), encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.ok(!existsSync(join(linked, '.vibeflow', 'api')), 'patterns stays a folder, not flattened');
+  assert.ok(existsSync(join(linked, '.vibeflow', 'specs', 'feature.md')), 'the worktree specs are kept');
+  assert.equal(settleByGit(linked).linked, true);
+}
+
 test('the copy command, built by the guard\'s rule and run from the worktree root, brings the base in', () => {
+  const examples = examplesOfGuard();
+  // A main checkout with all four items: the example is the rule's command.
   scratch((dir) => {
     const { main, linked } = repoWithWorktree(dir);
-    mkdirSync(join(main, '.vibeflow', 'patterns', 'api'), { recursive: true });
-    writeFileSync(join(main, '.vibeflow', 'index.md'), '# index\n');
-    writeFileSync(join(main, '.vibeflow', 'conventions.md'), '# conventions\n');
-    writeFileSync(join(main, '.vibeflow', 'patterns', 'api', 'routes.md'), '# routes\n');
-    mkdirSync(join(linked, '.vibeflow', 'specs'), { recursive: true });
-    writeFileSync(join(linked, '.vibeflow', 'specs', 'feature.md'), '# spec\n');
-
+    baseInMain(main, { decisions: true });
     const built = copyCommand(main);
-    for (const w of WORKFLOWS) {
-      for (const path of EDITIONS(w)) {
-        const example = guardOf(read(path)).split('\n').find((l) => l.startsWith('mkdir -p .vibeflow && cp -R '));
-        assert.ok(example, `${path}: the example command`);
-        const filled = example.replaceAll("'<main>/", `'${main.replace(/'/g, "'\\''")}/`);
-        assert.equal(filled, built, `${path}: the example is the rule's command for this main checkout`);
-      }
+    assert.equal(built.split('/.vibeflow/').length - 1, 4, 'the rule lists the four items');
+    for (const [path, example] of examples) {
+      assert.equal(fillExample(example, main), built, `${path}: the example is the rule's command for a main checkout with the four items`);
     }
-    const run = spawnSync('sh', ['-c', built], { cwd: linked, env: cleanEnv(), encoding: 'utf8' });
-    assert.equal(run.status, 0, run.stderr);
-    for (const rel of ['index.md', 'conventions.md', 'patterns/api/routes.md', 'specs/feature.md']) {
+    runFromRoot(built, linked);
+    for (const rel of ['index.md', 'conventions.md', 'decisions.md', 'patterns/api/routes.md']) {
+      assert.ok(existsSync(join(linked, '.vibeflow', rel)), `.vibeflow/${rel} in the worktree`);
+    }
+  });
+  // A main checkout without decisions.md: the rule leaves that one out, the
+  // rest of the example stands, and decisions.md is not invented.
+  scratch((dir) => {
+    const { main, linked } = repoWithWorktree(dir);
+    baseInMain(main, { decisions: false });
+    const built = copyCommand(main);
+    const decisionsItem = ` '${main.replace(/'/g, "'\\''")}/.vibeflow/decisions.md'`;
+    for (const [path, example] of examples) {
+      const filled = fillExample(example, main);
+      assert.ok(filled.includes(decisionsItem), `${path}: the example names decisions.md`);
+      assert.equal(filled.replace(decisionsItem, ''), built, `${path}: without decisions.md, the rule's command is the example less that item`);
+    }
+    runFromRoot(built, linked);
+    for (const rel of ['index.md', 'conventions.md', 'patterns/api/routes.md']) {
       assert.ok(existsSync(join(linked, '.vibeflow', rel)), `.vibeflow/${rel} in the worktree`);
     }
     assert.ok(!existsSync(join(linked, '.vibeflow', 'decisions.md')), 'decisions.md is not invented');
-    assert.ok(!existsSync(join(linked, '.vibeflow', 'api')), 'patterns stays a folder, not flattened');
-    assert.equal(settleByGit(linked).linked, true);
   });
 });
 
@@ -245,13 +291,13 @@ test('briefings.md: every template, with the none rule applied, names no knowled
 // Contract (I5 in the loop): the auditor role that a loop round runs under and
 // the audit workflow agree on the header: the read receipt follows the
 // `Knowledge base:` line, which follows `Base:`.
-// Breaks when (open today, finding F1): the workflow moved the receipt below
-//   the new `Knowledge base:` line and the three role files still say "right
-//   after its `Base:` line", so a loop auditor gets two orders for one header.
+// Breaks when (finding F1, closed in fix 1): the workflow names one line before
+//   the receipt and a role file names another (before the fix the roles said
+//   "right after its `Base:` line"), so a loop auditor gets two orders for one
+//   header.
 // Not covered by: missing-base-contracts reads only the workflows, and
-//   test/full-read-contracts.test.mjs pins the roles to the old sentence.
-// Marked todo so the file stays green while F1 is open; drop `todo` once the
-// three roles name the `Knowledge base:` line.
+//   test/full-read-contracts.test.mjs pins the roles' sentence, not that it
+//   matches the workflow's.
 test('the auditor roles and the audit workflow name the same line before the read receipt', () => {
   const workflow = flat(read('plugins/vibeflow/skills/audit/SKILL.md'));
   const said = /read receipt, its labels in English in any language, right after its `([^`]+)` line/.exec(workflow);
