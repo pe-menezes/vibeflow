@@ -23,7 +23,9 @@ const KIT = 'plugins/vibeflow/skills/implement/loop';
 const WORKFLOWS = ['gen-spec', 'implement', 'quick', 'prompt-pack', 'audit'];
 
 const FIRST_LINE = 'Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.';
-const COPY = "mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/patterns' .vibeflow/";
+const COPY = "mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/";
+const PRESENT = '- `present`: `.vibeflow/index.md` exists at the root of this checkout.';
+const NONE = '- `none`: neither here nor in the main checkout, including the main checkout itself without `index.md` and a folder outside git.';
 const MAIN_CHECKOUT = 'git worktree list --porcelain';
 const TOPLEVEL = 'git rev-parse --show-toplevel';
 const CONSENT = 'goes on without the base only when the person says so in the conversation';
@@ -95,10 +97,13 @@ test('the guard: three states, decided by .vibeflow/index.md with the two git co
       for (const state of ['`present`', '`missing here`', '`none`']) {
         assert.ok(text.includes(`- ${state}:`), `${label}: the state ${state}`);
       }
+      assert.ok(text.includes(PRESENT), `${label}: present is decided by .vibeflow/index.md, not by the folder`);
+      assert.ok(text.includes(NONE), `${label}: none is neither here nor in the main checkout`);
       assert.ok(guard.includes(`\`${MAIN_CHECKOUT}\``), `${label}: the main checkout from ${MAIN_CHECKOUT}`);
       assert.ok(guard.includes(`\`${TOPLEVEL}\``), `${label}: this checkout from ${TOPLEVEL}`);
       assert.match(text, /both resolved with `realpath`/, `${label}: both paths resolved before comparing`);
       assert.match(text, /first `worktree <path>` line/, `${label}: the main checkout is the first worktree line`);
+      assert.match(text, /a file that says `gitdir: <path>\/\.git\/worktrees\/<name>` makes this checkout a linked worktree whose main checkout is `<path>`, resolved from this checkout's root when it is relative\. The root is the folder that holds `\.git`, found by going up from the current folder\./, `${label}: the no-shell path resolves a relative gitdir from the root, and says what the root is`);
     });
   }
 });
@@ -108,9 +113,11 @@ test('the guard: missing here stops with the literal first line, the copy comman
     forEachEdition(workflow, (raw, label) => {
       const guard = guardOf(raw, label);
       const text = flat(guard);
-      assert.ok(text.includes(`The reply's first line is \`${FIRST_LINE}\``), `${label}: the first line, literal`);
-      assert.ok(fences(guard).some((lines) => lines.length === 1 && lines[0] === COPY), `${label}: the copy command in a code block`);
+      assert.ok(text.includes(`The reply's first line is \`${FIRST_LINE}\`, with nothing before it.`), `${label}: the first line, literal, with nothing before it`);
+      assert.match(text, /That line stays in English in any output language\./, `${label}: the first line is not translated`);
+      assert.ok(fences(guard).some((lines) => lines.length === 1 && lines[0] === COPY), `${label}: the copy command in a code block, with the four items`);
       assert.match(text, /lists only the items the main checkout has, in the order `index\.md`, `conventions\.md`, `decisions\.md`, `patterns`/, `${label}: only what exists, in order`);
+      assert.match(text, /Before writing it, check each of the four by its path in the main checkout and leave out only the ones that do not exist\./, `${label}: each of the four checked by its path`);
       assert.ok(text.includes(CONSENT), `${label}: going on without the base needs the person's word`);
       assert.match(text, /with that word, it runs as in the `none` state/, `${label}: then as none`);
     });
@@ -154,6 +161,7 @@ test('implement: the guard holds with and without --loop, and the loop stops at 
     const text = flat(guardOf(raw, label));
     assert.match(text, /with or without `--loop`/, `${label}: both modes`);
     assert.match(text, /`\[stop\] knowledge base:` line stops it before any dispatch/, `${label}: the loop stops at the preflight`);
+    assert.match(text, /With `--loop`, or with `loop: true` in `\.vibeflow\/loop\/config\.md`, that word does not open the loop/, `${label}: both ways the loop opens`);
   });
 });
 

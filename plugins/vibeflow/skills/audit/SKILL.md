@@ -78,19 +78,24 @@ in every mode, settle which of three states holds:
   (macOS puts `/private` in front of `/var` and `/tmp`). Where the host gives
   no shell, read `.git` at the root by its path: a file that says
   `gitdir: <path>/.git/worktrees/<name>` makes this checkout a linked worktree
-  whose main checkout is `<path>`.
+  whose main checkout is `<path>`, resolved from this checkout's root when it
+  is relative. The root is the folder that holds `.git`, found by going up
+  from the current folder.
 - `none`: neither here nor in the main checkout, including the main checkout
   itself without `index.md` and a folder outside git.
 
 In the `missing here` state, stop. The reply's first line is
-`Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`
+`Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`,
+with nothing before it. That line stays in English in any output language.
 Then comes, in a code block, the command that brings the base into this
 worktree, run from its root. It lists only the items the main checkout
-has, in the order `index.md`, `conventions.md`, `decisions.md`, `patterns`,
-each path in single quotes (a single quote inside a path becomes `'\''`), as in:
+has, in the order `index.md`, `conventions.md`, `decisions.md`, `patterns`.
+Before writing it, check each of the four by its path in the main checkout
+and leave out only the ones that do not exist. Each path goes in single
+quotes (a single quote inside a path becomes `'\''`), as in:
 
 ```
-mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/patterns' .vibeflow/
+mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
 ```
 
 The reply ends saying that this command goes on without the base only when

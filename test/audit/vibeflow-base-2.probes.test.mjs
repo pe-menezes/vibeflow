@@ -252,7 +252,7 @@ test('briefings.md: every template, with the none rule applied, names no knowled
 //   test/full-read-contracts.test.mjs pins the roles to the old sentence.
 // Marked todo so the file stays green while F1 is open; drop `todo` once the
 // three roles name the `Knowledge base:` line.
-test('the auditor roles and the audit workflow name the same line before the read receipt', { todo: 'open finding F1: the roles still say "right after its `Base:` line"' }, () => {
+test('the auditor roles and the audit workflow name the same line before the read receipt', () => {
   const workflow = flat(read('plugins/vibeflow/skills/audit/SKILL.md'));
   const said = /read receipt, its labels in English in any language, right after its `([^`]+)` line/.exec(workflow);
   assert.ok(said, 'the workflow names the line before the receipt');

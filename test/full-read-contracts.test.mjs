@@ -169,7 +169,8 @@ for (const [role, places] of Object.entries(ROLE_PLACES)) {
 // Fix 3, C2: each role declares what it read. The executor writes the receipt
 // into the progress file before the round's final marker and names, in line 4
 // of its five lines, any document not read whole; the auditor writes it into
-// the report's header right after `Base:`, as the audit workflow does. The
+// the report's header right after its `Knowledge base:` line, which follows
+// `Base:`, as the audit workflow does. The
 // five lines the orchestrator reads keep their count and order. Each bullet is
 // the same in the role's three places, and so is the whole body.
 function body(path) {
@@ -204,10 +205,10 @@ test('executor role: the receipt goes into the progress file before the final ma
   }
 });
 
-test('auditor role: the receipt goes into the report header right after `Base:`', () => {
+test('auditor role: the receipt goes into the report header right after `Knowledge base:`, which follows `Base:`', () => {
   const places = ROLE_PLACES.auditor;
   for (const path of places) {
-    const bullet = bulletOf(path, '* The report\'s header carries the read receipt right after its `Base:` line');
+    const bullet = bulletOf(path, '* The report\'s header carries the read receipt right after its `Knowledge base:` line, which follows its `Base:` line');
     assert.ok(bullet.includes('as the audit workflow\'s report template does'), `${path}: as the audit does`);
     assert.ok(bullet.includes(RECEIPT_FORM), `${path}: the receipt's form`);
     assert.ok(bullet.includes(RECEIPT_TRUTH), `${path}: the last-line criterion`);
