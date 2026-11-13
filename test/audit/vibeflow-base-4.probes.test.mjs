@@ -7,12 +7,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { hermeticEnv, runScript } from '../loop-helpers.mjs';
-import { BASE_FILES, SPEC_PATH, makeMissingBase } from '../fixtures/missing-base/make.mjs';
+import { BASE_FILES, makeMissingBase } from '../fixtures/missing-base/make.mjs';
 
 function withFixture(options, run) {
   const dest = mkdtempSync(join(tmpdir(), 'vibeflow-base-4-probe-'));
@@ -57,23 +57,7 @@ test('docs: a worktree with a stale conventions.md and no index.md stops, and th
   });
 });
 
-// The CHANGELOG entry (the copied base stays out of the diff, the new files, the short status and
-// the perimeter) and the loop kit's README.md (review-package.mjs, `.vibeflow/` bullet): a base
-// copied into a worktree, where .vibeflow/ is wholly untracked, leaves no line in the package's
-// status section. git folds a wholly untracked folder into `?? .vibeflow/`, and
-// the filter in review-package.mjs drops only lines that name a knowledge path.
-test('docs: a copied base, the only untracked thing under .vibeflow/, leaves no line in the package\'s status section', { todo: 'open gap (audit vibeflow-base-4, A1): the short status folds the untracked folder into `?? .vibeflow/`, which the knowledge filter does not drop' }, () => {
-  withFixture({ stage: 'change' }, (fx, dest) => {
-    rmSync(join(fx.wt, dirname(SPEC_PATH)), { recursive: true, force: true });
-    for (const path of BASE_FILES) cpSync(join(fx.main, path), join(fx.wt, path));
-    const out = join(dest, 'package.md');
-    const result = runScript('review-package.mjs', [fx.wt, fx.base, out], envFor(fx));
-    assert.equal(result.status, 0, result.out);
-    assert.ok(existsSync(out), result.out);
-    const text = readFileSync(out, 'utf8');
-    assert.match(text, /^Knowledge base left out: 5 untracked path\(s\) under \.vibeflow\//m);
-    const status = /## git status --short\n\n([\s\S]*?)\n\n## /.exec(text)?.[1] ?? '';
-    assert.match(status, /src\/cart\.js/);
-    assert.doesNotMatch(status, /\.vibeflow/, `status section:\n${status}`);
-  });
-});
+// The audit's second probe (a copied base leaves no line in the package's status section) was
+// retired in re-audit 1: after the text fix of A1, no document promises the status any more. What
+// the text promises now (out of the diff, the list of new files and the perimeter, with the count
+// line) is held by test/missing-base-scripts.test.mjs (I3 block).
