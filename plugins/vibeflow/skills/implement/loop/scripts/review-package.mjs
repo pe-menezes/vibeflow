@@ -36,11 +36,12 @@ const OUTSIDE_VIBEFLOW = ['--', '.', ':(exclude).vibeflow/'];
 
 // knowledge base paths: start
 // The same block in review-package.mjs and perimeter.mjs: a test keeps the two identical.
-// What the analyze workflow writes under .vibeflow/ (index.md, conventions.md, decisions.md,
-// patterns/): new, untracked and not ignored, it is the project's knowledge copied into the
-// checkout, never a change. Tracked and changed, it is a change like any other file.
+// What the analyze workflow writes under .vibeflow/ (index.md, conventions.md, decisions.md and
+// the Markdown documents under patterns/): new, untracked and not ignored, it is the project's
+// knowledge copied into the checkout, never a change. Tracked and changed, it is a change like
+// any other file. Any other file under patterns/ (a script, an image) is a change.
 const KNOWLEDGE_FILES = ['.vibeflow/index.md', '.vibeflow/conventions.md', '.vibeflow/decisions.md'];
-const isKnowledge = (path) => KNOWLEDGE_FILES.includes(path) || path.startsWith('.vibeflow/patterns/');
+const isKnowledge = (path) => KNOWLEDGE_FILES.includes(path) || (path.startsWith('.vibeflow/patterns/') && path.endsWith('.md'));
 const knowledgeLeftOut = (count) => `Knowledge base left out: ${count} untracked path(s) under .vibeflow/ (index.md, conventions.md, decisions.md, patterns/); they are the project's knowledge, not a change.`;
 // knowledge base paths: end
 
@@ -92,8 +93,9 @@ Nothing under .vibeflow/ counts as a change: a change only under .vibeflow/ is e
 message counts its paths. The loop's artifact folders there
 (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}) are always left out and counted
 at the top. The knowledge base the analyze workflow writes there (index.md, conventions.md,
-decisions.md, patterns/) is left out too while it is untracked, counted in a line at the top;
-tracked and changed, it comes in like any file. The rest of .vibeflow/ (specs, PRDs) is in the
+decisions.md and the Markdown documents under patterns/) is left out too while it is
+untracked, counted in a line at the top; tracked and changed, it comes in like any file, and
+any other file under patterns/ always does. The rest of .vibeflow/ (specs, PRDs) is in the
 package as context when something changed outside it.
 
 exit 0 written · 1 empty (nothing changed outside .vibeflow/) · 2 error`;

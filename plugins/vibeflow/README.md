@@ -217,10 +217,10 @@ opens with `Knowledge base missing in this worktree: <main>/.vibeflow/index.md e
 and gives the command that copies the base, run from the worktree's root:
 
 ```text
-mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
+mkdir -p .vibeflow && cp -RL '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
 ```
 
-It lists only what the main checkout has, and `cp -R` writes over a
+It lists only what the main checkout has, and `cp -RL` writes over a
 `conventions.md` or `decisions.md` already in the worktree. A workflow goes on
 without the base only when you say so in the conversation; `implement --loop`
 does not, even then: the `[stop] knowledge base:` line of `preflight.mjs`

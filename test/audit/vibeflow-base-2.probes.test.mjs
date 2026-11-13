@@ -173,7 +173,7 @@ function quote(path) {
 function copyCommand(main) {
   const items = ['index.md', 'conventions.md', 'decisions.md', 'patterns']
     .filter((item) => existsSync(join(main, '.vibeflow', item)));
-  return `mkdir -p .vibeflow && cp -R ${items.map((item) => quote(join(main, '.vibeflow', item))).join(' ')} .vibeflow/`;
+  return `mkdir -p .vibeflow && cp -RL ${items.map((item) => quote(join(main, '.vibeflow', item))).join(' ')} .vibeflow/`;
 }
 
 // Contract: the copy command the guard prints, built by its own rule (only what
@@ -193,6 +193,8 @@ function copyCommand(main) {
 // Rewritten in reaudit 1 (authorized by the reaudit briefing): before, the
 // fixture had no decisions.md and the example had to equal that three-item
 // command; G1 made the example four items on purpose.
+// Rewritten in fix round 2 of the pull request review (authorized by its briefing): the command
+// is `cp -RL`, which follows a symbolic link in the base (C3); the checks are the same.
 function fillExample(example, main) {
   return example.replaceAll("'<main>/", `'${main.replace(/'/g, "'\\''")}/`);
 }
@@ -201,7 +203,7 @@ function examplesOfGuard() {
   const out = [];
   for (const w of WORKFLOWS) {
     for (const path of EDITIONS(w)) {
-      const example = guardOf(read(path)).split('\n').find((l) => l.startsWith('mkdir -p .vibeflow && cp -R '));
+      const example = guardOf(read(path)).split('\n').find((l) => l.startsWith('mkdir -p .vibeflow && cp -RL '));
       assert.ok(example, `${path}: the example command`);
       out.push([path, example]);
     }

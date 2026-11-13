@@ -23,11 +23,15 @@ const KIT = 'plugins/vibeflow/skills/implement/loop';
 const WORKFLOWS = ['gen-spec', 'implement', 'quick', 'prompt-pack', 'audit'];
 
 const FIRST_LINE = 'Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.';
-const COPY = "mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/";
+const COPY = "mkdir -p .vibeflow && cp -RL '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/";
 const PRESENT = '- `present`: `.vibeflow/index.md` exists at the root of this checkout.';
 const NONE = '- `none`: neither here nor in the main checkout, including the main checkout itself without `index.md` and a folder outside git.';
 const MAIN_CHECKOUT = 'git worktree list --porcelain';
 const TOPLEVEL = 'git rev-parse --show-toplevel';
+// The guard's rule for a worktree of a submodule, with a shell and without one (fix round 2 of
+// the pull request review).
+const SUBMODULE_GIT = 'When that first path is a git folder and not a checkout, as in a worktree of a submodule (`<super>/.git/modules/<x>`), `<main>` is its `core.worktree`, from `git --git-dir=<that path> config core.worktree`, resolved from that path.';
+const SUBMODULE_FILE = 'A file that says `gitdir: <super>/.git/modules/<x>/worktrees/<name>` makes this checkout a linked worktree of a submodule, whose main checkout is the `core.worktree` set in `<super>/.git/modules/<x>/config`, resolved from `<super>/.git/modules/<x>`.';
 const CONSENT = 'goes on without the base only when the person says so in the conversation';
 const SIGNAL = 'Its signal is `.vibeflow/index.md`';
 
@@ -103,6 +107,8 @@ test('the guard: three states, decided by .vibeflow/index.md with the two git co
       assert.ok(guard.includes(`\`${TOPLEVEL}\``), `${label}: this checkout from ${TOPLEVEL}`);
       assert.match(text, /both resolved with `realpath`/, `${label}: both paths resolved before comparing`);
       assert.match(text, /first `worktree <path>` line/, `${label}: the main checkout is the first worktree line`);
+      assert.ok(text.includes(SUBMODULE_GIT), `${label}: the main checkout of a submodule's worktree, with a shell`);
+      assert.ok(text.includes(SUBMODULE_FILE), `${label}: the main checkout of a submodule's worktree, without a shell`);
       assert.match(text, /a file that says `gitdir: <path>\/\.git\/worktrees\/<name>` makes this checkout a linked worktree whose main checkout is `<path>`, resolved from this checkout's root when it is relative\. The root is the folder that holds `\.git`, found by going up from the current folder\./, `${label}: the no-shell path resolves a relative gitdir from the root, and says what the root is`);
     });
   }

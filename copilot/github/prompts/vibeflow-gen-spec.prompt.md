@@ -43,12 +43,20 @@ three states holds:
   first `worktree <path>` line of `git worktree list --porcelain`; this
   checkout is a linked worktree when that path differs from
   `git rev-parse --show-toplevel` run here, both resolved with `realpath`
-  (macOS puts `/private` in front of `/var` and `/tmp`). Where the host gives
-  no shell, read `.git` at the root by its path: a file that says
+  (macOS puts `/private` in front of `/var` and `/tmp`).
+  When that first path is a git folder and not a checkout, as in a worktree of
+  a submodule (`<super>/.git/modules/<x>`), `<main>` is its
+  `core.worktree`, from `git --git-dir=<that path> config core.worktree`,
+  resolved from that path. Where the host gives no shell,
+  read `.git` at the root by its path: a file that says
   `gitdir: <path>/.git/worktrees/<name>` makes this checkout a linked worktree
   whose main checkout is `<path>`, resolved from this checkout's root when it
   is relative. The root is the folder that holds `.git`, found by going up
   from the current folder.
+  A file that says `gitdir: <super>/.git/modules/<x>/worktrees/<name>` makes
+  this checkout a linked worktree of a submodule, whose main checkout is the
+  `core.worktree` set in `<super>/.git/modules/<x>/config`, resolved from
+  `<super>/.git/modules/<x>`.
 - `none`: neither here nor in the main checkout, including the main checkout
   itself without `index.md` and a folder outside git.
 
@@ -63,7 +71,7 @@ and leave out only the ones that do not exist. Each path goes in single
 quotes (a single quote inside a path becomes `'\''`), as in:
 
 ```
-mkdir -p .vibeflow && cp -R '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
+mkdir -p .vibeflow && cp -RL '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
 ```
 
 The reply ends saying that this command goes on without the base only when

@@ -39,7 +39,7 @@ an hour or more asks for mains power.
 knowledge base: the files the analyze workflow writes, signed by .vibeflow/index.md. Present in
 the repository is ok, with conventions.md and the pattern docs under .vibeflow/patterns/ counted.
 Missing in a linked worktree whose main checkout has it is a stop, and the line ends with the
-mkdir and cp -R command that copies it, run from the top of the worktree. None, here or in the
+mkdir and cp -RL command that copies it, run from the top of the worktree. None, here or in the
 main checkout, is attention: rounds run without patterns and conventions.
 
 network: a HEAD request to the host of the origin remote (<scheme>://<host[:port]> for an http
@@ -127,6 +127,8 @@ function repository(repo, explicitDefault) {
 // analyze writes, is its sign. present: index.md is in <dir>. missing: it is not, <dir> is in a
 // linked worktree, and the main checkout (the first "worktree" line of git worktree list
 // --porcelain, compared with the top of <dir> by realpath) has it. none: neither, or outside git.
+// In a worktree of a submodule that first entry is the submodule's git folder
+// (<super>/.git/modules/<x>), not a checkout: the main checkout is its core.worktree.
 const KNOWLEDGE_ITEMS = ['index.md', 'conventions.md', 'decisions.md', 'patterns'];
 
 function knowledgeGit(dir, args) {
@@ -146,17 +148,26 @@ function knowledgeReal(path) {
 // A path for sh between single quotes; a single quote inside it becomes '\''.
 const shellQuoted = (path) => `'${path.replaceAll("'", "'\\''")}'`;
 
+// The first porcelain entry as a checkout: itself when it has a work tree; a git folder without
+// one (a submodule's) gives its core.worktree, resolved from it; a bare repository gives nothing.
+function knowledgeCheckout(entry) {
+  if (!entry) return null;
+  if (knowledgeGit(entry, ['rev-parse', '--is-inside-work-tree'])?.trim() === 'true') return entry;
+  const worktree = knowledgeGit(entry, ['--git-dir=' + entry, 'config', 'core.worktree'])?.trim();
+  return worktree ? resolve(entry, worktree) : null;
+}
+
 function knowledgeBase(dir) {
   if (existsSync(join(dir, '.vibeflow', 'index.md'))) return { state: 'present' };
   const top = knowledgeGit(dir, ['rev-parse', '--show-toplevel'])?.trim();
   if (!top) return { state: 'none' };
   const list = knowledgeGit(dir, ['worktree', 'list', '--porcelain']) ?? '';
-  const main = /^worktree (.+)$/m.exec(list)?.[1];
+  const main = knowledgeCheckout(/^worktree (.+)$/m.exec(list)?.[1]);
   if (!main || knowledgeReal(main) === knowledgeReal(top)) return { state: 'none' };
   if (!existsSync(join(main, '.vibeflow', 'index.md'))) return { state: 'none' };
   const items = KNOWLEDGE_ITEMS.filter((item) => existsSync(join(main, '.vibeflow', item)));
   const sources = items.map((item) => shellQuoted(`${main}/.vibeflow/${item}`)).join(' ');
-  const command = `mkdir -p .vibeflow && cp -R ${sources} .vibeflow/`;
+  const command = `mkdir -p .vibeflow && cp -RL ${sources} .vibeflow/`;
   const line = `knowledge base: missing in this worktree; the main checkout has it in ${main}/.vibeflow/. Copy it before any round: ${command}`;
   return { state: 'missing', main, command, line };
 }

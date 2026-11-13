@@ -18,18 +18,20 @@ Lists every file changed since <base> (committed, modified, deleted, untracked a
 ignored) that no <glob> matches. "**" matches any depth, "*" and "?" stay inside one folder,
 a trailing "/" means everything below that folder.
 The knowledge base the analyze workflow writes (.vibeflow/index.md, conventions.md,
-decisions.md, patterns/) is not a change when it is untracked: it stays out of the changed
-files, and a line before the count says how many paths it left out. Tracked, it counts.
+decisions.md and the Markdown documents under patterns/) is not a change when it is
+untracked: it stays out of the changed files, and a line before the count says how many paths
+it left out. Tracked, it counts; any other file under patterns/ always counts.
 
 exit 0 inside · 1 outside · 64 bad arguments, unknown base or not a git repository`;
 
 // knowledge base paths: start
 // The same block in review-package.mjs and perimeter.mjs: a test keeps the two identical.
-// What the analyze workflow writes under .vibeflow/ (index.md, conventions.md, decisions.md,
-// patterns/): new, untracked and not ignored, it is the project's knowledge copied into the
-// checkout, never a change. Tracked and changed, it is a change like any other file.
+// What the analyze workflow writes under .vibeflow/ (index.md, conventions.md, decisions.md and
+// the Markdown documents under patterns/): new, untracked and not ignored, it is the project's
+// knowledge copied into the checkout, never a change. Tracked and changed, it is a change like
+// any other file. Any other file under patterns/ (a script, an image) is a change.
 const KNOWLEDGE_FILES = ['.vibeflow/index.md', '.vibeflow/conventions.md', '.vibeflow/decisions.md'];
-const isKnowledge = (path) => KNOWLEDGE_FILES.includes(path) || path.startsWith('.vibeflow/patterns/');
+const isKnowledge = (path) => KNOWLEDGE_FILES.includes(path) || (path.startsWith('.vibeflow/patterns/') && path.endsWith('.md'));
 const knowledgeLeftOut = (count) => `Knowledge base left out: ${count} untracked path(s) under .vibeflow/ (index.md, conventions.md, decisions.md, patterns/); they are the project's knowledge, not a change.`;
 // knowledge base paths: end
 

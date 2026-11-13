@@ -6,9 +6,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SCRIPTS_DIR, hermeticEnv, runScript } from './loop-helpers.mjs';
@@ -126,7 +126,7 @@ test('preflight stops in a linked worktree without the base, naming the main che
       assert.ok(parsed, `${mode}: the stop line: ${result.out}`);
       assert.equal(realpathSync(parsed.main), realpathSync(fx.main), `${mode}: the main checkout`);
       const item = (name) => `'${parsed.main}/.vibeflow/${name}'`;
-      assert.equal(parsed.command, `mkdir -p .vibeflow && cp -R ${item('index.md')} ${item('conventions.md')} ${item('decisions.md')} ${item('patterns')} .vibeflow/`);
+      assert.equal(parsed.command, `mkdir -p .vibeflow && cp -RL ${item('index.md')} ${item('conventions.md')} ${item('decisions.md')} ${item('patterns')} .vibeflow/`);
       assert.match(result.stdout, /^verdict: stop/m);
 
       // The line comes right after the repository lines.
@@ -157,7 +157,7 @@ test('the copy command names only the items the main checkout has, and quotes a 
     assert.ok(parsed);
     const quoted = `'${parsed.main.replaceAll("'", "'\\''")}`;
     assert.ok(parsed.command.includes(`${quoted}/.vibeflow/index.md'`), parsed.command);
-    assert.equal(parsed.command, `mkdir -p .vibeflow && cp -R ${quoted}/.vibeflow/index.md' ${quoted}/.vibeflow/patterns' .vibeflow/`);
+    assert.equal(parsed.command, `mkdir -p .vibeflow && cp -RL ${quoted}/.vibeflow/index.md' ${quoted}/.vibeflow/patterns' .vibeflow/`);
     copyBase(fx, parsed.command);
     assert.equal(knowledgeLine(preflight(fx, fx.wt).stdout), '[ok] knowledge base: .vibeflow/index.md present, without conventions.md and 2 pattern doc(s)');
   } finally {
@@ -463,4 +463,128 @@ test('preflight and check-briefing carry the same knowledge base block; review-p
   const paths = block('review-package.mjs', 'knowledge base paths');
   assert.ok(paths, 'review-package.mjs has the knowledge base paths block');
   assert.equal(block('perimeter.mjs', 'knowledge base paths'), paths);
+});
+
+// --- fix round 2 of the pull request review ---
+
+// C1: a knowledge path inside a code span is the whole span, so a name holding a space, a
+// parenthesis, a quote or a bracket is checked as written; outside a code span the path runs to
+// the next space or closing punctuation, and .md must end it.
+test('check-briefing takes a knowledge path in a code span whole, and outside one up to the next space or closing punctuation', () => {
+  withFixture({}, (fx) => {
+    writeFileSync(join(fx.main, '.vibeflow/patterns/example.md'), '# Exists\n');
+    const briefing = (knowledge) => runScript('check-briefing.mjs', [writeBriefing(fx.main, EXECUTOR(knowledge))], envFor(fx));
+    const stopsOn = (result, path) => result.stdout.split('\n').includes(`[stop] knowledge file the briefing points at does not exist: ${path}`);
+
+    for (const name of ['missing.md', 'auth flow.md', 'auth(v2).md', "team's-style.md", 'auth[2].md', 'example.md.extra.md']) {
+      const path = `.vibeflow/patterns/${name}`;
+      const result = briefing(`* project knowledge: \`.vibeflow/index.md\`, \`${path}\``);
+      assert.equal(result.status, 2, `${name}: ${result.out}`);
+      assert.ok(stopsOn(result, path), `${name}: the stop names the whole path\n${result.out}`);
+      assert.doesNotMatch(result.stdout, /does not exist: \.vibeflow\/patterns\/example\.md$/m, `${name}: never the shorter path`);
+      // Created, the same path passes.
+      writeFileSync(join(fx.main, path), '# Now it exists\n');
+      const created = briefing(`* project knowledge: \`.vibeflow/index.md\`, \`${path}\``);
+      assert.doesNotMatch(created.stdout, /^\[stop\]/m, `${name}: ${created.out}`);
+      rmSync(join(fx.main, path));
+    }
+
+    // Outside a code span: closing punctuation ends the path, a balanced parenthesis does not.
+    const prose = briefing('* project knowledge: .vibeflow/index.md, then .vibeflow/patterns/example.md.extra.md. Also (see .vibeflow/patterns/auth(v2).md), and .vibeflow/patterns/money.md; done');
+    assert.equal(prose.status, 2, prose.out);
+    assert.ok(stopsOn(prose, '.vibeflow/patterns/example.md.extra.md'), prose.out);
+    assert.ok(stopsOn(prose, '.vibeflow/patterns/auth(v2).md'), prose.out);
+    assert.doesNotMatch(prose.stdout, /does not exist: \.vibeflow\/(index|patterns\/money|patterns\/example)\.md$/m, prose.out);
+
+    // An existing path in a code span with a ./ in front, and a quoted one in prose, pass.
+    const fine = briefing("* project knowledge: `./.vibeflow/index.md`, '.vibeflow/patterns/money.md'");
+    assert.doesNotMatch(fine.stdout, /^\[stop\]/m, fine.out);
+  });
+});
+
+// C2: in a worktree of a submodule, the first porcelain entry is the submodule's git folder
+// (<super>/.git/modules/<x>); the main checkout is its core.worktree.
+test('in a linked worktree of a submodule, the main checkout is the submodule checkout, not its git folder', () => {
+  withFixture({}, (fx, dest) => {
+    const parent = join(dest, 'parent');
+    mkdirSync(parent);
+    git(fx, parent, ['init', '-q', '-b', 'main']);
+    writeFileSync(join(parent, 'README.md'), '# Parent\n');
+    git(fx, parent, ['add', 'README.md']);
+    git(fx, parent, ['commit', '-q', '-m', 'parent']);
+    git(fx, parent, ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', fx.plain, 'lib']);
+    git(fx, parent, ['commit', '-q', '-m', 'add the submodule']);
+    const lib = join(parent, 'lib');
+    for (const path of BASE_FILES) {
+      mkdirSync(dirname(join(lib, path)), { recursive: true });
+      cpSync(join(fx.main, path), join(lib, path));
+    }
+    const wt = join(dest, 'lib-wt');
+    git(fx, lib, ['worktree', 'add', '-q', '-b', 'sub-feature', wt]);
+    const first = /^worktree (.+)$/m.exec(git(fx, wt, ['worktree', 'list', '--porcelain']))[1];
+    assert.match(first, /\.git\/modules\/lib$/, 'the first entry is the git folder');
+
+    // The workflows' guard, run as written. With a shell: the git folder's core.worktree,
+    // resolved from it. Without one: the .git file names <super>/.git/modules/<x>/worktrees/<name>,
+    // and the core.worktree in <super>/.git/modules/<x>/config, resolved from that folder.
+    const byGit = resolve(first, git(fx, wt, [`--git-dir=${first}`, 'config', 'core.worktree']).trim());
+    assert.equal(realpathSync(byGit), realpathSync(lib), 'the guard with a shell');
+    const gitdir = /^gitdir: (.+)\/worktrees\/[^/\n]+\n?$/.exec(readFileSync(join(wt, '.git'), 'utf8'));
+    assert.ok(gitdir && /\.git\/modules\/lib$/.test(gitdir[1]), 'the .git file names a worktree of the submodule');
+    const setting = /^\s*worktree\s*=\s*(.+)$/m.exec(readFileSync(join(resolve(wt, gitdir[1]), 'config'), 'utf8'));
+    assert.ok(setting, 'core.worktree is in the submodule config');
+    assert.equal(realpathSync(resolve(wt, gitdir[1], setting[1].trim())), realpathSync(lib), 'the guard without a shell');
+
+    const result = runScript('preflight.mjs', ['--repo', wt, '--no-network'], envFor(fx));
+    const parsed = parseMissing(knowledgeLine(result.stdout));
+    assert.ok(parsed, result.out);
+    assert.equal(realpathSync(parsed.main), realpathSync(lib));
+    const briefing = runScript('check-briefing.mjs', [writeBriefing(wt, EXECUTOR('* project knowledge: `.vibeflow/index.md`'))], envFor(fx));
+    assert.equal(knowledgeLine(briefing.stdout), knowledgeLine(result.stdout), briefing.out);
+
+    // The submodule checkout itself is present, and after the copy so is the worktree.
+    assert.equal(knowledgeLine(runScript('preflight.mjs', ['--repo', lib, '--no-network'], envFor(fx)).stdout), PRESENT_LINE);
+    const copy = spawnSync('sh', ['-c', parsed.command], { cwd: wt, env: envFor(fx), encoding: 'utf8' });
+    assert.equal(copy.status, 0, copy.stderr);
+    assert.equal(knowledgeLine(runScript('preflight.mjs', ['--repo', wt, '--no-network'], envFor(fx)).stdout), PRESENT_LINE);
+  });
+});
+
+// C3: an index.md that is a relative symbolic link is copied as the file it points at.
+test('the copy command follows a symbolic link in the main checkout\'s base', () => {
+  withFixture({}, (fx) => {
+    mkdirSync(join(fx.main, 'local-knowledge'));
+    writeFileSync(join(fx.main, 'local-knowledge/index.md'), readFileSync(join(fx.main, '.vibeflow/index.md')));
+    rmSync(join(fx.main, '.vibeflow/index.md'));
+    symlinkSync('../local-knowledge/index.md', join(fx.main, '.vibeflow/index.md'));
+    const parsed = parseMissing(knowledgeLine(preflight(fx, fx.wt).stdout));
+    assert.ok(parsed);
+    copyBase(fx, parsed.command);
+    assert.equal(lstatSync(join(fx.wt, '.vibeflow/index.md')).isSymbolicLink(), false, 'a file, not a link');
+    assert.match(readFileSync(join(fx.wt, '.vibeflow/index.md'), 'utf8'), /Suggested budget/);
+    assert.equal(knowledgeLine(preflight(fx, fx.wt).stdout), PRESENT_LINE);
+  });
+});
+
+// C4: under .vibeflow/patterns/ only Markdown documents are the base; any other new file there
+// is a change, in the package and in the perimeter.
+test('a new file under .vibeflow/patterns/ that is not a Markdown document is a change, in the package and in the perimeter', () => {
+  withFixture({ stage: 'change' }, (fx, dest) => {
+    copyBaseByHand(fx);
+    mkdirSync(join(fx.wt, '.vibeflow/patterns/examples'));
+    writeFileSync(join(fx.wt, '.vibeflow/patterns/examples/slug.js'), "export const slug = (s) => s.toLowerCase().replaceAll(' ', '-');\n");
+    writeFileSync(join(fx.wt, '.vibeflow/patterns/examples/guide.md'), '# Guide\n');
+
+    const result = packageOf(fx, dest);
+    assert.equal(result.status, 0, result.out);
+    assert.match(result.text, /^## New file: \.vibeflow\/patterns\/examples\/slug\.js$/m, result.text.slice(0, 1500));
+    assert.ok(result.text.includes('export const slug'), 'the code is in the package');
+    assert.doesNotMatch(result.text, /^## New file: \.vibeflow\/patterns\/examples\/guide\.md$/m);
+    assert.ok(result.text.split('\n').includes(LEFT_OUT.replace('5 untracked', '6 untracked')), result.text.slice(0, 800));
+
+    const perimeter = runScript('perimeter.mjs', [fx.wt, fx.base, 'src/**', '.vibeflow/specs/**'], envFor(fx));
+    assert.equal(perimeter.status, 1, perimeter.out);
+    assert.match(perimeter.stdout, /^outside \.vibeflow\/patterns\/examples\/slug\.js$/m, perimeter.out);
+    assert.doesNotMatch(perimeter.stdout, /guide\.md/, perimeter.out);
+  });
 });

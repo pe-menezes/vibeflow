@@ -203,6 +203,8 @@ function pairFindings(auditorText, executorPath, quote) {
 // analyze writes, is its sign. present: index.md is in <dir>. missing: it is not, <dir> is in a
 // linked worktree, and the main checkout (the first "worktree" line of git worktree list
 // --porcelain, compared with the top of <dir> by realpath) has it. none: neither, or outside git.
+// In a worktree of a submodule that first entry is the submodule's git folder
+// (<super>/.git/modules/<x>), not a checkout: the main checkout is its core.worktree.
 const KNOWLEDGE_ITEMS = ['index.md', 'conventions.md', 'decisions.md', 'patterns'];
 
 function knowledgeGit(dir, args) {
@@ -222,25 +224,68 @@ function knowledgeReal(path) {
 // A path for sh between single quotes; a single quote inside it becomes '\''.
 const shellQuoted = (path) => `'${path.replaceAll("'", "'\\''")}'`;
 
+// The first porcelain entry as a checkout: itself when it has a work tree; a git folder without
+// one (a submodule's) gives its core.worktree, resolved from it; a bare repository gives nothing.
+function knowledgeCheckout(entry) {
+  if (!entry) return null;
+  if (knowledgeGit(entry, ['rev-parse', '--is-inside-work-tree'])?.trim() === 'true') return entry;
+  const worktree = knowledgeGit(entry, ['--git-dir=' + entry, 'config', 'core.worktree'])?.trim();
+  return worktree ? resolve(entry, worktree) : null;
+}
+
 function knowledgeBase(dir) {
   if (existsSync(join(dir, '.vibeflow', 'index.md'))) return { state: 'present' };
   const top = knowledgeGit(dir, ['rev-parse', '--show-toplevel'])?.trim();
   if (!top) return { state: 'none' };
   const list = knowledgeGit(dir, ['worktree', 'list', '--porcelain']) ?? '';
-  const main = /^worktree (.+)$/m.exec(list)?.[1];
+  const main = knowledgeCheckout(/^worktree (.+)$/m.exec(list)?.[1]);
   if (!main || knowledgeReal(main) === knowledgeReal(top)) return { state: 'none' };
   if (!existsSync(join(main, '.vibeflow', 'index.md'))) return { state: 'none' };
   const items = KNOWLEDGE_ITEMS.filter((item) => existsSync(join(main, '.vibeflow', item)));
   const sources = items.map((item) => shellQuoted(`${main}/.vibeflow/${item}`)).join(' ');
-  const command = `mkdir -p .vibeflow && cp -R ${sources} .vibeflow/`;
+  const command = `mkdir -p .vibeflow && cp -RL ${sources} .vibeflow/`;
   const line = `knowledge base: missing in this worktree; the main checkout has it in ${main}/.vibeflow/. Copy it before any round: ${command}`;
   return { state: 'missing', main, command, line };
 }
 // knowledge base state: end
 
 // A knowledge file as a briefing names it: index.md, conventions.md, decisions.md, or a pattern
-// doc at any depth under patterns/ (a placeholder such as patterns/<name>.md is not a path).
-const KNOWLEDGE_PATH = /\.vibeflow\/(?:index\.md|conventions\.md|decisions\.md|patterns\/[^\s`'"()<>[\]{}|*,;:]+?\.md)(?![\w/-])/g;
+// doc at any depth under patterns/, with .md ending the path. A placeholder or a glob (a <, > or
+// * in it, such as patterns/<name>.md) is not a path.
+const KNOWLEDGE_FILE = /^\.vibeflow\/(?:index\.md|conventions\.md|decisions\.md|patterns\/[^<>*\n]+\.md)$/;
+// Outside a code span a path runs from .vibeflow/ to the next space or closing punctuation.
+const KNOWLEDGE_RUN = /\.vibeflow\/[^\s`]*/g;
+const CLOSERS = { ')': '(', ']': '[', '}': '{' };
+
+// The run without the punctuation that closes the sentence or a bracket around it: a trailing
+// . , ; : ! ? ' " or >, and a ) ] or } with no opener of its own inside the run.
+function trimRun(run) {
+  let path = run;
+  for (;;) {
+    const last = path.at(-1);
+    const opener = CLOSERS[last];
+    const unmatched = opener && path.split(last).length > path.split(opener).length;
+    if (!('.,;:!?\'">'.includes(last) || unmatched) || !path) return path;
+    path = path.slice(0, -1);
+  }
+}
+
+function runsIn(text) {
+  return (text.match(KNOWLEDGE_RUN) ?? []).map(trimRun).filter((path) => KNOWLEDGE_FILE.test(path));
+}
+
+// Every knowledge path the briefing names. In a code span the path is the whole span (a ./ in
+// front is dropped), so a name with a space, a parenthesis, a quote or a bracket stays whole; a
+// span that is not one path, such as a command, is read like the prose around it.
+function knowledgePaths(text) {
+  const paths = [];
+  const prose = text.replace(/`([^`\n]+)`/g, (span, inside) => {
+    const whole = inside.trim().replace(/^\.\//, '');
+    paths.push(...(KNOWLEDGE_FILE.test(whole) ? [whole] : runsIn(inside)));
+    return ' ';
+  });
+  return [...new Set([...paths, ...runsIn(prose)])];
+}
 
 // The project root the knowledge files are checked under: --root; the git top of the briefing's
 // folder; outside git, the folder holding the .vibeflow/ the briefing is in; the current folder.
@@ -257,7 +302,7 @@ function projectRoot(options) {
 
 function knowledgeFindings(text, root, secret) {
   const findings = [];
-  const named = [...new Set(text.match(KNOWLEDGE_PATH) ?? [])];
+  const named = knowledgePaths(text);
   for (const path of named) {
     if (existsSync(join(root, path))) continue;
     const shown = secret && SECRET.test(path) ? '(not quoted: the path looks like a secret)' : path;
