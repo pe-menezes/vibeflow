@@ -9,7 +9,8 @@
 // title that does leaves its short hash, any other such line becomes a note, and the finished
 // text is checked line by line before it is written.
 // Nothing under .vibeflow/ counts as a change on its own; the loop's artifact folders there stay
-// out, counted, and the rest (specs, the knowledge base) comes in as context.
+// out, counted, and so does the knowledge base when it is untracked (a copy of the main
+// checkout's, in a worktree); the rest (specs, PRDs, a tracked knowledge base) comes in as context.
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
@@ -32,6 +33,16 @@ const ARTIFACT_PATHSPEC = ['--', '.', ...ARTIFACT_FOLDERS.map((folder) => `:(exc
 // Specs, PRDs and the knowledge base are context for a change, never a change by themselves.
 const isVibeflow = (path) => path.startsWith('.vibeflow/');
 const OUTSIDE_VIBEFLOW = ['--', '.', ':(exclude).vibeflow/'];
+
+// knowledge base paths: start
+// The same block in review-package.mjs and perimeter.mjs: a test keeps the two identical.
+// What the analyze workflow writes under .vibeflow/ (index.md, conventions.md, decisions.md,
+// patterns/): new, untracked and not ignored, it is the project's knowledge copied into the
+// checkout, never a change. Tracked and changed, it is a change like any other file.
+const KNOWLEDGE_FILES = ['.vibeflow/index.md', '.vibeflow/conventions.md', '.vibeflow/decisions.md'];
+const isKnowledge = (path) => KNOWLEDGE_FILES.includes(path) || path.startsWith('.vibeflow/patterns/');
+const knowledgeLeftOut = (count) => `Knowledge base left out: ${count} untracked path(s) under .vibeflow/ (index.md, conventions.md, decisions.md, patterns/); they are the project's knowledge, not a change.`;
+// knowledge base paths: end
 
 // The same detector as check-briefing.mjs: a test keeps the two blocks identical.
 // The patterns are split so secret scanners do not flag this file.
@@ -80,8 +91,10 @@ comes in as its line numbers only, without the function context git prints after
 Nothing under .vibeflow/ counts as a change: a change only under .vibeflow/ is empty, and the
 message counts its paths. The loop's artifact folders there
 (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}) are always left out and counted
-at the top; the rest of .vibeflow/ (specs, PRDs, index.md, patterns) is in the package as
-context when something changed outside it.
+at the top. The knowledge base the analyze workflow writes there (index.md, conventions.md,
+decisions.md, patterns/) is left out too while it is untracked, counted in a line at the top;
+tracked and changed, it comes in like any file. The rest of .vibeflow/ (specs, PRDs) is in the
+package as context when something changed outside it.
 
 exit 0 written · 1 empty (nothing changed outside .vibeflow/) · 2 error`;
 
@@ -253,15 +266,19 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const allUntracked = git(dir, ['ls-files', '--others', '--exclude-standard', '-z'])
     .split('\0')
     .filter((path) => path && resolve(dir, path) !== outReal);
-  const untracked = allUntracked.filter((path) => !isArtifact(path));
+  const untracked = allUntracked.filter((path) => !isArtifact(path) && !isKnowledge(path));
+  const knowledgeCount = allUntracked.filter((path) => !isArtifact(path) && isKnowledge(path)).length;
   const trackedArtifacts = git(dir, ['diff', '--name-only', '-z', base, '--'])
     .split('\0')
     .filter((path) => path && isArtifact(path));
-  const artifactCount = trackedArtifacts.length + allUntracked.length - untracked.length;
+  const artifactCount = trackedArtifacts.length + allUntracked.filter(isArtifact).length;
   const artifactLine = `Loop artifacts left out: ${artifactCount} path(s) under .vibeflow/ (${ARTIFACT_FOLDERS.map((folder) => `${folder}/`).join(', ')}); they never count as a change.`;
+  // The top of the package: the artifact line and, when the untracked knowledge base was left
+  // out, its count right below it.
+  const topLines = knowledgeCount ? `${artifactLine}\n\n${knowledgeLeftOut(knowledgeCount)}` : artifactLine;
   const vibeflowCount = git(dir, ['diff', '--name-only', '-z', base, '--'])
     .split('\0')
-    .filter((path) => path && isVibeflow(path)).length + allUntracked.filter(isVibeflow).length;
+    .filter((path) => path && isVibeflow(path)).length + allUntracked.filter((path) => isVibeflow(path) && !isKnowledge(path)).length;
   // A commit that touches only loop artifacts is not part of the round either. Each line is the
   // short hash and the title, as --oneline prints them.
   const commits = git(dir, ['log', '--format=%h %s', `${base}..HEAD`, ...ARTIFACT_PATHSPEC]);
@@ -283,7 +300,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     return {
       empty: true,
       vibeflowNote,
-      text: `${title}\n\n${artifactLine}\n\n${headerNotice(leftOutOfHeader, baseHash)}EMPTY PACKAGE: nothing changed outside .vibeflow/ between base ${baseName} and the worktree (no commit, no diff, no new file); ${vibeflowNote}. ${advice}\n`,
+      text: `${title}\n\n${topLines}\n\n${headerNotice(leftOutOfHeader, baseHash)}EMPTY PACKAGE: nothing changed outside .vibeflow/ between base ${baseName} and the worktree (no commit, no diff, no new file); ${vibeflowNote}. ${advice}\n`,
     };
   }
 
@@ -355,12 +372,12 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   if (files.length) fileLines.push(`${files.length} file(s) changed, ${sum('added')} line(s) added, ${sum('removed')} line(s) removed`);
   const headSections = [
     '## Commits since the base', commitLines.join('\n') || '(none: the round is not committed)',
-    '## git status --short', clean(git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]).trim()) || '(clean)',
+    '## git status --short', clean(statusLines(git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]))) || '(clean)',
     '## Files and lines', fileLines.join('\n') || '(no tracked change)',
     '## New files', newFileLines.join('\n') || '(none)',
   ].join('\n\n');
 
-  let size = Buffer.byteLength(`${title}\n\n${artifactLine}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
+  let size = Buffer.byteLength(`${title}\n\n${topLines}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
   const kept = [];
   const leftOut = [];
   for (const chunk of candidates) {
@@ -385,8 +402,17 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   const notice = `${headerNotice(leftOutOfHeader, baseHash)}${withheldNotice}${truncatedNotice}`;
   const tracked = kept.filter((chunk) => !chunk.heading).map((chunk) => chunk.piece).join('');
   const added = kept.filter((chunk) => chunk.heading).map((chunk) => chunk.piece).join('');
-  const text = `${title}\n\n${artifactLine}\n\n${notice}${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n${tracked || '(no tracked change)\n'}${added}`;
+  const text = `${title}\n\n${topLines}\n\n${notice}${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n${tracked || '(no tracked change)\n'}${added}`;
   return { empty: false, text, leftOut, withheld, newFiles: untracked.length, hiddenForms };
+}
+
+// git status --short without the untracked knowledge base, which the package leaves out.
+function statusLines(status) {
+  return status
+    .split('\n')
+    .filter((line) => !(line.startsWith('?? ') && isKnowledge(line.slice(3))))
+    .join('\n')
+    .trim();
 }
 
 // The count at the top of the package of the header lines it left out, with the git commands

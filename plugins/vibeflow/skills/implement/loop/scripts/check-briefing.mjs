@@ -5,8 +5,9 @@
 // must also be in the executor's "Done when": the criterion only the auditor knows is the one
 // the executor misses.
 
-import { readFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
@@ -52,7 +53,8 @@ const TIME = /\b([01]\d|2[0-3])[:h][0-5]\d\b/;
 const SOURCE = /\b(measured|read|run|ran|checked|counted|source)\b/i;
 const TO_CHECK = /\bto check\b/i;
 
-const USAGE = `usage: check-briefing.mjs <briefing> [--role executor|fix|auditor|reauditor] [--pair <executor-briefing>]
+const USAGE = `usage: check-briefing.mjs <briefing> [--role executor|fix|auditor|reauditor]
+                         [--pair <executor-briefing>] [--root <dir>]
 
 Without --role, the role comes from the file name (<feature>-<part>-<role>[-<n>].md).
 --pair, on an auditor briefing, checks that every bullet of its "Criteria" section is also in
@@ -60,7 +62,16 @@ the "Done when" section of <executor-briefing>, matching whole words.
 With a secret in the briefing, no line quotes its text: the facts without time and source are
 counted, and a missing criterion is named by its position in "Criteria".
 
-exit 0 ok · 1 attention · 2 stop (a secret in the text) · 64 bad arguments or unreadable file`;
+Knowledge files, for the executor, fix and auditor roles: every .vibeflow/index.md,
+.vibeflow/conventions.md, .vibeflow/decisions.md or .vibeflow/patterns/<...>.md the briefing
+names must exist under the project root; each one missing is a stop. The root is --root, or the
+git top of the briefing's folder, or outside git the folder holding the .vibeflow/ the briefing
+is in, or the current folder. In a linked worktree without the knowledge base that the main
+checkout has, a stop line also gives the command that copies it. With no knowledge base
+anywhere, a briefing that names no knowledge file gets an attention line instead.
+
+exit 0 ok · 1 attention · 2 stop (a secret in the text, or a knowledge file or knowledge base
+missing) · 64 bad arguments or unreadable file`;
 
 function fail(message) {
   console.error(`check-briefing: ${message}`);
@@ -76,10 +87,10 @@ function readText(path, what) {
 }
 
 function parseArgs(argv) {
-  const options = { file: null, role: null, pair: null };
+  const options = { file: null, role: null, pair: null, root: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--role' || arg === '--pair') {
+    if (arg === '--role' || arg === '--pair' || arg === '--root') {
       if (!argv[i + 1]) fail(`${arg} takes a value`);
       options[arg.slice(2)] = argv[i + 1];
       i += 1;
@@ -186,6 +197,82 @@ function pairFindings(auditorText, executorPath, quote) {
     : `criterion ${index + 1} of ${criteria.length} not in the executor's "Done when" (not quoted: the briefing holds a secret)`]);
 }
 
+// knowledge base state: start
+// The same block in preflight.mjs and check-briefing.mjs: a test keeps the two identical.
+// The knowledge base is what the analyze workflow writes, and .vibeflow/index.md, which only
+// analyze writes, is its sign. present: index.md is in <dir>. missing: it is not, <dir> is in a
+// linked worktree, and the main checkout (the first "worktree" line of git worktree list
+// --porcelain, compared with the top of <dir> by realpath) has it. none: neither, or outside git.
+const KNOWLEDGE_ITEMS = ['index.md', 'conventions.md', 'decisions.md', 'patterns'];
+
+function knowledgeGit(dir, args) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  const result = spawnSync('git', args, { cwd: dir, env, encoding: 'utf8', timeout: 20_000 });
+  return result.status === 0 ? result.stdout : null;
+}
+
+function knowledgeReal(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+// A path for sh between single quotes; a single quote inside it becomes '\''.
+const shellQuoted = (path) => `'${path.replaceAll("'", "'\\''")}'`;
+
+function knowledgeBase(dir) {
+  if (existsSync(join(dir, '.vibeflow', 'index.md'))) return { state: 'present' };
+  const top = knowledgeGit(dir, ['rev-parse', '--show-toplevel'])?.trim();
+  if (!top) return { state: 'none' };
+  const list = knowledgeGit(dir, ['worktree', 'list', '--porcelain']) ?? '';
+  const main = /^worktree (.+)$/m.exec(list)?.[1];
+  if (!main || knowledgeReal(main) === knowledgeReal(top)) return { state: 'none' };
+  if (!existsSync(join(main, '.vibeflow', 'index.md'))) return { state: 'none' };
+  const items = KNOWLEDGE_ITEMS.filter((item) => existsSync(join(main, '.vibeflow', item)));
+  const sources = items.map((item) => shellQuoted(`${main}/.vibeflow/${item}`)).join(' ');
+  const command = `mkdir -p .vibeflow && cp -R ${sources} .vibeflow/`;
+  const line = `knowledge base: missing in this worktree; the main checkout has it in ${main}/.vibeflow/. Copy it before any round: ${command}`;
+  return { state: 'missing', main, command, line };
+}
+// knowledge base state: end
+
+// A knowledge file as a briefing names it: index.md, conventions.md, decisions.md, or a pattern
+// doc at any depth under patterns/ (a placeholder such as patterns/<name>.md is not a path).
+const KNOWLEDGE_PATH = /\.vibeflow\/(?:index\.md|conventions\.md|decisions\.md|patterns\/[^\s`'"()<>[\]{}|*,;:]+?\.md)(?![\w/-])/g;
+
+// The project root the knowledge files are checked under: --root; the git top of the briefing's
+// folder; outside git, the folder holding the .vibeflow/ the briefing is in; the current folder.
+function projectRoot(options) {
+  if (options.root) return resolve(options.root);
+  const folder = dirname(resolve(options.file));
+  const top = knowledgeGit(folder, ['rev-parse', '--show-toplevel'])?.trim();
+  if (top) return top;
+  const parts = folder.split(sep);
+  const at = parts.lastIndexOf('.vibeflow');
+  if (at > 0) return parts.slice(0, at).join(sep) || sep;
+  return process.cwd();
+}
+
+function knowledgeFindings(text, root, secret) {
+  const findings = [];
+  const named = [...new Set(text.match(KNOWLEDGE_PATH) ?? [])];
+  for (const path of named) {
+    if (existsSync(join(root, path))) continue;
+    const shown = secret && SECRET.test(path) ? '(not quoted: the path looks like a secret)' : path;
+    findings.push([STOP, `knowledge file the briefing points at does not exist: ${shown}`]);
+  }
+  const base = knowledgeBase(root);
+  if (base.state === 'missing') findings.push([STOP, base.line]);
+  if (base.state === 'none') {
+    if (named.length === 0) findings.push([ATTENTION, 'knowledge base: none in this project; the briefing runs the round without it']);
+  } else if (!text.includes('.vibeflow/index.md')) {
+    findings.push([ATTENTION, 'the briefing does not point at the project knowledge (.vibeflow/index.md)']);
+  }
+  return findings;
+}
+
 function check(options) {
   const text = readText(options.file, 'briefing');
   const lines = text.split('\n');
@@ -210,9 +297,7 @@ function check(options) {
     findings.push([ATTENTION, `${unsourced.length} fact(s) without time and source ("measured HH:MM by <command>" or "to check: <source>"): ${quoted}`]);
   }
 
-  if (NEEDS_KNOWLEDGE.has(role) && !text.includes('.vibeflow/index.md')) {
-    findings.push([ATTENTION, 'the briefing does not point at the project knowledge (.vibeflow/index.md)']);
-  }
+  if (NEEDS_KNOWLEDGE.has(role)) findings.push(...knowledgeFindings(text, projectRoot(options), secret));
 
   const flat = normal(text);
   const copied = [...principleSentences()].filter((sentence) => flat.includes(sentence));

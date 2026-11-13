@@ -5,8 +5,8 @@
 // sleep. One line per check, then the verdict.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readdirSync, realpathSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 
 // The kit needs Node 18 or later (Node 16 has no global fetch): below it, say so and exit 64 first.
 if (Number(process.versions.node.split('.')[0]) < 18) {
@@ -27,13 +27,20 @@ const GREEN = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
 const FAILED = new Set(['FAILURE', 'ERROR', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'STALE']);
 const PENDING = new Set(['PENDING', 'IN_PROGRESS', 'QUEUED', 'EXPECTED', 'WAITING', 'REQUESTED']);
 
-const USAGE = `usage: preflight.mjs --repo <dir> [--hours <n>] [--default-branch <name>] [--probe-url <url>]... [--power] [--no-network]
+const USAGE = `usage: preflight.mjs --repo <dir> [--hours <n>] [--default-branch <name>]
+                    [--probe-url <url>]... [--power] [--no-network]
 
-Checks the repository (not the default branch, dirty files, stashes), the network, the CI of
-open PRs through gh when it is installed, how the pull request can be opened at the end, and
-CLAUDE_CODE_EFFORT_LEVEL when it is set. --power adds battery, lid and sleep through pmset and
-ioreg (macOS). --hours is the expected length of the work (default 1); work of an hour or more
-asks for mains power.
+Checks the repository (not the default branch, dirty files, stashes), the knowledge base, the
+network, the CI of open PRs through gh when it is installed, how the pull request can be opened
+at the end, and CLAUDE_CODE_EFFORT_LEVEL when it is set. --power adds battery, lid and sleep
+through pmset and ioreg (macOS). --hours is the expected length of the work (default 1); work of
+an hour or more asks for mains power.
+
+knowledge base: the files the analyze workflow writes, signed by .vibeflow/index.md. Present in
+the repository is ok, with conventions.md and the pattern docs under .vibeflow/patterns/ counted.
+Missing in a linked worktree whose main checkout has it is a stop, and the line ends with the
+mkdir and cp -R command that copies it, run from the top of the worktree. None, here or in the
+main checkout, is attention: rounds run without patterns and conventions.
 
 network: a HEAD request to the host of the origin remote (<scheme>://<host[:port]> for an http
 or https remote, https://<host> for git@host:... and ssh://) and to every --probe-url, such as
@@ -109,7 +116,75 @@ function repository(repo, explicitDefault) {
   const summary = `repository: branch ${branch || '(detached)'}, ${dirty.length} dirty file(s), ${stashes.length} stash(es)`;
   const unclean = dirty.length > 0 || stashes.length > 0;
   lines.push([unclean ? ATTENTION : GO, unclean ? `${summary}; the briefing says whose each one is` : summary]);
+  const top = run('git', ['rev-parse', '--show-toplevel'], repo).out.trim();
+  lines.push(knowledgeLine(top || repo));
   return { isRepo: true, lines };
+}
+
+// knowledge base state: start
+// The same block in preflight.mjs and check-briefing.mjs: a test keeps the two identical.
+// The knowledge base is what the analyze workflow writes, and .vibeflow/index.md, which only
+// analyze writes, is its sign. present: index.md is in <dir>. missing: it is not, <dir> is in a
+// linked worktree, and the main checkout (the first "worktree" line of git worktree list
+// --porcelain, compared with the top of <dir> by realpath) has it. none: neither, or outside git.
+const KNOWLEDGE_ITEMS = ['index.md', 'conventions.md', 'decisions.md', 'patterns'];
+
+function knowledgeGit(dir, args) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+  const result = spawnSync('git', args, { cwd: dir, env, encoding: 'utf8', timeout: 20_000 });
+  return result.status === 0 ? result.stdout : null;
+}
+
+function knowledgeReal(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+}
+
+// A path for sh between single quotes; a single quote inside it becomes '\''.
+const shellQuoted = (path) => `'${path.replaceAll("'", "'\\''")}'`;
+
+function knowledgeBase(dir) {
+  if (existsSync(join(dir, '.vibeflow', 'index.md'))) return { state: 'present' };
+  const top = knowledgeGit(dir, ['rev-parse', '--show-toplevel'])?.trim();
+  if (!top) return { state: 'none' };
+  const list = knowledgeGit(dir, ['worktree', 'list', '--porcelain']) ?? '';
+  const main = /^worktree (.+)$/m.exec(list)?.[1];
+  if (!main || knowledgeReal(main) === knowledgeReal(top)) return { state: 'none' };
+  if (!existsSync(join(main, '.vibeflow', 'index.md'))) return { state: 'none' };
+  const items = KNOWLEDGE_ITEMS.filter((item) => existsSync(join(main, '.vibeflow', item)));
+  const sources = items.map((item) => shellQuoted(`${main}/.vibeflow/${item}`)).join(' ');
+  const command = `mkdir -p .vibeflow && cp -R ${sources} .vibeflow/`;
+  const line = `knowledge base: missing in this worktree; the main checkout has it in ${main}/.vibeflow/. Copy it before any round: ${command}`;
+  return { state: 'missing', main, command, line };
+}
+// knowledge base state: end
+
+// The .md files under a folder, at any depth.
+function markdownCount(dir) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return 0;
+  }
+  return entries.reduce((count, entry) => {
+    if (entry.isDirectory()) return count + markdownCount(join(dir, entry.name));
+    return count + (entry.isFile() && entry.name.endsWith('.md') ? 1 : 0);
+  }, 0);
+}
+
+function knowledgeLine(top) {
+  const base = knowledgeBase(top);
+  if (base.state === 'missing') return [STOP, base.line];
+  if (base.state === 'none') {
+    return [ATTENTION, 'knowledge base: none (no .vibeflow/index.md here or in the main checkout); rounds run without patterns and conventions, and the audit report and the PR body say so'];
+  }
+  const conventions = existsSync(join(top, '.vibeflow', 'conventions.md')) ? 'with' : 'without';
+  const patterns = markdownCount(join(top, '.vibeflow', 'patterns'));
+  return [GO, `knowledge base: .vibeflow/index.md present, ${conventions} conventions.md and ${patterns} pattern doc(s)`];
 }
 
 // A URL as printed, the origin in any form and every --probe-url: without the credentials it

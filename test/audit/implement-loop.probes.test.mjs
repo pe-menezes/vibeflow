@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { LOOP_DIR, hermeticEnv, withSandbox } from '../loop-helpers.mjs';
+import { LOOP_DIR, addKnowledgeBase, hermeticEnv, withSandbox } from '../loop-helpers.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const read = (path) => readFileSync(join(ROOT, path), 'utf8');
@@ -145,6 +145,8 @@ function commitRound(sandbox, paths, message) {
 // Not covered by: implement-loop-contracts checks only that each script orchestrator.md names exists in the kit; it never runs one.
 test('every script command orchestrator.md writes runs with the kit, none answers 64', () => {
   withSandbox((sandbox) => {
+    // The project has the knowledge base its briefings point at, as after analyze.
+    addKnowledgeBase(sandbox);
     const round = loopRound(sandbox);
     sandbox.git('add', 'src/login.ts', 'tests/login.test.ts');
     sandbox.git('commit', '-q', '-m', 'login part 1, round 0, before PASS', '--', 'src/login.ts', 'tests/login.test.ts');
@@ -310,6 +312,8 @@ test('the loop kit\'s supporting files never lean on ${CLAUDE_*} substitution', 
 // Not covered by: implement-loop-contracts pins the sentence that the briefing passes `check-briefing.mjs`, without running the script on a briefing.
 test('the re-auditor briefing and the second fix briefing, written from their templates at the paths orchestrator.md names, pass check-briefing', () => {
   withSandbox((sandbox) => {
+    // The project has the knowledge base its briefings point at, as after analyze.
+    addKnowledgeBase(sandbox);
     const values = { '<feature>': 'login', '<part>': '1', '<r>': '2' };
     for (const [role, suffix] of [['reauditor', 'reauditor-<r>'], ['fix', 'fix-<r>']]) {
       const path = sandbox.write(briefingPath(suffix, values), briefingFromTemplate(role));

@@ -6,7 +6,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { LOOP_DIR, SCRIPTS_DIR, hermeticEnv, makeSandbox, runScript, withSandbox } from './loop-helpers.mjs';
+import { LOOP_DIR, SCRIPTS_DIR, addKnowledgeBase, hermeticEnv, makeSandbox, runScript, withSandbox } from './loop-helpers.mjs';
 
 const SCRIPTS = [
   'preflight.mjs',
@@ -1181,8 +1181,13 @@ test('who-reads marks a generated file', () => {
 
 // --- check-briefing ---
 
+// A briefing where the loop keeps it, in the .vibeflow/ of a project outside git that holds a
+// knowledge base: check-briefing checks the knowledge files a briefing names under the folder
+// that holds that .vibeflow/, so the result does not depend on the folder the test runs from.
 function briefing(dir, name, text) {
-  const path = join(dir, name);
+  const path = join(dir, '.vibeflow/briefings', name);
+  mkdirSync(join(dir, '.vibeflow/briefings'), { recursive: true });
+  writeFileSync(join(dir, '.vibeflow/index.md'), '# Project\n');
   writeFileSync(path, text);
   return path;
 }
@@ -2017,8 +2022,10 @@ test('preflight is a go on a clean feature branch whose origin answers and gh ca
   await withSandboxAsync((box) => withServer(async (origin, hits) => {
     box.git('switch', '-q', '-c', 'feat/x');
     box.git('remote', 'add', 'origin', `${origin}/owner/repo.git`);
+    addKnowledgeBase(box);
     const result = await preflight(['--repo', box.repo], box.env());
     assert.equal(result.status, 0, result.out);
+    assert.match(result.out, /^\[ok\] knowledge base: \.vibeflow\/index\.md present/m);
     assert.match(result.out, /branch feat\/x/);
     assert.match(result.out, /open PRs: none/);
     assert.match(result.out, /^verdict: go$/m);
@@ -2217,6 +2224,7 @@ test('preflight --no-network never calls gh', () => {
   withSandbox((box) => {
     box.git('switch', '-q', '-c', 'feat/x');
     box.git('remote', 'add', 'origin', 'https://127.0.0.1/owner/repo.git');
+    addKnowledgeBase(box);
     const result = runScript('preflight.mjs', ['--repo', box.repo, '--no-network'], offline(box.env()));
     assert.equal(result.status, 0, result.out);
     assert.equal(existsSync(box.ghLog) ? readFileSync(box.ghLog, 'utf8') : '', '');
