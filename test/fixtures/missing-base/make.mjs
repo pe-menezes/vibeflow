@@ -36,6 +36,18 @@ export const CHANGED_FILE = 'src/cart.js';
 
 const DATE = '2026-01-20T12:00:00+0000';
 
+// The fixed author and committer of every commit in the fixture's repositories.
+// A test that commits there passes these too, so the commit never depends on the
+// machine: a CI runner without a configured name stops with "empty ident name".
+export const GIT_IDENTITY = Object.freeze({
+  GIT_AUTHOR_NAME: 'Fixture Author',
+  GIT_AUTHOR_EMAIL: 'author@fixture.invalid',
+  GIT_COMMITTER_NAME: 'Fixture Author',
+  GIT_COMMITTER_EMAIL: 'author@fixture.invalid',
+  GIT_AUTHOR_DATE: DATE,
+  GIT_COMMITTER_DATE: DATE,
+});
+
 const APP = {
   'package.json': `${JSON.stringify({
     name: 'sample-cart',
@@ -208,12 +220,7 @@ function gitEnv(home) {
     HOME: home,
     XDG_CONFIG_HOME: join(home, '.config'),
     GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_NAME: 'Fixture Author',
-    GIT_AUTHOR_EMAIL: 'author@fixture.invalid',
-    GIT_COMMITTER_NAME: 'Fixture Author',
-    GIT_COMMITTER_EMAIL: 'author@fixture.invalid',
-    GIT_AUTHOR_DATE: DATE,
-    GIT_COMMITTER_DATE: DATE,
+    ...GIT_IDENTITY,
   };
 }
 

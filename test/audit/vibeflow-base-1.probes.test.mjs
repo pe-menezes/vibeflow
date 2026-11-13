@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { hermeticEnv, runScript } from '../loop-helpers.mjs';
-import { BASE_FILES, MODES, makeMissingBase } from '../fixtures/missing-base/make.mjs';
+import { BASE_FILES, GIT_IDENTITY, MODES, makeMissingBase } from '../fixtures/missing-base/make.mjs';
 
 const LEFT_OUT = (n) => `Knowledge base left out: ${n} untracked path(s) under .vibeflow/ (index.md, conventions.md, decisions.md, patterns/); they are the project's knowledge, not a change.`;
 
@@ -27,7 +27,7 @@ function withFixture(options, run, name = 'fx') {
 const envFor = (fx) => hermeticEnv(fx.home, { HTTPS_PROXY: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9', NO_PROXY: '' });
 
 function git(fx, cwd, args) {
-  const result = spawnSync('git', args, { cwd, env: envFor(fx), encoding: 'utf8' });
+  const result = spawnSync('git', args, { cwd, env: { ...envFor(fx), ...GIT_IDENTITY }, encoding: 'utf8' });
   assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
   return result.stdout;
 }

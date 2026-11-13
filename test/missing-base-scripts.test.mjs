@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { SCRIPTS_DIR, hermeticEnv, runScript } from './loop-helpers.mjs';
-import { BASE_FILES, CHANGED_FILE, MODES, SPEC_PATH, makeMissingBase } from './fixtures/missing-base/make.mjs';
+import { BASE_FILES, CHANGED_FILE, GIT_IDENTITY, MODES, SPEC_PATH, makeMissingBase } from './fixtures/missing-base/make.mjs';
 
 const MAKE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/missing-base/make.mjs');
 
@@ -62,8 +62,10 @@ function copyBaseByHand(fx) {
   for (const path of BASE_FILES) cpSync(join(fx.main, path), join(fx.wt, path));
 }
 
+// git in the fixture's repositories, with the fixture's fixed identity, so a commit
+// here never depends on a name configured or deduced on the machine.
 function git(fx, cwd, args) {
-  const result = spawnSync('git', args, { cwd, env: envFor(fx), encoding: 'utf8' });
+  const result = spawnSync('git', args, { cwd, env: { ...envFor(fx), ...GIT_IDENTITY }, encoding: 'utf8' });
   assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
   return result.stdout;
 }
