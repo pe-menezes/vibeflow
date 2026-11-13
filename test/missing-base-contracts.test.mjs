@@ -243,6 +243,19 @@ test('audit: the text says when each form of the line comes out, and that no ver
   });
 });
 
+// Since the scripts leave a new, untracked knowledge base out of the review
+// package, the audit's step 1 says so: a tracked base that changed comes in, an
+// untracked one stays out, counted, and the audit reads it on disk.
+const PACKAGE_BASE = 'Neither does the rest of `.vibeflow/` (specs, PRDs, the knowledge base): specs, PRDs and a tracked knowledge base that changed come in as context when something changed outside it, and a new, untracked knowledge base (the main checkout\'s, brought into a worktree) stays out, counted by the package\'s `Knowledge base left out:` line; step 2 reads it on disk, as the Knowledge base section says.';
+
+test('audit: the review package step says an untracked knowledge base stays out, counted, and is read on disk', () => {
+  forEachEdition('audit', (raw, label) => {
+    const step1 = flat(between(raw, '1. **Review package**', '2. **Spec** (`2/7 spec`)', label));
+    assert.ok(step1.includes(PACKAGE_BASE), `${label}: the package sentence on the knowledge base`);
+    assert.ok(!step1.includes('the knowledge base), which the package shows as context'), `${label}: no longer says the package shows the base as context`);
+  });
+});
+
 // ------------------------------------------------------------- I6, the PR body
 
 test('pr-body.md: the Knowledge base line in the evidence, required in the none state', () => {

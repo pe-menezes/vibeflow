@@ -137,8 +137,12 @@ restore.
      under `.vibeflow/` (`loop/`, `briefings/`, `progress/`, `reviews/`,
      `audits/`) out of the package and counts them at its top: they never
      count as a change. Neither does the rest of `.vibeflow/` (specs, PRDs,
-     the knowledge base), which the package shows as context when something
-     changed outside it. A change only under `.vibeflow/` is an EMPTY
+     the knowledge base): specs, PRDs and a tracked knowledge base that
+     changed come in as context when something changed outside it, and a
+     new, untracked knowledge base (the main checkout's, brought into a
+     worktree) stays out, counted by the
+     package's `Knowledge base left out:` line; step 2 reads it on disk, as
+     the Knowledge base section says. A change only under `.vibeflow/` is an EMPTY
      PACKAGE, so work committed on the default branch plus a new spec left
      untracked takes the committed-work case below. Exit 1 reads as empty
      only when the file it wrote carries the EMPTY PACKAGE marker; exit 2, or
