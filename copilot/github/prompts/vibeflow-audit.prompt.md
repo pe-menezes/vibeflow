@@ -28,7 +28,7 @@ Technical terms in English are acceptable regardless of the detected language.
 The report's machine-read labels stay literally in English in any output
 language, because `watch-round.mjs`, `stats` and the smoke harness match them:
 the header labels and their fixed values (`Independence`, `Round`, `Stage`,
-`final`, `Review package`, `Base`, `Verdict` with `pending`, PASS, PARTIAL and
+`final`, `Review package`, `Base`, `Knowledge base`, `Verdict` with `pending`, PASS, PARTIAL and
 FAIL), the read receipt's labels (`Read in full`, `Not read whole`, `none`),
 the `###` headings of the report, and the severity, cause and
 `closed-by-probe` tokens of a finding line.
@@ -47,6 +47,58 @@ its scripts, `review-package.mjs` and `check-probes.mjs`. When the folder is
 missing, the kit is not installed: `npx setup-vibeflow@latest --copilot --force`
 (setup-vibeflow 0.17.0 or newer) installs it, and each step below says how the
 audit runs without it.
+
+## Knowledge base
+
+The knowledge base is what the analyze workflow writes: `.vibeflow/index.md`,
+`.vibeflow/conventions.md`, `.vibeflow/decisions.md` and `.vibeflow/patterns/`.
+Its signal is `.vibeflow/index.md`, which only analyze writes: a `.vibeflow/`
+folder that holds only `specs/` or `prds/` is not a knowledge base. Check
+`.vibeflow/index.md` by its path, because search tools respect `.gitignore`
+and miss it. Before anything is written (the review package, the report),
+in every mode, settle which of three states holds:
+
+- `present`: `.vibeflow/index.md` exists at the root of this checkout.
+- `missing here`: it does not, this checkout is a linked worktree, and the
+  main checkout has `<main>/.vibeflow/index.md`. `<main>` is the path on the
+  first `worktree <path>` line of `git worktree list --porcelain`; this
+  checkout is a linked worktree when that path differs from
+  `git rev-parse --show-toplevel` run here, both resolved with `realpath`
+  (macOS puts `/private` in front of `/var` and `/tmp`).
+  When that first path is a git folder and not a checkout, as in a worktree of
+  a submodule (`<super>/.git/modules/<x>`), `<main>` is its
+  `core.worktree`, from `git --git-dir=<that path> config core.worktree`,
+  resolved from that path. Where the host gives no shell,
+  read `.git` at the root by its path: a file that says
+  `gitdir: <path>/.git/worktrees/<name>` makes this checkout a linked worktree
+  whose main checkout is `<path>`, resolved from this checkout's root when it
+  is relative. The root is the folder that holds `.git`, found by going up
+  from the current folder.
+  A file that says `gitdir: <super>/.git/modules/<x>/worktrees/<name>` makes
+  this checkout a linked worktree of a submodule, whose main checkout is the
+  `core.worktree` set in `<super>/.git/modules/<x>/config`, resolved from
+  `<super>/.git/modules/<x>`.
+- `none`: neither here nor in the main checkout, including the main checkout
+  itself without `index.md` and a folder outside git.
+
+In the `missing here` state, stop. The reply's first line is
+`Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`,
+with nothing before it. That line stays in English in any output language.
+Then comes, in a code block, the command that brings the base into this
+worktree, run from its root. It lists only the items the main checkout
+has, in the order `index.md`, `conventions.md`, `decisions.md`, `patterns`.
+Before writing it, check each of the four by its path in the main checkout
+and leave out only the ones that do not exist. Each path goes in single
+quotes (a single quote inside a path becomes `'\''`), as in:
+
+```
+mkdir -p .vibeflow && cp -RL '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
+```
+
+The reply ends saying that this command goes on without the base only when
+the person says so in the conversation; with that word, it runs as in the
+`none` state.
+The state goes into the report's `Knowledge base:` line (Output format).
 
 ## Steps
 
@@ -93,8 +145,12 @@ restore.
      under `.vibeflow/` (`loop/`, `briefings/`, `progress/`, `reviews/`,
      `audits/`) out of the package and counts them at its top: they never
      count as a change. Neither does the rest of `.vibeflow/` (specs, PRDs,
-     the knowledge base), which the package shows as context when something
-     changed outside it. A change only under `.vibeflow/` is an EMPTY
+     the knowledge base): specs, PRDs and a tracked knowledge base that
+     changed come in as context when something changed outside it, and a
+     new, untracked knowledge base (the main checkout's, brought into a
+     worktree) stays out, counted by the
+     package's `Knowledge base left out:` line; step 2 reads it on disk, as
+     the Knowledge base section says. A change only under `.vibeflow/` is an EMPTY
      PACKAGE, so work committed on the default branch plus a new spec left
      untracked takes the committed-work case below. Exit 1 reads as empty
      only when the file it wrote carries the EMPTY PACKAGE marker; exit 2, or
@@ -137,7 +193,7 @@ restore.
    preview, a notice that the output was saved to a file, a line or size
    limit), keep reading from where it stopped to the last line. A list of
    headings or a keyword search is not a read. Record them in the report's read
-   receipt, its labels in English in any language, right after its `Base:`
+   receipt, its labels in English in any language, right after its `Knowledge base:`
    line. One `- <path> (<lines> lines)` line
    per document read whole, its path relative to the project root. When a
    document was not read whole, `Not read whole:` stands alone and each such
@@ -146,6 +202,11 @@ restore.
    last line goes under `Not read whole`, and a document read to its last line
    over more than one read, each read starting from where the previous read stopped, counts as read whole. Read the files the package
    changes and the ones the spec says should change.
+   In the `none` state there is no `.vibeflow/conventions.md` and no pattern
+   doc to read: the receipt reads `Read in full: 0 of 0`, step 5's pattern
+   compliance is skipped, its section saying so in one line, and the report's
+   `Knowledge base:` line names the state. Skipped pattern compliance is not
+   the "insufficient context" FAIL of the verdict rules.
 3. **Tests** (`3/7 tests`). Run the tests. Prefer commands listed in the spec;
    otherwise detect the project's runner from the stack (`.vibeflow/index.md`,
    then test scripts in package.json, pyproject.toml, Cargo.toml, go.mod, and
@@ -399,6 +460,7 @@ Round: audit | reaudit <n>
 Stage: <k>/<total> <name> | final
 Review package: <path> | none (<reason>)
 Base: <sha>
+Knowledge base: .vibeflow/index.md | none (no .vibeflow/index.md); patterns and conventions were not checked
 Read in full: <n> of <m>
 - <path> (<lines> lines)
 Not read whole: none
@@ -458,6 +520,13 @@ A focused prompt pack covering only the gaps.
 Include the correct patterns the agent must follow (embed them).
 Do not repeat work that already passes.
 ```
+
+The `Knowledge base:` line comes right after `Base:`:
+`Knowledge base: .vibeflow/index.md` in the `present` state;
+`Knowledge base: none (no .vibeflow/index.md); patterns and conventions were not checked`
+in the `none` state, and in the `missing here` state when the person said to go
+on without it. A PASS can carry the `none` line; no verdict goes out without
+the `Knowledge base:` line.
 
 Match the length of the report to what the audit found: sections with nothing
 to list say so in one line.

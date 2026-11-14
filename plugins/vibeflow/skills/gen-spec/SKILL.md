@@ -37,6 +37,57 @@ git history) is insufficient — an unfamiliar framework or API. Local first.
 
 Generate a complete spec for the feature in the user's current request.
 
+## Knowledge base
+
+The knowledge base is what the analyze workflow writes: `.vibeflow/index.md`,
+`.vibeflow/conventions.md`, `.vibeflow/decisions.md` and `.vibeflow/patterns/`.
+Its signal is `.vibeflow/index.md`, which only analyze writes: a `.vibeflow/`
+folder that holds only `specs/` or `prds/` is not a knowledge base. Check
+`.vibeflow/index.md` by its path, because search tools respect `.gitignore`
+and miss it. Before reading the input or writing any file, settle which of
+three states holds:
+
+- `present`: `.vibeflow/index.md` exists at the root of this checkout.
+- `missing here`: it does not, this checkout is a linked worktree, and the
+  main checkout has `<main>/.vibeflow/index.md`. `<main>` is the path on the
+  first `worktree <path>` line of `git worktree list --porcelain`; this
+  checkout is a linked worktree when that path differs from
+  `git rev-parse --show-toplevel` run here, both resolved with `realpath`
+  (macOS puts `/private` in front of `/var` and `/tmp`).
+  When that first path is a git folder and not a checkout, as in a worktree of
+  a submodule (`<super>/.git/modules/<x>`), `<main>` is its
+  `core.worktree`, from `git --git-dir=<that path> config core.worktree`,
+  resolved from that path. Where the host gives no shell,
+  read `.git` at the root by its path: a file that says
+  `gitdir: <path>/.git/worktrees/<name>` makes this checkout a linked worktree
+  whose main checkout is `<path>`, resolved from this checkout's root when it
+  is relative. The root is the folder that holds `.git`, found by going up
+  from the current folder.
+  A file that says `gitdir: <super>/.git/modules/<x>/worktrees/<name>` makes
+  this checkout a linked worktree of a submodule, whose main checkout is the
+  `core.worktree` set in `<super>/.git/modules/<x>/config`, resolved from
+  `<super>/.git/modules/<x>`.
+- `none`: neither here nor in the main checkout, including the main checkout
+  itself without `index.md` and a folder outside git.
+
+In the `missing here` state, stop. The reply's first line is
+`Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`,
+with nothing before it. That line stays in English in any output language.
+Then comes, in a code block, the command that brings the base into this
+worktree, run from its root. It lists only the items the main checkout
+has, in the order `index.md`, `conventions.md`, `decisions.md`, `patterns`.
+Before writing it, check each of the four by its path in the main checkout
+and leave out only the ones that do not exist. Each path goes in single
+quotes (a single quote inside a path becomes `'\''`), as in:
+
+```
+mkdir -p .vibeflow && cp -RL '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
+```
+
+The reply ends saying that this command goes on without the base only when
+the person says so in the conversation; with that word, it runs as in the
+`none` state.
+
 ## Before writing the spec
 
 1. Read the input. A path to a `.md` inside `.vibeflow/prds/` is a PRD:
@@ -45,7 +96,7 @@ Generate a complete spec for the feature in the user's current request.
    and applicable patterns. Anything else is a feature description. When the
    PRD has a `## Clarifications` section, carry its entries into the spec's own
    `## Clarifications`, so the answers travel with the contract.
-2. Load context from `.vibeflow/`, if it exists:
+2. Load context from `.vibeflow/` when the knowledge base is `present`:
    - `index.md` — project context. Its `Suggested budget: ≤ N` line is this
      spec's budget; without it, ≤6 files.
    - `conventions.md` — the project's standards.
@@ -70,7 +121,7 @@ Generate a complete spec for the feature in the user's current request.
    stopped to the last line. A list of headings or a keyword search is not a
    read.
 
-   No `.vibeflow/` → warn that results improve after `analyze`, then
+   In the `none` state, warn that results improve after `analyze`, then
    read the relevant code directly.
 3. Identify what exists today for this feature, the files the feature creates
    or changes, and which patterns apply to it. Then mark as applicable each

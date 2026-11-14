@@ -169,7 +169,8 @@ for (const [role, places] of Object.entries(ROLE_PLACES)) {
 // Fix 3, C2: each role declares what it read. The executor writes the receipt
 // into the progress file before the round's final marker and names, in line 4
 // of its five lines, any document not read whole; the auditor writes it into
-// the report's header right after `Base:`, as the audit workflow does. The
+// the report's header right after its `Knowledge base:` line, which follows
+// `Base:`, as the audit workflow does. The
 // five lines the orchestrator reads keep their count and order. Each bullet is
 // the same in the role's three places, and so is the whole body.
 function body(path) {
@@ -204,10 +205,10 @@ test('executor role: the receipt goes into the progress file before the final ma
   }
 });
 
-test('auditor role: the receipt goes into the report header right after `Base:`', () => {
+test('auditor role: the receipt goes into the report header right after `Knowledge base:`, which follows `Base:`', () => {
   const places = ROLE_PLACES.auditor;
   for (const path of places) {
-    const bullet = bulletOf(path, '* The report\'s header carries the read receipt right after its `Base:` line');
+    const bullet = bulletOf(path, '* The report\'s header carries the read receipt right after its `Knowledge base:` line, which follows its `Base:` line');
     assert.ok(bullet.includes('as the audit workflow\'s report template does'), `${path}: as the audit does`);
     assert.ok(bullet.includes(RECEIPT_FORM), `${path}: the receipt's form`);
     assert.ok(bullet.includes(RECEIPT_TRUTH), `${path}: the last-line criterion`);
@@ -327,13 +328,17 @@ test('orchestrator: every reply that stops the loop ends with the read receipt, 
   assert.equal(count(orchestrator, 'Every reply that stops the loop ends with the read receipt'), 1, 'orchestrator.md: said once');
 });
 
-test('audit: the report carries the read receipt right after its Base line', () => {
+// The knowledge base guard puts the `Knowledge base:` line between
+// `Base:` and the receipt; the receipt still opens right after the header's
+// base lines, now the `Knowledge base:` line.
+test('audit: the report carries the read receipt right after its Knowledge base line, which follows Base', () => {
   forEachEdition('audit', (raw, label) => {
     const template = between(raw, '## Output format', '## Verdict rules', label);
     const lines = template.split('\n').map((line) => line.trim());
     const base = lines.indexOf('Base: <sha>');
     assert.notEqual(base, -1, `${label}: the Base line`);
-    assert.deepEqual(lines.slice(base + 1, base + 4), RECEIPT, `${label}: the receipt follows Base`);
+    assert.ok(lines[base + 1].startsWith('Knowledge base: '), `${label}: the Knowledge base line follows Base`);
+    assert.deepEqual(lines.slice(base + 2, base + 5), RECEIPT, `${label}: the receipt follows the Knowledge base line`);
     assertReceiptProse(raw, label);
   });
 });
@@ -356,7 +361,7 @@ test('Language: `Documents to read:` in gen-spec and the receipt labels in audit
     const list = text.slice(text.indexOf("The report's machine-read labels stay literally in English in any output language"));
     assert.match(list, /^The report's machine-read labels[\s\S]*the read receipt's labels \(`Read in full`, `Not read whole`, `none`\)/, `${label}: the receipt labels are exempt`);
     const step2 = flat(between(raw, '2. **Spec** (`2/7 spec`)', '3. **Tests** (`3/7 tests`)', label));
-    assert.match(step2, /read receipt, its labels in English in any language, right after its `Base:` line/, `${label}: step 2 says it too`);
+    assert.match(step2, /read receipt, its labels in English in any language, right after its `Knowledge base:` line/, `${label}: step 2 says it too`);
   });
 });
 

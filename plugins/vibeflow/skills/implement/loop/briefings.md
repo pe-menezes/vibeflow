@@ -4,6 +4,8 @@ One briefing per round, in a file: `.vibeflow/briefings/<feature>-<part>-<role>[
 
 A briefing points at rules ("loop principle 7", from `principles.md`) and at the project knowledge in `.vibeflow/`; it writes only what belongs to the round. Placeholders are in angle brackets.
 
+In a project with no knowledge base (the preflight's `[attention] knowledge base: none` line), the "project knowledge" item of every template below is `* project knowledge: none in this project (analyze has not run)`, and the briefing names no path of the knowledge base under `.vibeflow/` (`index.md`, `conventions.md`, `decisions.md`, `patterns/`), because `check-briefing.mjs` stops on a knowledge file that does not exist: the auditor's first `Read first` item drops `.vibeflow/index.md` and keeps the spec and the progress file. The round then reads the spec and the code, and the audit report says so in its `Knowledge base:` line.
+
 ## Executor
 
 ```markdown
@@ -113,7 +115,7 @@ A briefing points at rules ("loop principle 7", from `principles.md`) and at the
 * the report is rewritten at every stage with `Stage: <k>/<total> <name>`, so a retry knows what the dead attempt left
 
 ## Delivery
-* `.vibeflow/audits/<feature>-<part>-audit.md` with the header fields `Independence`, `Round: audit`, `Stage`, `Review package` and `Base`; one finding line per finding (severity, cause, confidence, evidence, probe); the verdict PASS, PARTIAL or FAIL; the line `Stage: final` when done
+* `.vibeflow/audits/<feature>-<part>-audit.md` with the header fields `Independence`, `Round: audit`, `Stage`, `Review package`, `Base` and `Knowledge base`; one finding line per finding (severity, cause, confidence, evidence, probe); the verdict PASS, PARTIAL or FAIL; the line `Stage: final` when done
 * fix nothing
 ```
 

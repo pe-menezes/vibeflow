@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 
@@ -129,11 +129,22 @@ test('briefings.md holds the four templates with the loop artifact paths', () =>
   assert.match(read('briefings.md'), /\.vibeflow\/briefings\/<feature>-<part>-<role>\[-<n>\]\.md/);
 });
 
+// A project outside git with the knowledge base the templates point at: the briefings go where
+// the loop writes them, in its .vibeflow/briefings/, and check-briefing checks the knowledge
+// files under the folder that holds that .vibeflow/.
+function projectWithKnowledge(dir) {
+  mkdirSync(join(dir, '.vibeflow/briefings'), { recursive: true });
+  writeFileSync(join(dir, '.vibeflow/index.md'), '# Project\n');
+  writeFileSync(join(dir, '.vibeflow/conventions.md'), '# Conventions\n');
+  return join(dir, '.vibeflow/briefings');
+}
+
 test('each template filled with sample values passes check-briefing for its role', () => {
   const dir = mkdtempSync(join(tmpdir(), 'vibeflow-briefing-'));
   try {
+    const briefings = projectWithKnowledge(dir);
     for (const [role, template] of Object.entries(templates())) {
-      const path = join(dir, `feature-rules-${role}.md`);
+      const path = join(briefings, `feature-rules-${role}.md`);
       writeFileSync(path, fill(template));
       const result = runScript('check-briefing.mjs', [path, '--role', role], hermeticEnv(dir));
       assert.equal(result.status, 0, `${role}: ${result.out}`);
@@ -147,8 +158,9 @@ test('the filled auditor template pairs with the filled executor template', () =
   const dir = mkdtempSync(join(tmpdir(), 'vibeflow-briefing-'));
   try {
     const found = templates();
-    const executor = join(dir, 'feature-rules-executor.md');
-    const auditor = join(dir, 'feature-rules-auditor.md');
+    const briefings = projectWithKnowledge(dir);
+    const executor = join(briefings, 'feature-rules-executor.md');
+    const auditor = join(briefings, 'feature-rules-auditor.md');
     writeFileSync(executor, fill(found.executor));
     writeFileSync(auditor, fill(found.auditor));
     const result = runScript('check-briefing.mjs', [auditor, '--pair', executor], hermeticEnv(dir));

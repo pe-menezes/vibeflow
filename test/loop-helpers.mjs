@@ -2,7 +2,7 @@
 // first on PATH, and a runner for the kit's scripts.
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -88,6 +88,16 @@ export function makeSandbox() {
     writeExecutable: (name, body) => writeExecutable(join(bin, name), body),
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
+}
+
+// Gives the sandbox repository the knowledge base the analyze workflow writes (index.md and
+// conventions.md), each file ignored on its own so the rest of .vibeflow/ is seen as before: the
+// preflight's knowledge base line is ok, the briefing templates' knowledge files exist, and the
+// repository stays clean.
+export function addKnowledgeBase(box) {
+  box.write('.vibeflow/index.md', '# Project: sandbox\n');
+  box.write('.vibeflow/conventions.md', '# Conventions\n');
+  appendFileSync(join(box.repo, '.git/info/exclude'), '/.vibeflow/index.md\n/.vibeflow/conventions.md\n');
 }
 
 export function withSandbox(run) {

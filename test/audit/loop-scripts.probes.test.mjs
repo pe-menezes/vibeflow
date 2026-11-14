@@ -762,10 +762,18 @@ ${criteria}
 ## Read first
 * \`.vibeflow/index.md\``);
 
+// The project root of these briefings, given by --root: a folder with the knowledge base they
+// point at, so check-briefing does not depend on the folder the test runs from.
+function knowledgeRoot(dir) {
+  mkdirSync(join(dir, '.vibeflow'), { recursive: true });
+  writeFileSync(join(dir, '.vibeflow/index.md'), '# Project\n');
+  return ['--root', dir];
+}
+
 function pair(dir, executorText, auditorText) {
   const executor = write(dir, 'feature-rules-executor.md', executorText);
   const auditor = write(dir, 'feature-rules-auditor.md', auditorText);
-  return runScript('check-briefing.mjs', [auditor, '--pair', executor], hermeticEnv(dir));
+  return runScript('check-briefing.mjs', [auditor, '--pair', executor, ...knowledgeRoot(dir)], hermeticEnv(dir));
 }
 
 // Contract: --pair counts an auditor criterion only when it is in the executor's "Done when".
@@ -822,7 +830,7 @@ test('check-briefing --pair: a "Criteria" section opened at ### runs through its
       '#### From the risks', '* DoD 3: the cache expires at midnight', '',
       '### Read first', '* `.vibeflow/index.md`', '* the spec of the cache',
     ].join('\n'), 'feature-rules-round-1'));
-    const result = runScript('check-briefing.mjs', [auditor, '--pair', executor], hermeticEnv(dir));
+    const result = runScript('check-briefing.mjs', [auditor, '--pair', executor, ...knowledgeRoot(dir)], hermeticEnv(dir));
     assert.equal(result.status, 1, result.out);
     assert.match(result.stdout, /not in the executor's "Done when": DoD 3: the cache expires at midnight/);
     assert.doesNotMatch(result.stdout, /not in the executor's "Done when": .*spec of the cache/);
@@ -842,7 +850,7 @@ test('check-briefing --pair: prose under a sub-heading of "Criteria" is not glue
       '### From the risks', 'These two come from the spec\'s risk list.', '* DoD 2: a malformed file is refused', '',
       '## Read first', '* `.vibeflow/index.md`',
     ].join('\n'), 'feature-rules-round-1'));
-    const result = runScript('check-briefing.mjs', [auditor, '--pair', executor], hermeticEnv(dir));
+    const result = runScript('check-briefing.mjs', [auditor, '--pair', executor, ...knowledgeRoot(dir)], hermeticEnv(dir));
     assert.equal(result.status, 0, result.out);
     assert.match(result.stdout, /all 2 auditor criteria/);
   });

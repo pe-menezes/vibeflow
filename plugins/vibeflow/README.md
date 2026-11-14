@@ -208,6 +208,29 @@ material, the review packages (copies of the diff and of the new files each
 audit reads, rewritten on every audit) and the PR body, so add
 `.vibeflow/reviews/` to your `.gitignore`.
 
+The knowledge base is what `analyze` writes (`index.md`, `conventions.md`,
+`decisions.md`, `patterns/`), signed by `.vibeflow/index.md`. When
+`.vibeflow/` stays out of git, a new `git worktree` starts without it while
+the main checkout keeps it. In that worktree, `gen-spec`, `implement`,
+`quick`, `prompt-pack` and `audit` stop before writing anything: the reply
+opens with `Knowledge base missing in this worktree: <main>/.vibeflow/index.md exists in the main checkout.`
+and gives the command that copies the base, run from the worktree's root:
+
+```text
+mkdir -p .vibeflow && cp -RL '<main>/.vibeflow/index.md' '<main>/.vibeflow/conventions.md' '<main>/.vibeflow/decisions.md' '<main>/.vibeflow/patterns' .vibeflow/
+```
+
+It lists only what the main checkout has, and `cp -RL` writes over a
+`conventions.md` or `decisions.md` already in the worktree. A workflow goes on
+without the base only when you say so in the conversation; `implement --loop`
+does not, even then: the `[stop] knowledge base:` line of `preflight.mjs`
+stops it before any dispatch, and `--no-loop` runs without the base. With no
+base here or in the main checkout, the workflows go on with a warning, as
+before. The audit report, right after its `Base:` line, and the pull request
+body carry a `Knowledge base:` line that says which, and the review package
+and the perimeter check leave a copied, untracked base out with a
+`Knowledge base left out:` line.
+
 The knowledge is adaptive: it is grounded in code that actually exists in the
 project, and it compounds as specs, decisions, fixes, and audits are added.
 
