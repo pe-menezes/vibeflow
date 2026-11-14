@@ -588,3 +588,86 @@ test('a new file under .vibeflow/patterns/ that is not a Markdown document is a 
     assert.doesNotMatch(perimeter.stdout, /guide\.md/, perimeter.out);
   });
 });
+
+// --- fix round 3 of the pull request review ---
+
+// N1: every way a briefing cites a knowledge file, generated from the forms and not picked by
+// hand: a wrapper (bare, code span, bold, italics, table cell, link, quotes, angle brackets,
+// closing punctuation, an ellipsis or a dash right after it) around a path with or without a line
+// or anchor suffix, over a plain name, names that only a code span keeps whole, and
+// example.md.extra.md next to an existing example.md. Missing, each one stops on the path alone;
+// created, the same citation passes with no stop.
+const CITE_WRAPPERS = [
+  ['bare', (p) => `see ${p} here`, 'prose'],
+  ['a code span', (p) => `see \`${p}\` here`, 'span'],
+  ['bold', (p) => `see **${p}** here`, 'prose'],
+  ['bold around a code span', (p) => `see **\`${p}\`** here`, 'span'],
+  ['italics with *', (p) => `see *${p}* here`, 'prose'],
+  ['italics with _', (p) => `see _${p}_ here`, 'prose'],
+  ['a table cell without spaces', (p) => `|pattern|${p}|`, 'prose'],
+  ['a table cell with a code span', (p) => `| pattern | \`${p}\` |`, 'span'],
+  ['an ellipsis right after it', (p) => `see ${p}… and more`, 'prose'],
+  ['a dash right after it', (p) => `see ${p}— then`, 'prose'],
+  ['a full stop', (p) => `see ${p}. Then`, 'prose'],
+  ['a comma', (p) => `see ${p}, then`, 'prose'],
+  ['a Markdown link', (p) => `see [the doc](${p}) here`, 'prose'],
+  ['double quotes', (p) => `see "${p}" here`, 'prose'],
+  ['single quotes', (p) => `see '${p}' here`, 'prose'],
+  ['angle brackets', (p) => `see <${p}> here`, 'prose'],
+];
+const CITE_SUFFIXES = ['', ':12', ':12-30', ':12:4', '#totals'];
+const CITE_NAMES = [
+  ['cited.md', ['prose', 'span']],
+  ['example.md.extra.md', ['prose', 'span']],
+  ['auth(v2).md', ['prose', 'span']],
+  ['auth flow.md', ['span']],
+  ["team's style.md", ['span']],
+  ['auth [2].md', ['span']],
+];
+
+test('check-briefing reads a knowledge path in every form a briefing cites it: missing it stops on the path, created it passes', () => {
+  withFixture({}, (fx) => {
+    writeFileSync(join(fx.main, '.vibeflow/patterns/example.md'), '# Exists\n');
+    const run = (knowledge) => runScript('check-briefing.mjs', [writeBriefing(fx.main, EXECUTOR(`* project knowledge: \`.vibeflow/index.md\`\n* pattern: ${knowledge}`))], envFor(fx));
+    const failures = [];
+    let cases = 0;
+    for (const [name, readers] of CITE_NAMES) {
+      const path = `.vibeflow/patterns/${name}`;
+      for (const [label, wrap, reader] of CITE_WRAPPERS) {
+        if (!readers.includes(reader)) continue;
+        for (const suffix of CITE_SUFFIXES) {
+          cases += 1;
+          const cited = wrap(path + suffix);
+          const missing = run(cited);
+          const stops = missing.stdout.split('\n').filter((line) => line.startsWith('[stop] knowledge file'));
+          const want = `[stop] knowledge file the briefing points at does not exist: ${path}`;
+          if (missing.status !== 2 || stops.length !== 1 || stops[0] !== want) {
+            failures.push(`missing, ${label}, ${name}${suffix}: exit ${missing.status}, ${JSON.stringify(stops)}`);
+          }
+          writeFileSync(join(fx.main, path), '# Now it exists\n');
+          const created = run(cited);
+          rmSync(join(fx.main, path));
+          if (/^\[stop\]/m.test(created.stdout)) failures.push(`created, ${label}, ${name}${suffix}: ${created.stdout.trim()}`);
+        }
+      }
+    }
+    assert.ok(cases >= 200, `${cases} cases`);
+    assert.deepEqual(failures, [], `${failures.length} of ${cases} cases fail:\n${failures.join('\n')}`);
+  });
+});
+
+// A code span with more than one .vibeflow/ is read like the prose around it: two existing files
+// pass, and a missing one among them stops on that one alone.
+test('check-briefing reads a code span that lists several knowledge files like prose', () => {
+  withFixture({}, (fx) => {
+    const run = (knowledge) => runScript('check-briefing.mjs', [writeBriefing(fx.main, EXECUTOR(`* project knowledge: \`.vibeflow/index.md\`\n* patterns: ${knowledge}`))], envFor(fx));
+    for (const joiner of [', ', ' and ', ' ', ' | ', '; ']) {
+      const both = run(`\`.vibeflow/patterns/money.md${joiner}.vibeflow/conventions.md\``);
+      assert.doesNotMatch(both.stdout, /^\[stop\]/m, `${JSON.stringify(joiner)}: ${both.out}`);
+      const one = run(`\`.vibeflow/patterns/money.md${joiner}.vibeflow/patterns/gone.md:4\``);
+      assert.equal(one.status, 2, `${JSON.stringify(joiner)}: ${one.out}`);
+      assert.deepEqual(one.stdout.split('\n').filter((line) => line.startsWith('[stop] knowledge file')),
+        ['[stop] knowledge file the briefing points at does not exist: .vibeflow/patterns/gone.md'], `${JSON.stringify(joiner)}: ${one.out}`);
+    }
+  });
+});

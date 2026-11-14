@@ -253,35 +253,47 @@ function knowledgeBase(dir) {
 // doc at any depth under patterns/, with .md ending the path. A placeholder or a glob (a <, > or
 // * in it, such as patterns/<name>.md) is not a path.
 const KNOWLEDGE_FILE = /^\.vibeflow\/(?:index\.md|conventions\.md|decisions\.md|patterns\/[^<>*\n]+\.md)$/;
-// Outside a code span a path runs from .vibeflow/ to the next space or closing punctuation.
-const KNOWLEDGE_RUN = /\.vibeflow\/[^\s`]*/g;
+// In prose a path runs from .vibeflow/ to the next space, backtick or | (a table cell's edge).
+const KNOWLEDGE_RUN = /\.vibeflow\/[^\s`|]*/g;
 const CLOSERS = { ')': '(', ']': '[', '}': '{' };
+// After the .md, a line (:12, :12-30, :12:4) or an anchor (#section), as evidence cites a file.
+const KNOWLEDGE_SUFFIX = /(\.md)(?::\d+(?:[-:]\d+)?|#[^#]*)$/;
 
-// The run without the punctuation that closes the sentence or a bracket around it: a trailing
-// . , ; : ! ? ' " or >, and a ) ] or } with no opener of its own inside the run.
-function trimRun(run) {
+// The path without what closes it: a trailing . , ; : ! ? ' " or >, a ) ] or } with no opener
+// of its own inside the path, and the emphasis and dashes around it (* _ … —). With
+// `emphasis` false, only the closing punctuation goes.
+function trimRun(run, emphasis = true) {
   let path = run;
   for (;;) {
     const last = path.at(-1);
     const opener = CLOSERS[last];
     const unmatched = opener && path.split(last).length > path.split(opener).length;
-    if (!('.,;:!?\'">'.includes(last) || unmatched) || !path) return path;
+    if (!('.,;:!?\'">'.includes(last) || (emphasis && '*_…—'.includes(last)) || unmatched) || !path) return path;
     path = path.slice(0, -1);
   }
 }
 
-function runsIn(text) {
-  return (text.match(KNOWLEDGE_RUN) ?? []).map(trimRun).filter((path) => KNOWLEDGE_FILE.test(path));
+// One cited path as a knowledge file, or null: in this order, the closing punctuation with the
+// emphasis and dashes, a line or anchor suffix, the closing punctuation again; what is left is a
+// knowledge file only if it matches KNOWLEDGE_FILE.
+function knowledgeFile(cited) {
+  const path = trimRun(trimRun(cited).replace(KNOWLEDGE_SUFFIX, '$1'), false);
+  return KNOWLEDGE_FILE.test(path) ? path : null;
 }
 
-// Every knowledge path the briefing names. In a code span the path is the whole span (a ./ in
-// front is dropped), so a name with a space, a parenthesis, a quote or a bracket stays whole; a
-// span that is not one path, such as a command, is read like the prose around it.
+function runsIn(text) {
+  return (text.match(KNOWLEDGE_RUN) ?? []).map(knowledgeFile).filter(Boolean);
+}
+
+// Every knowledge path the briefing names. A code span with exactly one .vibeflow/ in it is one
+// path, the whole span (a ./ in front is dropped), so a name with a space, a parenthesis, a quote
+// or a bracket stays whole; a span with more than one, or one that is not a path once read whole
+// (a command), is read like the prose around it.
 function knowledgePaths(text) {
   const paths = [];
   const prose = text.replace(/`([^`\n]+)`/g, (span, inside) => {
-    const whole = inside.trim().replace(/^\.\//, '');
-    paths.push(...(KNOWLEDGE_FILE.test(whole) ? [whole] : runsIn(inside)));
+    const whole = inside.split('.vibeflow/').length === 2 ? knowledgeFile(inside.trim().replace(/^\.\//, '')) : null;
+    paths.push(...(whole ? [whole] : runsIn(inside)));
     return ' ';
   });
   return [...new Set([...paths, ...runsIn(prose)])];

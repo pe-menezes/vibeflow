@@ -165,7 +165,7 @@ const CITED_FORMS = [
   ['a table cell without spaces', '| pattern |.vibeflow/patterns/missing.md|'],
 ];
 
-test('probe C1: a missing pattern doc cited with a line, an anchor, in bold or in a table cell still stops', { todo: 'open defect N1: the fix reads these forms as no path at all, and the briefing passes with exit 0' }, () => {
+test('probe C1: a missing pattern doc cited with a line, an anchor, in bold or in a table cell still stops', () => {
   withFixture({}, (fx) => {
     for (const [label, knowledge] of CITED_FORMS) {
       const result = briefing(fx, knowledge);
@@ -175,7 +175,7 @@ test('probe C1: a missing pattern doc cited with a line, an anchor, in bold or i
   });
 });
 
-test('probe C1: a code span that lists two existing knowledge files does not stop', { todo: 'open defect N1: the whole span is read as one path that does not exist, and the briefing stops with exit 2' }, () => {
+test('probe C1: a code span that lists two existing knowledge files does not stop', () => {
   withFixture({}, (fx) => {
     for (const knowledge of [
       '* patterns: `.vibeflow/patterns/money.md, .vibeflow/conventions.md`',
