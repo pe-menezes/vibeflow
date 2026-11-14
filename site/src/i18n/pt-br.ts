@@ -18,7 +18,7 @@ export default {
   heroTitle: 'Desenvolvimento spec-driven\npara agentes de IA',
   heroSubtitle: 'Defina o que construir, depois deixe o agente construir certo.',
   heroDescription: 'Vibeflow separa o pensar do codar. Você define specs com guardrails. O agente de IA implementa seguindo os padrões reais do seu projeto.',
-  heroNotice: 'Novo na 1.17: a edição Hermes Agent →',
+  heroNotice: 'Novo na 1.18: a edição OpenCode →',
   heroCta: 'Veja como funciona',
   heroInstall: 'Instalar agora',
   heroQuickStartTitle: 'vibeflow pipeline',
@@ -72,6 +72,7 @@ export default {
     'Claude Code: os agentes `vibeflow:executor` e `vibeflow:auditor` do plugin.',
     'Codex: o subagente nativo, ou uma task nova com o caminho do briefing.',
     'Hermes: uma task do `delegate_task` por rodada, com o `goal` apontando o briefing. O resultado volta como um turno novo, ou na própria chamada numa execução de um disparo pela CLI ou num cron.',
+    'OpenCode: uma chamada da tool `subagent` por rodada, em primeiro plano, com o `agent` `executor` ou `auditor`; onde a edição não está instalada, o agente `general` do host, nunca o `explore`, que nega as tools de edição. A rodada termina quando a chamada volta.',
     'Cursor e Copilot: um chat novo que você abre com a linha que a orquestradora escreve.',
   ],
   loopCompanyTitle: 'Modo empresa',
@@ -86,7 +87,7 @@ export default {
     'No Claude Code, a versão 2.1.69 ou mais nova, para o loop e para o pacote de revisão do audit.',
     'Node.js 18 ou mais novo para os scripts do kit.',
     '`gh` só para o pull request do modo empresa.',
-    'O kit: no Codex, no Claude Code e no Hermes ele vem no plugin. No Cursor e no Copilot, o CLI 0.17.0 instala o kit, e uma instalação anterior ganha o kit com `--force`.',
+    'O kit: no Codex, no Claude Code e no Hermes ele vem no plugin. O CLI 0.17.0 instala o kit no Cursor e no Copilot, onde uma instalação anterior ganha o kit com `--force`. No OpenCode, o `--opencode` (CLI 0.18.0) instala o kit em `.opencode/skills/implement/loop/`.',
   ],
   loopMore: 'O loop em detalhe, no MANUAL →',
   loopMoreHref: 'https://github.com/pe-menezes/vibeflow/blob/main/MANUAL.md#o-loop-de-execução',
@@ -230,7 +231,7 @@ export default {
   editionsTitle: 'Escolha sua edição',
   editionsTitle2: 'Escolha seu agente.',
   editionsSubtitle: 'Mesma metodologia. Adaptada ao seu agente.',
-  editionsSubtitle2: 'Um plugin compartilhado para Codex, Claude e Hermes, mais edições nativas para Cursor e Copilot.',
+  editionsSubtitle2: 'Um plugin compartilhado para Codex, Claude e Hermes, mais edições nativas para Cursor, Copilot e OpenCode.',
   editionsTagline: 'Mesma metodologia. Seu agente.',
   codexTitle: 'Codex',
   codexDesc: 'Plugin nativo com skills focadas que o Codex descobre a partir do seu pedido.',
@@ -246,6 +247,9 @@ export default {
   cursorTitle: 'Cursor',
   cursorDesc: 'Rules e skills para Cursor Agent. Slash commands via /skill-name.',
   cursorInstall: 'npx setup-vibeflow@latest --cursor',
+  opencodeTitle: 'OpenCode',
+  opencodeDesc: 'Agents, os dez commands /vibeflow-<nome> e as skills compartilhadas, instalados no projeto.',
+  opencodeInstall: 'npx setup-vibeflow@latest --opencode',
   claudeTitle: 'Claude Code',
   claudeDesc: 'Plugin com slash commands para Claude Code e Claude Desktop.',
   claudeInstall: '/plugin marketplace add pe-menezes/vibeflow',
@@ -256,7 +260,7 @@ export default {
   claudeStep4: 'Clique Sync',
   claudeStep5: 'Browse plugins → Instale o Vibeflow',
   claudeCliLabel: 'Terminal (CLI)',
-  editionsLoopKit: 'Kit do loop: desde o CLI 0.17.0, o `--cursor` também instala o kit em `.cursor/skills/vibeflow-implement/loop/` e o `--copilot` em `.github/vibeflow/loop/`. Instalação anterior ganha o kit rodando o instalador de novo com `--force`. No Codex, no Claude Code e no Hermes, o kit vem dentro do plugin.',
+  editionsLoopKit: 'Kit do loop: desde o CLI 0.17.0, o `--cursor` também instala o kit em `.cursor/skills/vibeflow-implement/loop/` e o `--copilot` em `.github/vibeflow/loop/`. Instalação anterior do Cursor ou do Copilot ganha o kit rodando o instalador de novo com `--force`. No OpenCode, desde o CLI 0.18.0, o `--opencode` instala o kit em `.opencode/skills/implement/loop/`. No Codex, no Claude Code e no Hermes, o kit vem dentro do plugin.',
   editionsHermesScan: 'No Hermes, o scan da instalação lê a descrição do detector de segredos no README do kit como se fosse um segredo; `--force` instala.',
   editionsGitDisclaimer: 'Por padrão o instalador adiciona os arquivos instalados e a pasta `.vibeflow/` ao `.gitignore`, então não entram no commit. Remova o bloco "Vibeflow" do `.gitignore` se quiser versionar no git. Se versionar a `.vibeflow/`, deixe a `.vibeflow/reviews/` de fora, porque ela guarda material de trabalho: os pacotes de revisão, refeitos a cada auditoria, e o corpo do PR.',
   copied: 'Copiado!',
@@ -308,7 +312,7 @@ export default {
   cmdAnalyzeFlagSatellite: 'Analisa um repo de dependência externa (design system, lib compartilhada). Clona, detecta o que seu repo principal usa, merge padrões relevantes.',
   cmdAnalyzeFlagMeasure: 'Roda uma vez o comando da suíte inteira e o dos testes afetados e grava o tempo de cada um e a data. Sem a flag, o analyze registra os comandos de teste sem rodá-los.',
   cmdAnalyzeTests: 'O index.md ganha um bloco de testes e pitfalls: o comando da suíte inteira, o comando mais estreito dos testes afetados com o tempo medido ou unmeasured, e os pitfalls com a fonte.',
-  cmdAnalyzeImportProtection: 'Proteção de padrões importados: modo incremental pula padrões que têm versão importada (via teach --from). Fonte de verdade externa tem precedência.',
+  cmdAnalyzeImportProtection: 'Proteção de padrões importados: todo modo que escreve (incremental, --fresh, --scope, --satellite) mantém como estão os documentos importados via teach --from. O modo incremental não pula mais o padrão local com o nome de um importado: escreve o doc local, como exemplo ao lado da regra importada.',
   cmdAnalyzeOutput: '.vibeflow/index.md, conventions.md, patterns/, decisions.md',
 
   // discover
@@ -359,7 +363,7 @@ export default {
   // prompt-pack
   cmdPromptPackDesc: 'Gera um prompt auto-contido para um coding agent em sessão separada. O agent recebe tudo que precisa: padrões, convenções, caminhos de arquivos, comandos de teste. Zero contexto externo.',
   cmdPromptPackUsage: '/vibeflow:prompt-pack <arquivo de spec ou feature>',
-  cmdPromptPackAgnostic: 'Agent-agnostic: funciona com Codex, Copilot, Cursor, Claude Code, Hermes Agent, ou qualquer coding agent.',
+  cmdPromptPackAgnostic: 'Agent-agnostic: funciona com Codex, Copilot, Cursor, Claude Code, Hermes Agent, OpenCode, ou qualquer coding agent.',
   cmdPromptPackEmbedded: 'Padrões embutidos: inclui exemplos reais de código dos seus .vibeflow/patterns/ pra o agent seguir suas convenções.',
   cmdPromptPackValidation: 'Validação: rejeita specs com >7 DoD checks ou que excedem budget. Exige split antes.',
   cmdPromptPackOutput: '.vibeflow/prompt-packs/<slug>.md',
@@ -404,9 +408,9 @@ export default {
   cmdTeachCat2: 'Nova convenção: adiciona ao conventions.md (ex: "sempre usamos named exports").',
   cmdTeachCat3: 'Decisão arquitetural: adiciona ao decisions.md com contexto e alternativas descartadas.',
   cmdTeachCat4: 'Padrão novo: cria novo arquivo .vibeflow/patterns/<nome>.md com estrutura padrão.',
-  cmdTeachCat5: '--from <url|path>: importa padrões e convenções de um repo externo de referência (ex: guidelines de arquitetura, convenções compartilhadas). Review interativo para escolher o que importar. Salva em .vibeflow/patterns/external-<nome>/.',
-  cmdTeachConflict: 'Detecção de conflito: ao importar ou criar padrões, detecta colisões de nome com padrões locais ou importados. Pergunta qual versão manter, sem sobrescrita silenciosa.',
-  cmdTeachOutput: 'Atualizações em .vibeflow/ docs (conventions.md, patterns/, decisions.md, patterns/external-*/)',
+  cmdTeachCat5: '--from <url|path>: importa os padrões, as convenções e os workflows de um repo externo de referência (ex: guidelines de arquitetura, convenções compartilhadas). Conta o que acha nas pastas que varre antes de ler qualquer arquivo, e o review mostra todos os itens em três grupos numerados (patterns, conventions, workflows) para você escolher por número. Cada arquivo escolhido vira um documento com o tipo e a origem em .vibeflow/patterns/external-<nome>/, indexado por um registry.md que o gen-spec lê para marcar como aplicável o padrão ou a convenção importada por glob, por assunto ou por regra sempre ligada.',
+  cmdTeachConflict: 'Detecção de conflito: dois arquivos escolhidos que caem no mesmo nome de documento param a importação antes de qualquer escrita, com os dois caminhos na tela, e a reimportação sobrescreve só o documento do mesmo source_file. Um padrão local sobre o assunto de um importado não é trocado nem pulado: os dois ficam, o importado como regra e o local como exemplo. Criar um padrão com o nome de um doc local que já existe faz o teach perguntar se atualiza esse doc ou cria outro.',
+  cmdTeachOutput: 'Atualizações em .vibeflow/ docs (conventions.md, patterns/, decisions.md). O --from escreve em patterns/external-*/, com um registry.md e uma linha no index.md, e não acrescenta nada ao conventions.md.',
 
   // stats
   cmdStatsDesc: 'Compila estatísticas de todos os relatórios de audit e, quando existem, dos ledgers do loop. Mostra taxas de pass/fail, padrões mais violados, gaps de DoD comuns e tendência de qualidade.',
@@ -442,7 +446,7 @@ export default {
   anatomyPatternsTagline: 'As soluções estruturais recorrentes.',
   anatomyPatternsWhat: 'Uma pasta com um arquivo markdown por pattern. Cada arquivo documenta um formato de solução que se repete no projeto: o que é, onde vive, as regras e exemplos reais de código tirados do próprio codebase.',
   anatomyPatternsWhy: 'Patterns carregam nuance: o quê, o porquê e o como. São como o agente escreve código que se parece com o seu, e não código genérico. Sem eles, cada implementação reinventa a estrutura.',
-  anatomyPatternsAgent: 'gen-spec escolhe os patterns relevantes via Registry e lista no spec. implement lê só esses e replica a estrutura. audit verifica se a implementação seguiu. teach pode adicionar novos, inclusive importando de repos externos via --from.',
+  anatomyPatternsAgent: 'gen-spec escolhe os patterns relevantes via Registry, mais os importados que se aplicam via registry.md da fonte, e lista no spec. implement lê só esses e replica a estrutura. audit verifica se a implementação seguiu. gen-spec, implement, prompt-pack e audit leem inteiros o conventions.md e cada doc de padrão que o spec lista, um arquivo por leitura, e declaram o que leram num recibo Read in full. teach pode adicionar novos, inclusive importando de repos externos via --from.',
   anatomyPatternsEdit: 'Sim, mas com cuidado. O conteúdo dentro de <!-- vibeflow:auto:start/end --> é auto-gerado; edite fora dos marcadores pra adicionar notas que sobrevivam ao re-analyze. Use /teach pra adicionar um pattern novo em vez de soltar arquivo na mão.',
 
   // Anatomy — conventions.md
@@ -468,7 +472,7 @@ export default {
   anatomyLoopBriefings: 'um briefing por rodada do loop.',
   anatomyLoopProgress: 'o progresso do executor e de cada rodada de conserto.',
   anatomyLoopReviews: 'os pacotes de revisão e o corpo do PR.',
-  anatomyLoopGit: 'Commite a `.vibeflow/` no git, menos `reviews/`, que guarda material de trabalho: os pacotes de revisão, refeitos a cada auditoria, e o corpo do PR. Acrescente `.vibeflow/reviews/` ao `.gitignore`. (Nas instalações do Cursor e do Copilot, o instalador já põe a `.vibeflow/` inteira no `.gitignore`.)',
+  anatomyLoopGit: 'Commite a `.vibeflow/` no git, menos `reviews/`, que guarda material de trabalho: os pacotes de revisão, refeitos a cada auditoria, e o corpo do PR. Acrescente `.vibeflow/reviews/` ao `.gitignore`. (Nas instalações do Cursor, do Copilot e do OpenCode, o instalador já põe a `.vibeflow/` inteira no `.gitignore`.)',
 
   // Anatomy — patterns vs conventions
   anatomyVsTitle: 'Patterns vs conventions: qual a diferença?',
