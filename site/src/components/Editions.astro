@@ -160,15 +160,9 @@ const cmdHtml = (cmd: string) =>
     gap: 1.5rem;
   }
 
-  /* Six cards in two columns above the 768px breakpoint: Codex and Hermes on the
-     first row; Claude Code on the left across the second, third and fourth rows,
-     with Cursor, Copilot and OpenCode stacked on its right. Below it, one column
+  /* Six cards in two columns above the 768px breakpoint, in DOM order: Codex and
+     Hermes, Claude Code and Cursor, Copilot and OpenCode. Below it, one column
      (rule at the end). */
-  @media (min-width: 769px) {
-    .ed-grid > .ed-card--claude {
-      grid-row: span 3;
-    }
-  }
 
   .ed-card {
     background: var(--bg-card);

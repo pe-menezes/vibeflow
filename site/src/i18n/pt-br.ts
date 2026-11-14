@@ -306,7 +306,7 @@ export default {
   cmdAnalyzeDesc: 'Deep-scan do codebase que aprende seus padrões, convenções e arquitetura. Gera documentação curada em .vibeflow/ que persiste e pode ser commitada no git.',
   cmdAnalyzeUsage: '/vibeflow:analyze [--fresh] [--scope <path>] [--interactive] [--satellite <url>] [--measure]',
   cmdAnalyzeFlagDefault: 'Modo incremental (padrão): re-analisa apenas o que mudou desde a última execução, detectado via git. Também roda quando só mudou um arquivo de teste, a configuração da CI ou a do test runner.',
-  cmdAnalyzeFlagFresh: 'Rebuild completo do zero. Ignora .vibeflow/ existente, re-analisa tudo.',
+  cmdAnalyzeFlagFresh: 'Rebuild completo do zero, menos o que o teach --from importou.',
   cmdAnalyzeFlagScope: 'Deep-dive num módulo ou diretório específico (80%+ dos arquivos). Enriquece padrões globais com exemplos do módulo.',
   cmdAnalyzeFlagInteractive: 'Adiciona checkpoint de review: apresenta padrões encontrados, pergunta sobre falsos positivos e padrões faltando antes de salvar.',
   cmdAnalyzeFlagSatellite: 'Analisa um repo de dependência externa (design system, lib compartilhada). Clona, detecta o que seu repo principal usa, merge padrões relevantes.',
