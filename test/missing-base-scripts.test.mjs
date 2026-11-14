@@ -593,7 +593,8 @@ test('a new file under .vibeflow/patterns/ that is not a Markdown document is a 
 
 // N1: every way a briefing cites a knowledge file, generated from the forms and not picked by
 // hand: a wrapper (bare, code span, bold, italics, table cell, link, quotes, angle brackets,
-// closing punctuation, an ellipsis or a dash right after it) around a path with or without a line
+// closing punctuation, an ellipsis or a dash right after it, and a dash, an ellipsis, emphasis,
+// angle brackets or a link's text ending glued to the next word) around a path with or without a line
 // or anchor suffix, over a plain name, names that only a code span keeps whole, and
 // example.md.extra.md next to an existing example.md. Missing, each one stops on the path alone;
 // created, the same citation passes with no stop.
@@ -614,6 +615,13 @@ const CITE_WRAPPERS = [
   ['double quotes', (p) => `see "${p}" here`, 'prose'],
   ['single quotes', (p) => `see '${p}' here`, 'prose'],
   ['angle brackets', (p) => `see <${p}> here`, 'prose'],
+  // fix round 3b: the closing character glued to the next word, not only at the end of the run
+  ['the text of a Markdown link', (p) => `see [${p}](#pattern) here`, 'prose'],
+  ['a dash glued to the next word', (p) => `see ${p}—then the rest`, 'prose'],
+  ['an ellipsis glued to the next word', (p) => `see ${p}…later`, 'prose'],
+  ['bold glued to the next word', (p) => `see **${p}**then`, 'prose'],
+  ['italics with * glued to the next word', (p) => `see *${p}*then`, 'prose'],
+  ['angle brackets glued to the next word', (p) => `see <${p}>then`, 'prose'],
 ];
 const CITE_SUFFIXES = ['', ':12', ':12-30', ':12:4', '#totals'];
 const CITE_NAMES = [

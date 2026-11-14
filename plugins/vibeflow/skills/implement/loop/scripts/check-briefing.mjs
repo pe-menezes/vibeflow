@@ -253,8 +253,10 @@ function knowledgeBase(dir) {
 // doc at any depth under patterns/, with .md ending the path. A placeholder or a glob (a <, > or
 // * in it, such as patterns/<name>.md) is not a path.
 const KNOWLEDGE_FILE = /^\.vibeflow\/(?:index\.md|conventions\.md|decisions\.md|patterns\/[^<>*\n]+\.md)$/;
-// In prose a path runs from .vibeflow/ to the next space, backtick or | (a table cell's edge).
-const KNOWLEDGE_RUN = /\.vibeflow\/[^\s`|]*/g;
+// In prose a path runs from .vibeflow/ to the next space, backtick, | (a table cell's edge), dash
+// (—), ellipsis (…), * < or > (never in a knowledge file), or ]( (a link's text ending), so a
+// closing character glued to the next word still ends it.
+const KNOWLEDGE_RUN = /\.vibeflow\/(?:(?!\]\()[^\s`|—…*<>])*/g;
 const CLOSERS = { ')': '(', ']': '[', '}': '{' };
 // After the .md, a line (:12, :12-30, :12:4) or an anchor (#section), as evidence cites a file.
 const KNOWLEDGE_SUFFIX = /(\.md)(?::\d+(?:[-:]\d+)?|#[^#]*)$/;
