@@ -13,6 +13,7 @@ const t = useTranslations(lang);
 const npxEditions = [
   { title: t.cursorTitle, desc: t.cursorDesc, install: t.cursorInstall },
   { title: t.copilotTitle, desc: t.copilotDesc, install: t.copilotInstall },
+  { title: t.opencodeTitle, desc: t.opencodeDesc, install: t.opencodeInstall },
 ];
 
 // Display markup for a command: pieces that never break inside (`pe-menezes`,
@@ -99,7 +100,7 @@ const cmdHtml = (cmd: string) =>
           </div>
         </div>
 
-        <!-- Cursor & Copilot — standard cards -->
+        <!-- Cursor, Copilot and OpenCode: standard cards -->
         {npxEditions.map((ed) => (
           <div class="ed-card">
             <h3>{ed.title}</h3>
@@ -159,14 +160,9 @@ const cmdHtml = (cmd: string) =>
     gap: 1.5rem;
   }
 
-  /* Five cards in two columns above the 768px breakpoint: Codex and Hermes on the
-     first row; Claude Code on the left across the second and third rows, with
-     Cursor and Copilot stacked on its right. Below it, one column (rule at the end). */
-  @media (min-width: 769px) {
-    .ed-grid > .ed-card--claude {
-      grid-row: span 2;
-    }
-  }
+  /* Six cards in two columns above the 768px breakpoint, in DOM order: Codex and
+     Hermes, Claude Code and Cursor, Copilot and OpenCode. Below it, one column
+     (rule at the end). */
 
   .ed-card {
     background: var(--bg-card);
