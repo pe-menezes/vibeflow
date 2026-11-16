@@ -170,10 +170,36 @@ function page(name) {
   flush();
 
   const maxScroll = layout.pageHeight - VIEWPORT;
+  const fire = (type, ev) => listeners.filter(([t]) => t === type).forEach(([, fn]) => fn(ev));
+  // One scroll event with its animation frames, and no time passing (no timer runs).
+  const step = (y) => {
+    scrollY = Math.max(0, Math.min(Math.round(y), maxScroll));
+    observers.forEach((o) => o.deliver());
+    fire('scroll', { type: 'scroll' });
+    frames.splice(0).forEach((fn) => fn(0));
+  };
   return {
     ids: layout.entries.map(([id]) => id),
     maxScroll,
+    pageTop: (id) => byId.get(id).pageTop,
     scrollTo(y) { scrollY = Math.max(0, Math.min(y, maxScroll)); flush(); },
+    // Following an index link as a browser does (the click, the hash, a smooth scroll in steps),
+    // then a wheel scroll by hand that starts before the page has rested; then the page rests.
+    followThenScroll(id, handTo) {
+      const link = links[layout.entries.findIndex(([e]) => e === id)];
+      fire('click', { type: 'click', target: { closest: () => link }, button: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
+      win.location.hash = `#${id}`;
+      fire('hashchange', { type: 'hashchange' });
+      const from = scrollY;
+      const to = Math.max(0, Math.min(byId.get(id).pageTop - layout.scrollMargin, maxScroll));
+      for (let s = 1; s <= 8; s++) step(from + ((to - from) * s) / 8);
+      const start = scrollY;
+      for (let s = 1; s <= 12; s++) {
+        fire('wheel', { type: 'wheel', deltaY: Math.sign(handTo - start) * 100 });
+        step(start + ((handTo - start) * s) / 12);
+      }
+      flush();
+    },
     // A jump from the index: the browser puts the entry's top at the scroll margin, or stops at the page end.
     jumpTo(id) { win.location.hash = `#${id}`; this.scrollTo(byId.get(id).pageTop - layout.scrollMargin); return scrollY === maxScroll; },
     current() {
@@ -238,3 +264,30 @@ for (const name of ['commands', 'anatomy']) {
     assert.deepEqual(wrong, []);
   });
 }
+
+// Contract: the mark follows the reader's own scrolling after a jump from the index, even when the
+//   reader starts scrolling by hand before the page has come to rest: once the page rests, the
+//   current link is the entry at the top of the screen, not the one jumped to.
+// Breaks when: the hold that keeps the jumped-to entry current through the jump's smooth scroll
+//   takes any scroll without a pause for part of that jump (reaudit 1, headless Chrome, 1280x900:
+//   a wheel gesture of 1,200 px starting 80 ms after the jump came to rest left the jumped-to entry
+//   current in 6 of 8 cases, with another entry on screen, until the next scroll).
+// Not covered by: test/site-pages.test.mjs lets the page rest after every jump before it scrolls.
+test('index: a hand scroll that starts before a jump has rested takes the mark along', { todo: 'reaudit 1 of part 4, defect D4: the jumped-to entry stays current' }, () => {
+  const cases = [
+    ['anatomy', 'patterns', 'decisions-md'],
+    ['anatomy', 'decisions-md', 'patterns'],
+    ['commands', 'gen-spec', 'implement'],
+    ['commands', 'audit', 'implement'],
+  ];
+  const wrong = [];
+  for (const [name, jumpTo, readTo] of cases) {
+    const p = page(name);
+    p.scrollTo(0);
+    // The hand stops with the entry read well past the top of the screen, 200 px into it.
+    p.followThenScroll(jumpTo, p.pageTop(readTo) + 200);
+    const c = p.current();
+    if (c !== readTo) wrong.push(`${name}: jump to #${jumpTo}, scroll on to #${readTo}: marks ${c ? `#${c}` : 'nothing'}`);
+  }
+  assert.deepEqual(wrong, []);
+});
