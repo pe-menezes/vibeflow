@@ -8,300 +8,203 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(lang);
+const github = 'https://github.com/pe-menezes/vibeflow';
+// The mark: a V whose left arm is a wave and whose right arm is straight; public/favicon.svg
+// draws the same path.
 ---
 
-<header class="header" id="header">
+<header class="site-header" id="header">
   <div class="container header-inner">
-    <div class="header-left">
-      <a href={`/${lang}/`} class="logo">
-        <img src="/vibeflow-logo-horizontal.png" alt="Vibeflow" class="logo-img" height="28" />
-      </a>
-      <nav class="nav-links desktop-only">
-        <a href={`/${lang}/#how`}>{t.navHow}</a>
-        <a href={`/${lang}/commands`}>{t.navCommands}</a>
-        <a href={`/${lang}/anatomy`}>{t.navAnatomy}</a>
-        <a href={`/${lang}/#editions`}>{t.navInstall}</a>
-        <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener">{t.headerGithub}</a>
-      </nav>
-    </div>
+    <a class="brand" href={`/${lang}/`}>
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path class="brand-path" d="M4.50 6.00 L5.80 6.26 L6.88 6.65 L7.56 7.25 L7.78 8.10 L7.60 9.18 L7.16 10.39 L6.70 11.62 L6.44 12.74 L6.53 13.66 L7.05 14.35 L7.95 14.84 L9.08 15.19 L10.25 15.52 L11.27 15.94 L11.98 16.53 L12.34 17.30 L12.40 18.25 L12.27 19.29 L12.13 20.35 L12.11 21.33 L12.33 22.19 L12.78 22.91 L13.42 23.54 L14.13 24.13 L14.79 24.74 L15.33 25.42 L15.71 26.18 L16.00 27.00 L27.5 6" /></svg>
+      <span>Vibeflow</span>
+    </a>
 
-    <div class="header-right desktop-only">
-      <button class="theme-toggle" aria-label="Toggle theme" type="button">
-        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
-      <a href={t.switchPath} class="lang-toggle">{t.switchLang}</a>
-      <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener" class="nav-cta">{t.navStarGithub}</a>
-    </div>
+    <nav class="nav desktop-only">
+      <a href={`/${lang}/#how`}>{t.navHow}</a>
+      <a href={`/${lang}/commands`}>{t.navCommands}</a>
+      <a href={`/${lang}/anatomy`}>{t.navAnatomy}</a>
+      <a href={`/${lang}/#editions`}>{t.navInstall}</a>
+      <a href={github} target="_blank" rel="noopener">{t.headerGithub}</a>
+    </nav>
 
-    <div class="header-right-mobile mobile-only">
-      <button class="theme-toggle" aria-label="Toggle theme" type="button">
-        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    <div class="tools">
+      <a href={t.switchPath} class="gx-btn gx-btn--fantasma gx-btn--p lang-toggle">{t.switchLang}</a>
+      <button class="gx-btn gx-btn--fantasma gx-btn--p theme-toggle" aria-label="Toggle theme" type="button">
+        <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
-      <a href={t.switchPath} class="lang-toggle">{t.switchLang}</a>
-      <button class="hamburger" id="hamburger" aria-label="Menu" type="button">
+      <a href={github} target="_blank" rel="noopener" class="gx-btn gx-btn--p desktop-only">{t.navStarGithub}</a>
+      <button class="gx-btn gx-btn--fantasma gx-btn--p hamburger mobile-only" id="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="mobile-menu" type="button">
         <span></span><span></span><span></span>
       </button>
     </div>
   </div>
+
+  <nav class="mobile-menu container" id="mobile-menu" hidden>
+    <a href={`/${lang}/#how`}>{t.navHow}</a>
+    <a href={`/${lang}/commands`}>{t.navCommands}</a>
+    <a href={`/${lang}/anatomy`}>{t.navAnatomy}</a>
+    <a href={`/${lang}/#editions`}>{t.navInstall}</a>
+    <a href={github} target="_blank" rel="noopener">{t.headerGithub}</a>
+    <a href={github} target="_blank" rel="noopener" class="gx-btn gx-btn--primario">{t.navStarGithub}</a>
+  </nav>
 </header>
 
-<div class="mobile-menu" id="mobile-menu">
-  <a href={`/${lang}/#how`}>{t.navHow}</a>
-  <a href={`/${lang}/commands`}>{t.navCommands}</a>
-  <a href={`/${lang}/anatomy`}>{t.navAnatomy}</a>
-  <a href={`/${lang}/#editions`}>{t.navInstall}</a>
-  <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener">{t.headerGithub}</a>
-  <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener" class="btn btn-dark mobile-cta">{t.navStarGithub}</a>
-</div>
-
 <script>
-  // Theme toggle
+  import { nextTheme } from '../lib/theme.js';
+
+  // Theme: the choice is saved either way and wins over the system until changed again.
+  const systemDark = matchMedia('(prefers-color-scheme: dark)');
   document.querySelectorAll('.theme-toggle').forEach((btn) => {
     btn.addEventListener('click', () => {
       const html = document.documentElement;
-      const current = html.dataset.theme;
-      const next = current === 'dark' ? undefined : 'dark';
-      if (next) {
-        html.dataset.theme = next;
+      const next = nextTheme(html.dataset.theme, systemDark.matches);
+      html.dataset.theme = next;
+      try {
         localStorage.setItem('theme', next);
-      } else {
-        delete html.dataset.theme;
-        localStorage.removeItem('theme');
+      } catch {
+        // Private mode: the choice holds for this page only.
       }
     });
   });
 
-  // Nav scroll effect
-  const header = document.getElementById('header');
-  if (header) {
-    window.addEventListener('scroll', () => {
-      header.classList.toggle('scrolled', window.scrollY > 30);
-    });
-  }
-
-  // Mobile menu toggle
+  // Mobile menu
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobile-menu');
   if (hamburger && mobileMenu) {
-    hamburger.addEventListener('click', () => {
-      hamburger.classList.toggle('open');
-      mobileMenu.classList.toggle('open');
-    });
-    // Close mobile menu on link click
-    mobileMenu.querySelectorAll('a').forEach((link) => {
-      link.addEventListener('click', () => {
-        hamburger.classList.remove('open');
-        mobileMenu.classList.remove('open');
-      });
-    });
+    const setOpen = (open: boolean) => {
+      hamburger.setAttribute('aria-expanded', String(open));
+      mobileMenu.hidden = !open;
+    };
+    hamburger.addEventListener('click', () => setOpen(mobileMenu.hidden));
+    mobileMenu.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => setOpen(false)));
   }
 </script>
 
 <style>
-  .header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    height: 64px;
-    transition: all 0.4s var(--ease-out);
-  }
-
-  .header.scrolled {
-    background: var(--bg-header-glass);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    box-shadow: 0 1px 0 0 var(--border-accent), 0 4px 20px rgba(0, 0, 0, 0.03);
+  .site-header {
+    position: relative;
+    z-index: 10;
   }
 
   .header-inner {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 64px;
+    gap: var(--s-4);
+    padding-block: var(--s-4);
   }
 
-  .header-left {
-    display: flex;
+  .brand {
+    display: inline-flex;
     align-items: center;
-    gap: 2.5rem;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    text-decoration: none;
-  }
-  .logo:hover {
-    opacity: 0.85;
-  }
-  .logo-img {
-    height: 28px;
-    width: auto;
-    object-fit: contain;
-  }
-
-  .nav-links {
-    display: flex;
-    gap: 1.75rem;
-  }
-
-  .nav-links a {
-    text-decoration: none;
-    color: var(--text-secondary);
-    font-size: 0.82rem;
-    font-weight: 500;
-    transition: color 0.2s var(--ease-out);
-    position: relative;
-  }
-  .nav-links a:hover {
-    color: var(--text-primary);
-  }
-  .nav-links a::after {
-    content: '';
-    position: absolute;
-    bottom: -4px;
-    left: 0;
-    right: 0;
-    height: 1.5px;
-    background: var(--accent);
-    border-radius: 1px;
-    transform: scaleX(0);
-    transition: transform 0.25s var(--ease-out);
-  }
-  .nav-links a:hover::after {
-    transform: scaleX(1);
-  }
-
-  .header-right,
-  .header-right-mobile {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .lang-toggle,
-  .theme-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
-    font-size: 0.75rem;
+    gap: var(--s-2);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1.14rem;
     font-weight: 600;
-    font-family: var(--font-mono);
-    transition: all 0.2s var(--ease-out);
-    background: transparent;
-    cursor: pointer;
+    letter-spacing: -0.02em;
+    text-decoration: none;
   }
-  .lang-toggle:hover,
-  .theme-toggle:hover {
-    color: var(--text-primary);
-    border-color: var(--accent);
-    background: var(--bg-card);
+  .brand:hover {
+    color: var(--ink);
+  }
+  .brand svg {
+    width: 30px;
+    height: 30px;
+    overflow: visible;
+  }
+  .brand-path {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 3.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
+  .nav {
+    display: flex;
+    gap: var(--s-5);
+    font-size: var(--fs-ui);
+  }
+  .nav a {
+    color: var(--ink-3);
+    text-decoration: none;
+    transition: color var(--d-2) var(--ease-out);
+  }
+  .nav a:hover {
+    color: var(--ink);
+  }
+
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+  }
+
+  .lang-toggle {
+    font-family: var(--font-mono);
+    font-size: var(--fs-data);
+  }
+
+  .theme-toggle svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  /* The icon shows the theme the button switches to. */
   .icon-sun { display: none; }
   .icon-moon { display: block; }
-  :global([data-theme="dark"]) .icon-moon { display: none; }
-  :global([data-theme="dark"]) .icon-sun { display: block; }
-
-  .nav-cta {
-    background: var(--accent-gradient);
-    color: #fff;
-    padding: 0.5rem 1.2rem;
-    border-radius: var(--radius-full);
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.25s var(--ease-out);
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
-  }
-  .nav-cta:hover {
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
-    transform: translateY(-1px);
-    color: #fff;
+  :global(:root[data-theme="dark"]) .icon-sun { display: block; }
+  :global(:root[data-theme="dark"]) .icon-moon { display: none; }
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme="light"])) .icon-sun { display: block; }
+    :global(:root:not([data-theme="light"])) .icon-moon { display: none; }
   }
 
-  /* Hamburger */
   .hamburger {
-    display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    width: 36px;
-    height: 36px;
+    gap: 4px;
+    width: var(--ctl-p);
   }
   .hamburger span {
     display: block;
-    width: 18px;
+    width: 16px;
     height: 1.5px;
-    background: var(--text-primary);
     border-radius: 2px;
-    transition: all 0.3s var(--ease-out);
-  }
-  .hamburger.open span:nth-child(1) {
-    transform: rotate(45deg) translate(2.3px, 2.3px);
-  }
-  .hamburger.open span:nth-child(2) {
-    opacity: 0;
-  }
-  .hamburger.open span:nth-child(3) {
-    transform: rotate(-45deg) translate(2.3px, -2.3px);
+    background: currentColor;
   }
 
-  /* Mobile menu */
   .mobile-menu {
-    display: none;
-    position: fixed;
-    top: 64px;
-    left: 0;
-    right: 0;
-    background: var(--bg-header-glass);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
-    padding: 1.5rem 2rem 2rem;
-    z-index: 99;
-    border-bottom: 1px solid var(--border);
-    flex-direction: column;
-    gap: 1.25rem;
-  }
-  :global(.mobile-menu.open) {
     display: flex;
+    flex-direction: column;
+    gap: var(--s-3);
+    padding-bottom: var(--s-5);
+    border-bottom: 1px solid var(--rule-soft);
   }
-  .mobile-menu a {
-    text-decoration: none;
-    color: var(--text-primary);
+  .mobile-menu[hidden] {
+    display: none;
+  }
+  .mobile-menu a:not(.gx-btn) {
+    padding-block: var(--s-1);
+    color: var(--ink);
     font-size: 1rem;
     font-weight: 500;
-    padding: 0.5rem 0;
-  }
-  .mobile-cta {
-    text-align: center;
-    margin-top: 0.5rem;
   }
 
-  /* Desktop/mobile visibility */
   .mobile-only {
     display: none;
   }
 
-  @media (max-width: 768px) {
+  @media (max-width: 859px) {
     .desktop-only {
       display: none;
     }
     .mobile-only {
-      display: flex;
+      display: inline-flex;
     }
   }
 </style>

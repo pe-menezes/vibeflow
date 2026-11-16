@@ -1,4 +1,6 @@
 ---
+import '../styles/genius/genius-tudo.css';
+import '../styles/genius/genius-noite.css';
 import '../styles/global.css';
 
 interface Props {
@@ -8,24 +10,29 @@ interface Props {
 }
 
 const { title, description, lang } = Astro.props;
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://vibeflow.dev');
+// astro.config.mjs sets `site`; every absolute address on the page comes from it.
+const site = Astro.site!;
+const canonicalUrl = new URL(Astro.url.pathname, site);
+const ogImage = new URL('/og-image.png', site);
 ---
 
 <!doctype html>
 <html lang={lang}>
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content={description} />
     <meta name="color-scheme" content="light dark" />
 
-    <!-- Theme init (blocking — prevents FOIT) -->
+    <!-- Before the first paint: the saved theme (either way) and whether motion is allowed. -->
     <script is:inline>
-      (function() {
-        const saved = localStorage.getItem('theme');
-        if (saved === 'dark') {
-          document.documentElement.dataset.theme = 'dark';
-        }
+      (function () {
+        var html = document.documentElement;
+        try {
+          var saved = localStorage.getItem('theme');
+          if (saved === 'light' || saved === 'dark') html.dataset.theme = saved;
+        } catch (e) {}
+        if (!matchMedia('(prefers-reduced-motion: reduce)').matches) html.classList.add('motion-ok');
       })();
     </script>
 
@@ -36,7 +43,7 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://vibeflow
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl.href} />
-    <meta property="og:image" content="https://vibeflow-two.vercel.app/og-image.png" />
+    <meta property="og:image" content={ogImage.href} />
     <meta property="og:image:width" content="1600" />
     <meta property="og:image:height" content="900" />
 
@@ -44,49 +51,27 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site || 'https://vibeflow
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content="https://vibeflow-two.vercel.app/og-image.png" />
+    <meta name="twitter:image" content={ogImage.href} />
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <!-- Fonts are self-hosted (public/fonts); only the title face is preloaded. -->
+    <link rel="preload" href="/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin />
 
     <!-- Favicon -->
-    <link rel="icon" type="image/png" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <!-- Canonical + hreflang -->
     <link rel="canonical" href={canonicalUrl.href} />
-    <link rel="alternate" hreflang="en" href={new URL('/en/', Astro.site || 'https://vibeflow.dev').href} />
-    <link rel="alternate" hreflang="pt-BR" href={new URL('/pt-br/', Astro.site || 'https://vibeflow.dev').href} />
+    <link rel="alternate" hreflang="en" href={new URL('/en/', site).href} />
+    <link rel="alternate" hreflang="pt-BR" href={new URL('/pt-br/', site).href} />
   </head>
-  <body>
+  <body data-gx-acento="violet">
     <slot />
 
     <script>
-      // Intersection Observer for scroll reveal animations
-      function initReveal() {
-        const observer = new IntersectionObserver(
-          (entries) => {
-            entries.forEach((entry) => {
-              if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-                observer.unobserve(entry.target);
-              }
-            });
-          },
-          { threshold: 0.05, rootMargin: '0px 0px -40px 0px' }
-        );
-
-        document.querySelectorAll('.fade-in, .reveal, [data-reveal]').forEach((el) => observer.observe(el));
-      }
-
-      // Ensure DOM + layout are ready before observing
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initReveal);
-      } else {
-        requestAnimationFrame(initReveal);
-      }
+      import { iniciar } from '../scripts/genius/genius.js';
+      iniciar();
     </script>
   </body>
 </html>

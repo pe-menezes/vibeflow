@@ -10,56 +10,34 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 ---
 
-<footer class="footer">
-  <div class="container footer-inner">
-    <span class="footer-copy">&copy; 2026 Vibeflow &middot; {t.footerLicense}</span>
-    <div class="footer-links">
-      <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener">{t.headerGithub}</a>
-      <a href="https://www.npmjs.com/package/setup-vibeflow" target="_blank" rel="noopener">npm</a>
-      <a href={`/${lang}/commands`}>{t.navCommands}</a>
-    </div>
+<footer class="container">
+  <div class="footer">
+    <p class="footer-copy">&copy; 2026 Vibeflow &middot; {t.footerLicense}</p>
+    <p class="footer-links">
+      <a class="gx-link" href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener">{t.headerGithub}</a>
+      <a class="gx-link" href="https://www.npmjs.com/package/setup-vibeflow" target="_blank" rel="noopener">npm</a>
+      <a class="gx-link" href={`/${lang}/commands`}>{t.navCommands}</a>
+    </p>
   </div>
 </footer>
 
 <style>
   .footer {
-    border-top: 1px solid var(--border);
-    padding: 2rem 0;
-  }
-
-  .footer-inner {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: baseline;
     justify-content: space-between;
-  }
-
-  .footer-copy {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+    gap: var(--s-3) var(--s-5);
+    margin-top: clamp(64px, 10vw, 120px);
+    padding-block: var(--s-4) var(--s-7);
+    border-top: 1px solid var(--rule);
+    color: var(--ink-3);
+    font-size: var(--fs-meta);
   }
 
   .footer-links {
     display: flex;
-    align-items: center;
-    gap: 1.5rem;
-  }
-
-  .footer-links a {
-    color: var(--text-secondary);
-    font-size: 0.8rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: color 0.2s var(--ease-out);
-  }
-  .footer-links a:hover {
-    color: var(--text-primary);
-  }
-
-  @media (max-width: 768px) {
-    .footer-inner {
-      flex-direction: column;
-      gap: 1rem;
-      text-align: center;
-    }
+    flex-wrap: wrap;
+    gap: var(--s-4);
   }
 </style>

@@ -187,11 +187,11 @@ const commands = [
 
 <section class="section commands-docs">
   <div class="container">
-    <a href={`/${lang}/`} class="back-link fade-in">{t.cmdBackToHome}</a>
-    <h1 class="page-title fade-in">{t.cmdPageTitle}</h1>
-    <p class="page-subtitle fade-in delay-1">{t.cmdPageSubtitle}</p>
+    <a href={`/${lang}/`} class="back-link">{t.cmdBackToHome}</a>
+    <h1 class="page-title">{t.cmdPageTitle}</h1>
+    <p class="page-subtitle delay-1">{t.cmdPageSubtitle}</p>
 
-    <nav class="cmd-nav fade-in delay-2">
+    <nav class="cmd-nav delay-2">
       {commands.map((cmd) => (
         <a href={`#${cmd.id}`} class="cmd-nav-link">{cmd.name}</a>
       ))}
@@ -199,7 +199,7 @@ const commands = [
 
     <div class="cmd-list">
       {commands.map((cmd, i) => (
-        <article id={cmd.id} class={`cmd-section fade-in delay-${Math.min(i + 2, 6)}`}>
+        <article id={cmd.id} class={`cmd-section delay-${Math.min(i + 2, 6)}`}>
           <div class="cmd-header">
             <code class="cmd-name">{cmd.name}</code>
             <span class="cmd-tagline">{cmd.tagline}</span>
