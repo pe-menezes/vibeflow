@@ -7,13 +7,16 @@
 // * the reading layout: a page head (mono label, title, lede), an index with one link per entry,
 //   the entry name in the display face, details as definition rows, flags as chips, code and folder
 //   trees on the dark stage, and none of the old card grid or the fixed-header leftovers;
-// * nothing is hidden at rest, and the index script only marks the current link.
+// * nothing is hidden at rest, and the index script only marks the current link;
+// * the index script, run against generated page layouts, marks the entry being read: in order
+//   while scrolling both ways, the last one at the page end, and the entry jumped to after a jump.
 //
 // What only the built HTML can show (every index link lands on an id, every text is on the page)
-// lives in site/scripts/check-pages.mjs, run after `npm run build` in site/.
+// lives in site/scripts/check-pages.mjs, run after `npm run build` in site/. Characters per line
+// can only be counted in a browser; this file checks that the reading blocks share one measure.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import * as nodeModule from 'node:module';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,10 +27,8 @@ const read = (p) => readFileSync(join(root, p), 'utf8');
 const COMMANDS = 'site/src/components/CommandsDocs.astro';
 const ANATOMY = 'site/src/components/VibeflowAnatomy.astro';
 
-// The commit this redesign started from, and what each component used there. The lists are frozen
-// here because a shallow clone (the CI checkout) does not hold that commit; the next test proves
-// them against it wherever the commit is reachable.
-const START = '52704a8';
+// What each component used at the commit this redesign started from (52704a8), transcribed once
+// and kept here as the oracle: a shallow clone (the CI checkout) does not hold that commit.
 const START_USE = {
   [COMMANDS]: {
     keys: [
@@ -122,31 +123,24 @@ const literalsOf = (src) =>
       .filter((s) => !s.startsWith('.') && s !== 'en'),
   );
 
-// git with no inherited GIT_* variable, so a hook's environment never points it at another repo.
-function git(args) {
-  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
-  return execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-}
-function startCommitReachable() {
-  try {
-    git(['cat-file', '-e', `${START}^{commit}`]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-test('the frozen lists are what each component used at the start commit', (t) => {
-  if (!startCommitReachable()) {
-    t.diagnostic(`commit ${START} is not in this clone (shallow checkout); the frozen lists stand as written`);
-    return;
-  }
-  for (const [file, use] of Object.entries(START_USE)) {
-    const src = git(['show', `${START}:${file}`]);
-    assert.deepEqual([...keysOf(src)].sort(), [...use.keys].sort(), `${file}: keys at ${START}`);
-    assert.deepEqual([...literalsOf(src)].sort(), [...use.literals].sort(), `${file}: literals at ${START}`);
-  }
-});
+// The rules of a stylesheet as [selector list, body] pairs (no nesting; media blocks are flattened).
+const rulesOf = (css) =>
+  css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('}')
+    .map((chunk) => chunk.split('{'))
+    .filter((parts) => parts.length >= 2)
+    .map((parts) => [parts.at(-2).trim(), parts.at(-1)]);
+// Specificity of one selector as a comparable number: ids, then classes, attributes and
+// pseudo-classes, then types.
+// Astro adds the same scope attribute to every compound, so it never changes which rule wins.
+const specificity = (sel) => {
+  const s = sel.replace(/::[\w-]+/g, ' ');
+  const ids = (s.match(/#[\w-]+/g) ?? []).length;
+  const classes = (s.match(/\.[\w-]+|\[[^\]]*\]|:[\w-]+/g) ?? []).length;
+  const types = (s.replace(/[.#:][\w-]+|\[[^\]]*\]/g, ' ').match(/\b[a-z][\w-]*\b/g) ?? []).length;
+  return ids * 10000 + classes * 100 + types;
+};
 
 test('every i18n key and every literal of the start commit is still used', () => {
   for (const [file, use] of Object.entries(START_USE)) {
@@ -204,11 +198,24 @@ for (const file of [COMMANDS, ANATOMY]) {
     assert.match(nav[1], /\saria-label=\{t\.\w+\}/, 'the index is named');
     assert.match(nav[1], /\sdata-doc-toc\b/, 'the index carries the hook for the current-entry mark');
     assert.match(nav[2], /href=\{`#\$\{\w+\.id\}`\}/, 'one in-page link per entry');
-    // Two columns on wide screens, the index sticky; a reading measure of at most 72 characters.
+    // Two columns on wide screens, the index sticky.
     assert.match(css, /grid-template-columns:/, 'the body is a grid on wide screens');
     assert.match(css, /\.doc-toc\s*{[^}]*position:\s*sticky/, 'the index follows the scroll');
-    const measures = [...css.matchAll(/max-width:\s*(\d+)ch/g)].map((m) => Number(m[1]));
-    assert.ok(measures.length > 0 && measures.every((n) => n <= 72), `reading measures: ${measures}`);
+    // Running text shares one measure, in em, so it follows each block's own font size. The number
+    // of characters it holds per line is counted in a browser, not here: a `ch` is the width of
+    // "0", and 68ch held 91 to 99 characters of this face.
+    assert.match(css, /--doc-measure:\s*[\d.]+em\s*;/, 'one reading measure, in em');
+    const rules = rulesOf(css);
+    for (const block of ['.doc-lede', '.entry-text', '.entry-def dd', '.entry-note']) {
+      const own = rules.filter(([sel]) => sel.split(',').map((s) => s.trim()).includes(block));
+      if (block === '.entry-note' && !html.includes('entry-note')) continue;
+      assert.ok(
+        own.some(([, body]) => /max-width:\s*var\(--doc-measure\)/.test(body)),
+        `${block} takes the reading measure`,
+      );
+    }
+    const chMeasures = rules.filter(([, body]) => /max-width:\s*[\d.]+ch/.test(body)).map(([sel]) => sel);
+    assert.deepEqual(chMeasures, ['.doc-title'], 'no running text measured in ch');
     // Entry name in the display face, italic.
     assert.match(css, /\.entry-name\s*{[^}]*font-family:\s*var\(--font-display\)[^}]*font-style:\s*italic/, 'entry names in display italic');
     // Details as definition rows with a rule between them.
@@ -256,3 +263,255 @@ test('anatomy: the loop folders as a tree on the dark stage, the comparison as t
   assert.match(html, /class="gx-cit[^"]*"[^>]*>\{t\.anatomyVsClosing\}/, 'the closing line as a quote');
   assert.match(html, /class="gx-btn[^"]*"[^>]*>\{t\.anatomyCtaBtn\}/, 'the manual button');
 });
+
+test('anatomy: folder names in the tree take the accent, like the .vibeflow/ root', () => {
+  const rules = rulesOf(styleOf(read(ANATOMY)));
+  const winner = (target) => {
+    let best = null;
+    for (const [list, body] of rules) {
+      const color = /(?:^|;|\s)color:\s*([^;]+);/.exec(body)?.[1]?.trim();
+      if (!color) continue;
+      for (const sel of list.split(',').map((s) => s.trim())) {
+        if (!target(sel)) continue;
+        const s = specificity(sel);
+        if (!best || s >= best.s) best = { s, sel, color };
+      }
+    }
+    return best;
+  };
+  // Every rule that can color the <code class="entry-tree-name"> of a branch, and the root's code.
+  const name = winner((sel) => /\.entry-tree-name$/.test(sel) || /\.entry-tree code$/.test(sel) || sel === 'code.entry-tree-name');
+  const root = winner((sel) => /\.entry-tree-root code$/.test(sel) || /\.entry-tree code$/.test(sel));
+  assert.equal(name?.color, 'var(--accent-on-deep)', `the folder name is colored by ${name?.sel}`);
+  assert.equal(root?.color, 'var(--accent-on-deep)', `the root is colored by ${root?.sel}`);
+});
+
+test('the two components ship the same index script', () => {
+  // The script is copied in both components; a fix that lands in one copy only is a regression.
+  const commands = scriptOf(read(COMMANDS)).trim();
+  assert.ok(commands.includes('aria-current'), 'the commands component ships the index script');
+  assert.equal(scriptOf(read(ANATOMY)).trim(), commands);
+});
+
+// ---------------------------------------------------------------------------------------------
+// The index script, run against generated page layouts.
+//
+// A stand-in for the browser, just big enough for the script: entries stacked one after another
+// below a page head, a page foot after them, a viewport that scrolls, scroll and hash events, and
+// animation frames and timers. Time passes only when the test says so (`idle`), so a jump's smooth
+// scroll is a run of scroll events with no pause between them, as in a browser.
+
+function indexScriptOf(file) {
+  assert.equal(typeof nodeModule.stripTypeScriptTypes, 'function', 'node:module stripTypeScriptTypes (Node 22.13 or later)');
+  return nodeModule.stripTypeScriptTypes(scriptOf(read(file)), { mode: 'strip' });
+}
+
+function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 24 }) {
+  let y = 0;
+  const ids = heights.map((_, i) => `entry-${i}`);
+  let top = head;
+  const entries = heights.map((h, i) => {
+    const e = { id: ids[i], pageTop: top, height: h };
+    top += h;
+    return e;
+  });
+  const pageHeight = top + foot;
+  const end = Math.max(0, pageHeight - viewport);
+  const listeners = new Map();
+  const on = (type, fn) => listeners.set(type, [...(listeners.get(type) ?? []), fn]);
+  const fire = (type, ev) => (listeners.get(type) ?? []).forEach((fn) => fn(ev));
+  const frames = [];
+  const timers = new Map();
+  let nextTimer = 1;
+
+  const withAttrs = (o) => {
+    const map = new Map();
+    return Object.assign(o, {
+      setAttribute: (k, v) => map.set(k, String(v)),
+      removeAttribute: (k) => map.delete(k),
+      getAttribute: (k) => (map.has(k) ? map.get(k) : null),
+      hasAttribute: (k) => map.has(k),
+    });
+  };
+  const elements = new Map(
+    entries.map((e) => [
+      e.id,
+      withAttrs({ id: e.id, getBoundingClientRect: () => ({ top: e.pageTop - y, bottom: e.pageTop + e.height - y, height: e.height }) }),
+    ]),
+  );
+  const links = ids.map((id) => {
+    const a = withAttrs({ hash: `#${id}` });
+    a.closest = (sel) => (/\ba\b/.test(sel) ? a : null);
+    return a;
+  });
+  const toc = withAttrs({ querySelectorAll: (sel) => (/\ba\b/.test(sel) ? links : []) });
+  const location = { hash: '' };
+  // An IntersectionObserver that honours the rootMargin it is given, for a script that uses one.
+  const observers = [];
+  class IntersectionObserver {
+    constructor(callback, options = {}) {
+      const [t, r = t, b = t] = String(options.rootMargin ?? '0px').trim().split(/\s+/);
+      const px = (v) => (v.endsWith('%') ? (parseFloat(v) / 100) * viewport : parseFloat(v));
+      Object.assign(this, { callback, top: px(t), bottom: px(b), targets: new Map() });
+      observers.push(this);
+    }
+    observe(el) { this.targets.set(el, undefined); }
+    unobserve(el) { this.targets.delete(el); }
+    disconnect() { this.targets.clear(); }
+    deliver() {
+      const changed = [];
+      for (const [el, was] of this.targets) {
+        const rect = el.getBoundingClientRect();
+        const now = rect.top < viewport + this.bottom && rect.bottom > -this.top;
+        if (now !== was) {
+          this.targets.set(el, now);
+          changed.push({ target: el, isIntersecting: now });
+        }
+      }
+      if (changed.length) this.callback(changed, this);
+    }
+  }
+  const deliver = () => observers.forEach((o) => o.deliver());
+  const win = {
+    IntersectionObserver,
+    get scrollY() { return y; },
+    innerHeight: viewport,
+    location,
+    addEventListener: on,
+    requestAnimationFrame: (fn) => frames.push(fn),
+    cancelAnimationFrame: () => {},
+    setTimeout: (fn) => { timers.set(nextTimer, fn); return nextTimer++; },
+    clearTimeout: (n) => timers.delete(n),
+    getComputedStyle: () => ({ scrollMarginTop: `${margin}px` }),
+  };
+  const doc = {
+    querySelectorAll: (sel) => (sel.includes('data-doc-toc') ? [toc] : []),
+    getElementById: (id) => elements.get(id) ?? null,
+    documentElement: { get scrollHeight() { return pageHeight; }, get clientHeight() { return viewport; } },
+    addEventListener: on,
+  };
+  new Function('window', 'document', 'location', 'getComputedStyle', 'requestAnimationFrame', 'setTimeout', 'clearTimeout', 'innerHeight', 'IntersectionObserver', code)(
+    win, doc, location, win.getComputedStyle, win.requestAnimationFrame, win.setTimeout, win.clearTimeout, viewport, IntersectionObserver,
+  );
+
+  const runFrames = () => {
+    for (let i = 0; i < 5 && frames.length; i++) frames.splice(0).forEach((fn) => fn(0));
+  };
+  // One scroll event, with the frames it schedules; no time passes.
+  const scroll = (to) => {
+    const next = Math.max(0, Math.min(Math.round(to), end));
+    if (next === y) return;
+    y = next;
+    fire('scroll', { type: 'scroll' });
+    runFrames();
+    deliver();
+  };
+  // Time passes: every pending timer runs.
+  const idle = () => {
+    deliver();
+    for (let i = 0; i < 5 && timers.size; i++) {
+      const due = [...timers.values()];
+      timers.clear();
+      due.forEach((fn) => fn());
+      runFrames();
+    }
+  };
+  idle();
+
+  return {
+    ids,
+    end,
+    get y() { return y; },
+    scrollTo(to) { scroll(to); idle(); },
+    // Following an index link: the click, the hash, a smooth scroll in steps, then the page rests.
+    jump(id) {
+      const link = links[ids.indexOf(id)];
+      fire('click', { target: link, button: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
+      const changed = location.hash !== `#${id}`;
+      location.hash = `#${id}`;
+      const from = y;
+      const to = Math.max(0, Math.min(entries[ids.indexOf(id)].pageTop - margin, end));
+      for (let step = 1; step <= 8; step++) {
+        scroll(from + ((to - from) * step) / 8);
+        if (step === 1 && changed) fire('hashchange', { type: 'hashchange' });
+      }
+      if (changed && from === to) fire('hashchange', { type: 'hashchange' });
+      idle();
+    },
+    current() {
+      const marked = links.filter((a) => a.getAttribute('aria-current') !== null);
+      assert.ok(marked.length <= 1, `more than one current link: ${marked.map((a) => a.hash)}`);
+      if (marked.length) assert.equal(marked[0].getAttribute('aria-current'), 'location');
+      return marked.length ? marked[0].hash.slice(1) : null;
+    },
+  };
+}
+
+// The marks seen while scrolling from one position to another, in steps.
+function marksWhileScrolling(p, from, to, step) {
+  const seen = [];
+  const dir = Math.sign(to - from) || 1;
+  for (let at = from; dir > 0 ? at < to + step : at > to - step; at += dir * step) {
+    p.scrollTo(dir > 0 ? Math.min(at, to) : Math.max(at, to));
+    const c = p.current();
+    if (c && seen.at(-1) !== c) seen.push(c);
+  }
+  return seen;
+}
+
+// The product the briefing asks for: entries from short (150 px) to long (1,500 px), the last one
+// short included, by screens from 600 to 1,200 px tall, with and without a page foot.
+const HEIGHTS = [150, 600, 1500];
+const sequences = (n) => (n === 0 ? [[]] : sequences(n - 1).flatMap((s) => HEIGHTS.map((h) => [...s, h])));
+const LAYOUTS = [];
+for (const heights of [...sequences(5), [700, 900, 1200, 400, 150, 150, 150, 150], [150, 150, 150, 150, 150, 150, 150, 150, 150, 150]]) {
+  for (const viewport of [600, 900, 1200]) {
+    for (const foot of [0, 300]) {
+      const pageHeight = 420 + heights.reduce((a, b) => a + b, 0) + foot;
+      if (pageHeight > viewport) LAYOUTS.push({ heights, viewport, foot });
+    }
+  }
+}
+const label = (l) => `heights ${l.heights.join('/')}, screen ${l.viewport}, foot ${l.foot}`;
+
+for (const file of [COMMANDS, ANATOMY]) {
+  const name = file.split('/').pop();
+
+  test(`${name}: scrolling marks every entry in order, both ways, and the last one at the page end`, () => {
+    const code = indexScriptOf(file);
+    const failures = [];
+    for (const layout of LAYOUTS) {
+      const p = pageModel(code, layout);
+      const down = marksWhileScrolling(p, 0, p.end, 20);
+      const atEnd = p.current();
+      const up = marksWhileScrolling(p, p.end, 0, 20);
+      if (down.join() !== p.ids.join()) failures.push(`${label(layout)}: going down marks ${down.join(' > ')}`);
+      if (atEnd !== p.ids.at(-1)) failures.push(`${label(layout)}: at the page end ${atEnd} is current`);
+      if (up.join() !== [...p.ids].reverse().join()) failures.push(`${label(layout)}: going up marks ${up.join(' > ')}`);
+    }
+    assert.deepEqual(failures.slice(0, 10), [], `${failures.length} failures over ${LAYOUTS.length} layouts`);
+  });
+
+  test(`${name}: a jump from the index marks the entry jumped to, from the top and from the end`, () => {
+    const code = indexScriptOf(file);
+    const failures = [];
+    for (const layout of LAYOUTS) {
+      const p = pageModel(code, layout);
+      for (const origin of ['top', 'end']) {
+        for (const id of p.ids) {
+          p.scrollTo(origin === 'top' ? 0 : p.end);
+          p.jump(id);
+          const c = p.current();
+          if (c !== id) failures.push(`${label(layout)}: from the ${origin}, #${id} marks ${c ?? 'nothing'}`);
+        }
+      }
+      // After a jump, scrolling on takes the mark along again (when the jump left room to scroll).
+      p.jump(p.ids[0]);
+      if (p.y < p.end) {
+        const down = marksWhileScrolling(p, p.y, p.end, 20);
+        if (down.at(-1) !== p.ids.at(-1)) failures.push(`${label(layout)}: after a jump, scrolling to the end marks ${down.join(' > ')}`);
+      }
+    }
+    assert.deepEqual(failures.slice(0, 10), [], `${failures.length} failures over ${LAYOUTS.length} layouts`);
+  });
+}

@@ -212,7 +212,7 @@ test('commands index: scrolling down and back up marks every command in order, o
 // Breaks when: the last section is shorter than the upper band of the screen and the script keeps
 //   the section above it, as it does today (headless Chrome, 1280 and 1440: #manual is never marked).
 // Not covered by: test/site-pages.test.mjs runs no part of the script.
-test('anatomy index: scrolling marks every section, the last one at the bottom of the page', { todo: 'audit part 4, defect D2: #manual is never the current entry' }, () => {
+test('anatomy index: scrolling marks every section, the last one at the bottom of the page', () => {
   const p = page('anatomy');
   assert.deepEqual(sequence(p, 0, p.maxScroll, 120), p.ids, 'going down');
   assert.deepEqual(sequence(p, p.maxScroll, 0, -120), [...p.ids].reverse(), 'going up');
@@ -225,7 +225,7 @@ test('anatomy index: scrolling marks every section, the last one at the bottom o
 //   both languages: every link but the first marks the entry before it).
 // Not covered by: test/site-pages.test.mjs runs no part of the script.
 for (const name of ['commands', 'anatomy']) {
-  test(`${name} index: a jump from the index marks the entry jumped to`, { todo: 'audit part 4, defect D1: a jump marks the entry before the one jumped to' }, () => {
+  test(`${name} index: a jump from the index marks the entry jumped to`, () => {
     const p = page(name);
     const wrong = [];
     for (const id of p.ids) {

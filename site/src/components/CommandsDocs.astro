@@ -264,37 +264,107 @@ const commands = [
 <script>
   // Marks the index link of the entry being read. Without this script the index is a plain list of
   // links and every entry is already on the page; the mark is an accent, never a gate.
+  //
+  // The entry being read is the last one whose top has passed the reading line, which sits just
+  // below the scroll margin a jump from the index lands an entry at. Near the page end the line
+  // slides down, at most half as fast as the page scrolls, so the entries too short or too late to
+  // ever reach the top still come up one by one, in order, and the last one is current at the very
+  // bottom. A jump from the index marks the entry jumped to, wherever the page end stops the scroll,
+  // and the mark stays until the reader scrolls on.
   document.querySelectorAll<HTMLElement>('[data-doc-toc]').forEach((toc) => {
     const links = new Map<string, HTMLAnchorElement>();
     toc.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((a) => links.set(decodeURIComponent(a.hash.slice(1)), a));
     const targets = [...links.keys()]
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null);
-    if (!targets.length || !('IntersectionObserver' in window)) return;
-    const inView = new Set<string>();
-    const mark = () => {
-      const current = targets.find((el) => inView.has(el.id));
-      if (!current) return;
-      links.forEach((a, id) => {
-        if (id === current.id) a.setAttribute('aria-current', 'location');
+    if (!targets.length) return;
+
+    const setCurrent = (id: string) => {
+      links.forEach((a, key) => {
+        if (key === id) a.setAttribute('aria-current', 'location');
         else a.removeAttribute('aria-current');
       });
     };
-    // An entry counts as read while any part of it is in the upper part of the viewport.
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => (e.isIntersecting ? inView.add(e.target.id) : inView.delete(e.target.id)));
-        mark();
-      },
-      { rootMargin: '0px 0px -55% 0px' },
-    );
-    targets.forEach((el) => observer.observe(el));
+
+    // A few pixels below the scroll margin, so rounding never leaves a landed entry above the line.
+    const SLACK = 8;
+    const reading = () => {
+      const y = window.scrollY;
+      const end = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const tops = targets.map((el) => el.getBoundingClientRect().top);
+      const line0 = (parseFloat(window.getComputedStyle(targets[0]).scrollMarginTop) || 0) + SLACK;
+      // Where the line has to be at the page end for the last entry to be current, and how far it
+      // has to travel to get there; it travels over twice that distance of scrolling.
+      const extra = tops[tops.length - 1] + y - end + 1 - line0;
+      let line = line0;
+      if (extra > 0 && end > 0) {
+        const span = Math.min(end, 2 * extra);
+        line += extra * Math.min(1, Math.max(0, 1 - (end - y) / span));
+      }
+      let current = targets[0].id;
+      tops.forEach((top, i) => {
+        if (top <= line) current = targets[i].id;
+      });
+      return current;
+    };
+
+    // After a jump from the index the entry jumped to stays current: through the jump's own smooth
+    // scroll (until scrolling pauses), and then until the page scrolls again.
+    const SETTLE_MS = 150;
+    let jumpedTo = '';
+    let restedAt = -1;
+    let settleTimer = 0;
+    const settle = () => {
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        restedAt = window.scrollY;
+      }, SETTLE_MS);
+    };
+    const jump = (id: string) => {
+      if (!links.has(id)) return;
+      jumpedTo = id;
+      restedAt = -1;
+      setCurrent(id);
+      settle();
+    };
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (jumpedTo) {
+        if (restedAt < 0 || Math.abs(window.scrollY - restedAt) < 2) return;
+        jumpedTo = '';
+      }
+      setCurrent(reading());
+    };
+    const onScroll = () => {
+      if (jumpedTo && restedAt < 0) settle();
+      else if (!frame) frame = window.requestAnimationFrame(update);
+    };
+
+    document.addEventListener('click', (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.('a[href^="#"]');
+      links.forEach((link, id) => {
+        if (link === a) jump(id);
+      });
+    });
+    window.addEventListener('hashchange', () => jump(decodeURIComponent(window.location.hash.slice(1))));
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    const landed = decodeURIComponent(window.location.hash.slice(1));
+    if (links.has(landed)) jump(landed);
+    else update();
   });
 </script>
 
 <style>
   /* An editorial document: the head, then an index beside a reading column on wide screens. */
   .doc {
+    /* The measure of running text, in em so it follows each block's font size: about 66 characters
+       of this face per line (counted in the browser; a `ch` is the width of "0" and holds more). */
+    --doc-measure: 31.5em;
     padding-block: clamp(32px, 5vw, 72px) var(--s-8);
   }
 
@@ -319,7 +389,7 @@ const commands = [
     text-wrap: balance;
   }
   .doc-lede {
-    max-width: 52ch;
+    max-width: var(--doc-measure);
     margin-top: var(--s-4);
     color: var(--ink-3);
     font-size: var(--fs-lede);
@@ -412,7 +482,7 @@ const commands = [
   }
 
   .entry-text {
-    max-width: 68ch;
+    max-width: var(--doc-measure);
     margin-top: var(--s-4);
     color: var(--ink-2);
     line-height: 1.6;
@@ -461,7 +531,7 @@ const commands = [
     overflow-wrap: anywhere;
   }
   .entry-def dd {
-    max-width: 62ch;
+    max-width: var(--doc-measure);
     color: var(--ink-3);
     line-height: 1.6;
   }
@@ -481,7 +551,7 @@ const commands = [
   }
 
   .entry-note {
-    max-width: 62ch;
+    max-width: var(--doc-measure);
     margin-top: var(--s-5);
     padding-left: var(--s-4);
     border-left: 2px solid var(--accent-edge);
