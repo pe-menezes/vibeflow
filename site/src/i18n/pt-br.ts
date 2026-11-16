@@ -106,6 +106,8 @@ export default {
   demoOutputBudget: 'Budget:',
   demoYou: 'Você',
   demoVibeflow: 'Vibeflow',
+  demoSheetLabel: 'A spec, montada ao longo da conversa',
+  demoSheetName: 'spec · auth',
 
   // Round 1: User drops a vague idea
   demoR1user: '"Preciso de autenticação de usuário no meu app"',

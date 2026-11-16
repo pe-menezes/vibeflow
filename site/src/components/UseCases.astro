@@ -17,107 +17,91 @@ const cases = [
 ];
 ---
 
-<div class="section" id="use-cases">
+<section class="section use-cases" id="use-cases">
   <div class="container">
-    <div class="section-label">{t.useCasesLabel}</div>
-    <h2 class="section-title">{t.useCasesTitle2}</h2>
-    <p class="section-sub">{t.useCasesSubtitle2}</p>
+    <div class="section-head">
+      <p class="gx-rotulo">{t.useCasesLabel}</p>
+      <h2 class="section-title">{t.useCasesTitle2}</h2>
+      <p class="section-sub">{t.useCasesSubtitle2}</p>
+    </div>
 
-    <div class="uc-grid">
+    <ul class="uc-list">
       {cases.map((uc) => (
-        <div class="uc-card">
-          <div class="uc-role">{uc.role}</div>
-          <h3>{uc.title}</h3>
-          <p>{uc.desc}</p>
-          <div class="uc-flow">
+        <li class="uc-row">
+          <p class="gx-rotulo">{uc.role}</p>
+          <div>
+            <h3>{uc.title}</h3>
+            <p>{uc.desc}</p>
+          </div>
+          <p class="uc-route">
             {uc.flow.split(' → ').map((step, i, arr) => (
               <>
-                <span>{step}</span>
-                {i < arr.length - 1 && <span class="arrow">→</span>}
+                <code>{step}</code>
+                {i < arr.length - 1 && <span class="uc-arrow" aria-hidden="true">→</span>}
               </>
             ))}
-          </div>
-        </div>
+          </p>
+        </li>
       ))}
-    </div>
+    </ul>
   </div>
-</div>
+</section>
 
 <style>
-  .uc-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.25rem;
+  .use-cases {
+    padding-top: clamp(64px, 10vw, 136px);
+  }
+  .section-head .gx-rotulo {
+    margin-bottom: var(--s-3);
   }
 
-  .uc-card {
-    background: var(--bg-card);
-    border-radius: 16px;
-    padding: 2rem;
-    border: 1px solid var(--border);
-    transition: all 0.35s var(--ease-out);
-  }
-  .uc-card:hover {
-    border-color: var(--accent-glow-strong);
-    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.08);
-    transform: translateY(-4px);
-  }
-
-  .uc-role {
-    display: inline-block;
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    background: var(--accent-glow);
-    color: var(--accent);
-    padding: 0.3rem 0.7rem;
-    border-radius: 6px;
-    margin-bottom: 0.75rem;
-  }
-
-  .uc-card h3 {
-    font-family: var(--font-display);
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 0.6rem;
-    line-height: 1.3;
-  }
-
-  .uc-card p {
-    font-size: 0.88rem;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 1.25rem;
-  }
-
-  .uc-flow {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    flex-wrap: wrap;
-  }
-  .uc-flow span {
-    display: inline-block;
-    background: var(--bg-secondary);
-    padding: 0.35rem 0.65rem;
-    border-radius: 6px;
-    color: var(--text-primary);
-    font-weight: 500;
-  }
-  .uc-flow .arrow {
-    background: none;
-    color: var(--text-muted);
+  .uc-list {
     padding: 0;
+    list-style: none;
+  }
+  .uc-row {
+    display: grid;
+    gap: var(--s-2) var(--s-6);
+    padding-block: var(--s-5);
+    border-top: 1px solid var(--rule-soft);
+  }
+  .uc-row:last-child {
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .uc-row h3 {
+    font-family: var(--font-display);
+    font-size: var(--fs-d3);
+    font-weight: 500;
+    line-height: 1.15;
+  }
+  .uc-row div p {
+    max-width: 60ch;
+    margin-top: var(--s-2);
+    color: var(--ink-3);
   }
 
-  @media (max-width: 768px) {
-    .uc-grid {
-      grid-template-columns: 1fr;
+  /* The route of commands: real arrows between the steps, so the text reads as it does today. */
+  .uc-route {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+    font-size: var(--fs-meta);
+  }
+  .uc-route code {
+    padding: 2px var(--s-2);
+    border-radius: var(--r-1);
+    background: var(--bg-alt);
+    color: var(--ink-2);
+  }
+  .uc-arrow {
+    color: var(--ink-4);
+  }
+
+  @media (min-width: 900px) {
+    .uc-row {
+      grid-template-columns: 150px minmax(0, 1fr) minmax(0, 290px);
+      align-items: baseline;
     }
   }
 </style>

@@ -12,141 +12,127 @@ const t = useTranslations(lang);
 const FORMSPREE_ID = 'xgonvawy';
 ---
 
-<div class="section contact" id="contact">
-  <div class="container">
-    <div class="section-label" style="text-align:center;">{t.contactTitle}</div>
-    <h2 class="section-title" style="text-align:center;max-width:100%;">{t.contactHeading}</h2>
-    <p class="section-sub" style="text-align:center;max-width:100%;margin:0 auto 2.5rem;">{t.contactSubtitle}</p>
+<section class="section contact" id="contact">
+  <div class="container contact-grid">
+    <div class="section-head">
+      <p class="gx-rotulo">{t.contactTitle}</p>
+      <h2 class="section-title">{t.contactHeading}</h2>
+      <p class="section-sub">{t.contactSubtitle}</p>
+    </div>
 
-    <form class="contact-form" action={`https://formspree.io/f/${FORMSPREE_ID}`} method="POST" id="contact-form">
-      <div class="form-row">
-        <div class="form-group">
-          <label class="form-label" for="c-name">{t.contactName}</label>
-          <input class="form-input" type="text" id="c-name" name="name" placeholder={t.contactNamePlaceholder} required />
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="c-email">{t.contactEmail}</label>
-          <input class="form-input" type="email" id="c-email" name="email" placeholder={t.contactEmailPlaceholder} required />
-        </div>
+    <div>
+      <!-- The wrapper is what hides once the message is sent: the form itself is a grid. -->
+      <div id="contact-body">
+        <form class="contact-form" action={`https://formspree.io/f/${FORMSPREE_ID}`} method="POST" id="contact-form">
+          <label class="gx-campo" for="c-name">
+            <span class="gx-campo__rotulo">{t.contactName}</span>
+            <input class="gx-campo__entrada" type="text" id="c-name" name="name" placeholder={t.contactNamePlaceholder} required />
+          </label>
+          <label class="gx-campo" for="c-email">
+            <span class="gx-campo__rotulo">{t.contactEmail}</span>
+            <input class="gx-campo__entrada" type="email" id="c-email" name="email" placeholder={t.contactEmailPlaceholder} required />
+          </label>
+          <label class="gx-campo contact-wide" for="c-msg">
+            <span class="gx-campo__rotulo">{t.contactMessage}</span>
+            <textarea class="gx-campo__entrada" id="c-msg" name="message" placeholder={t.contactMessagePlaceholder} required></textarea>
+          </label>
+          <button class="gx-btn gx-btn--primario contact-submit" type="submit" data-sending={t.contactSending}>{t.contactSend}</button>
+        </form>
+        <!-- Empty until a send fails: the script writes the message in, so the change is announced. -->
+        <p class="contact-error" id="form-error" role="alert" data-message={t.contactError}></p>
       </div>
-      <div class="form-group">
-        <label class="form-label" for="c-msg">{t.contactMessage}</label>
-        <textarea class="form-textarea" id="c-msg" name="message" placeholder={t.contactMessagePlaceholder} required></textarea>
-      </div>
-      <button type="submit" class="form-submit">{t.contactSend}</button>
-    </form>
-    <div class="form-success" id="form-success">{t.contactSuccess}</div>
+      <p class="contact-success" id="form-success" role="status" tabindex="-1" hidden>{t.contactSuccess}</p>
+    </div>
   </div>
-</div>
+</section>
 
 <script>
-  const contactForm = document.getElementById('contact-form') as HTMLFormElement;
+  const contactForm = document.getElementById('contact-form') as HTMLFormElement | null;
+  const contactBody = document.getElementById('contact-body');
   const formSuccess = document.getElementById('form-success');
-  if (contactForm && formSuccess) {
+  const formError = document.getElementById('form-error');
+  if (contactForm && contactBody && formSuccess && formError) {
     contactForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const btn = contactForm.querySelector('.form-submit') as HTMLButtonElement;
+      const btn = contactForm.querySelector('.contact-submit') as HTMLButtonElement;
       const origText = btn.textContent;
-      btn.textContent = btn.closest('[data-lang]')?.getAttribute('data-lang') === 'pt-br' ? 'Enviando...' : 'Sending...';
+      btn.textContent = btn.dataset.sending ?? origText;
       btn.disabled = true;
+      // Cleared on every send, so the next failure changes the region and is announced again.
+      formError.textContent = '';
+      let sent = false;
       try {
         const res = await fetch(contactForm.action, {
           method: 'POST',
           body: new FormData(contactForm),
           headers: { 'Accept': 'application/json' }
         });
-        if (res.ok) {
-          contactForm.style.display = 'none';
-          formSuccess.style.display = 'block';
-        } else {
-          btn.textContent = origText;
-          btn.disabled = false;
-        }
+        sent = res.ok;
       } catch {
+        sent = false;
+      }
+      if (sent) {
+        contactBody.hidden = true;
+        formSuccess.hidden = false;
+        formSuccess.focus();
+      } else {
+        // The fields keep what was typed; only the button and the message change.
         btn.textContent = origText;
         btn.disabled = false;
+        formError.textContent = formError.dataset.message ?? '';
       }
     });
   }
 </script>
 
 <style>
-  .contact-form {
-    max-width: 600px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+  .contact {
+    padding-block: clamp(64px, 10vw, 136px);
+  }
+  .section-head .gx-rotulo {
+    margin-bottom: var(--s-3);
   }
 
-  .form-row {
+  .contact-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: var(--s-6);
   }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
+  .contact-form {
+    display: grid;
+    gap: var(--s-4);
   }
-
-  .form-label {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    margin-bottom: 0.4rem;
-  }
-
-  .form-input,
-  .form-textarea {
-    padding: 0.75rem 1rem;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-card);
-    color: var(--text-primary);
-    font-family: var(--font-sans);
-    font-size: 0.88rem;
-    transition: border-color 0.2s var(--ease-out);
-  }
-  .form-input:focus,
-  .form-textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .form-textarea {
-    min-height: 120px;
+  .contact-form textarea {
+    min-height: 140px;
     resize: vertical;
   }
-
-  .form-submit {
-    background: var(--accent-gradient);
-    color: #fff;
-    border: none;
-    padding: 0.75rem 2rem;
-    border-radius: var(--radius-full);
-    font-size: 0.88rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.25s var(--ease-out);
-    align-self: flex-start;
+  .contact-submit {
+    justify-self: start;
   }
-  .form-submit:hover {
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
-    transform: translateY(-1px);
+  .contact-success {
+    padding-block: var(--s-5);
+    color: var(--pos);
+    font-size: var(--fs-lede);
+  }
+  .contact-error {
+    color: var(--neg);
+    font-size: var(--fs-ui);
+  }
+  .contact-error:not(:empty) {
+    margin-top: var(--s-4);
   }
 
-  .form-success {
-    display: none;
-    text-align: center;
-    font-size: 1rem;
-    color: var(--success);
-    padding: 2rem;
-  }
-
-  @media (max-width: 768px) {
-    .form-row {
-      grid-template-columns: 1fr;
+  @media (min-width: 900px) {
+    .contact-grid {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      gap: var(--s-8);
+      align-items: start;
+    }
+    .contact-form {
+      grid-template-columns: 1fr 1fr;
+    }
+    .contact-wide,
+    .contact-submit {
+      grid-column: 1 / -1;
     }
   }
 </style>
