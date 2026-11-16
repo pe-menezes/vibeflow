@@ -304,6 +304,8 @@ export default {
   cmdOutput: 'Output',
   cmdWhenToUse: 'Quando usar',
   cmdPipeline: 'Pipeline',
+  cmdPageEyebrow: 'Referência',
+  cmdTocLabel: 'Nesta página',
 
   // analyze
   cmdAnalyzeDesc: 'Deep-scan do codebase que aprende seus padrões, convenções e arquitetura. Gera documentação curada em .vibeflow/ que persiste e pode ser commitada no git.',
@@ -428,6 +430,7 @@ export default {
   anatomyEyebrow: 'Por dentro da pasta .vibeflow/',
   anatomyTitle: 'Anatomia da pasta<br>.vibeflow/',
   anatomySubtitle: 'O que é cada arquivo, por que ele existe, e como o agente usa. Pra você saber o que pode mexer, e o que é melhor deixar quieto.',
+  anatomyTocLabel: 'Nesta página',
   anatomyIntro: 'Quando você roda /analyze, o Vibeflow cria uma pasta .vibeflow/ na raiz do projeto. É a base de conhecimento que o agente lê antes de cada spec, implementação e audit. Quatro artefatos formam essa base; os outros comandos põem as próprias pastas ao lado deles (PRDs, specs, audits e, com o implement --loop, os arquivos do loop).',
 
   // Anatomy — section labels (reused per artifact)

@@ -185,324 +185,310 @@ const commands = [
 ];
 ---
 
-<section class="section commands-docs">
-  <div class="container">
-    <a href={`/${lang}/`} class="back-link">{t.cmdBackToHome}</a>
-    <h1 class="page-title">{t.cmdPageTitle}</h1>
-    <p class="page-subtitle delay-1">{t.cmdPageSubtitle}</p>
+<section class="commands-docs">
+  <div class="container doc">
+    <header class="doc-head">
+      <a href={`/${lang}/`} class="gx-link doc-back">{t.cmdBackToHome}</a>
+      <p class="gx-rotulo doc-label">{t.cmdPageEyebrow}</p>
+      <h1 class="doc-title">{t.cmdPageTitle}</h1>
+      <p class="doc-lede">{t.cmdPageSubtitle}</p>
+    </header>
 
-    <nav class="cmd-nav delay-2">
-      {commands.map((cmd) => (
-        <a href={`#${cmd.id}`} class="cmd-nav-link">{cmd.name}</a>
-      ))}
-    </nav>
+    <div class="doc-body">
+      <nav class="doc-toc doc-toc--mono" data-doc-toc aria-label={t.cmdTocLabel}>
+        <p class="gx-rotulo">{t.cmdTocLabel}</p>
+        <ol>
+          {commands.map((cmd) => (
+            <li><a href={`#${cmd.id}`}>{cmd.name}</a></li>
+          ))}
+        </ol>
+      </nav>
 
-    <div class="cmd-list">
-      {commands.map((cmd, i) => (
-        <article id={cmd.id} class={`cmd-section delay-${Math.min(i + 2, 6)}`}>
-          <div class="cmd-header">
-            <code class="cmd-name">{cmd.name}</code>
-            <span class="cmd-tagline">{cmd.tagline}</span>
-          </div>
+      <div class="doc-main">
+        {commands.map((cmd) => (
+          <article id={cmd.id} class="doc-entry">
+            <header class="entry-head">
+              <h2 class="entry-name">{cmd.name}</h2>
+              <p class="gx-rotulo">{cmd.tagline}</p>
+            </header>
 
-          <p class="cmd-desc">{cmd.desc}</p>
+            <p class="entry-text">{cmd.desc}</p>
 
-          <div class="cmd-usage-block">
-            <span class="cmd-label">{t.cmdUsage}</span>
-            <code class="cmd-usage">{cmd.usage}</code>
-          </div>
-
-          <div class="cmd-flags-block">
-            <span class="cmd-label">{cmd.id === 'implement' ? t.cmdPipeline : t.cmdFlags}</span>
-            <div class="cmd-flags">
-              {cmd.flags.map((flag) => (
-                <div class="cmd-flag">
-                  <code class="cmd-flag-label">{flag.label}</code>
-                  <p class="cmd-flag-desc">{flag.desc}</p>
-                </div>
-              ))}
+            <div class="entry-block">
+              <p class="gx-rotulo entry-label">{t.cmdUsage}</p>
+              <pre class="gx-escuro entry-code"><code>{cmd.usage}</code></pre>
             </div>
-          </div>
 
-          {cmd.loop && (
-            <div class="cmd-flags-block">
-              <span class="cmd-label">{cmd.loop.label}</span>
-              <div class="cmd-flags">
-                {cmd.loop.flags.map((flag) => (
-                  <div class="cmd-flag">
-                    <code class="cmd-flag-label">{flag.label}</code>
-                    <p class="cmd-flag-desc">{flag.desc}</p>
+            <div class="entry-block">
+              <p class="gx-rotulo entry-label">{cmd.id === 'implement' ? t.cmdPipeline : t.cmdFlags}</p>
+              <dl class="entry-defs">
+                {cmd.flags.map((flag) => (
+                  <div class="entry-def">
+                    <dt><code class="gx-chip">{flag.label}</code></dt>
+                    <dd>{flag.desc}</dd>
                   </div>
                 ))}
+              </dl>
+            </div>
+
+            {cmd.loop && (
+              <div class="entry-block">
+                <p class="gx-rotulo entry-label">{cmd.loop.label}</p>
+                <dl class="entry-defs">
+                  {cmd.loop.flags.map((flag) => (
+                    <div class="entry-def">
+                      <dt><code class="gx-chip">{flag.label}</code></dt>
+                      <dd>{flag.desc}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p class="entry-more"><a href={`/${lang}/#loop`} class="gx-link">{cmd.loop.link}</a></p>
               </div>
-              <a href={`/${lang}/#loop`} class="cmd-loop-link">{cmd.loop.link}</a>
-            </div>
-          )}
+            )}
 
-          <div class="cmd-output-block">
-            <span class="cmd-label">{t.cmdOutput}</span>
-            <code class="cmd-output">{cmd.output}</code>
-          </div>
+            <dl class="entry-defs entry-output">
+              <div class="entry-def">
+                <dt class="gx-rotulo">{t.cmdOutput}</dt>
+                <dd><code>{cmd.output}</code></dd>
+              </div>
+            </dl>
 
-          {cmd.note && (
-            <div class="cmd-note">
-              {cmd.note}
-            </div>
-          )}
-        </article>
-      ))}
+            {cmd.note && <p class="entry-note">{cmd.note}</p>}
+          </article>
+        ))}
+      </div>
     </div>
   </div>
 </section>
 
+<script>
+  // Marks the index link of the entry being read. Without this script the index is a plain list of
+  // links and every entry is already on the page; the mark is an accent, never a gate.
+  document.querySelectorAll<HTMLElement>('[data-doc-toc]').forEach((toc) => {
+    const links = new Map<string, HTMLAnchorElement>();
+    toc.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((a) => links.set(decodeURIComponent(a.hash.slice(1)), a));
+    const targets = [...links.keys()]
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (!targets.length || !('IntersectionObserver' in window)) return;
+    const inView = new Set<string>();
+    const mark = () => {
+      const current = targets.find((el) => inView.has(el.id));
+      if (!current) return;
+      links.forEach((a, id) => {
+        if (id === current.id) a.setAttribute('aria-current', 'location');
+        else a.removeAttribute('aria-current');
+      });
+    };
+    // An entry counts as read while any part of it is in the upper part of the viewport.
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => (e.isIntersecting ? inView.add(e.target.id) : inView.delete(e.target.id)));
+        mark();
+      },
+      { rootMargin: '0px 0px -55% 0px' },
+    );
+    targets.forEach((el) => observer.observe(el));
+  });
+</script>
+
 <style>
-  .commands-docs {
-    padding-top: 100px;
+  /* An editorial document: the head, then an index beside a reading column on wide screens. */
+  .doc {
+    padding-block: clamp(32px, 5vw, 72px) var(--s-8);
   }
 
-  .back-link {
-    display: inline-block;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-bottom: 24px;
-    transition: color 0.2s;
+  .doc-head {
+    padding-bottom: var(--s-7);
+    border-bottom: 1px solid var(--rule-soft);
   }
-  .back-link:hover {
-    color: var(--accent-light);
+  .doc-back {
+    font-size: var(--fs-ui);
   }
-
-  .page-title {
+  .doc-label {
+    margin-top: var(--s-6);
+  }
+  .doc-title {
+    max-width: 18ch;
+    margin-top: var(--s-3);
     font-family: var(--font-display);
-    font-size: clamp(2rem, 4.5vw, 2.8rem);
-    font-weight: 800;
-    letter-spacing: -0.035em;
-    color: var(--text-primary);
-    margin-bottom: 12px;
+    font-size: clamp(2.4rem, 5.6vw, 4.4rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    text-wrap: balance;
+  }
+  .doc-lede {
+    max-width: 52ch;
+    margin-top: var(--s-4);
+    color: var(--ink-3);
+    font-size: var(--fs-lede);
+    line-height: 1.45;
   }
 
-  .page-subtitle {
-    font-size: 1.1rem;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 40px;
-    max-width: 600px;
+  .doc-body {
+    display: grid;
+    gap: var(--s-6);
+    margin-top: var(--s-6);
+  }
+  .doc-main {
+    min-width: 0;
+    max-width: 50rem;
   }
 
-  /* Quick nav */
-  .cmd-nav {
+  /* The index: a wrapped list on top on narrow screens, a sticky column with a rule on wide ones. */
+  .doc-toc ol {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-bottom: 2rem;
-    padding: 0.75rem 0;
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 64px;
-    z-index: 50;
-    background: var(--bg-header-glass);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    gap: var(--s-1) var(--s-4);
+    margin-top: var(--s-3);
+    list-style: none;
   }
-
-  .cmd-nav-link {
+  .doc-toc a {
+    color: var(--ink-3);
+    font-size: var(--fs-ui);
+    transition: color var(--d-2) var(--ease-out), border-color var(--d-2) var(--ease-out);
+  }
+  .doc-toc--mono a {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-muted);
-    padding: 4px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    transition: all 0.2s;
+    font-size: var(--fs-meta);
   }
-  .cmd-nav-link:hover {
-    color: var(--accent-light);
-    border-color: var(--accent-light);
-    background: var(--accent-glow);
+  .doc-toc a:hover,
+  .doc-toc a[aria-current] {
+    color: var(--ink);
   }
 
-  /* Command sections */
-  .cmd-list {
+  @media (min-width: 980px) {
+    .doc-body {
+      grid-template-columns: 13rem minmax(0, 1fr);
+      gap: var(--s-8);
+      align-items: start;
+      margin-top: var(--s-7);
+    }
+    .doc-toc {
+      position: sticky;
+      top: var(--s-6);
+    }
+    .doc-toc ol {
+      display: grid;
+      gap: 0;
+      border-left: 1px solid var(--rule-soft);
+    }
+    .doc-toc a {
+      display: block;
+      margin-left: -1px;
+      padding: var(--s-1) 0 var(--s-1) var(--s-3);
+      border-left: 2px solid transparent;
+    }
+    .doc-toc a[aria-current] {
+      border-left-color: var(--accent);
+    }
+  }
+
+  /* One entry per command: one idea per block, a rule between entries, generous room. */
+  .doc-entry {
+    padding-block: var(--s-7);
+    border-top: 1px solid var(--rule-soft);
+    scroll-margin-top: var(--s-5);
+  }
+  .doc-entry:first-child {
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .entry-head {
     display: flex;
-    flex-direction: column;
-    gap: 48px;
-  }
-
-  .cmd-section {
-    padding-bottom: 48px;
-    border-bottom: 1px solid var(--border);
-  }
-  .cmd-section:last-child {
-    border-bottom: none;
-  }
-
-  .cmd-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-
-  .cmd-name {
-    font-family: var(--font-mono);
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--accent-light);
-    background: var(--accent-glow);
-    padding: 4px 16px;
-    border-radius: var(--radius-sm);
-  }
-
-  .cmd-tagline {
-    font-size: 0.9rem;
-    color: var(--text-muted);
-    font-style: italic;
-  }
-
-  .cmd-desc {
-    font-size: 0.95rem;
-    color: var(--text-secondary);
-    line-height: 1.7;
-    margin-bottom: 24px;
-    max-width: 700px;
-  }
-
-  /* Labels */
-  .cmd-label {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-    margin-bottom: 8px;
-  }
-
-  /* Usage block */
-  .cmd-usage-block {
-    margin-bottom: 24px;
-  }
-
-  .cmd-usage {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 0.82rem;
-    color: #e5e5ea;
-    background: var(--bg-code);
-    border: none;
-    border-radius: var(--radius-md);
-    padding: 12px 16px;
-    overflow-x: auto;
-  }
-
-  /* Flags block */
-  .cmd-flags-block {
-    margin-bottom: 24px;
-  }
-
-  .cmd-flags {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-  }
-
-  .cmd-flag {
-    display: flex;
-    gap: 16px;
-    padding: 12px 16px;
-    background: var(--bg-secondary);
+    flex-wrap: wrap;
     align-items: baseline;
+    gap: var(--s-2) var(--s-4);
   }
-  .cmd-flag + .cmd-flag {
-    border-top: 1px solid var(--border);
+  .entry-name {
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 3vw, 2.4rem);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
   }
 
-  .cmd-flag-label {
+  .entry-text {
+    max-width: 68ch;
+    margin-top: var(--s-4);
+    color: var(--ink-2);
+    line-height: 1.6;
+  }
+
+  .entry-block {
+    margin-top: var(--s-6);
+  }
+  .entry-label {
+    margin-bottom: var(--s-3);
+  }
+
+  /* Code on the dark stage; it wraps instead of scrolling, so no part of a command is out of view. */
+  .entry-code {
+    padding: var(--s-4) var(--s-5);
+    border-radius: var(--r-2);
     font-family: var(--font-mono);
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--accent-light);
-    white-space: nowrap;
-    min-width: 140px;
-    flex-shrink: 0;
+    font-size: var(--fs-meta);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .entry-code code {
+    font-size: inherit;
   }
 
-  .cmd-flag-desc {
-    font-size: 0.82rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
+  /* Details as definition rows, a rule between them: the chip on the left, the text on the right. */
+  .entry-def {
+    display: grid;
+    gap: var(--s-2) var(--s-5);
+    padding-block: var(--s-3);
+    border-top: 1px solid var(--rule-soft);
+  }
+  .entry-def:last-child {
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  @media (min-width: 720px) {
+    .entry-def {
+      grid-template-columns: 12rem minmax(0, 1fr);
+      align-items: baseline;
+    }
+  }
+  .entry-def dt .gx-chip {
+    font-size: var(--fs-data);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .entry-def dd {
+    max-width: 62ch;
+    color: var(--ink-3);
+    line-height: 1.6;
   }
 
-  .cmd-loop-link {
-    display: inline-block;
-    margin-top: 10px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--accent-light);
-  }
-  .cmd-loop-link:hover {
-    color: var(--text-primary);
+  .entry-more {
+    margin-top: var(--s-4);
+    font-size: var(--fs-ui);
   }
 
-  /* Output block */
-  .cmd-output-block {
-    margin-bottom: 16px;
+  .entry-output {
+    margin-top: var(--s-6);
+  }
+  .entry-output dd code {
+    color: var(--ink-2);
+    font-size: var(--fs-meta);
+    overflow-wrap: anywhere;
   }
 
-  .cmd-output {
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    color: var(--text-muted);
-  }
-
-  /* Note */
-  .cmd-note {
-    margin-top: 12px;
-    padding: 10px 16px;
-    border-radius: var(--radius-sm);
-    background: var(--accent-glow);
-    border: 1px solid var(--accent-glow-strong);
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    color: var(--accent-light);
-    font-weight: 500;
-  }
-
-  @media (max-width: 768px) {
-    .page-title {
-      font-size: 1.8rem;
-    }
-
-    .cmd-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 8px;
-    }
-
-    .cmd-name {
-      font-size: 1.2rem;
-    }
-
-    .cmd-flag {
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .cmd-flag-label {
-      min-width: auto;
-    }
-
-    .cmd-nav {
-      gap: 6px;
-    }
-
-    .cmd-nav-link {
-      font-size: 0.7rem;
-      padding: 3px 10px;
-    }
+  .entry-note {
+    max-width: 62ch;
+    margin-top: var(--s-5);
+    padding-left: var(--s-4);
+    border-left: 2px solid var(--accent-edge);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--fs-d3);
+    font-style: italic;
+    line-height: 1.35;
   }
 </style>
