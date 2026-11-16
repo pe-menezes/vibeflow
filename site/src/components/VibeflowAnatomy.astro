@@ -226,8 +226,10 @@ const toc = [...artifacts.map((a) => ({ id: a.id, title: a.name })), loopSection
     };
 
     // After a jump from the index the entry jumped to stays current: through the jump's own smooth
-    // scroll (until scrolling pauses), and then until the page scrolls again.
+    // scroll (until scrolling pauses), and then until the page scrolls again. A scroll gesture of
+    // the reader's own (wheel, touch, scroll key) lets go of it at once, paused or not.
     const SETTLE_MS = 150;
+    const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar']);
     let jumpedTo = '';
     let restedAt = -1;
     let settleTimer = 0;
@@ -243,6 +245,10 @@ const toc = [...artifacts.map((a) => ({ id: a.id, title: a.name })), loopSection
       restedAt = -1;
       setCurrent(id);
       settle();
+    };
+    const letGo = () => {
+      window.clearTimeout(settleTimer);
+      jumpedTo = '';
     };
 
     let frame = 0;
@@ -267,6 +273,11 @@ const toc = [...artifacts.map((a) => ({ id: a.id, title: a.name })), loopSection
       });
     });
     window.addEventListener('hashchange', () => jump(decodeURIComponent(window.location.hash.slice(1))));
+    window.addEventListener('wheel', letGo, { passive: true });
+    window.addEventListener('touchstart', letGo, { passive: true });
+    window.addEventListener('keydown', (e) => {
+      if (SCROLL_KEYS.has(e.key)) letGo();
+    });
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
 

@@ -273,7 +273,7 @@ for (const name of ['commands', 'anatomy']) {
 //   a wheel gesture of 1,200 px starting 80 ms after the jump came to rest left the jumped-to entry
 //   current in 6 of 8 cases, with another entry on screen, until the next scroll).
 // Not covered by: test/site-pages.test.mjs lets the page rest after every jump before it scrolls.
-test('index: a hand scroll that starts before a jump has rested takes the mark along', { todo: 'reaudit 1 of part 4, defect D4: the jumped-to entry stays current' }, () => {
+test('index: a hand scroll that starts before a jump has rested takes the mark along', () => {
   const cases = [
     ['anatomy', 'patterns', 'decisions-md'],
     ['anatomy', 'decisions-md', 'patterns'],

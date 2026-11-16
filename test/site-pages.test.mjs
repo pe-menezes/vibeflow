@@ -323,6 +323,7 @@ function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 2
   const frames = [];
   const timers = new Map();
   let nextTimer = 1;
+  let now = 0;
 
   const withAttrs = (o) => {
     const map = new Map();
@@ -380,7 +381,7 @@ function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 2
     addEventListener: on,
     requestAnimationFrame: (fn) => frames.push(fn),
     cancelAnimationFrame: () => {},
-    setTimeout: (fn) => { timers.set(nextTimer, fn); return nextTimer++; },
+    setTimeout: (fn, ms = 0) => { timers.set(nextTimer, { fn, at: now + ms }); return nextTimer++; },
     clearTimeout: (n) => timers.delete(n),
     getComputedStyle: () => ({ scrollMarginTop: `${margin}px` }),
   };
@@ -406,25 +407,51 @@ function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 2
     runFrames();
     deliver();
   };
-  // Time passes: every pending timer runs.
-  const idle = () => {
+  // Time passes: every timer due within `ms` runs, in order.
+  const wait = (ms) => {
     deliver();
-    for (let i = 0; i < 5 && timers.size; i++) {
-      const due = [...timers.values()];
-      timers.clear();
-      due.forEach((fn) => fn());
+    const until = now + ms;
+    for (;;) {
+      let next = null;
+      for (const [n, t] of timers) if (t.at <= until && (next === null || t.at < timers.get(next).at)) next = n;
+      if (next === null) break;
+      const { fn, at } = timers.get(next);
+      timers.delete(next);
+      now = Math.max(now, at);
+      fn();
       runFrames();
     }
+    now = until;
   };
+  // The page rests: every pending timer runs.
+  const idle = () => wait(10_000);
   idle();
+  // The reader's own scroll gestures, each one before the scroll it causes.
+  const gestures = {
+    wheel: (dir) => fire('wheel', { type: 'wheel', deltaY: dir * 100 }),
+    touch: (dir, first) => fire(first ? 'touchstart' : 'touchmove', { type: first ? 'touchstart' : 'touchmove' }),
+    key: (dir) => fire('keydown', { type: 'keydown', key: dir > 0 ? 'ArrowDown' : 'ArrowUp' }),
+  };
 
   return {
     ids,
     end,
     get y() { return y; },
     scrollTo(to) { scroll(to); idle(); },
-    // Following an index link: the click, the hash, a smooth scroll in steps, then the page rests.
-    jump(id) {
+    wait,
+    idle,
+    // A scroll by hand: a gesture, then its 100 px of scroll, every 30 ms, and the page rests.
+    hand(kind, dir, steps = 12) {
+      for (let i = 0; i < steps; i++) {
+        gestures[kind](dir, i === 0);
+        scroll(y + dir * 100);
+        wait(30);
+      }
+      idle();
+    },
+    // Following an index link: the click, the hash, a smooth scroll in steps, then the page rests
+    // (unless `rest` is false: then no time has passed since the last step of the jump).
+    jump(id, { rest = true } = {}) {
       const link = links[ids.indexOf(id)];
       fire('click', { target: link, button: 0, defaultPrevented: false, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
       const changed = location.hash !== `#${id}`;
@@ -436,7 +463,7 @@ function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 2
         if (step === 1 && changed) fire('hashchange', { type: 'hashchange' });
       }
       if (changed && from === to) fire('hashchange', { type: 'hashchange' });
-      idle();
+      if (rest) idle();
     },
     current() {
       const marked = links.filter((a) => a.getAttribute('aria-current') !== null);
@@ -513,5 +540,47 @@ for (const file of [COMMANDS, ANATOMY]) {
       }
     }
     assert.deepEqual(failures.slice(0, 10), [], `${failures.length} failures over ${LAYOUTS.length} layouts`);
+  });
+
+  test(`${name}: a scroll by hand right after a jump takes the mark along, the jump's own scroll does not`, () => {
+    // Every entry jumped to, by hand up and down, by wheel, touch and key, with the hand starting
+    // from 0 to 600 ms after the last step of the jump (on both sides of the script's pause).
+    const code = indexScriptOf(file);
+    const failures = [];
+    let cases = 0;
+    for (const layout of LAYOUTS) {
+      const p = pageModel(code, layout);
+      // The same layout, only ever scrolled: the mark the reading rule gives at a position.
+      const rule = pageModel(code, layout);
+      const markAt = (at) => {
+        rule.scrollTo(at);
+        return rule.current();
+      };
+      for (const id of p.ids) {
+        for (const dir of [1, -1]) {
+          for (const pause of [0, 50, 100, 149, 151, 200, 400, 600]) {
+            for (const kind of ['wheel', 'touch', 'key']) {
+              cases++;
+              const at = `${label(layout)}: #${id}, ${kind} ${dir > 0 ? 'down' : 'up'} after ${pause} ms`;
+              p.scrollTo(0);
+              p.jump(id, { rest: false });
+              const landed = p.y;
+              p.wait(pause);
+              if (p.current() !== id) failures.push(`${at}: before the hand, marks ${p.current() ?? 'nothing'}`);
+              p.hand(kind, dir);
+              const c = p.current();
+              const want = p.y === landed ? id : markAt(p.y);
+              if (c !== want) failures.push(`${at}: the hand stops at ${p.y} and ${c ?? 'nothing'} is marked, not ${want}`);
+            }
+          }
+          // No hand: the jump's own scroll, however long the page takes to rest, keeps the mark.
+          p.scrollTo(0);
+          p.jump(id, { rest: false });
+          p.idle();
+          if (p.current() !== id) failures.push(`${label(layout)}: #${id} with no hand marks ${p.current() ?? 'nothing'}`);
+        }
+      }
+    }
+    assert.deepEqual(failures.slice(0, 10), [], `${failures.length} failures over ${cases} cases`);
   });
 }
