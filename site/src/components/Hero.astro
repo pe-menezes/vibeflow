@@ -16,12 +16,6 @@ const [titleBefore, titleTerm, titleAfter] = found
   ? [title.slice(0, found.index), found[0], title.slice(found.index + found[0].length)]
   : [title, '', ''];
 
-// The lede: the first sentence of the description stands out.
-const cut = t.heroDescription.indexOf('. ');
-const [ledeLead, ledeRest] = cut > 0
-  ? [t.heroDescription.slice(0, cut + 1), t.heroDescription.slice(cut + 2)]
-  : [t.heroDescription, ''];
-
 // The spec card and the verdict reuse the facts of the pipeline steps (gen-spec, implement, audit).
 const stepItems = (desc: string) => desc.replace(/^✓\s*/, '').split(' · ');
 const specName = /"([^"]+)"/.exec(t.heroQuickStart2Cmd)?.[1];
@@ -43,7 +37,7 @@ const verdictNote = stepItems(t.heroQuickStart3Desc).slice(0, 2).join(' · ');
       </h1>
     </div>
     <div class="hero-side rise" style="--rise-i: 2">
-      <p class="hero-lede"><b>{ledeLead}</b> {ledeRest}</p>
+      <p class="hero-lede"><b>{t.heroSubtitle}</b> {t.heroDescription}</p>
       <div class="hero-actions">
         <a class="gx-btn gx-btn--primario gx-btn--g" href={`/${lang}/#how`}>
           {t.heroCta}<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
@@ -53,15 +47,17 @@ const verdictNote = stepItems(t.heroQuickStart3Desc).slice(0, 2).join(' · ');
     </div>
   </div>
 
-  <div class="flow-band" aria-hidden="true">
-    <canvas class="flow-canvas" data-flow="hero"></canvas>
-    <div class="gx-cartao flow-spec">
+  <div class="flow-band" role="img" aria-label={t.heroFlowLabel}>
+    <canvas class="flow-canvas" data-flow="hero" aria-hidden="true"></canvas>
+    <p class="flow-note flow-note--before" aria-hidden="true">{t.heroFlowBefore}</p>
+    <p class="flow-note flow-note--after" aria-hidden="true">{t.heroFlowAfter}</p>
+    <div class="gx-cartao flow-spec" aria-hidden="true">
       <p class="gx-rotulo">{specLabel}</p>
       <ul class="flow-spec__list">
         {specItems.map((item) => <li><i class="check"></i>{item}</li>)}
       </ul>
     </div>
-    <div class="flow-verdict">
+    <div class="flow-verdict" aria-hidden="true">
       <span class="gx-chip gx-chip--marcado">{verdict}</span>
       <small>{verdictNote}</small>
     </div>
@@ -183,6 +179,26 @@ const verdictNote = stepItems(t.heroQuickStart3Desc).slice(0, 2).join(' · ');
     display: block;
     width: 100%;
     height: 100%;
+  }
+  /* The two notes in the bottom corners, on a paper ground: the loose side, then the ordered one. */
+  .flow-note {
+    position: absolute;
+    bottom: var(--s-2);
+    padding: 1px var(--s-2);
+    border-radius: var(--r-1);
+    background: var(--bg);
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .flow-note--before {
+    left: max(16px, 4%);
+  }
+  .flow-note--after {
+    right: max(16px, 4%);
+    color: var(--accent-text);
   }
   .flow-spec {
     position: absolute;

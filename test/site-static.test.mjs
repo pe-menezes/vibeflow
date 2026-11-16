@@ -157,6 +157,54 @@ test('the build runs the HTML check after astro build', () => {
   assert.ok(existsSync(join(site, 'scripts', 'check-build.mjs')));
 });
 
+// The value of a string key in an i18n file, single-quoted as the files write them.
+function i18nValue(file, key) {
+  const m = new RegExp(`\\n\\s*${key}:\\s*'((?:[^'\\\\]|\\\\.)*)'`).exec(read(file));
+  return m ? m[1].replace(/\\(.)/g, '$1') : undefined;
+}
+
+test('the flow band notes and label have their keys in both languages', () => {
+  const expected = {
+    'site/src/i18n/en.ts': {
+      heroFlowBefore: 'no spec',
+      heroFlowAfter: 'with a spec',
+      heroFlowLabel: 'Tangled lines enter from the left, pass through a spec and leave in order, up to a PASS verdict.',
+    },
+    'site/src/i18n/pt-br.ts': {
+      heroFlowBefore: 'sem spec',
+      heroFlowAfter: 'com spec',
+      heroFlowLabel: 'Linhas desordenadas entram pela esquerda, passam por uma spec e saem alinhadas até o veredito PASS.',
+    },
+  };
+  for (const [file, keys] of Object.entries(expected)) {
+    for (const [key, value] of Object.entries(keys)) assert.equal(i18nValue(file, key), value, `${file} ${key}`);
+  }
+});
+
+test('the hero names the flow band, shows its two notes and keeps its inside out of screen readers', () => {
+  const hero = read('site/src/components/Hero.astro');
+  const band = /<div class="flow-band"([^>]*)>([\s\S]*?)\n  <\/div>/.exec(hero);
+  assert.ok(band, 'the flow band is there');
+  assert.match(band[1], /\srole="img"/);
+  assert.match(band[1], /\saria-label=\{t\.heroFlowLabel\}/);
+  assert.doesNotMatch(band[1], /aria-hidden/, 'the band itself is read');
+  assert.match(band[2], /flow-note--before[^>]*>\{t\.heroFlowBefore\}</);
+  assert.match(band[2], /flow-note--after[^>]*>\{t\.heroFlowAfter\}</);
+  // Every direct child of the band is hidden from screen readers.
+  const children = [...band[2].matchAll(/\n    <(\w+)([^>]*)>/g)];
+  assert.ok(children.length >= 5, 'canvas, two notes, spec card and verdict');
+  for (const [, tag, attrs] of children) assert.match(attrs, /aria-hidden="true"/, `<${tag}${attrs}>`);
+});
+
+test('the hero call shows the subtitle first, then the description', () => {
+  const hero = read('site/src/components/Hero.astro');
+  const side = /<div class="hero-side[^>]*>([\s\S]*?)<div class="hero-actions">/.exec(hero)?.[1] ?? '';
+  const sub = side.indexOf('{t.heroSubtitle}');
+  const desc = side.indexOf('{t.heroDescription}');
+  assert.ok(sub >= 0, 'heroSubtitle is shown');
+  assert.ok(desc > sub, 'heroDescription comes after heroSubtitle');
+});
+
 test('no machine path in the files of this part', () => {
   const needle = ['', 'Users', ''].join('/');
   const files = [

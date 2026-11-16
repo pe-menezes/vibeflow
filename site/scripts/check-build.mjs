@@ -7,7 +7,9 @@
 // * nothing is hidden at rest: no fade-in or reveal markup, and no CSS that hides content unless
 //   it is gated by a class a script adds when motion is allowed;
 // * both languages have the same structure (ids, in-page links, buttons and sections);
-// * the hero title carries the highlighted term in both languages.
+// * the hero title carries the highlighted term in both languages;
+// * the hero call shows heroSubtitle and then heroDescription, and the flow band is an image named
+//   by heroFlowLabel with the heroFlowBefore and heroFlowAfter notes, all read from src/i18n.
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,6 +77,18 @@ function checkCss(css, where) {
     }
   });
 }
+
+// The value of a string key in an i18n file, single-quoted as the files write them.
+function i18nValue(lang, key) {
+  const text = readFileSync(join(siteDir, 'src', 'i18n', `${lang}.ts`), 'utf8');
+  const m = new RegExp(`\\n\\s*${key}:\\s*'((?:[^'\\\\]|\\\\.)*)'`).exec(text);
+  return m ? m[1].replace(/\\(.)/g, '$1') : undefined;
+}
+const decode = (s) =>
+  s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+const plain = (html) => decode(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 
 const attr = (tag, name) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 const tags = (html, re) => [...html.matchAll(re)].map((m) => m[0]);
@@ -157,6 +171,24 @@ for (const out of outputs) {
     if (!existsSync(file)) continue;
     const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(readFileSync(file, 'utf8'))?.[1] ?? '';
     if (!/<em[^>]*>\s*<mark[^>]*>\s*spec-driven\s*<\/mark>\s*<\/em>/i.test(h1)) fail(`${label}: /${lang}/ title without the highlighted term`);
+
+    const html = readFileSync(file, 'utf8');
+    const key = (k) => i18nValue(lang, k) ?? `(missing ${k})`;
+    const call = plain(/<div class="hero-side[^"]*"[^>]*>([\s\S]*?)<div class="hero-actions"/.exec(html)?.[1] ?? '');
+    const sub = call.indexOf(key('heroSubtitle'));
+    const desc = call.indexOf(key('heroDescription'));
+    if (sub < 0) fail(`${label}: /${lang}/ hero call without heroSubtitle`);
+    if (desc < 0 || desc < sub) fail(`${label}: /${lang}/ hero call without heroDescription after heroSubtitle`);
+
+    const bandTag = /<div class="flow-band"[^>]*>/.exec(html)?.[0] ?? '';
+    if (attr(bandTag, 'role') !== 'img') fail(`${label}: /${lang}/ flow band is not role="img"`);
+    if (decode(attr(bandTag, 'aria-label') ?? '') !== key('heroFlowLabel')) fail(`${label}: /${lang}/ flow band not named by heroFlowLabel`);
+    if (/\saria-hidden=/.test(bandTag)) fail(`${label}: /${lang}/ flow band is hidden from screen readers`);
+    for (const [cls, k] of [['flow-note--before', 'heroFlowBefore'], ['flow-note--after', 'heroFlowAfter']]) {
+      const note = new RegExp(`<p class="[^"]*\\b${cls}\\b[^"]*"[^>]*>([\\s\\S]*?)</p>`).exec(html);
+      if (!note || plain(note[1]) !== key(k)) fail(`${label}: /${lang}/ flow band without the ${k} note`);
+      else if (!/\saria-hidden="true"/.test(note[0])) fail(`${label}: /${lang}/ ${k} note is read inside the image`);
+    }
   }
 }
 
