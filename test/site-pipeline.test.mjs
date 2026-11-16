@@ -230,33 +230,67 @@ test('the extra commands line sits in the section, below the pinned stage and ou
   assert.match(after, /t\.pipelineExtra\b[\s\S]*t\.featSeeAll\b[\s\S]*<\/section>/, 'the line follows the track, inside the section');
 });
 
-test('pinned, the band takes what the screen leaves, never less than BAND_MIN, and the stage is the screen', async () => {
-  const { BAND_MIN } = await import('../site/src/lib/pipeline-scene.js');
+test('pinned, the stage is the screen, the band sits between BAND_MIN and BAND_MAX, and the content is centred', async () => {
+  const { BAND_MIN, BAND_MAX } = await import('../site/src/lib/pipeline-scene.js');
   assert.ok(Number.isInteger(BAND_MIN) && BAND_MIN > 0);
+  assert.ok(Number.isInteger(BAND_MAX) && BAND_MAX > BAND_MIN);
   const style = /<style>([\s\S]*?)<\/style>/.exec(component('HowItWorks'))?.[1] ?? '';
   const pinning = [...style.matchAll(/@media\s*([^{]+)\{([\s\S]*?)\n  \}/g)].find((m) => /position:\s*sticky/.test(m[2]));
   assert.ok(pinning, 'a media block pins the stage');
-  assert.match(pinning[2], new RegExp(`minmax\\(${BAND_MIN}px,\\s*1fr\\)`), 'the band row is minmax(BAND_MIN, 1fr)');
-  assert.match(pinning[2], /min-height:\s*100vh/, 'the pinned stage is at least the screen');
+  const stageRule = /\.pipe-stage\s*\{([^}]*position:\s*sticky[^}]*)\}/.exec(pinning[2])?.[1] ?? '';
+  assert.ok(stageRule, 'the pinned stage rule');
+  assert.match(stageRule, new RegExp(`grid-template-rows:\\s*auto\\s+minmax\\(${BAND_MIN}px,\\s*${BAND_MAX}px\\)\\s+auto\\s*;`), 'the band row is minmax(BAND_MIN, BAND_MAX)');
+  assert.match(stageRule, /(^|[\s;])height:\s*100vh/, 'the pinned stage has the height of the screen');
+  assert.ok(!/min-height/.test(stageRule), 'not only a least height: the stage stops growing');
+  assert.match(stageRule, /align-content:\s*(safe\s+)?center/, 'what the band leaves is shared above and below the content');
   assert.ok(!/\b\d+vh\b/.test(/\.pipe-band\s*\{([^}]*)\}/.exec(pinning[2])?.[1] ?? ''), 'no height of its own in vh for the pinned band');
 });
 
-// A stand-in for the scene's DOM, laid out the way the component's CSS lays it out: the stage is
-// its content without the band (`rest`: head, steps, gaps and padding) plus the band. Pinned
-// (query, motion class, and the root not marked loose) the stage is at least the screen and the
-// band takes what is left, never less than BAND_MIN; loose, the band has its own height.
-function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin }) {
+// A stand-in for the scene's DOM, laid out the way the component's CSS lays it out. The stage holds
+// three children (head, band, steps) with a gap between them and a padding above and below;
+// `rest` is all of that but the band. Pinned (query, motion class, and the root not marked loose)
+// the stage is the screen, the band takes what is left between bandMin and bandMax, and the
+// children sit in the middle; when they do not fit they start at the padding and run past the
+// foot (the stage does not grow). Loose, the band has its own height and the stage its content's.
+function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin, bandMax }) {
   const attrs = new Set(looseAtStart ? ['data-scene-loose'] : []);
   const node = () => ({ dataset: {}, hidden: false });
   const gates = [node(), node(), node(), node()];
   const steps = [node(), node(), node(), node()];
   const end = node();
   const cssPinned = () => matches && motion && !attrs.has('data-scene-loose');
-  const band = { get offsetHeight() { return cssPinned() ? Math.max(bandMin, screen - rest) : Math.round(0.3 * screen); } };
-  const stage = { get offsetHeight() { return rest + band.offsetHeight; } };
-  const trackHeight = () => (cssPinned() ? Math.round(3.3 * screen) : stage.offsetHeight);
+  const PAD = 32;
+  const GAP = 24;
+  const headHeight = Math.round(0.4 * (rest - 2 * PAD - 2 * GAP));
+  const stepsHeight = rest - 2 * PAD - 2 * GAP - headHeight;
+  const bandHeight = () => (cssPinned()
+    ? Math.min(bandMax, Math.max(bandMin, screen - rest))
+    : Math.min(320, Math.max(180, Math.round(0.3 * screen))));
+  const contentHeight = () => headHeight + GAP + bandHeight() + GAP + stepsHeight;
+  const stageHeight = () => (cssPinned() ? screen : 2 * PAD + contentHeight());
   let progress = 0;
-  const track = { getBoundingClientRect: () => ({ top: -progress * (trackHeight() - stage.offsetHeight), height: trackHeight() }) };
+  const trackHeight = () => (cssPinned() ? Math.round(3.3 * screen) : stageHeight());
+  const trackTop = () => -progress * (trackHeight() - stageHeight());
+  // Pinned, the stage sits at the top of the screen; loose, it scrolls with the track.
+  const stageTop = () => (cssPinned() ? 0 : trackTop());
+  const contentTop = () => stageTop() + (cssPinned() ? Math.max(PAD, (screen - contentHeight()) / 2) : PAD);
+  const child = (offset, height) => ({
+    getBoundingClientRect: () => {
+      const top = contentTop() + offset();
+      return { top, bottom: top + height(), height: height() };
+    },
+  });
+  const band = Object.defineProperty(child(() => headHeight + GAP, bandHeight), 'offsetHeight', { get: bandHeight });
+  const stage = {
+    get offsetHeight() { return stageHeight(); },
+    children: [
+      child(() => 0, () => headHeight),
+      band,
+      child(() => headHeight + GAP + bandHeight() + GAP, () => stepsHeight),
+    ],
+    padding: { paddingTop: `${PAD}px`, paddingBottom: `${PAD}px` },
+  };
+  const track = { getBoundingClientRect: () => ({ top: trackTop(), height: trackHeight() }) };
   const one = { '[data-scene-track]': track, '[data-scene-stage]': stage, '[data-scene-band]': band, '[data-scene-end]': end };
   const root = {
     querySelector: (selector) => one[selector] ?? null,
@@ -266,9 +300,10 @@ function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin }) {
   };
   const listeners = {};
   const media = [];
-  const names = ['matchMedia', 'document', 'addEventListener', 'innerHeight'];
+  const names = ['matchMedia', 'document', 'addEventListener', 'innerHeight', 'getComputedStyle'];
   const saved = Object.fromEntries(names.map((n) => [n, Object.getOwnPropertyDescriptor(globalThis, n)]));
   const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+  define('getComputedStyle', (el) => el.padding ?? { paddingTop: '0px', paddingBottom: '0px' });
   define('matchMedia', () => ({ matches, addEventListener: (_type, f) => media.push(f) }));
   define('document', { documentElement: { classList: { contains: (name) => name === 'motion-ok' && motion } } });
   define('addEventListener', (type, f) => { (listeners[type] ??= []).push(f); });
@@ -288,16 +323,17 @@ function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin }) {
 }
 
 test('pinned only where the stage fits the screen: the measure gives the same answer pinned and loose, and never flips', async () => {
-  const { bindPipelineScene, BAND_MIN } = await import('../site/src/lib/pipeline-scene.js');
-  for (const screen of [660, 700, 768, 900, 1080]) {
-    // The stage, with the band at its minimum, smaller than, equal to and taller than the screen.
-    for (const slack of [-120, -1, 0, 1, 120]) {
+  const { bindPipelineScene, BAND_MIN, BAND_MAX } = await import('../site/src/lib/pipeline-scene.js');
+  for (const screen of [660, 700, 768, 900, 1080, 1300]) {
+    // The content, with the band at its minimum, smaller than, equal to and taller than the screen,
+    // and a short content that leaves the band at its ceiling on a tall screen.
+    for (const slack of [-120, -1, 0, 1, 120, 400 - screen + BAND_MIN]) {
       const rest = screen - BAND_MIN + slack;
       const fits = slack <= 0;
       for (const [matches, motion] of [[true, true], [true, false], [false, true], [false, false]]) {
         for (const looseAtStart of [false, true]) {
           const where = `screen ${screen}, stage ${slack >= 0 ? '+' : ''}${slack} px, query ${matches}, motion ${motion}, loose at start ${looseAtStart}`;
-          const h = fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin: BAND_MIN });
+          const h = fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin: BAND_MIN, bandMax: BAND_MAX });
           try {
             bindPipelineScene(h.root, h.flow);
             const pinned = matches && motion && fits;

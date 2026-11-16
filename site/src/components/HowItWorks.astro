@@ -223,15 +223,18 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
       align-items: end;
       column-gap: var(--s-8);
     }
-    /* Pinned: the stage is the screen, and the band takes what the head and the steps leave. */
+    /* Pinned: the stage is the screen, the band takes what the head and the steps leave, from
+       BAND_MIN to BAND_MAX (src/lib/pipeline-scene.js), and what is left past that is shared
+       above and below the three, so they sit in the middle of the screen. */
     :global(html.motion-ok) .pipe:not([data-scene-loose]) .pipe-track {
       height: 330vh;
     }
     :global(html.motion-ok) .pipe:not([data-scene-loose]) .pipe-stage {
       position: sticky;
       top: 0;
-      grid-template-rows: auto minmax(150px, 1fr) auto;
-      min-height: 100vh;
+      grid-template-rows: auto minmax(150px, 420px) auto;
+      align-content: safe center;
+      height: 100vh;
     }
     :global(html.motion-ok) .pipe:not([data-scene-loose]) .pipe-band {
       height: auto;

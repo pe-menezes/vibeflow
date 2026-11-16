@@ -12,9 +12,10 @@ import { FRONT_STOPS, activeStep, clamp01, flowFront, scrollProgress } from './f
 export const SCENE_QUERY = '(min-width: 860px) and (min-height: 660px) and (prefers-reduced-motion: no-preference)';
 // Past this progress the flow has reached the verdict.
 export const ARRIVAL = 0.93;
-// The least height of the band while the stage is pinned, in px (the component's CSS writes the
-// band row as minmax(BAND_MIN px, 1fr), checked by the test).
+// The least and the most height of the band while the stage is pinned, in px (the component's CSS
+// writes the band row as minmax(BAND_MIN px, BAND_MAX px), checked by the test).
 export const BAND_MIN = 150;
+export const BAND_MAX = 420;
 // Marks the scene root when its stage does not fit the screen: the CSS does not pin it then.
 const LOOSE = 'data-scene-loose';
 const ALL = [true, true, true, true];
@@ -38,11 +39,13 @@ export function sceneState(progress, pinned) {
 // ([data-step]) and the verdict ([data-scene-end]). `flow` is what createFlow() returned for the
 // scene's canvas.
 //
-// The safety net: the stage pins only while it fits the screen. The measure is the stage without
-// its band, plus the band at its least height. Pinned or loose, the head, the steps, the gaps and
-// the padding lay out the same, and only the band changes, so the measure gives the same answer
-// in both states and the scene never flips between them. Without a band there is nothing that
-// gives way, and nothing to measure.
+// The safety net: the stage pins only while its content fits the screen. Pinned, the stage has the
+// height of the screen and does not grow with what it holds, so the measure reads the content: from
+// the top of its first child to the foot of its last, plus the padding, without the band, plus the
+// band at its least height. Pinned or loose, the head, the steps, the gaps and the padding lay out
+// the same, and only the band changes, so the measure gives the same answer in both states and the
+// scene never flips between them. Without a band there is nothing that gives way, and nothing to
+// measure.
 export function bindPipelineScene(root, flow) {
   const track = root.querySelector('[data-scene-track]');
   const stage = root.querySelector('[data-scene-stage]');
@@ -55,9 +58,17 @@ export function bindPipelineScene(root, flow) {
   const motion = () => document.documentElement.classList.contains('motion-ok');
   let fits = true;
 
+  function contentHeight() {
+    const boxes = [...stage.children].map((child) => child.getBoundingClientRect());
+    const pad = getComputedStyle(stage);
+    const top = Math.min(...boxes.map((box) => box.top));
+    const bottom = Math.max(...boxes.map((box) => box.bottom));
+    return bottom - top + parseFloat(pad.paddingTop) + parseFloat(pad.paddingBottom);
+  }
+
   function measure() {
     if (!band) return;
-    fits = stage.offsetHeight - band.offsetHeight + BAND_MIN <= innerHeight;
+    fits = contentHeight() - band.getBoundingClientRect().height + BAND_MIN <= innerHeight;
     if (root.hasAttribute(LOOSE) === fits) root.toggleAttribute(LOOSE, !fits);
   }
 
