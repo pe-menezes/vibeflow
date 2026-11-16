@@ -26,7 +26,11 @@ function generator(seed) {
   };
 }
 
-// A stand-in for the scene's DOM and for the window globals bindPipelineScene() reads.
+// A stand-in for the scene's DOM and for the window globals bindPipelineScene() reads. The page
+// always has the band ([data-scene-band]), and with it the script measures whether the stage fits
+// the screen before it pins; so the stand-in carries a band and a stage whose three children (head,
+// band, steps) and padding fit a screen as tall as the stage, as on a desktop where the scene pins.
+// Without the band the script skips that measure, a path the page never takes.
 function sceneHarness({ matches, motion, trackHeight = 3300, stageHeight = 1000 }) {
   const node = () => ({ dataset: {}, hidden: false });
   const gates = [node(), node(), node(), node()];
@@ -34,11 +38,21 @@ function sceneHarness({ matches, motion, trackHeight = 3300, stageHeight = 1000 
   const end = node();
   let top = 0;
   const track = { getBoundingClientRect: () => ({ top, height: trackHeight }) };
-  const stage = { offsetHeight: stageHeight };
-  const one = { '[data-scene-track]': track, '[data-scene-stage]': stage, '[data-scene-end]': end };
+  const PAD = 40;
+  const box = (from, height) => ({ getBoundingClientRect: () => ({ top: PAD + from, bottom: PAD + from + height, height }) });
+  const band = box(240, 300);
+  const stage = {
+    offsetHeight: stageHeight,
+    children: [box(0, 200), band, box(580, 200)],
+    padding: { paddingTop: `${PAD}px`, paddingBottom: `${PAD}px` },
+  };
+  const attrs = new Set();
+  const one = { '[data-scene-track]': track, '[data-scene-stage]': stage, '[data-scene-band]': band, '[data-scene-end]': end };
   const root = {
     querySelector: (selector) => one[selector] ?? null,
     querySelectorAll: (selector) => (selector === '[data-gate]' ? gates : selector === '[data-step]' ? steps : []),
+    hasAttribute: (name) => attrs.has(name),
+    toggleAttribute: (name, force = !attrs.has(name)) => { if (force) attrs.add(name); else attrs.delete(name); return force; },
   };
   const fronts = [];
   const flow = { goTo: (front) => fronts.push(front) };
@@ -48,11 +62,15 @@ function sceneHarness({ matches, motion, trackHeight = 3300, stageHeight = 1000 
     matchMedia: Object.getOwnPropertyDescriptor(globalThis, 'matchMedia'),
     document: Object.getOwnPropertyDescriptor(globalThis, 'document'),
     addEventListener: Object.getOwnPropertyDescriptor(globalThis, 'addEventListener'),
+    innerHeight: Object.getOwnPropertyDescriptor(globalThis, 'innerHeight'),
+    getComputedStyle: Object.getOwnPropertyDescriptor(globalThis, 'getComputedStyle'),
   };
   const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
   define('matchMedia', () => ({ get matches() { return media.matches; }, addEventListener: (_type, f) => media.listeners.push(f) }));
   define('document', { documentElement: { classList: { contains: (name) => name === 'motion-ok' && motion } } });
   define('addEventListener', (type, f) => { (listeners[type] ??= []).push(f); });
+  define('innerHeight', stageHeight);
+  define('getComputedStyle', (el) => el.padding ?? { paddingTop: '0px', paddingBottom: '0px' });
   const restore = () => {
     for (const [name, descriptor] of Object.entries(saved)) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor);
@@ -141,6 +159,94 @@ test('pipeline scene: unpinned, at any scroll everything is lit and the verdict 
     assert.equal(h.end.hidden, false, 'verdict shown after the media change');
   } finally {
     h.restore();
+  }
+});
+
+// Contract: the scene pins only while its stage fits the screen, and that answer follows the
+// screen on every resize, both ways: a window made shorter than the stage lets the scene go (four
+// steps lit, the verdict shown), and made tall enough again it pins again, with one step lit,
+// always the answer a page opened at that size gets.
+// Breaks when: the resize listener only redraws (update) and no longer measures (refit), or the
+// measure is taken once at load and cached, so a window shrunk below the stage stays pinned with
+// the steps' text past the foot of the screen, or one grown back stays loose.
+// Not covered by: the implementer's safety net test fires resize events with the screen height
+// unchanged, so it never needs a second measure; binding resize to update survives it (measured by
+// the reaudit on a scratch copy).
+test('pipeline scene: the pin follows the screen height on every resize, both ways', async () => {
+  const { bindPipelineScene, BAND_MIN, BAND_MAX } = await import('../../site/src/lib/pipeline-scene.js');
+  // The stage as the component's CSS lays it out: head, band and steps with a gap between them and
+  // a padding above and below. Pinned, the stage is the screen and the band takes what is left,
+  // from BAND_MIN to BAND_MAX, with the three in the middle; loose, the band has its own height.
+  const PAD = 32;
+  const GAP = 24;
+  const HEAD = 230;
+  const STEPS = 250;
+  const need = 2 * PAD + 2 * GAP + HEAD + STEPS + BAND_MIN;
+  let screen = need + 40;
+  const attrs = new Set();
+  const pinnedByCss = () => !attrs.has('data-scene-loose');
+  const bandHeight = () => (pinnedByCss() ? Math.min(BAND_MAX, Math.max(BAND_MIN, screen - (need - BAND_MIN))) : 260);
+  const content = () => HEAD + GAP + bandHeight() + GAP + STEPS;
+  const stageHeight = () => (pinnedByCss() ? screen : 2 * PAD + content());
+  const trackHeight = () => (pinnedByCss() ? Math.round(3.3 * screen) : stageHeight());
+  const trackTop = () => -0.4 * (trackHeight() - stageHeight());
+  const contentTop = () => (pinnedByCss() ? Math.max(PAD, (screen - content()) / 2) : trackTop() + PAD);
+  const box = (from, height) => ({
+    getBoundingClientRect: () => ({ top: contentTop() + from(), bottom: contentTop() + from() + height(), height: height() }),
+  });
+  const band = box(() => HEAD + GAP, bandHeight);
+  const stage = {
+    get offsetHeight() { return stageHeight(); },
+    children: [box(() => 0, () => HEAD), band, box(() => HEAD + GAP + bandHeight() + GAP, () => STEPS)],
+    padding: { paddingTop: `${PAD}px`, paddingBottom: `${PAD}px` },
+  };
+  const node = () => ({ dataset: {}, hidden: false });
+  const gates = [node(), node(), node(), node()];
+  const steps = [node(), node(), node(), node()];
+  const end = node();
+  const one = {
+    '[data-scene-track]': { getBoundingClientRect: () => ({ top: trackTop(), height: trackHeight() }) },
+    '[data-scene-stage]': stage,
+    '[data-scene-band]': band,
+    '[data-scene-end]': end,
+  };
+  const root = {
+    querySelector: (selector) => one[selector] ?? null,
+    querySelectorAll: (selector) => (selector === '[data-gate]' ? gates : selector === '[data-step]' ? steps : []),
+    hasAttribute: (name) => attrs.has(name),
+    toggleAttribute: (name, force = !attrs.has(name)) => { if (force) attrs.add(name); else attrs.delete(name); return force; },
+  };
+  const names = ['matchMedia', 'document', 'addEventListener', 'innerHeight', 'getComputedStyle'];
+  const saved = Object.fromEntries(names.map((n) => [n, Object.getOwnPropertyDescriptor(globalThis, n)]));
+  const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+  const listeners = {};
+  define('matchMedia', () => ({ matches: true, addEventListener() {} }));
+  define('document', { documentElement: { classList: { contains: (name) => name === 'motion-ok' } } });
+  define('addEventListener', (type, f) => { (listeners[type] ??= []).push(f); });
+  define('getComputedStyle', (el) => el.padding ?? { paddingTop: '0px', paddingBottom: '0px' });
+  define('innerHeight', screen);
+  try {
+    bindPipelineScene(root, { goTo() {} });
+    assert.equal(attrs.has('data-scene-loose'), false, `pinned at load on a screen of ${screen} px (the stage needs ${need})`);
+    const r = generator(17);
+    const around = [-60, -9, -1, 0, 1, 9, 60];
+    const walk = [...around, ...[...around].reverse(), ...Array.from({ length: 40 }, () => Math.round(-80 + 160 * r()))];
+    for (const delta of walk) {
+      screen = need + delta;
+      define('innerHeight', screen);
+      for (const f of listeners.resize ?? []) f();
+      const fits = screen >= need;
+      const where = `screen ${screen} px, stage needs ${need} px`;
+      assert.equal(attrs.has('data-scene-loose'), !fits, `loose mark after the resize (${where})`);
+      const lit = steps.map((s) => s.dataset.active);
+      assert.deepEqual(lit, fits ? ['false', 'true', 'false', 'false'] : ['true', 'true', 'true', 'true'], `steps after the resize (${where})`);
+      if (!fits) assert.equal(end.hidden, false, `verdict shown loose (${where})`);
+    }
+  } finally {
+    for (const [name, descriptor] of Object.entries(saved)) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete globalThis[name];
+    }
   }
 });
 
