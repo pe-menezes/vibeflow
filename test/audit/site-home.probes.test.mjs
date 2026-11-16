@@ -189,47 +189,168 @@ test('demo sheet: outside the wide, motion-allowed state the script leaves no li
 });
 
 // ---------------------------------------------------------------------------------------------
+// The verdict chip of the sheet before the verdict, in the inks of both themes.
+
+const STYLES = join(ROOT, 'site', 'src', 'styles', 'genius');
+
+// Custom properties of the first block opening with `open` in a design system file.
+function tokens(file, open) {
+  const css = readFileSync(join(STYLES, file), 'utf8');
+  const start = css.indexOf(open);
+  assert.ok(start >= 0, `${file} has a block ${open}`);
+  const body = css.slice(css.indexOf('{', start) + 1, css.indexOf('}', start));
+  return Object.fromEntries([...body.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()]));
+}
+
+// A colour value resolved through the theme's custom properties, as [r, g, b], or null when the
+// value is transparent.
+function rgb(value, theme) {
+  let v = value.trim();
+  for (let i = 0; i < 10 && /var\(/.test(v); i++) v = v.replace(/var\((--[\w-]+)\)/g, (_, name) => theme[name] ?? name);
+  if (v === 'transparent') return null;
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(v)?.[1];
+  assert.ok(hex, `${value} resolves to a colour (${v})`);
+  const full = hex.length === 3 ? [...hex].map((c) => c + c).join('') : hex;
+  return [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16));
+}
+const lum = (c) => c.map((x) => x / 255).map((s) => (s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4))
+  .reduce((sum, s, i) => sum + s * [0.2126, 0.7152, 0.0722][i], 0);
+const ratio = (a, b) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const mix = (fg, bg, alpha) => fg.map((c, i) => alpha * c + (1 - alpha) * bg[i]);
+
+// Contract: while the sheet is live and the verdict has not arrived, the verdict chip is unfilled and
+// its text stays readable on the card in both themes: the chip's own ink, under the opacity the
+// sheet gives to what has not arrived, against the card (or against the chip's fill if it gets one,
+// under the same opacity), reads at 1.8:1 or more, the floor the orchestrator set for the dimmed sheet.
+// Breaks when: the chip's dimmed ink goes back to --ink-5, the dim ink of before the fix: under the
+// 0.45 opacity it reads 1.33:1 on the white card, or the opacity drops so far that the chip fades out.
+// Not covered by: test/site-demo.test.mjs measures fields, checks, files and the verdict sentence,
+// but not the chip, and its no-colour rule skips the chip rule, so any chip ink passes there.
+test('demo sheet: the verdict chip stays readable before the verdict, in both themes', (t) => {
+  const light = tokens('genius-tudo.css', ':root {');
+  const themes = { light, dark: { ...light, ...tokens('genius-noite.css', ':root[data-theme="dark"]') } };
+  const style = [...component('LiveDemo').matchAll(/<style>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join('\n').replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [...style.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({
+    selectors: m[1].split(',').map((s) => s.trim().replace(/\s+/g, ' ')),
+    decl: (prop) => new RegExp(`(?:^|;|\\s)${prop}\\s*:\\s*([^;]+)`).exec(m[2])?.[1]?.trim() ?? null,
+  }));
+  const last = (test, prop) => rules.filter((r) => r.selectors.some(test) && r.decl(prop) !== null).at(-1)?.decl(prop) ?? null;
+  const notArrived = (s) => /\[data-live\].*\[data-arrived="false"\]$/.test(s);
+  const chipNotArrived = (s) => /\[data-live\].*\[data-arrived="false"\] \.gx-chip$/.test(s);
+  const opacity = Number(last(notArrived, 'opacity') ?? 1);
+  const ink = last(chipNotArrived, 'color');
+  const fill = last(chipNotArrived, 'background') ?? last(chipNotArrived, 'background-color') ?? 'transparent';
+  assert.ok(ink, 'the component gives the chip an ink while the verdict has not arrived');
+  for (const [name, theme] of Object.entries(themes)) {
+    const card = rgb(theme['--bg-sheet'] ?? '', theme);
+    const chipFill = rgb(fill, theme);
+    const under = chipFill ? mix(chipFill, card, opacity) : card;
+    // group opacity: the text and the fill are each blended with the card at the same alpha
+    const text = mix(rgb(ink, theme), card, opacity);
+    const r = ratio(text, under);
+    t.diagnostic(`${name}: chip before the verdict ${r.toFixed(2)}:1`);
+    assert.ok(r >= 1.8, `${name}: the chip before the verdict reads ${r.toFixed(2)}:1, under 1.8:1 (ink ${ink}, opacity ${opacity})`);
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
 // The contact form, driven by the component's own submit handler.
+
+// Every element of the markup that has an id, as the page renders it in `lang`: its attributes
+// (`{t.key}` resolved), `hidden`, its text and `focus()`, which moves the focus only to an element
+// the browser would focus (a tabindex, or a link or a control).
+function elementsById(markup, lang, doc) {
+  const value = (raw) => {
+    if (raw === undefined) return '';
+    const key = /^\{\s*t\.(\w+)\s*\}$/.exec(raw)?.[1];
+    return key ? i18n(lang, key) : raw.replace(/^"|"$/g, '');
+  };
+  const byId = {};
+  for (const m of markup.matchAll(/<([a-z]+)\b([^>]*\sid="([\w-]+)"[^>]*)>/g)) {
+    const [, tag, rawAttrs, id] = m;
+    const attrs = {};
+    for (const a of rawAttrs.matchAll(/\s([\w-]+)(?:=("[^"]*"|\{[^}]*\}))?/g)) attrs[a[1]] = value(a[2]);
+    const close = markup.indexOf(`</${tag}>`, m.index + m[0].length);
+    const inner = /\/>$/.test(m[0]) || close < 0 ? '' : markup.slice(m.index + m[0].length, close);
+    const el = {
+      tag,
+      attrs,
+      hidden: 'hidden' in attrs,
+      textContent: inner.replace(/\{t\.(\w+)\}/g, (_, k) => i18n(lang, k)).replace(/<[^>]*>/g, '').trim(),
+      dataset: Object.fromEntries(Object.entries(attrs).filter(([k]) => k.startsWith('data-'))
+        .map(([k, v]) => [k.slice(5).replace(/-(\w)/g, (_, c) => c.toUpperCase()), v])),
+      focus() { if ('tabindex' in attrs || /^(a|button|input|select|textarea)$/.test(tag)) doc.activeElement = el; },
+    };
+    byId[id] = el;
+  }
+  return byId;
+}
 
 function formModel(lang) {
   const source = component('ContactForm');
   const markup = markupOf(source);
   const id = /const FORMSPREE_ID = '([^']+)'/.exec(source)?.[1];
   const action = /action=\{`([^`]+)`\}/.exec(markup)?.[1]?.replace('${FORMSPREE_ID}', id);
+  const doc = { activeElement: null };
+  const byId = elementsById(markup, lang, doc);
   // the button as the page renders it: its label and its data-sending value in the page's language
   const sendingKey = /data-sending=\{t\.(\w+)\}/.exec(markup)?.[1];
   const sendLabel = i18n(lang, 'contactSend');
   const button = { textContent: sendLabel, disabled: false, dataset: { sending: sendingKey ? i18n(lang, sendingKey) : undefined } };
   const handlers = {};
-  const form = element('form', { '.contact-submit': button }, { action, addEventListener: (type, f) => { handlers[type] = f; } });
-  const body = { hidden: false };
-  const success = { hidden: /<[a-z]+\b[^>]*\sid="form-success"[^>]*\shidden\b/.test(markup) };
+  // the form element is the one the markup opens with <form ... id="...">; it answers the submit
+  // button and counts resets, because a failed send must keep what the visitor typed
+  const formId = /<form\b[^>]*\sid="([\w-]+)"/.exec(markup)?.[1];
+  const form = element('form', { '.contact-submit': button }, {
+    action,
+    addEventListener: (type, f) => { handlers[type] = f; },
+    resets: 0,
+    reset() { form.resets++; },
+  });
+  if (formId) byId[formId] = form;
+  // the success message is the element announced as a status; the error region is the other
+  // element announced to screen readers (role alert or status, or aria-live other than off)
+  const announced = Object.values(byId).filter((el) => el.attrs && (/^(alert|status)$/.test(el.attrs.role ?? '') || (el.attrs['aria-live'] ?? 'off') !== 'off'));
+  const success = byId['form-success'];
+  const errors = announced.filter((el) => el !== success);
+  const body = byId['contact-body'];
   const calls = [];
   let reply;
   class FormData { constructor(f) { this.form = f; } }
   const context = {
-    document: { getElementById: (x) => ({ 'contact-form': form, 'contact-body': body, 'form-success': success }[x] ?? null) },
+    document: { getElementById: (x) => byId[x] ?? null, get activeElement() { return doc.activeElement; } },
     fetch: (url, init) => { calls.push({ url, init }); return new Promise((ok, fail) => { reply = { ok, fail }; }); },
     FormData,
   };
   const code = scriptOf(source).replace(/\s+as\s+HTML\w+(\s*\|\s*null)?/g, '');
   vm.runInNewContext(code, context);
-  return { action, button, body, success, calls, handlers, FormData, sendLabel, reply: () => reply, form };
+  return { action, button, body, success, errors, doc, calls, handlers, FormData, sendLabel, reply: () => reply, form };
 }
 
 // Contract: the form posts by fetch to the Formspree form of today with the form's own fields and
 // asks for JSON; while the request is out the button reads the sending text of the page's language
-// and is disabled; a 2xx hides the form and shows the success message; a non-2xx answer or a
-// network failure gives the button back with its label, keeps the form and shows no success.
+// and is disabled, and the error region is empty; a 2xx hides the form, shows the success message
+// and moves the focus to it, with no error; a non-2xx answer or a network failure gives the button
+// back with its label, keeps the form and what was typed, shows no success and writes contactError,
+// in the page's language, into the one announced region besides the success message; sending again
+// empties that region while the request is out, so the next failure is announced anew.
 // Breaks when: the success and error branches swap, the handler forgets preventDefault (the page
-// navigates to Formspree), the button stays disabled after a failure, or the sending text falls
-// back to a fixed English string.
-// Not covered by: test/site-demo.test.mjs matches the fetch call as text; the handler never runs.
+// navigates to Formspree), the button stays disabled after a failure, the sending text or the error
+// falls back to a fixed English string, the failure resets the form, the region keeps the old error
+// while sending, the error region loses its role, or the focus stays on a button that was hidden.
+// Not covered by: test/site-demo.test.mjs runs the same script for the error and the focus, but
+// never checks preventDefault, the method, the body or the Accept header of the request, nor the
+// sending text while it is out (its handler gets a preventDefault that records nothing).
 test('contact form: the submit handler sends by fetch and shows the outcome of each answer', async () => {
   for (const [lang, outcome] of ['en', 'pt-br'].flatMap((l) => ['ok', 'http error', 'network error'].map((o) => [l, o]))) {
     const m = formModel(lang);
     assert.equal(m.action, 'https://formspree.io/f/xgonvawy', 'the form posts to the Formspree form of today');
     assert.equal(typeof m.handlers.submit, 'function', 'the script handles submit');
+    assert.equal(m.errors.length, 1, `${lang}: one announced region for the error besides the success message`);
+    const [region] = m.errors;
+    const shown = (el) => (el.hidden ? '' : el.textContent);
+    assert.equal(shown(region), '', `${lang}: no error at rest`);
+    assert.equal(m.success.hidden, true, `${lang}: no success at rest`);
     let prevented = false;
     const done = m.handlers.submit({ preventDefault: () => { prevented = true; } });
     assert.ok(prevented, 'the native submit is prevented while the script runs');
@@ -241,6 +362,7 @@ test('contact form: the submit handler sends by fetch and shows the outcome of e
     assert.equal(init.headers?.Accept ?? init.headers?.accept, 'application/json');
     assert.equal(m.button.disabled, true, 'disabled while sending');
     assert.equal(m.button.textContent, i18n(lang, 'contactSending'), `${lang}: the sending text comes from the i18n of the page`);
+    assert.equal(shown(region), '', `${lang}: no error while sending`);
     if (outcome === 'ok') m.reply().ok({ ok: true });
     else if (outcome === 'http error') m.reply().ok({ ok: false });
     else m.reply().fail(new TypeError('network'));
@@ -248,11 +370,20 @@ test('contact form: the submit handler sends by fetch and shows the outcome of e
     if (outcome === 'ok') {
       assert.equal(m.body.hidden, true, 'ok: the form is hidden');
       assert.equal(m.success.hidden, false, 'ok: the success message shows');
+      assert.equal(m.doc.activeElement, m.success, `${lang} ok: the focus is on the success message`);
+      assert.equal(shown(region), '', `${lang} ok: no error`);
     } else {
       assert.equal(m.body.hidden, false, `${outcome}: the form stays`);
       assert.equal(m.success.hidden, true, `${outcome}: no success message`);
       assert.equal(m.button.disabled, false, `${outcome}: the button is usable again`);
       assert.equal(m.button.textContent, m.sendLabel, `${outcome}: the button reads its label again`);
+      assert.equal(m.form.resets, 0, `${outcome}: the form keeps what was typed`);
+      assert.equal(shown(region), i18n(lang, 'contactError'), `${lang} · ${outcome}: the visitor reads contactError`);
+      const again = m.handlers.submit({ preventDefault() {} });
+      assert.equal(shown(region), '', `${lang} · ${outcome}: sending again empties the region while the request is out`);
+      m.reply().fail(new TypeError('network'));
+      await again;
+      assert.equal(shown(region), i18n(lang, 'contactError'), `${lang} · ${outcome}: the next failure writes the error again`);
     }
   }
 });
