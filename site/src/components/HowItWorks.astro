@@ -27,12 +27,14 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
   <div class="pipe-track" data-scene-track>
     <div class="container pipe-stage" data-scene-stage>
       <div class="pipe-head">
-        <p class="gx-rotulo">{t.pipelineLabel}</p>
-        <h2 class="section-title pipe-title" set:html={t.howTitle} />
+        <div class="pipe-head__title">
+          <p class="gx-rotulo">{t.pipelineLabel}</p>
+          <h2 class="section-title pipe-title" set:html={t.howTitle} />
+        </div>
         <p class="pipe-sub">{t.howSubtitle}</p>
       </div>
 
-      <div class="pipe-band" role="img" aria-label={t.pipelineFlowLabel}>
+      <div class="pipe-band" data-scene-band role="img" aria-label={t.pipelineFlowLabel}>
         <canvas class="pipe-canvas" data-flow="pipeline" aria-hidden="true"></canvas>
         {steps.map((step) => (
           <span class="pipe-gate" data-gate data-active="true" style={`left: ${step.gate}`} aria-hidden="true">{step.title}</span>
@@ -49,13 +51,14 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
           </li>
         ))}
       </ol>
-
-      <p class="pipe-extra">
-        <strong>{t.pipelineExtra}</strong> {t.pipelineExtraList}
-        <a href={`/${lang}/commands`} class="pipe-link">{t.featSeeAll}</a>
-      </p>
     </div>
   </div>
+
+  <!-- Below the track and out of the pinned stage, so the stage only holds what the scene moves. -->
+  <p class="container pipe-extra">
+    <strong>{t.pipelineExtra}</strong> {t.pipelineExtraList}
+    <a href={`/${lang}/commands`} class="pipe-link">{t.featSeeAll}</a>
+  </p>
 </section>
 
 <script>
@@ -76,7 +79,8 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
     display: grid;
     gap: clamp(20px, 3.4vh, 40px);
   }
-  .pipe-head {
+  .pipe-head,
+  .pipe-head__title {
     display: grid;
     gap: var(--s-3);
   }
@@ -193,6 +197,7 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
   }
 
   .pipe-extra {
+    margin-top: clamp(20px, 3.4vh, 40px);
     color: var(--ink-4);
     font-size: var(--fs-meta);
   }
@@ -205,17 +210,31 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
   }
 
   /* The timeline by scroll exists only on a wide, tall screen with motion allowed and the script
-     running (html.motion-ok); anywhere else the section runs as a normal one. */
+     running (html.motion-ok), and only while the stage fits the screen: when it does not, the
+     script marks the section [data-scene-loose] (src/lib/pipeline-scene.js). Anywhere else the
+     section runs as a normal one. */
   @media (min-width: 860px) and (min-height: 660px) and (prefers-reduced-motion: no-preference) {
-    :global(html.motion-ok) .pipe-track {
+    /* The same pinned or loose, so the script's measure of the stage gives one answer. */
+    :global(html.motion-ok) .pipe-stage {
+      padding-block: clamp(16px, 4vh, 48px);
+    }
+    :global(html.motion-ok) .pipe-head {
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      align-items: end;
+      column-gap: var(--s-8);
+    }
+    /* Pinned: the stage is the screen, and the band takes what the head and the steps leave. */
+    :global(html.motion-ok) .pipe:not([data-scene-loose]) .pipe-track {
       height: 330vh;
     }
-    :global(html.motion-ok) .pipe-stage {
+    :global(html.motion-ok) .pipe:not([data-scene-loose]) .pipe-stage {
       position: sticky;
       top: 0;
-      min-height: min(100vh, 880px);
-      align-content: center;
-      padding-block: clamp(16px, 4vh, 48px);
+      grid-template-rows: auto minmax(150px, 1fr) auto;
+      min-height: 100vh;
+    }
+    :global(html.motion-ok) .pipe:not([data-scene-loose]) .pipe-band {
+      height: auto;
     }
   }
 </style>

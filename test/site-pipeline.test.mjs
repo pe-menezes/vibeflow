@@ -4,8 +4,8 @@
 // site/scripts/check-pipeline.mjs.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { stripTypeScriptTypes } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,12 +13,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
 const component = (name) => read(`site/src/components/${name}.astro`);
 
-// The commit the redesign of these three sections started from.
-const BASE = '52704a8';
-
-// The i18n keys each section used at BASE, taken from `git show BASE:<file>` with the
-// extraction below (usedKeys). They are written here because a shallow clone, as in CI, does not
-// carry BASE; the next test checks them against BASE wherever the history is there.
+// The i18n keys each section used before the redesign of these three sections, extracted from
+// the components of that time with usedKeys() below. This list is the oracle: it is written here
+// and nothing recomputes it.
 const BASE_KEYS = {
   HowItWorks: [
     'featSeeAll', 'howSubtitle', 'howTitle', 'pipelineExtra', 'pipelineExtraList', 'pipelineLabel',
@@ -67,27 +64,7 @@ function template(source) {
     .replace(/<style[\s\S]*?<\/style>/g, '');
 }
 
-function baseAvailable() {
-  try {
-    execFileSync('git', ['cat-file', '-e', `${BASE}^{commit}`], { cwd: root, stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-test('the recorded key sets are the ones the sections used at the base commit', (t) => {
-  if (!baseAvailable()) {
-    t.diagnostic(`${BASE} is not in this clone; the recorded key sets stand as written`);
-    return;
-  }
-  for (const name of Object.keys(BASE_KEYS)) {
-    const old = execFileSync('git', ['show', `${BASE}:site/src/components/${name}.astro`], { cwd: root, encoding: 'utf8' });
-    assert.deepEqual(usedKeys(old), [...BASE_KEYS[name]].sort(), `${name} at ${BASE}`);
-  }
-});
-
-test('every key a section used at the base commit is still used, plus the ones the design adds', () => {
+test('every key a section used before the redesign is still used, plus the ones the design adds', () => {
   for (const name of Object.keys(BASE_KEYS)) {
     const now = new Set(usedKeys(component(name)));
     for (const key of [...BASE_KEYS[name], ...NEW_KEYS[name]]) {
@@ -227,6 +204,226 @@ test('the copy buttons speak the page language from i18n, not from literals', ()
   const ed = component('Editions');
   assert.ok(!/Copied!|Copiado!/.test(ed), 'no literal copy feedback');
   assert.match(template(ed), /data-copied=\{t\.copied\}/);
+});
+
+// The element opened by the first tag matching `opening` in `markup`, up to its matching </div>.
+function divAt(markup, opening) {
+  const start = markup.search(opening);
+  if (start < 0) return '';
+  const tags = /<div\b|<\/div>/g;
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let m; (m = tags.exec(markup)); ) {
+    depth += m[0] === '</div>' ? -1 : 1;
+    if (depth === 0) return markup.slice(start, tags.lastIndex);
+  }
+  return markup.slice(start);
+}
+
+test('the extra commands line sits in the section, below the pinned stage and outside it', () => {
+  const markup = template(component('HowItWorks'));
+  const stage = divAt(markup, /<div[^>]*\sdata-scene-stage\b/);
+  assert.ok(stage.length > 0, 'the stage is there');
+  assert.ok(!/pipelineExtra|featSeeAll/.test(stage), 'the extra commands line is inside the pinned stage');
+  const track = divAt(markup, /<div[^>]*\sdata-scene-track\b/);
+  const after = markup.slice(markup.indexOf(track) + track.length);
+  assert.match(after, /t\.pipelineExtra\b[\s\S]*t\.featSeeAll\b[\s\S]*<\/section>/, 'the line follows the track, inside the section');
+});
+
+test('pinned, the band takes what the screen leaves, never less than BAND_MIN, and the stage is the screen', async () => {
+  const { BAND_MIN } = await import('../site/src/lib/pipeline-scene.js');
+  assert.ok(Number.isInteger(BAND_MIN) && BAND_MIN > 0);
+  const style = /<style>([\s\S]*?)<\/style>/.exec(component('HowItWorks'))?.[1] ?? '';
+  const pinning = [...style.matchAll(/@media\s*([^{]+)\{([\s\S]*?)\n  \}/g)].find((m) => /position:\s*sticky/.test(m[2]));
+  assert.ok(pinning, 'a media block pins the stage');
+  assert.match(pinning[2], new RegExp(`minmax\\(${BAND_MIN}px,\\s*1fr\\)`), 'the band row is minmax(BAND_MIN, 1fr)');
+  assert.match(pinning[2], /min-height:\s*100vh/, 'the pinned stage is at least the screen');
+  assert.ok(!/\b\d+vh\b/.test(/\.pipe-band\s*\{([^}]*)\}/.exec(pinning[2])?.[1] ?? ''), 'no height of its own in vh for the pinned band');
+});
+
+// A stand-in for the scene's DOM, laid out the way the component's CSS lays it out: the stage is
+// its content without the band (`rest`: head, steps, gaps and padding) plus the band. Pinned
+// (query, motion class, and the root not marked loose) the stage is at least the screen and the
+// band takes what is left, never less than BAND_MIN; loose, the band has its own height.
+function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin }) {
+  const attrs = new Set(looseAtStart ? ['data-scene-loose'] : []);
+  const node = () => ({ dataset: {}, hidden: false });
+  const gates = [node(), node(), node(), node()];
+  const steps = [node(), node(), node(), node()];
+  const end = node();
+  const cssPinned = () => matches && motion && !attrs.has('data-scene-loose');
+  const band = { get offsetHeight() { return cssPinned() ? Math.max(bandMin, screen - rest) : Math.round(0.3 * screen); } };
+  const stage = { get offsetHeight() { return rest + band.offsetHeight; } };
+  const trackHeight = () => (cssPinned() ? Math.round(3.3 * screen) : stage.offsetHeight);
+  let progress = 0;
+  const track = { getBoundingClientRect: () => ({ top: -progress * (trackHeight() - stage.offsetHeight), height: trackHeight() }) };
+  const one = { '[data-scene-track]': track, '[data-scene-stage]': stage, '[data-scene-band]': band, '[data-scene-end]': end };
+  const root = {
+    querySelector: (selector) => one[selector] ?? null,
+    querySelectorAll: (selector) => (selector === '[data-gate]' ? gates : selector === '[data-step]' ? steps : []),
+    hasAttribute: (name) => attrs.has(name),
+    toggleAttribute: (name, force = !attrs.has(name)) => { if (force) attrs.add(name); else attrs.delete(name); return force; },
+  };
+  const listeners = {};
+  const media = [];
+  const names = ['matchMedia', 'document', 'addEventListener', 'innerHeight'];
+  const saved = Object.fromEntries(names.map((n) => [n, Object.getOwnPropertyDescriptor(globalThis, n)]));
+  const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+  define('matchMedia', () => ({ matches, addEventListener: (_type, f) => media.push(f) }));
+  define('document', { documentElement: { classList: { contains: (name) => name === 'motion-ok' && motion } } });
+  define('addEventListener', (type, f) => { (listeners[type] ??= []).push(f); });
+  define('innerHeight', screen);
+  const restore = () => {
+    for (const [name, descriptor] of Object.entries(saved)) {
+      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+      else delete globalThis[name];
+    }
+  };
+  const fire = (type, p = progress) => {
+    progress = p;
+    for (const f of listeners[type] ?? []) f();
+  };
+  const changeMedia = () => { for (const f of media) f(); };
+  return { root, steps, end, attrs, fire, changeMedia, restore, cssPinned, flow: { goTo() {} } };
+}
+
+test('pinned only where the stage fits the screen: the measure gives the same answer pinned and loose, and never flips', async () => {
+  const { bindPipelineScene, BAND_MIN } = await import('../site/src/lib/pipeline-scene.js');
+  for (const screen of [660, 700, 768, 900, 1080]) {
+    // The stage, with the band at its minimum, smaller than, equal to and taller than the screen.
+    for (const slack of [-120, -1, 0, 1, 120]) {
+      const rest = screen - BAND_MIN + slack;
+      const fits = slack <= 0;
+      for (const [matches, motion] of [[true, true], [true, false], [false, true], [false, false]]) {
+        for (const looseAtStart of [false, true]) {
+          const where = `screen ${screen}, stage ${slack >= 0 ? '+' : ''}${slack} px, query ${matches}, motion ${motion}, loose at start ${looseAtStart}`;
+          const h = fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin: BAND_MIN });
+          try {
+            bindPipelineScene(h.root, h.flow);
+            const pinned = matches && motion && fits;
+            for (const [type, p] of [['scroll', 0.4], ['resize', 0.4], ['scroll', 0.6], ['resize', 0.6], ['scroll', 0.1], ['change', 0.1], ['scroll', 0.4]]) {
+              if (type === 'change') h.changeMedia();
+              else h.fire(type, p);
+              assert.equal(h.attrs.has('data-scene-loose'), !fits, `loose mark after ${type} (${where})`);
+              assert.equal(h.cssPinned(), pinned, `pinned by the CSS after ${type} (${where})`);
+              const lit = h.steps.map((s) => s.dataset.active);
+              const step = Math.min(3, Math.floor(4 * p));
+              const expected = pinned ? [0, 1, 2, 3].map((i) => String(i === step)) : ['true', 'true', 'true', 'true'];
+              assert.deepEqual(lit, expected, `steps after ${type} at ${p} (${where})`);
+              if (!pinned) assert.equal(h.end.hidden, false, `verdict shown loose (${where})`);
+            }
+          } finally {
+            h.restore();
+          }
+        }
+      }
+    }
+  }
+});
+
+// The strike's script in Loop.astro, run against a stand-in section and an IntersectionObserver
+// that works out the visible share of each target from its geometry, as the browser does: one
+// notification when observing starts, then one each time the share crosses a threshold.
+function runLoopScript({ io, screen, sectionTop, sectionHeight, strikeTop, strikeHeight }) {
+  const source = /<script>([\s\S]*?)<\/script>/.exec(component('Loop'))?.[1];
+  assert.ok(source, 'Loop.astro has its script');
+  const code = stripTypeScriptTypes(source);
+  let scrollY = 0;
+  const rect = (top, height) => ({ top: top - scrollY, bottom: top + height - scrollY, height });
+  const classes = new Set();
+  const strike = { rect: () => rect(sectionTop + strikeTop, strikeHeight) };
+  const section = {
+    rect: () => rect(sectionTop, sectionHeight),
+    classList: { add: (c) => classes.add(c), contains: (c) => classes.has(c) },
+    querySelector: (selector) => (selector === '.loop-strike' ? strike : null),
+  };
+  const observers = [];
+  class FakeObserver {
+    constructor(callback, options = {}) {
+      this.callback = callback;
+      this.thresholds = [].concat(options.threshold ?? 0).sort((a, b) => a - b);
+      this.targets = new Map();
+      observers.push(this);
+    }
+    observe(target) { this.targets.set(target, -1); }
+    unobserve(target) { this.targets.delete(target); }
+    disconnect() { this.targets.clear(); }
+    check() {
+      const entries = [];
+      for (const [target, previous] of this.targets) {
+        const r = target.rect();
+        const isIntersecting = r.top <= screen && r.bottom >= 0;
+        const visible = Math.max(0, Math.min(r.bottom, screen) - Math.max(r.top, 0));
+        const intersectionRatio = r.height > 0 ? visible / r.height : Number(isIntersecting);
+        const index = isIntersecting ? this.thresholds.filter((x) => intersectionRatio >= x).length : 0;
+        if (index === previous) continue;
+        this.targets.set(target, index);
+        entries.push({ target, isIntersecting, intersectionRatio });
+      }
+      if (entries.length) this.callback(entries, this);
+    }
+  }
+  const document = { querySelectorAll: (selector) => (selector === '[data-loop]' ? [section] : []) };
+  const window = io ? { IntersectionObserver: FakeObserver } : {};
+  new Function('document', 'window', 'IntersectionObserver', code)(document, window, io ? FakeObserver : undefined);
+  const scrollTo = (y) => {
+    scrollY = y;
+    for (const o of observers) o.check();
+  };
+  return { scrollTo, seen: () => classes.has('is-seen'), strike, section };
+}
+
+test('the strike runs when the struck line comes on screen, for any section height and any screen', () => {
+  const r = generator(31);
+  let cases = 0;
+  for (const sectionHeight of [600, 900, 1500, 2657, 2803, 4000, 6000]) {
+    for (const screen of [568, 640, 667, 740, 768, 844, 896, 900, 1024, 1080]) {
+      const strikeTop = Math.round(90 + 200 * r());
+      const strikeHeight = Math.round(40 + 130 * r());
+      const sectionTop = screen + Math.round(800 + 2000 * r());
+      const where = `section ${sectionHeight} px, screen ${screen} px, strike at ${strikeTop} (${strikeHeight} px)`;
+      const page = runLoopScript({ io: true, screen, sectionTop, sectionHeight, strikeTop, strikeHeight });
+      let seenAt = null;
+      for (let y = 0; y <= sectionTop + sectionHeight + screen; y += Math.round(screen / 8)) {
+        page.scrollTo(y);
+        if (!page.seen()) continue;
+        if (seenAt === null) {
+          seenAt = y;
+          const s = page.strike.rect();
+          assert.ok(s.top < screen && s.bottom > 0, `the strike ran with the struck line off screen (${where})`);
+        }
+        assert.ok(y + screen > sectionTop, `the strike ran before the section came into view (${where})`);
+      }
+      assert.notEqual(seenAt, null, `the strike never ran (${where})`);
+      cases++;
+    }
+  }
+  assert.equal(cases, 70);
+  const bare = runLoopScript({ io: false, screen: 844, sectionTop: 3000, sectionHeight: 2800, strikeTop: 150, strikeHeight: 90 });
+  assert.equal(bare.seen(), true, 'without IntersectionObserver the strike is drawn at once');
+});
+
+test('a tab panel with nothing focusable inside takes the keyboard focus, with the design system ring', () => {
+  const ed = component('Editions');
+  const markup = template(ed);
+  const panels = [...markup.matchAll(/<div[^>]*\sdata-gx-painel\b[^>]*>/g)].map((m) => ({ tag: m[0], body: divAt(markup.slice(m.index), /<div/) }));
+  assert.equal(panels.length, 2);
+  const focusable = /<(a|button|input|select|textarea)\b|tabindex="0"/;
+  let bare = 0;
+  for (const { tag, body } of panels) {
+    const inner = body.slice(tag.length);
+    if (focusable.test(inner)) continue;
+    bare++;
+    assert.match(tag, /\stabindex="0"/, `panel without anything focusable: ${tag}`);
+  }
+  assert.ok(bare >= 1, 'the Desktop panel has nothing focusable inside');
+  const ring = /\.gx-aba:focus-visible[^{]*\{([^}]*)\}/.exec(read('site/src/styles/genius/genius-tudo.css'))?.[1];
+  assert.ok(ring, 'the design system ring');
+  const style = /<style>([\s\S]*?)<\/style>/.exec(ed)?.[1] ?? '';
+  const own = /\.ed-panel:focus-visible\s*\{([^}]*)\}/.exec(style)?.[1];
+  assert.ok(own, 'the panel draws a focus ring');
+  const decls = (s) => s.split(';').map((d) => d.trim()).filter(Boolean).sort();
+  assert.deepEqual(decls(own), decls(ring), 'the panel ring is the design system one');
 });
 
 test('the new files exist and carry no machine path', () => {

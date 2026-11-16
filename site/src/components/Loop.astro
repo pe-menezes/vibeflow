@@ -71,20 +71,28 @@ const blocks = [
 </section>
 
 <script>
-  // The strike under the thesis runs once, when the stage comes into view. At rest, and without
-  // this script, it is already drawn.
+  // The strike under the thesis runs once, when the struck line itself comes on screen: watching
+  // the line, and not the whole stage, keeps the trigger reachable whatever the stage's height. At
+  // rest, and without this script, it is already drawn.
+  const SEEN = 0.6;
   const stages = document.querySelectorAll<HTMLElement>('[data-loop]');
   if ('IntersectionObserver' in window) {
+    const owners = new Map<Element, HTMLElement>();
     const watch = new IntersectionObserver((entries) => {
       for (const e of entries) {
-        if (!e.isIntersecting) continue;
-        e.target.classList.add('is-seen');
+        if (!e.isIntersecting || e.intersectionRatio < SEEN) continue;
+        owners.get(e.target)?.classList.add('is-seen');
         watch.unobserve(e.target);
       }
-    }, { threshold: 0.35 });
-    stages.forEach((el) => watch.observe(el));
+    }, { threshold: SEEN });
+    stages.forEach((stage) => {
+      const strike = stage.querySelector<HTMLElement>('.loop-strike');
+      if (!strike) return stage.classList.add('is-seen');
+      owners.set(strike, stage);
+      watch.observe(strike);
+    });
   } else {
-    stages.forEach((el) => el.classList.add('is-seen'));
+    stages.forEach((stage) => stage.classList.add('is-seen'));
   }
 </script>
 

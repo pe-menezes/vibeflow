@@ -81,7 +81,8 @@ const cmdHtml = (cmd: string) =>
             <button class="gx-aba" type="button" role="tab" id="ed-tab-desktop" aria-selected="true" aria-controls="ed-panel-desktop">{t.claudeDesktopLabel}</button>
             <button class="gx-aba" type="button" role="tab" id="ed-tab-cli" aria-selected="false" aria-controls="ed-panel-cli">{t.claudeCliLabel}</button>
           </div>
-          <div class="ed-panel" id="ed-panel-desktop" role="tabpanel" aria-labelledby="ed-tab-desktop" data-gx-painel>
+          <!-- Nothing focusable inside, so the panel itself takes the focus (ARIA tabs pattern). -->
+          <div class="ed-panel" id="ed-panel-desktop" role="tabpanel" aria-labelledby="ed-tab-desktop" tabindex="0" data-gx-painel>
             <ol class="ed-steps">
               <li>{t.claudeStep1}</li>
               <li>{t.claudeStep2}</li>
@@ -232,6 +233,11 @@ const cmdHtml = (cmd: string) =>
 
   .ed-tabs {
     margin-bottom: var(--s-1);
+  }
+  /* The design system's keyboard ring, as on its tabs (.gx-aba:focus-visible). */
+  .ed-panel:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 3px;
   }
   .ed-panel + .ed-panel {
     margin-top: var(--s-2);
