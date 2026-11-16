@@ -46,7 +46,8 @@ const commands = [
             <p class="cmd-flags">
               {cmd.highlights.map((h: string) => <span class="gx-chip">{h}</span>)}
             </p>
-            <a class="gx-link cmd-details" href={`/${lang}/commands#${cmd.id}`}>{t.cmdDetails}</a>
+            {/* A mouse shortcut to the title's own target: the title link is the one read and reached. */}
+            <a class="gx-link cmd-details" href={`/${lang}/commands#${cmd.id}`} aria-hidden="true" tabindex="-1">{t.cmdDetails}</a>
           </div>
         </li>
       ))}

@@ -8,7 +8,8 @@
 // * the demo sheet ships ready: no live state in the HTML, the four checks, the files and the verdict;
 // * the four use cases and the ten commands, in the order of today, with the links of today;
 // * the closing stage is dark and links to the repository;
-// * the form keeps its destination, method, field names and ids.
+// * the form keeps its destination, method, field names and ids, has an announced error region
+//   with the error of the page language, and a focusable success message.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,6 +91,10 @@ for (const out of outputs) {
         .filter((m) => decode(m[2]).trim() === decode(key('cmdDetails')))
         .map((m) => m[1]);
       if (JSON.stringify(details) !== JSON.stringify(expected)) fail(`${where} details links are ${JSON.stringify(details)}`);
+      // The title link is the one read and reached; "Details" repeats it for the mouse only.
+      const detailTags = [...commands.matchAll(/<a\b[^>]*>([^<]*)<\/a>/g)].filter((m) => decode(m[1]).trim() === decode(key('cmdDetails')));
+      if (detailTags.some((m) => !/\saria-hidden="true"/.test(m[0]) || !/\stabindex="-1"/.test(m[0]))) fail(`${where} a details link is still read or reached`);
+      if (/<h3[^>]*>\s*<a[^>]*\s(aria-hidden|tabindex)=/.test(commands)) fail(`${where} a title link is out of reach`);
       if (!new RegExp(`<a[^>]*href="/${lang}/commands"[^>]*>`).test(commands)) fail(`${where} without the full reference link`);
     }
 
@@ -108,6 +113,16 @@ for (const out of outputs) {
         if (!field) fail(`${where} without #${id}`);
         else if (!new RegExp(`\\sname="${name}"`).test(field)) fail(`${where} #${id} without name="${name}"`);
       }
+      const error = /<p\b[^>]*\sid="form-error"[^>]*>([\s\S]*?)<\/p>/.exec(contact);
+      if (!error) fail(`${where} without the error region`);
+      else {
+        if (!/\srole="alert"/.test(error[0])) fail(`${where} the error region is not announced`);
+        if (error[1].trim()) fail(`${where} the error region is not empty at rest`);
+        const message = /\sdata-message="([^"]*)"/.exec(error[0])?.[1];
+        if (decode(message ?? '') !== decode(key('contactError'))) fail(`${where} the error region carries ${message}`);
+      }
+      const success = /<p\b[^>]*\sid="form-success"[^>]*>/.exec(contact)?.[0] ?? '';
+      if (!/\stabindex="-1"/.test(success) || !/\shidden\b/.test(success)) fail(`${where} the success message is not hidden and focusable`);
     }
   }
 }

@@ -38,8 +38,10 @@ const FORMSPREE_ID = 'xgonvawy';
           </label>
           <button class="gx-btn gx-btn--primario contact-submit" type="submit" data-sending={t.contactSending}>{t.contactSend}</button>
         </form>
+        <!-- Empty until a send fails: the script writes the message in, so the change is announced. -->
+        <p class="contact-error" id="form-error" role="alert" data-message={t.contactError}></p>
       </div>
-      <p class="contact-success" id="form-success" role="status" hidden>{t.contactSuccess}</p>
+      <p class="contact-success" id="form-success" role="status" tabindex="-1" hidden>{t.contactSuccess}</p>
     </div>
   </div>
 </section>
@@ -48,29 +50,36 @@ const FORMSPREE_ID = 'xgonvawy';
   const contactForm = document.getElementById('contact-form') as HTMLFormElement | null;
   const contactBody = document.getElementById('contact-body');
   const formSuccess = document.getElementById('form-success');
-  if (contactForm && contactBody && formSuccess) {
+  const formError = document.getElementById('form-error');
+  if (contactForm && contactBody && formSuccess && formError) {
     contactForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const btn = contactForm.querySelector('.contact-submit') as HTMLButtonElement;
       const origText = btn.textContent;
       btn.textContent = btn.dataset.sending ?? origText;
       btn.disabled = true;
+      // Cleared on every send, so the next failure changes the region and is announced again.
+      formError.textContent = '';
+      let sent = false;
       try {
         const res = await fetch(contactForm.action, {
           method: 'POST',
           body: new FormData(contactForm),
           headers: { 'Accept': 'application/json' }
         });
-        if (res.ok) {
-          contactBody.hidden = true;
-          formSuccess.hidden = false;
-        } else {
-          btn.textContent = origText;
-          btn.disabled = false;
-        }
+        sent = res.ok;
       } catch {
+        sent = false;
+      }
+      if (sent) {
+        contactBody.hidden = true;
+        formSuccess.hidden = false;
+        formSuccess.focus();
+      } else {
+        // The fields keep what was typed; only the button and the message change.
         btn.textContent = origText;
         btn.disabled = false;
+        formError.textContent = formError.dataset.message ?? '';
       }
     });
   }
@@ -103,6 +112,13 @@ const FORMSPREE_ID = 'xgonvawy';
     padding-block: var(--s-5);
     color: var(--pos);
     font-size: var(--fs-lede);
+  }
+  .contact-error {
+    color: var(--neg);
+    font-size: var(--fs-ui);
+  }
+  .contact-error:not(:empty) {
+    margin-top: var(--s-4);
   }
 
   @media (min-width: 900px) {

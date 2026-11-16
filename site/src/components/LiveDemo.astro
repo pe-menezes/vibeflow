@@ -277,20 +277,20 @@ const files = [t.demoR6file1, t.demoR6file2, t.demoR6file3];
   }
 
   /* While the script drives the sheet, what has not arrived is dimmed (still readable) and the
-     boxes stay empty until the audit. */
+     boxes stay empty until the audit. Dimming is by opacity and never by colour: a fixed dim ink
+     reads stronger than the arrived ink on the dark card, while opacity weakens every ink alike in
+     both themes. */
   .demo-sheet [data-since] {
-    transition: color var(--d-3) var(--ease-out);
+    transition: opacity var(--d-3) var(--ease-out);
   }
-  .demo-sheet[data-live] [data-arrived="false"],
-  .demo-sheet[data-live] [data-arrived="false"] .k,
-  .demo-sheet[data-live] [data-arrived="false"] .v,
-  .demo-sheet[data-live] [data-arrived="false"] code {
-    color: var(--ink-5);
+  .demo-sheet[data-live] [data-arrived="false"] {
+    opacity: 0.45;
   }
+  /* Until the verdict the chip is unfilled, in the ink of a plain chip on paper. */
   .demo-sheet[data-live] [data-arrived="false"] .gx-chip {
     border-color: var(--rule-soft);
     background: transparent;
-    color: var(--ink-5);
+    color: var(--ink-3);
   }
   .demo-sheet[data-live] li:not([data-checked="true"]) .demo-box {
     border-color: var(--rule-control);
