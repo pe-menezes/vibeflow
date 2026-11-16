@@ -48,6 +48,7 @@ export default {
   pipelineStep4Desc: 'Checa cada DoD com evidência, a partir de um pacote de revisão do diff. Compliance de padrões. Veredicto: PASS, PARTIAL ou FAIL.',
   pipelineExtra: 'Mais 6:',
   pipelineExtraList: 'discover · prompt-pack · quick · hotfix · teach · stats',
+  pipelineFlowLabel: 'O trabalho passa por quatro portas, analyze, gen-spec, implement e audit, e fica mais ordenado a cada uma.',
 
   // Loop de execução
   loopLabel: 'Loop de execução',

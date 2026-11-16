@@ -10,12 +10,15 @@ interface Props {
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
+// The thesis has a line break; its second line ("does not approve it.") carries the strike.
+const [titleFirst, titleSecond] = t.loopTitle.split(/<br\s*\/?>/);
+
 const steps = [
-  { num: '1', title: t.loopStep1Title, desc: t.loopStep1Desc },
-  { num: '2', title: t.loopStep2Title, desc: t.loopStep2Desc },
-  { num: '3', title: t.loopStep3Title, desc: t.loopStep3Desc },
-  { num: '4', title: t.loopStep4Title, desc: t.loopStep4Desc },
-  { num: '5', title: t.loopStep5Title, desc: t.loopStep5Desc },
+  { title: t.loopStep1Title, desc: t.loopStep1Desc },
+  { title: t.loopStep2Title, desc: t.loopStep2Desc },
+  { title: t.loopStep3Title, desc: t.loopStep3Desc },
+  { title: t.loopStep4Title, desc: t.loopStep4Desc },
+  { title: t.loopStep5Title, desc: t.loopStep5Desc },
 ];
 
 const blocks = [
@@ -26,25 +29,31 @@ const blocks = [
 ];
 ---
 
-<div class="section loop-section" id="loop">
-  <div class="container">
-    <div class="section-label">{t.loopLabel}</div>
-    <h2 class="section-title" set:html={t.loopTitle} />
-    <p class="section-sub loop-sub"><InlineCode text={t.loopSubtitle} /></p>
+<section class="gx-escuro loop" id="loop" data-loop>
+  <div class="container loop-inner">
+    <div class="loop-head">
+      <div>
+        <p class="gx-rotulo">{t.loopLabel}</p>
+        <h2 class="loop-title">
+          {titleFirst}{titleSecond !== undefined && <><br /><span class="loop-strike">{titleSecond}</span></>}
+        </h2>
+      </div>
+      <p class="loop-sub"><InlineCode text={t.loopSubtitle} /></p>
+    </div>
 
     <ol class="loop-steps">
-      {steps.map((step) => (
+      {steps.map((step, i) => (
         <li class="loop-step">
-          <div class="loop-num">{step.num}</div>
+          <span class="loop-num" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
           <h3>{step.title}</h3>
           <p><InlineCode text={step.desc} /></p>
         </li>
       ))}
     </ol>
 
-    <div class="loop-blocks">
+    <div class="loop-lists">
       {blocks.map((block) => (
-        <div class="loop-block">
+        <div class="loop-list">
           <h3>{block.title}</h3>
           <ul>
             {block.items.map((item: string) => (
@@ -55,142 +64,153 @@ const blocks = [
       ))}
     </div>
 
-    <div class="loop-more">
-      <a href={t.loopMoreHref} target="_blank" rel="noopener" class="loop-link">{t.loopMore}</a>
-    </div>
+    <p class="loop-more">
+      <a href={t.loopMoreHref} target="_blank" rel="noopener" class="gx-link">{t.loopMore}</a>
+    </p>
   </div>
-</div>
+</section>
+
+<script>
+  // The strike under the thesis runs once, when the stage comes into view. At rest, and without
+  // this script, it is already drawn.
+  const stages = document.querySelectorAll<HTMLElement>('[data-loop]');
+  if ('IntersectionObserver' in window) {
+    const watch = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        e.target.classList.add('is-seen');
+        watch.unobserve(e.target);
+      }
+    }, { threshold: 0.35 });
+    stages.forEach((el) => watch.observe(el));
+  } else {
+    stages.forEach((el) => el.classList.add('is-seen'));
+  }
+</script>
 
 <style>
-  /* The fixed header is 64px tall (Header.astro); the #loop anchor lands below it. */
-  .loop-section {
-    scroll-margin-top: 64px;
+  .loop {
+    margin-top: clamp(64px, 10vw, 136px);
+    padding-block: clamp(56px, 9vw, 120px);
   }
-
-  .loop-sub {
-    max-width: 640px;
-  }
-
-  .loop-steps {
-    list-style: none;
-    margin: 0 0 2.5rem;
-    padding: 0;
+  .loop-inner {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 1.25rem;
-    position: relative;
+    gap: clamp(40px, 6vw, 72px);
   }
 
-  @media (min-width: 1024px) {
-    .loop-steps::before {
-      content: '';
-      position: absolute;
-      top: 23px;
-      left: 32px;
-      right: 32px;
-      height: 2px;
-      background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.25) 15%, rgba(99, 102, 241, 0.4) 50%, rgba(99, 102, 241, 0.25) 85%, transparent 100%);
-      border-radius: 2px;
+  .loop-head {
+    display: grid;
+    gap: var(--s-5) var(--s-8);
+    align-items: end;
+  }
+  .loop-title {
+    max-width: 14ch;
+    margin-top: var(--s-4);
+    color: var(--ink-on-deep);
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 6.4vw, 5.2rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+  /* The strike: a thin band of the accent under the second line. Drawn at rest; with motion
+     allowed it runs once when the stage is seen. */
+  .loop-strike {
+    background: linear-gradient(var(--accent-on-deep), var(--accent-on-deep)) no-repeat 0 96% / 100% 0.08em;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html.motion-ok) .loop-strike {
+      transition: background-size var(--d-5) var(--ease-swap) var(--d-2);
+    }
+    :global(html.motion-ok) .loop:not(.is-seen) .loop-strike {
+      background-size: 0% 0.08em;
+    }
+  }
+  .loop-sub {
+    max-width: 46ch;
+    font-size: var(--fs-lede);
+    line-height: 1.45;
+  }
+  @media (min-width: 860px) {
+    .loop-head {
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
     }
   }
 
+  /* The five steps: one numbered sequence in a row, joined by a rule on top. */
+  .loop-steps {
+    display: grid;
+    gap: var(--s-5);
+    padding: 0;
+    list-style: none;
+  }
   .loop-step {
-    text-align: left;
+    display: grid;
+    gap: var(--s-2);
+    align-content: start;
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--rule-on-deep);
   }
-
   .loop-num {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 1rem;
-    color: var(--accent);
-    margin-bottom: 0.9rem;
-    position: relative;
-    z-index: 1;
-  }
-
-  .loop-step h3 {
+    color: var(--accent-on-deep);
     font-family: var(--font-mono);
-    font-size: 0.95rem;
+    font-size: var(--fs-label);
+    letter-spacing: 0.14em;
+  }
+  .loop-step h3 {
+    color: var(--ink-on-deep);
+    font-family: var(--font-display);
+    font-size: var(--fs-d3);
     font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
+    line-height: 1.15;
+  }
+  .loop-step p {
+    font-size: var(--fs-ui);
+    line-height: 1.5;
+  }
+  @media (min-width: 720px) {
+    .loop-steps {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .loop-steps {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
   }
 
-  .loop-step p {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
+  /* Turning it on, the hosts, company mode and the requirements: plain lists, no card. */
+  .loop-lists {
+    display: grid;
+    gap: var(--s-6) var(--s-7);
+  }
+  .loop-list h3 {
+    padding-bottom: var(--s-2);
+    border-bottom: 1px solid var(--rule-on-deep);
+    color: var(--ink-on-deep);
+    font-size: var(--fs-body);
+    font-weight: 600;
+  }
+  .loop-list ul {
+    display: grid;
+    gap: var(--s-2);
+    margin: var(--s-3) 0 0;
+    padding-left: 1.1rem;
+    color: var(--ink-5);
+    font-size: var(--fs-ui);
     line-height: 1.55;
   }
-
-  .loop-blocks {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.25rem;
+  .loop-list li::marker {
+    color: var(--accent-on-deep);
   }
-
-  .loop-block {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.5rem 1.75rem;
-  }
-
-  .loop-block h3 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.75rem;
-  }
-
-  .loop-block ul {
-    margin: 0;
-    padding-left: 1.1rem;
-    color: var(--text-secondary);
-    font-size: 0.86rem;
-    line-height: 1.6;
-  }
-
-  .loop-block li + li {
-    margin-top: 0.45rem;
+  @media (min-width: 860px) {
+    .loop-lists {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   .loop-more {
-    margin-top: 1.5rem;
-    font-size: 0.85rem;
-  }
-
-  .loop-link {
-    color: var(--accent);
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .loop-link:hover {
-    color: var(--text-primary);
-  }
-
-  @media (max-width: 1023px) {
-    .loop-steps {
-      grid-template-columns: repeat(2, 1fr);
-    }
-
-    /* Five steps in two columns: the last one takes the whole row instead of half of it. */
-    .loop-step:last-child {
-      grid-column: 1 / -1;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .loop-steps,
-    .loop-blocks {
-      grid-template-columns: 1fr;
-    }
+    font-size: var(--fs-ui);
   }
 </style>

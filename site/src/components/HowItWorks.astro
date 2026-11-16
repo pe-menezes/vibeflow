@@ -1,6 +1,7 @@
 ---
 import type { Locale } from '../i18n/utils';
 import { useTranslations } from '../i18n/utils';
+import { PIPELINE_GATES } from '../lib/flow.js';
 
 interface Props {
   lang: Locale;
@@ -9,118 +10,212 @@ interface Props {
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
+// Each step: the command, what it does, and what it prints (the output lines of the old hero
+// terminal). The gates sit where pipelineGeometry() in src/lib/flow.js orders the lines.
 const steps = [
-  { num: '1', title: t.step1Title, desc: t.pipelineStep1Desc },
-  { num: '2', title: t.step2Title, desc: t.pipelineStep2Desc },
-  { num: '3', title: t.step3Title, desc: t.pipelineStep3Desc },
-  { num: '4', title: t.step4Title, desc: t.pipelineStep4Desc },
-];
+  { title: t.step1Title, desc: t.pipelineStep1Desc, output: t.heroQuickStart1Desc },
+  { title: t.step2Title, desc: t.pipelineStep2Desc, output: t.heroQuickStart2Desc },
+  { title: t.step3Title, desc: t.pipelineStep3Desc, output: t.heroQuickStart3Desc },
+  { title: t.step4Title, desc: t.pipelineStep4Desc, output: t.heroQuickStart4Desc },
+].map((step, i) => ({ ...step, gate: `${(PIPELINE_GATES[i] * 100).toFixed(0)}%` }));
+
+// The verdict past the last gate: the first sentence of the audit output ("PASS").
+const verdict = t.heroQuickStart4Desc.split('.')[0];
 ---
 
-<div class="section" id="how">
-  <div class="container">
-    <div class="section-label">{t.pipelineLabel}</div>
-    <h2 class="section-title" set:html={t.howTitle} />
-    <p class="section-sub">{t.howSubtitle}</p>
+<section class="pipe" id="how" data-pipeline-scene>
+  <div class="pipe-track" data-scene-track>
+    <div class="container pipe-stage" data-scene-stage>
+      <div class="pipe-head">
+        <p class="gx-rotulo">{t.pipelineLabel}</p>
+        <h2 class="section-title pipe-title" set:html={t.howTitle} />
+        <p class="pipe-sub">{t.howSubtitle}</p>
+      </div>
 
-    <div class="pipeline">
-      {steps.map((step) => (
-        <div class="pipe-step">
-          <div class="pipe-num">{step.num}</div>
-          <h3>{step.title}</h3>
-          <p>{step.desc}</p>
-        </div>
-      ))}
-    </div>
+      <div class="pipe-band" role="img" aria-label={t.pipelineFlowLabel}>
+        <canvas class="pipe-canvas" data-flow="pipeline" aria-hidden="true"></canvas>
+        {steps.map((step) => (
+          <span class="pipe-gate" data-gate data-active="true" style={`left: ${step.gate}`} aria-hidden="true">{step.title}</span>
+        ))}
+        <span class="gx-chip gx-chip--marcado pipe-end" data-scene-end aria-hidden="true">{verdict}</span>
+      </div>
 
-    <div class="pipe-extra">
-      <strong>{t.pipelineExtra}</strong> {t.pipelineExtraList}
-      <a href={`/${lang}/commands`} class="pipe-link">{t.featSeeAll}</a>
+      <ol class="pipe-steps">
+        {steps.map((step) => (
+          <li class="pipe-step" data-step data-active="true">
+            <h3 class="pipe-step__cmd"><span>{step.title}</span></h3>
+            <p class="pipe-step__desc">{step.desc}</p>
+            <p class="pipe-step__out">{step.output}</p>
+          </li>
+        ))}
+      </ol>
+
+      <p class="pipe-extra">
+        <strong>{t.pipelineExtra}</strong> {t.pipelineExtraList}
+        <a href={`/${lang}/commands`} class="pipe-link">{t.featSeeAll}</a>
+      </p>
     </div>
   </div>
-</div>
+</section>
+
+<script>
+  import { createFlow } from '../lib/flow.js';
+  import { bindPipelineScene } from '../lib/pipeline-scene.js';
+
+  document.querySelectorAll<HTMLElement>('[data-pipeline-scene]').forEach((root) => {
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas[data-flow="pipeline"]');
+    if (canvas) bindPipelineScene(root, createFlow(canvas));
+  });
+</script>
 
 <style>
-  .pipeline {
+  .pipe {
+    padding-top: clamp(64px, 10vw, 136px);
+  }
+  .pipe-stage {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.5rem;
-    position: relative;
+    gap: clamp(20px, 3.4vh, 40px);
+  }
+  .pipe-head {
+    display: grid;
+    gap: var(--s-3);
+  }
+  .pipe-title {
+    margin-bottom: 0;
+  }
+  .pipe-sub {
+    max-width: 52ch;
+    color: var(--ink-3);
+    font-size: var(--fs-lede);
+    line-height: 1.45;
   }
 
-  @media (min-width: 769px) {
-    .pipeline::before {
-      content: '';
-      position: absolute;
-      top: 27px;
-      left: 40px;
-      right: 40px;
-      height: 2px;
-      background: linear-gradient(90deg, transparent 0%, rgba(99, 102, 241, 0.25) 15%, rgba(99, 102, 241, 0.4) 50%, rgba(99, 102, 241, 0.25) 85%, transparent 100%);
-      border-radius: 2px;
+  /* The band: the canvas, the four gates on top of their wires and the verdict past the last one. */
+  .pipe-band {
+    position: relative;
+    height: clamp(180px, 30vh, 320px);
+  }
+  .pipe-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  .pipe-gate {
+    position: absolute;
+    top: 0;
+    padding: 2px var(--s-2);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-1);
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    transform: translateX(-50%);
+    transition:
+      background-color var(--d-3) var(--ease-out),
+      color var(--d-3) var(--ease-out),
+      border-color var(--d-3) var(--ease-out);
+  }
+  .pipe-gate[data-active="false"] {
+    border-color: var(--rule-soft);
+    background: var(--bg);
+    color: var(--ink-4);
+  }
+  .pipe-end {
+    position: absolute;
+    top: 54%;
+    right: 0;
+    transform: translateY(-50%);
+  }
+
+  /* The steps: lit at rest; the scene dims all but the current one while it is pinned. */
+  .pipe-steps {
+    display: grid;
+    gap: var(--s-5);
+    padding: 0;
+    list-style: none;
+  }
+  .pipe-step {
+    display: grid;
+    gap: var(--s-2);
+    align-content: start;
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--ink);
+    color: var(--ink-2);
+    transition:
+      color var(--d-3) var(--ease-out),
+      border-color var(--d-3) var(--ease-out);
+  }
+  .pipe-step__cmd {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--fs-d3);
+    font-style: italic;
+    font-weight: 400;
+    line-height: 1.1;
+    transition: color var(--d-3) var(--ease-out);
+  }
+  .pipe-step__cmd span {
+    background: linear-gradient(var(--accent-halo), var(--accent-halo)) no-repeat 0 82% / 100% 0.46em;
+    transition: background-size var(--d-4) var(--ease-swap);
+  }
+  .pipe-step__desc {
+    font-size: var(--fs-ui);
+    line-height: 1.5;
+  }
+  .pipe-step__out {
+    color: var(--accent-text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-meta);
+    line-height: 1.45;
+  }
+  .pipe-step[data-active="false"] {
+    border-top-color: var(--rule-soft);
+    color: var(--ink-4);
+  }
+  .pipe-step[data-active="false"] .pipe-step__cmd {
+    color: var(--ink-3);
+  }
+  .pipe-step[data-active="false"] .pipe-step__cmd span {
+    background-size: 0% 0.46em;
+  }
+  .pipe-step[data-active="false"] .pipe-step__out {
+    color: var(--ink-4);
+  }
+  @media (min-width: 860px) {
+    .pipe-steps {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
   }
 
-  .pipe-step {
-    text-align: left;
-  }
-
-  .pipe-num {
-    width: 56px;
-    height: 56px;
-    border-radius: 50%;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 1.1rem;
-    color: var(--accent);
-    margin-bottom: 1rem;
-    position: relative;
-    z-index: 1;
-  }
-
-  .pipe-step h3 {
-    font-family: var(--font-mono);
-    font-size: 1rem;
-    font-weight: 500;
-    color: var(--text-primary);
-    margin-bottom: 0.5rem;
-  }
-
-  .pipe-step p {
-    font-size: 0.88rem;
-    color: var(--text-secondary);
-    line-height: 1.55;
-  }
-
   .pipe-extra {
-    margin-top: 1.25rem;
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    color: var(--ink-4);
+    font-size: var(--fs-meta);
   }
-
   .pipe-extra strong {
-    color: var(--text-secondary);
+    color: var(--ink-3);
     font-weight: 600;
   }
-
   .pipe-link {
-    color: var(--accent);
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .pipe-link:hover {
-    color: var(--text-primary);
+    font-weight: 500;
   }
 
-  @media (max-width: 768px) {
-    .pipeline {
-      grid-template-columns: 1fr;
-      gap: 1.5rem;
+  /* The timeline by scroll exists only on a wide, tall screen with motion allowed and the script
+     running (html.motion-ok); anywhere else the section runs as a normal one. */
+  @media (min-width: 860px) and (min-height: 660px) and (prefers-reduced-motion: no-preference) {
+    :global(html.motion-ok) .pipe-track {
+      height: 330vh;
+    }
+    :global(html.motion-ok) .pipe-stage {
+      position: sticky;
+      top: 0;
+      min-height: min(100vh, 880px);
+      align-content: center;
+      padding-block: clamp(16px, 4vh, 48px);
     }
   }
 </style>

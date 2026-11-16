@@ -48,6 +48,7 @@ export default {
   pipelineStep4Desc: 'Checks every DoD item with evidence, from a review package of the diff. Pattern compliance. Verdict: PASS, PARTIAL, or FAIL.',
   pipelineExtra: 'Plus 6 more:',
   pipelineExtraList: 'discover · prompt-pack · quick · hotfix · teach · stats',
+  pipelineFlowLabel: 'The work goes through four gates, analyze, gen-spec, implement and audit, and comes out more ordered at each one.',
 
   // Execution loop
   loopLabel: 'Execution loop',
