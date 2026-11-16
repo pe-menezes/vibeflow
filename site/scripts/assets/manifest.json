@@ -1,0 +1,46 @@
+{
+  "inputs": {
+    "title": "Spec-driven development\nfor AI agents",
+    "notes": {
+      "before": "no spec",
+      "after": "with a spec"
+    },
+    "card": {
+      "label": "spec · auth",
+      "items": [
+        "5 DoD checks",
+        "budget ≤4 files",
+        "anti-scope locked"
+      ]
+    },
+    "verdict": "PASS",
+    "mark": "M4.50 6.00 L5.80 6.26 L6.88 6.65 L7.56 7.25 L7.78 8.10 L7.60 9.18 L7.16 10.39 L6.70 11.62 L6.44 12.74 L6.53 13.66 L7.05 14.35 L7.95 14.84 L9.08 15.19 L10.25 15.52 L11.27 15.94 L11.98 16.53 L12.34 17.30 L12.40 18.25 L12.27 19.29 L12.13 20.35 L12.11 21.33 L12.33 22.19 L12.78 22.91 L13.42 23.54 L14.13 24.13 L14.79 24.74 L15.33 25.42 L15.71 26.18 L16.00 27.00 L27.5 6",
+    "colors": {
+      "bg": "#FFFFFF",
+      "ink": "#0A0A0A",
+      "ink3": "#5A5A55",
+      "accent": "#3D1F8C",
+      "accentHalo": "rgb(61 31 140 / 0.35)",
+      "accentInk": "#FFFFFF",
+      "sheet": "#FFFFFF",
+      "ruleSoft": "#D8D8D2",
+      "shadow": "0 0 0 1px rgb(10 10 10 / 0.05), 0 4px 8px -2px rgb(10 10 10 / 0.08), 0 24px 48px -12px rgb(10 10 10 / 0.22)",
+      "loose": "rgb(110 110 104 / 0.46)",
+      "held": "rgb(61 31 140 / 0.92)",
+      "looseDot": "rgb(90 90 85 / 0.9)"
+    }
+  },
+  "html": {
+    "og-image.png": "91a035779ba2facdbd959644ba0fb64a045f29001950f374dc80b421c0989589",
+    "favicon-32.png": "c856c50708cc4f34f541ba62a35d3cfa295f0909b24c7fd76ca1e3f80b6c3fc0",
+    "favicon-64.png": "b814fa98027969835c8ee7acbb49c16cecb55ad67581fdd97f902639c6921d8a",
+    "apple-touch-icon.png": "f74df74d1fd264654a90d75ba24d7bf281e81ad4e5b6301c72b45bace8e0b38a"
+  },
+  "outputs": {
+    "og-image.png": "7498730888b51b40d886d3f5467da6b1cf6fabc5ea4d1d03740c7c85a72ad254",
+    "favicon-32.png": "f33d9a04537faa65e93b962e5cc69e4c5b0ddd4ca8f49cbc0cab41c1a3eec56c",
+    "favicon-64.png": "b1a03c56bc86264db212aadedd3929b8fc7e70bcad2d08dc075b34b40bdbd262",
+    "apple-touch-icon.png": "1822ec5201022ed41ad426844d68e488dff78f06dda154e0182953ed845e687c",
+    "favicon.ico": "988bc4dd27012a192e4a7e6c146c73e50be6da3ac65d3a9e329adaae777126b7"
+  }
+}
