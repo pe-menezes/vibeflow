@@ -1,4 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
-  <rect width="32" height="32" rx="8" fill="#6366f1"/>
-  <path d="M8 16L13 22L24 10" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    path { fill: none; stroke: #3D1F8C; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+    @media (prefers-color-scheme: dark) { path { stroke: #9F8AE8; } }
+  </style>
+  <path d="M4.50 6.00 L5.80 6.26 L6.88 6.65 L7.56 7.25 L7.78 8.10 L7.60 9.18 L7.16 10.39 L6.70 11.62 L6.44 12.74 L6.53 13.66 L7.05 14.35 L7.95 14.84 L9.08 15.19 L10.25 15.52 L11.27 15.94 L11.98 16.53 L12.34 17.30 L12.40 18.25 L12.27 19.29 L12.13 20.35 L12.11 21.33 L12.33 22.19 L12.78 22.91 L13.42 23.54 L14.13 24.13 L14.79 24.74 L15.33 25.42 L15.71 26.18 L16.00 27.00 L27.5 6"/>
 </svg>

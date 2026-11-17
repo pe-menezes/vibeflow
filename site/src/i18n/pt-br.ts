@@ -21,6 +21,9 @@ export default {
   heroNotice: 'Novo na 1.18: a edição OpenCode →',
   heroCta: 'Veja como funciona',
   heroInstall: 'Instalar agora',
+  heroFlowBefore: 'sem spec',
+  heroFlowAfter: 'com spec',
+  heroFlowLabel: 'Linhas desordenadas entram pela esquerda, passam por uma spec e saem alinhadas até o veredito PASS.',
   heroQuickStartTitle: 'vibeflow pipeline',
   heroQuickStart1Cmd: '$ analyze',
   heroQuickStart1Desc: '✓ 14 padrões · 8 convenções · .vibeflow/ pronto',
@@ -45,6 +48,7 @@ export default {
   pipelineStep4Desc: 'Checa cada DoD com evidência, a partir de um pacote de revisão do diff. Compliance de padrões. Veredicto: PASS, PARTIAL ou FAIL.',
   pipelineExtra: 'Mais 6:',
   pipelineExtraList: 'discover · prompt-pack · quick · hotfix · teach · stats',
+  pipelineFlowLabel: 'O trabalho passa por quatro portas, analyze, gen-spec, implement e audit, e fica mais ordenado a cada uma.',
 
   // Loop de execução
   loopLabel: 'Loop de execução',
@@ -103,6 +107,8 @@ export default {
   demoOutputBudget: 'Budget:',
   demoYou: 'Você',
   demoVibeflow: 'Vibeflow',
+  demoSheetLabel: 'A spec, montada ao longo da conversa',
+  demoSheetName: 'spec · auth',
 
   // Round 1: User drops a vague idea
   demoR1user: '"Preciso de autenticação de usuário no meu app"',
@@ -301,6 +307,8 @@ export default {
   cmdOutput: 'Output',
   cmdWhenToUse: 'Quando usar',
   cmdPipeline: 'Pipeline',
+  cmdPageEyebrow: 'Referência',
+  cmdTocLabel: 'Nesta página',
 
   // analyze
   cmdAnalyzeDesc: 'Deep-scan do codebase que aprende seus padrões, convenções e arquitetura. Gera documentação curada em .vibeflow/ que persiste e pode ser commitada no git.',
@@ -425,6 +433,7 @@ export default {
   anatomyEyebrow: 'Por dentro da pasta .vibeflow/',
   anatomyTitle: 'Anatomia da pasta<br>.vibeflow/',
   anatomySubtitle: 'O que é cada arquivo, por que ele existe, e como o agente usa. Pra você saber o que pode mexer, e o que é melhor deixar quieto.',
+  anatomyTocLabel: 'Nesta página',
   anatomyIntro: 'Quando você roda /analyze, o Vibeflow cria uma pasta .vibeflow/ na raiz do projeto. É a base de conhecimento que o agente lê antes de cada spec, implementação e audit. Quatro artefatos formam essa base; os outros comandos põem as próprias pastas ao lado deles (PRDs, specs, audits e, com o implement --loop, os arquivos do loop).',
 
   // Anatomy — section labels (reused per artifact)

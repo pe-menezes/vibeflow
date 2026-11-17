@@ -8,329 +8,251 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(lang);
+
+// The title, with the term "spec-driven" found in the title itself and highlighted.
+const title = t.heroTitle.replace(/\n/g, ' ');
+const found = /spec-driven/i.exec(title);
+const [titleBefore, titleTerm, titleAfter] = found
+  ? [title.slice(0, found.index), found[0], title.slice(found.index + found[0].length)]
+  : [title, '', ''];
+
+// The spec card and the verdict reuse the facts of the pipeline steps (gen-spec, implement, audit).
+const stepItems = (desc: string) => desc.replace(/^✓\s*/, '').split(' · ');
+const specName = /"([^"]+)"/.exec(t.heroQuickStart2Cmd)?.[1];
+const specLabel = specName ? `spec · ${specName}` : 'spec';
+const specItems = stepItems(t.heroQuickStart2Desc);
+const verdict = t.heroQuickStart4Desc.split('.')[0];
+const verdictNote = stepItems(t.heroQuickStart3Desc).slice(0, 2).join(' · ');
 ---
 
 <section class="hero">
-  <canvas id="wave-canvas"></canvas>
-  <div class="hero-content">
-    <span class="hero-eyebrow">{t.heroEyebrow}</span>
-    <h1>
-      <Fragment set:html={t.heroTitle.replace('\n', '<br />')} />
-    </h1>
-    <p class="hero-sub">{t.heroSubtitle}</p>
-    <a href={`/${lang}/#editions`} class="hero-notice">{t.heroNotice}</a>
-
-    <div class="terminal">
-      <div class="terminal-bar">
-        <span class="dot dot-r"></span>
-        <span class="dot dot-y"></span>
-        <span class="dot dot-g"></span>
-        <span class="terminal-label">{t.heroQuickStartTitle}</span>
+  <div class="container hero-text">
+    <div class="hero-head rise">
+      <div class="hero-kicker">
+        <p class="gx-rotulo">{t.heroEyebrow}</p>
+        <a class="gx-chip hero-notice" href={`/${lang}/#editions`}>{t.heroNotice}</a>
       </div>
-      <div class="terminal-body">
-        <div class="line">
-          <span class="p">$</span>
-          <span class="c">analyze</span>
-          <span class="o">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr; {t.heroQuickStart1Desc}</span>
-        </div>
-        <div class="line">
-          <span class="p">$</span>
-          <span class="c">gen-spec "auth"</span>
-          <span class="o">&nbsp;&rarr; {t.heroQuickStart2Desc}</span>
-        </div>
-        <div class="line">
-          <span class="p">$</span>
-          <span class="c">implement</span>
-          <span class="o">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr; {t.heroQuickStart3Desc}</span>
-        </div>
-        <div class="line">
-          <span class="p">$</span>
-          <span class="c">audit</span>
-          <span class="o">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&rarr; </span>
-          <span class="pass">{t.heroQuickStart4Desc}</span>
-        </div>
+      <h1 class="hero-title">
+        {titleBefore}{titleTerm && <em><mark class="hero-mark">{titleTerm}</mark></em>}{titleAfter}
+      </h1>
+    </div>
+    <div class="hero-side rise" style="--rise-i: 2">
+      <p class="hero-lede"><b>{t.heroSubtitle}</b> {t.heroDescription}</p>
+      <div class="hero-actions">
+        <a class="gx-btn gx-btn--primario gx-btn--g" href={`/${lang}/#how`}>
+          {t.heroCta}<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
+        </a>
+        <a class="gx-btn gx-btn--g" href={`/${lang}/#editions`}>{t.heroInstall}</a>
       </div>
     </div>
+  </div>
 
-    <div class="hero-actions">
-      <a href={`/${lang}/#how`} class="btn btn-dark">{t.heroCta}</a>
-      <a href={`/${lang}/#editions`} class="btn btn-light">{t.heroInstall}</a>
+  <div class="flow-band" role="img" aria-label={t.heroFlowLabel}>
+    <canvas class="flow-canvas" data-flow="hero" aria-hidden="true"></canvas>
+    <p class="flow-note flow-note--before" aria-hidden="true">{t.heroFlowBefore}</p>
+    <p class="flow-note flow-note--after" aria-hidden="true">{t.heroFlowAfter}</p>
+    <div class="gx-cartao flow-spec" aria-hidden="true">
+      <p class="gx-rotulo">{specLabel}</p>
+      <ul class="flow-spec__list">
+        {specItems.map((item) => <li><i class="check"></i>{item}</li>)}
+      </ul>
+    </div>
+    <div class="flow-verdict" aria-hidden="true">
+      <span class="gx-chip gx-chip--marcado">{verdict}</span>
+      <small>{verdictNote}</small>
     </div>
   </div>
 </section>
 
 <script>
-  // Perlin Noise
-  class Perlin {
-    p: Uint8Array;
-    constructor() {
-      const p = [151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180];
-      this.p = new Uint8Array(512);
-      for (let i = 0; i < 256; i++) { this.p[i] = p[i]; this.p[i+256] = p[i]; }
-    }
-    fade(t: number) { return t*t*t*(t*(t*6-15)+10); }
-    lerp(t: number, a: number, b: number) { return a+t*(b-a); }
-    grad(h: number, x: number, y: number) { const s=h&3; return(s===0?x+y:s===1?-x+y:s===2?x-y:-x-y); }
-    noise(x: number, y: number) {
-      const xi=Math.floor(x)&255, yi=Math.floor(y)&255;
-      const xf=x-Math.floor(x), yf=y-Math.floor(y);
-      const u=this.fade(xf), v=this.fade(yf);
-      const aa=this.p[this.p[xi]+yi], ba=this.p[this.p[xi+1]+yi];
-      const ab=this.p[this.p[xi]+yi+1], bb=this.p[this.p[xi+1]+yi+1];
-      return this.lerp(v,
-        this.lerp(u, this.grad(aa,xf,yf), this.grad(ba,xf-1,yf)),
-        this.lerp(u, this.grad(ab,xf,yf-1), this.grad(bb,xf-1,yf-1))
-      );
-    }
-  }
+  import { createFlow } from '../lib/flow.js';
 
-  // Wave Animation
-  (function() {
-    const canvas = document.getElementById('wave-canvas') as HTMLCanvasElement;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const perlin = new Perlin();
-    const isMobile = window.innerWidth < 768;
-    const dpr = isMobile ? 1 : Math.min(window.devicePixelRatio || 1, 2);
-
-    let w: number, h: number;
-    let mouseX = -9999, mouseY = -9999, tMouseX = -9999, tMouseY = -9999, active = false;
-
-    function resize() {
-      w = window.innerWidth; h = window.innerHeight;
-      canvas.width = w * dpr; canvas.height = h * dpr;
-      canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
-      ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    resize();
-    window.addEventListener('resize', resize);
-
-    document.addEventListener('mousemove', e => { tMouseX = e.clientX; tMouseY = e.clientY; active = true; });
-    document.addEventListener('mouseleave', () => { active = false; });
-
-    const LINES = isMobile ? 14 : 24;
-    const MOUSE_R = 160;
-    const MOUSE_FORCE = 25;
-    let time = 0;
-
-    function frame() {
-      ctx!.clearRect(0, 0, w, h);
-      time += 0.005;
-
-      if (active) {
-        mouseX += (tMouseX - mouseX) * 0.04;
-        mouseY += (tMouseY - mouseY) * 0.04;
-      } else {
-        mouseX += (-9999 - mouseX) * 0.015;
-        mouseY += (-9999 - mouseY) * 0.015;
-      }
-
-      ctx!.lineCap = 'round';
-
-      for (let i = 0; i < LINES; i++) {
-        const t = i / (LINES - 1);
-        const baseY = h * 0.08 + t * h * 0.84;
-        const center = 1 - Math.abs(t - 0.5) * 2;
-        const alpha = 0.05 + center * center * 0.28;
-        const lw = 0.6 + center * 2.0;
-        const hue = 240 + t * 25;
-        const sat = 55 + center * 25;
-        const lit = 62 + (1 - center) * 14;
-
-        ctx!.beginPath();
-        const step = isMobile ? 8 : 4;
-        let prevX = 0, prevY = 0;
-
-        for (let x = -step; x <= w + step; x += step) {
-          const sx = x / w;
-          const n1 = perlin.noise(sx * 2.5 + i * 0.6, time + i * 0.25);
-          const n2 = perlin.noise(sx * 5 + i * 1.1 + 40, time * 1.8 + i * 0.4);
-          let waveY = n1 * 50 + n2 * 14;
-
-          const dx = x - mouseX;
-          const dy = (baseY + waveY) - mouseY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < MOUSE_R) {
-            const f = 1 - dist / MOUSE_R;
-            waveY += (dy / (dist || 1)) * f * f * f * MOUSE_FORCE;
-          }
-
-          const y = baseY + waveY;
-          if (x <= 0) {
-            ctx!.moveTo(x, y);
-            prevX = x; prevY = y;
-          } else {
-            const cpX = (prevX + x) / 2;
-            const cpY = (prevY + y) / 2;
-            ctx!.quadraticCurveTo(prevX, prevY, cpX, cpY);
-            prevX = x; prevY = y;
-          }
-        }
-
-        ctx!.strokeStyle = `hsla(${hue}, ${sat}%, ${lit}%, ${alpha})`;
-        ctx!.lineWidth = lw;
-        ctx!.stroke();
-      }
-
-      requestAnimationFrame(frame);
-    }
-    frame();
-  })();
+  document.querySelectorAll<HTMLCanvasElement>('canvas[data-flow="hero"]').forEach((canvas) => createFlow(canvas));
 </script>
 
 <style>
-  .hero {
-    position: relative;
-    min-height: 100vh;
-    min-height: 100dvh;
+  /* Title on the left and the call on the right, so the flow band fits in the first screen. */
+  .hero-text {
+    display: grid;
+    gap: var(--s-5) var(--s-7);
+    padding-top: clamp(24px, 4.4vw, 60px);
+  }
+  @media (min-width: 980px) {
+    .hero-text {
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.7fr);
+      align-items: end;
+    }
+    .hero-side {
+      padding-bottom: 0.5rem;
+    }
+  }
+
+  .hero-kicker {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 6rem 1.5rem 2rem;
-    overflow: hidden;
+    gap: var(--s-2) var(--s-3);
   }
-
-  #wave-canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    z-index: 0;
-  }
-
-  .hero-content {
-    position: relative;
-    z-index: 1;
-    max-width: 780px;
-  }
-
-  .hero-eyebrow {
-    display: inline-block;
-    font-size: 0.72rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--text-secondary);
-    margin-bottom: 1.25rem;
-  }
-
-  .hero h1 {
-    font-family: var(--font-display);
-    font-size: clamp(3rem, 7.5vw, 5.5rem);
-    font-weight: 800;
-    line-height: 1.05;
-    letter-spacing: -0.04em;
-    color: var(--text-primary);
-    margin-bottom: 1rem;
-  }
-
-  .hero-sub {
-    font-size: clamp(1.05rem, 2.2vw, 1.35rem);
-    color: var(--text-secondary);
-    font-weight: 400;
-    line-height: 1.5;
-    max-width: 520px;
-    margin: 0 auto 1.75rem;
-  }
-
   .hero-notice {
-    display: inline-block;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--accent);
-    background: var(--accent-glow);
-    border: 1px solid var(--accent-glow-strong);
-    border-radius: var(--radius-full);
-    padding: 0.35rem 0.9rem;
-    margin: -0.5rem auto 1.5rem;
+    color: var(--accent-text);
     text-decoration: none;
-    transition: border-color 0.25s var(--ease-out), color 0.25s var(--ease-out);
+    transition: border-color var(--d-2) var(--ease-out);
   }
   .hero-notice:hover {
     border-color: var(--accent);
-    color: var(--text-primary);
+    color: var(--accent-text);
   }
 
-  /* Terminal */
-  .terminal {
-    background: var(--bg-code);
-    border-radius: 12px;
-    max-width: 560px;
-    margin: 0 auto 2rem;
-    overflow: hidden;
-    text-align: left;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.10), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
-    transition: box-shadow 0.5s var(--ease-out), transform 0.5s var(--ease-out);
+  .hero-title {
+    max-width: 15ch;
+    margin-top: var(--s-4);
+    font-family: var(--font-display);
+    font-size: clamp(2.6rem, 6.6vw, 5.6rem);
+    font-weight: 400;
+    letter-spacing: -0.034em;
+    line-height: 0.98;
+    text-wrap: balance;
   }
-  .terminal:hover {
-    box-shadow: 0 24px 80px rgba(99, 102, 241, 0.12), 0 0 0 0.5px rgba(99, 102, 241, 0.15);
-    transform: translateY(-2px);
+  .hero-title em {
+    font-style: italic;
   }
-
-  .terminal-bar {
-    padding: 11px 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.04);
+  /* The highlighter: a band of the accent behind the lower half of the term. At rest it is drawn;
+     with motion allowed it runs once on load. The text is always readable. */
+  .hero-mark {
+    padding: 0 0.05em;
+    background: linear-gradient(var(--accent-halo), var(--accent-halo)) no-repeat 0 82% / 100% 0.46em;
+    color: inherit;
   }
-
-  .dot { width: 10px; height: 10px; border-radius: 50%; }
-  .dot-r { background: #ff5f57; }
-  .dot-y { background: #febc2e; }
-  .dot-g { background: #28c840; }
-
-  .terminal-label {
-    margin-left: 6px;
-    font-size: 0.65rem;
-    color: rgba(255, 255, 255, 0.25);
-    font-family: var(--font-mono);
+  @media (prefers-reduced-motion: no-preference) {
+    :global(html.motion-ok) .hero-mark {
+      animation: mark var(--d-5) var(--ease-swap) var(--d-3) both;
+    }
+  }
+  @keyframes mark {
+    from { background-size: 0% 0.46em; }
+    to { background-size: 100% 0.46em; }
   }
 
-  .terminal-body {
-    padding: 1.1rem 1.4rem;
-    font-family: var(--font-mono);
-    font-size: 0.78rem;
-    line-height: 2.1;
+  .hero-lede {
+    max-width: 47ch;
+    color: var(--ink-3);
+    font-size: clamp(1.06rem, 1.7vw, 1.32rem);
+    line-height: 1.45;
   }
-
-  .terminal-body .line {
-    opacity: 0;
-    animation: tIn 0.4s var(--ease-out) forwards;
+  .hero-lede b {
+    color: var(--ink);
+    font-weight: 500;
   }
-  .terminal-body .line:nth-child(1) { animation-delay: 0.2s; }
-  .terminal-body .line:nth-child(2) { animation-delay: 0.5s; }
-  .terminal-body .line:nth-child(3) { animation-delay: 0.8s; }
-  .terminal-body .line:nth-child(4) { animation-delay: 1.1s; }
-
-  @keyframes tIn {
-    from { opacity: 0; transform: translateY(3px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .terminal-body .p { color: #818cf8; }
-  .terminal-body .c { color: #e5e5ea; }
-  .terminal-body .o { color: #8e8e93; }
-  .terminal-body .pass { color: #30d158; font-weight: 500; }
-
   .hero-actions {
     display: flex;
-    gap: 0.75rem;
-    justify-content: center;
     flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-3);
+    margin-top: var(--s-6);
+  }
+  .arrow {
+    width: 16px;
+    height: 16px;
+    transition: transform var(--d-3) var(--ease-out);
+  }
+  .gx-btn:hover .arrow {
+    transform: translateX(4px);
+  }
+  .arrow path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
-  @media (max-width: 768px) {
-    .hero {
-      padding: 5rem 1.25rem 2rem;
+  /* The flow band, full bleed. The spec card sits on the gate (54% of the width, 50% on narrow
+     screens), the same place heroGeometry() in src/lib/flow.js orders the lines. */
+  .flow-band {
+    position: relative;
+    height: clamp(240px, 27vw, 360px);
+    margin-top: clamp(20px, 3vw, 40px);
+  }
+  .flow-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  /* The two notes in the bottom corners, on a paper ground: the loose side, then the ordered one. */
+  .flow-note {
+    position: absolute;
+    bottom: var(--s-2);
+    padding: 1px var(--s-2);
+    border-radius: var(--r-1);
+    background: var(--bg);
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    font-size: var(--fs-label);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .flow-note--before {
+    left: max(16px, 4%);
+  }
+  .flow-note--after {
+    right: max(16px, 4%);
+    color: var(--accent-text);
+  }
+  .flow-spec {
+    position: absolute;
+    top: 50%;
+    left: 54%;
+    width: clamp(158px, 21vw, 256px);
+    padding: clamp(12px, 1.6vw, 20px);
+    transform: translate(-50%, -50%);
+    box-shadow: var(--e-2);
+  }
+  .flow-spec__list {
+    display: grid;
+    gap: var(--s-2);
+    margin-top: var(--s-3);
+    padding: 0;
+    list-style: none;
+    font-size: clamp(0.8rem, 1.15vw, 0.95rem);
+    line-height: 1.3;
+  }
+  .flow-spec__list li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+  }
+  .check {
+    flex: none;
+    width: 0.58em;
+    height: 0.34em;
+    border: solid var(--accent);
+    border-width: 0 0 2px 2px;
+    transform: translateY(-0.22em) rotate(-45deg);
+  }
+  .flow-verdict {
+    position: absolute;
+    top: 50%;
+    right: max(14px, 4%);
+    display: grid;
+    justify-items: end;
+    gap: var(--s-2);
+    transform: translateY(-50%);
+  }
+  .flow-verdict small {
+    padding: 1px var(--s-1);
+    border-radius: var(--r-1);
+    background: var(--bg);
+    color: var(--ink-3);
+    font-size: var(--fs-meta);
+  }
+  @media (max-width: 559px) {
+    .flow-spec {
+      left: 50%;
     }
-    .terminal-body {
-      font-size: 0.65rem;
-      padding: 0.8rem 1rem;
-      line-height: 1.9;
+    .flow-verdict small {
+      display: none;
     }
   }
 </style>

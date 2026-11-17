@@ -1,0 +1,19 @@
+{
+  "source": "genius-design-system 3.0.0-alpha.3 (same author)",
+  "version": "3.0.0-alpha.3",
+  "note": "Copied from the dist/ folder of that release without any edit. Do not edit these files; replace them with a newer release and update the hashes.",
+  "files": [
+    {
+      "path": "site/src/styles/genius/genius-tudo.css",
+      "sha256": "5e55ddcc8c2ad2b06a7997dcff208704d03020ef18038dfff579450487386399"
+    },
+    {
+      "path": "site/src/styles/genius/genius-noite.css",
+      "sha256": "e502f5a6cde641b17edf8f8ed39b59537604bdab48ae8caf435ca4400cd38274"
+    },
+    {
+      "path": "site/src/scripts/genius/genius.js",
+      "sha256": "5ecd4937221306ba98af8bf0aaf0d1dd65e3bf74e5c9ad9764125f39ca922bdf"
+    }
+  ]
+}

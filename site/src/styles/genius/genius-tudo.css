@@ -1,0 +1,1146 @@
+/* genius-design-system 3.0.0-alpha.3 · arquivo gerado por src/build.mjs a partir de tokens/, css/components.css e css/motion.css, não editar à mão */
+/* genius-design-system 3.0.0-alpha.3 · arquivo gerado por src/build.mjs a partir de tokens/, não editar à mão */
+:root {
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 40px;
+  --s-7: 64px;
+  --s-8: 96px;
+  --s-9: 144px;
+  --s-10: 200px;
+  --r-1: 4px;
+  --r-2: 8px;
+  --r-3: 14px;
+  --r-4: 22px;
+  --r-full: 999px;
+  --d-1: 120ms;
+  --d-2: 200ms;
+  --d-3: 360ms;
+  --d-4: 640ms;
+  --d-5: 1100ms;
+  --d-step: 70ms;
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-swap: cubic-bezier(0.65, 0, 0.25, 1);
+  --ease-spring: cubic-bezier(0.3, 1.45, 0.5, 1);
+  --t-quick: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-mid: 360ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  --t-cinema: 1100ms cubic-bezier(0.7, 0, 0.2, 1);
+  --fs-label: 11px;
+  --fs-data: 12px;
+  --fs-meta: 13px;
+  --fs-ui: 14px;
+  --fs-body: 16px;
+  --fs-lede: clamp(18px, 1.4vw, 22px);
+  --fs-d3: clamp(20px, 2vw, 26px);
+  --fs-d2: clamp(36px, 4.5vw, 56px);
+  --fs-d1: clamp(48px, 6vw, 84px);
+  --fs-score: clamp(44px, 7vw, 92px);
+  --w-page: 1180px;
+  --w-read: 712px;
+  --img-ratio: 3 / 2;
+  --img-ratio-viz: 16 / 10;
+  --font-display: 'Newsreader', 'PP Editorial New', 'Georgia', serif;
+  --font-body: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+  --img-frame-bg: var(--bg-frame);
+  --e-0: 0 1px 1.5px rgb(10 10 10 / 0.08);
+  --e-1: 0 0 0 1px rgb(10 10 10 / 0.05), 0 1px 2px rgb(10 10 10 / 0.06);
+  --e-2: 0 0 0 1px rgb(10 10 10 / 0.05), 0 2px 4px -1px rgb(10 10 10 / 0.06), 0 10px 20px -6px rgb(10 10 10 / 0.13);
+  --e-3: 0 0 0 1px rgb(10 10 10 / 0.05), 0 4px 8px -2px rgb(10 10 10 / 0.08), 0 24px 48px -12px rgb(10 10 10 / 0.22);
+  --bg: #FFFFFF;
+  --bg-alt: #F7F7F5;
+  --bg-frame: #ECECE8;
+  --bg-deep: #0A0A0A;
+  --bg-floor: var(--bg-alt);
+  --bg-sheet: var(--bg);
+  --bg-track: #E6E6E2;
+  --bg-thumb: #FFFFFF;
+  --bg-hover: #ECECE8;
+  --bg-hover-row: #F7F7F5;
+  --ink: #0A0A0A;
+  --ink-2: #2A2A28;
+  --ink-3: #5A5A55;
+  --ink-4: #6E6E68;
+  --ink-5: #B8B8B0;
+  --ink-on-acid: #0A0A0A;
+  --ink-on-deep: #FFFFFF;
+  --rule: #1A1A1A;
+  --rule-soft: #D8D8D2;
+  --rule-control: #8E8E89;
+  --rule-on-deep: rgb(255 255 255 / 0.2);
+  --edge-deep: rgb(255 255 255 / 0);
+  --acid: #E4F222;
+  --acid-deep: #B8C418;
+  --acid-text: #6B760E;
+  --violet: #3D1F8C;
+  --violet-soft: #9F8AE8;
+  --pos: #15803D;
+  --neg: #DC2626;
+  --focus-halo: rgb(228 242 34 / 0.6);
+  --ctl-p: 32px;
+  --ctl-m: 40px;
+  --ctl-g: 48px;
+  --ink-on-violet: #FFFFFF;
+  --violet-halo: rgb(61 31 140 / 0.35);
+  --accent: var(--acid);
+  --accent-edge: var(--acid-deep);
+  --accent-ink: var(--ink-on-acid);
+  --accent-text: var(--acid-text);
+  --accent-halo: var(--focus-halo);
+  --accent-on-deep: var(--acid);
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.116, 0.36, 0.618, 0.829, 0.973, 1.052, 1.081, 1.08, 1.062, 1.04, 1.021, 1.006, 0.998, 0.994, 0.993, 0.994, 0.996, 0.998, 0.999, 1, 1, 1.001, 1.001, 1);
+  }
+}
+
+/* genius-design-system 3.0.0-alpha.3 · arquivo gerado por src/build.mjs a partir de css/components.css e css/motion.css, não editar à mão */
+/* genius-design-system · peças
+   Prefixo gx-, nome em português, modificador com dois hífens e parte interna com dois
+   sublinhados. Toda cor, raio, sombra, duração, curva e tamanho de letra vem de token. O que
+   estrutura a página fica reto; o que se pega com o dedo ou se destaca do papel ganha canto.
+   As peças leem só os seis papéis do acento (--accent*); o escopo [data-gx-acento="violet"]
+   troca os seis de uma vez. Nenhum seletor de elemento solto: o arquivo convive com o CSS de
+   cada superfície. O manifesto css/pecas.json diz o tipo e os estados de cada peça. Movimento
+   reduzido mora em css/motion.css e alcança tudo o que tem classe gx-. */
+
+/* ---------- Acento violet: um acento por peça ---------- */
+[data-gx-acento="violet"] {
+  --accent: var(--violet);
+  --accent-edge: var(--violet);
+  --accent-ink: var(--ink-on-violet);
+  --accent-text: var(--violet);
+  --accent-halo: var(--violet-halo);
+  --accent-on-deep: var(--violet-soft);
+}
+
+/* =================== Leitura =================== */
+
+/* ---------- Barra de identidade: reta, sobre o palco ---------- */
+.gx-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-5);
+  background: var(--bg-deep);
+  color: var(--ink-on-deep);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.gx-topbar span:last-child { color: var(--accent-on-deep); }
+.gx-topbar--claro {
+  background: var(--bg);
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+}
+.gx-topbar--claro span:last-child { color: var(--accent-text); }
+
+/* ---------- Chip ----------
+   Duas famílias: sobre papel a borda é --rule-soft e a palavra --ink-3; sobre o palco
+   (--escuro, --vivo) a borda é o véu --rule-on-deep e a palavra --ink-on-deep. */
+.gx-chip {
+  display: inline-block;
+  padding: 2px var(--s-2);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--r-1);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.gx-chip b { color: var(--ink); font-weight: 600; }
+.gx-chip--marcado {
+  background: var(--accent);
+  border-color: var(--accent-edge);
+  color: var(--accent-ink);
+}
+.gx-chip--marcado b { color: var(--accent-ink); }
+.gx-chip--escuro {
+  border-color: var(--rule-on-deep);
+  color: var(--ink-on-deep);
+}
+.gx-chip--alerta { border-color: var(--accent-edge); }
+.gx-chip--vivo {
+  border-color: var(--accent-on-deep);
+  background: color-mix(in srgb, var(--accent-on-deep) 8%, transparent);
+  color: var(--ink-on-deep);
+}
+.gx-chip--escuro b,
+.gx-chip--vivo b { color: var(--accent-on-deep); }
+/* A bolinha pulsa pelo gx-pulsar de css/motion.css. */
+.gx-chip--vivo i,
+.gx-chip--vivo .bolinha {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: var(--accent-on-deep);
+  vertical-align: middle;
+}
+
+/* ---------- Rótulo: o único lugar de mono em caixa-alta ---------- */
+.gx-rotulo {
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+/* Sobre --bg-deep a meta é --ink-5: --ink-4 ali mede 3,86:1 no dia, abaixo de 4,5. A barra
+   clara volta ao papel e vem por último, para vencer as cascas escuras. */
+.gx-escuro .gx-rotulo,
+.gx-topbar .gx-rotulo,
+.gx-player .gx-rotulo { color: var(--ink-5); }
+.gx-topbar--claro .gx-rotulo { color: var(--ink-4); }
+
+/* ---------- Ficha: par chave e valor, uma linha por régua ----------
+   Chave e valor se alinham pela linha de base: o valor em mono menor não sobe para o alto. */
+.gx-ficha {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--rule-soft);
+}
+.gx-ficha .k { color: var(--ink-3); }
+.gx-ficha .v { font-family: var(--font-mono); font-size: var(--fs-data); }
+
+/* ---------- Citação: filete no acento ---------- */
+.gx-cit {
+  max-width: 58ch;
+  padding-left: var(--s-4);
+  border-left: 2px solid var(--accent-edge);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-d3);
+  font-style: italic;
+  line-height: 1.4;
+}
+.gx-cit .fonte {
+  display: block;
+  margin-top: var(--s-3);
+  color: var(--ink-4);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ---------- Palco: reto; --cartao quando é um bloco dentro da página ----------
+   Sobre --bg-deep a meta é --ink-5, nunca --ink-4: a escala de tinta se divide por superfície. */
+.gx-escuro {
+  background: var(--bg-deep);
+  color: var(--ink-on-deep);
+}
+.gx-escuro--cartao {
+  padding: var(--s-5);
+  border: 1px solid var(--edge-deep);
+  border-radius: var(--r-3);
+}
+.gx-escuro h4 {
+  margin: 0 0 var(--s-2);
+  color: var(--ink-on-deep);
+  font-family: var(--font-display);
+  font-size: var(--fs-d3);
+  font-weight: 500;
+}
+.gx-escuro p { margin: 0; color: var(--ink-5); }
+
+/* ---------- Régua ---------- */
+.gx-regua {
+  display: block;
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+.gx-regua--suave { border-top-color: var(--rule-soft); }
+
+/* =================== Controles ===================
+   Altura por --ctl-p, --ctl-m ou --ctl-g; texto em --font-body, --fs-ui, peso 500, sem
+   caixa-alta. A pressão cede para scale(0.96) em --d-1 e volta com a mola; a mola só aparece em
+   resposta ao dedo. Desabilitado se lê: --ink-4 sobre --bg-alt, sem sombra, sem hover nem
+   pressão. A ação principal é a única preenchida com o acento em repouso. */
+
+/* ---------- Botão ---------- */
+.gx-btn {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  height: var(--ctl-m);
+  padding: 0 var(--s-4);
+  border: 1px solid var(--rule-control);
+  border-radius: var(--r-2);
+  background: var(--bg-sheet);
+  color: var(--ink);
+  box-shadow: var(--e-0);
+  font-family: var(--font-body);
+  font-size: var(--fs-ui);
+  font-weight: 500;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--d-2) var(--ease-out),
+    border-color var(--d-2) var(--ease-out),
+    color var(--d-2) var(--ease-out),
+    box-shadow var(--d-3) var(--ease-out),
+    transform var(--d-3) var(--ease-spring);
+}
+.gx-btn:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+  border-color: var(--ink);
+  transform: translateY(-1px);
+}
+.gx-btn:active:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+  transform: scale(0.96);
+  transition-duration: var(--d-2), var(--d-2), var(--d-2), var(--d-1), var(--d-1);
+}
+.gx-btn--primario {
+  background: var(--accent);
+  border-color: var(--accent-edge);
+  color: var(--accent-ink);
+}
+.gx-btn--primario:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) { border-color: var(--accent-edge); }
+.gx-btn--fantasma {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ink-2);
+}
+.gx-btn--fantasma:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--ink);
+}
+.gx-btn--perigo {
+  background: var(--neg);
+  border-color: var(--neg);
+  color: var(--bg);
+}
+.gx-btn--perigo:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) { border-color: var(--ink); }
+.gx-btn--p { height: var(--ctl-p); padding: 0 var(--s-3); }
+.gx-btn--g { height: var(--ctl-g); padding: 0 var(--s-5); }
+.gx-btn:disabled,
+.gx-btn[aria-disabled="true"] {
+  background: var(--bg-alt);
+  border-color: var(--rule-soft);
+  color: var(--ink-4);
+  box-shadow: none;
+  cursor: not-allowed;
+  transform: none;
+}
+/* Ocupado: o texto fica no lugar, invisível, e o giro sai do fluxo; a largura não muda. */
+.gx-btn[aria-busy="true"] {
+  color: transparent;
+  cursor: progress;
+}
+.gx-btn[aria-busy="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 1em;
+  height: 1em;
+  margin: auto;
+  border: 2px solid var(--ink);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: gx-girar var(--d-5) linear infinite;
+}
+/* Ocupado e desabilitado: o giro acompanha a tinta do desabilitado (--ink-4 sobre --bg-alt) em
+   toda variante e casca. Vence as variantes pela especificidade (0,3,1 contra 0,2,1), não pela
+   ordem; as regras de giro do palco e da barra clara deixam o desabilitado de fora. */
+.gx-btn[aria-busy="true"]:disabled::after,
+.gx-btn[aria-busy="true"][aria-disabled="true"]::after {
+  border-color: var(--ink-4);
+  border-right-color: transparent;
+}
+.gx-btn--primario[aria-busy="true"]::after {
+  border-color: var(--accent-ink);
+  border-right-color: transparent;
+}
+.gx-btn--perigo[aria-busy="true"]::after {
+  border-color: var(--bg);
+  border-right-color: transparent;
+}
+
+/* ---------- Link: o marca-texto passa por trás, da esquerda para a direita ---------- */
+.gx-link {
+  margin: -1px -3px;
+  padding: 1px 3px;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--rule-control);
+  text-underline-offset: 3px;
+  background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / 0% 100%;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition:
+    background-size var(--d-3) var(--ease-out),
+    color var(--d-2) var(--ease-out),
+    text-decoration-color var(--d-2) var(--ease-out);
+}
+.gx-link:hover,
+.gx-link--titulo:hover {
+  background-size: 100% 100%;
+  color: var(--accent-ink);
+  text-decoration-color: transparent;
+}
+/* Variante de título, para lista de manchetes: sem sublinhado em repouso; o marca-texto do
+   hover e o foco de teclado são os do link. */
+.gx-link--titulo { text-decoration: none; }
+
+/* ---------- Ação e navegação no palco ----------
+   Dentro de .gx-escuro, .gx-topbar e .gx-player o link e o botão fantasma usam a tinta do palco:
+   --ink-on-deep, o sublinhado no véu --rule-on-deep, e o hover do fantasma lava o fundo com o véu.
+   O desabilitado e o ocupado seguem como no papel (o fantasma do palco os deixa de fora, e o giro
+   do palco deixa de fora o ocupado e desabilitado, que gira em --ink-4); a barra
+   clara volta ao papel e vem por último, para vencer as cascas escuras. */
+.gx-escuro .gx-link,
+.gx-escuro .gx-link--titulo,
+.gx-topbar .gx-link,
+.gx-topbar .gx-link--titulo,
+.gx-player .gx-link,
+.gx-player .gx-link--titulo {
+  color: var(--ink-on-deep);
+  text-decoration-color: var(--rule-on-deep);
+}
+.gx-escuro .gx-link:hover,
+.gx-escuro .gx-link--titulo:hover,
+.gx-topbar .gx-link:hover,
+.gx-topbar .gx-link--titulo:hover,
+.gx-player .gx-link:hover,
+.gx-player .gx-link--titulo:hover {
+  color: var(--accent-ink);
+  text-decoration-color: transparent;
+}
+.gx-escuro .gx-btn--fantasma:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]),
+.gx-topbar .gx-btn--fantasma:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]),
+.gx-player .gx-btn--fantasma:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) { color: var(--ink-on-deep); }
+.gx-escuro .gx-btn--fantasma:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]),
+.gx-topbar .gx-btn--fantasma:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]),
+.gx-player .gx-btn--fantasma:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+  background: var(--rule-on-deep);
+  color: var(--ink-on-deep);
+}
+.gx-escuro .gx-btn--fantasma[aria-busy="true"]:not(:disabled):not([aria-disabled="true"])::after,
+.gx-topbar .gx-btn--fantasma[aria-busy="true"]:not(:disabled):not([aria-disabled="true"])::after,
+.gx-player .gx-btn--fantasma[aria-busy="true"]:not(:disabled):not([aria-disabled="true"])::after {
+  border-color: var(--ink-on-deep);
+  border-right-color: transparent;
+}
+.gx-topbar--claro .gx-link,
+.gx-topbar--claro .gx-link--titulo {
+  color: var(--ink);
+  text-decoration-color: var(--rule-control);
+}
+.gx-topbar--claro .gx-link:hover,
+.gx-topbar--claro .gx-link--titulo:hover {
+  color: var(--accent-ink);
+  text-decoration-color: transparent;
+}
+.gx-topbar--claro .gx-btn--fantasma:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) { color: var(--ink-2); }
+.gx-topbar--claro .gx-btn--fantasma:hover:not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]) {
+  background: var(--bg-hover);
+  color: var(--ink);
+}
+.gx-topbar--claro .gx-btn--fantasma[aria-busy="true"]:not(:disabled):not([aria-disabled="true"])::after {
+  border-color: var(--ink);
+  border-right-color: transparent;
+}
+
+/* ---------- Campo ---------- */
+.gx-campo {
+  display: grid;
+  gap: var(--s-1);
+}
+.gx-campo__rotulo {
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-meta);
+  font-weight: 500;
+}
+.gx-campo__entrada {
+  appearance: none;
+  width: 100%;
+  min-width: 0;
+  height: var(--ctl-m);
+  margin: 0;
+  padding: 0 var(--s-3);
+  border: 1px solid var(--rule-control);
+  border-radius: var(--r-2);
+  background: var(--bg-sheet);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-ui);
+  transition:
+    border-color var(--d-2) var(--ease-out),
+    box-shadow var(--d-2) var(--ease-out);
+}
+textarea.gx-campo__entrada {
+  height: auto;
+  min-height: calc(var(--ctl-m) * 2);
+  padding: var(--s-2) var(--s-3);
+  line-height: 1.5;
+  resize: vertical;
+}
+/* Seletor: sem a aparência nativa, a seta é desenhada no fundo do próprio controle, por dois
+   triângulos em currentColor (segue a cor do texto, inclusive no desabilitado). Como é fundo, não
+   há elemento por cima recebendo o clique, e o padding da direita guarda o lugar dela. Os estados
+   do campo trocam só a cor do fundo, para não apagar a seta. */
+select.gx-campo__entrada {
+  padding-right: calc(var(--s-3) + 10px + var(--s-2));
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    right calc(var(--s-3) + 5px) center,
+    right var(--s-3) center;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+/* A caixa de lista (multiple, ou size maior que 1) mostra as opções: não leva seta nem o espaço
+   dela. Com size 0 ou 1 o seletor é lista suspensa e fica com a seta. O :where() deixa a regra
+   com a força do seletor, para a caixa do campo ainda vencer. */
+select.gx-campo__entrada:where([multiple], [size]:not([size="0"]):not([size="1"])) {
+  padding-right: var(--s-3);
+  background-image: none;
+}
+.gx-campo__entrada::placeholder { color: var(--ink-4); opacity: 1; }
+.gx-campo__entrada:hover:not(:disabled) { border-color: var(--ink-3); }
+.gx-campo__entrada:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--accent-halo);
+}
+.gx-campo__entrada[aria-invalid="true"] { border-color: var(--neg); }
+.gx-campo__entrada:disabled {
+  background-color: var(--bg-alt);
+  border-color: var(--rule-soft);
+  color: var(--ink-4);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.gx-campo__ajuda { color: var(--ink-3); font-size: var(--fs-meta); }
+.gx-campo__erro { color: var(--neg); font-size: var(--fs-meta); }
+/* Caixa: a entrada com ícone ou tecla ao lado; a borda e o halo passam para a caixa. */
+.gx-campo__caixa {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--ctl-m);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--rule-control);
+  border-radius: var(--r-2);
+  background: var(--bg-sheet);
+  color: var(--ink-4);
+  cursor: text;
+  transition:
+    border-color var(--d-2) var(--ease-out),
+    box-shadow var(--d-2) var(--ease-out);
+}
+/* Dentro da caixa a entrada fica sem fundo próprio (só a cor: a seta do seletor é imagem e fica)
+   e sem espaço; o seletor guarda o espaço da seta, que encosta na borda da entrada. */
+.gx-campo__caixa .gx-campo__entrada {
+  flex: 1;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+/* O mesmo corte da caixa de lista, ao contrário: a lista suspensa (sem multiple, com size ausente,
+   0 ou 1) guarda a seta na caixa. */
+.gx-campo__caixa select.gx-campo__entrada:not([multiple]):not([size]),
+.gx-campo__caixa select.gx-campo__entrada:not([multiple])[size="0"],
+.gx-campo__caixa select.gx-campo__entrada:not([multiple])[size="1"] {
+  padding-right: calc(10px + var(--s-2));
+  background-position:
+    right 5px center,
+    right 0 center;
+}
+.gx-campo__caixa:hover { border-color: var(--ink-3); }
+.gx-campo__caixa:focus-within {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--accent-halo);
+}
+.gx-campo__caixa:has(.gx-campo__entrada[aria-invalid="true"]) { border-color: var(--neg); }
+.gx-campo__caixa:has(.gx-campo__entrada:disabled) {
+  background: var(--bg-alt);
+  border-color: var(--rule-soft);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.gx-campo__caixa svg { flex: none; width: 16px; height: 16px; }
+
+/* ---------- Escolha: o rótulo que leva a marca, a opção ou a chave ---------- */
+.gx-escolha {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-size: var(--fs-ui);
+  font-weight: 500;
+  cursor: pointer;
+}
+.gx-escolha:has(:disabled) { color: var(--ink-4); cursor: not-allowed; }
+
+/* ---------- Marca e opção ---------- */
+.gx-marca,
+.gx-opcao {
+  appearance: none;
+  display: inline-grid;
+  flex: none;
+  place-content: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--rule-control);
+  background: var(--bg-sheet);
+  cursor: pointer;
+  transition:
+    background-color var(--d-2) var(--ease-out),
+    border-color var(--d-2) var(--ease-out),
+    transform var(--d-2) var(--ease-out);
+}
+.gx-marca { border-radius: var(--r-1); }
+.gx-opcao { border-radius: 50%; }
+.gx-marca::before {
+  content: "";
+  width: 10px;
+  height: 5px;
+  border-bottom: 2px solid var(--accent-ink);
+  border-left: 2px solid var(--accent-ink);
+  transform: translateY(-1px) rotate(-45deg) scale(0);
+  transition: transform var(--d-2) var(--ease-out);
+}
+.gx-opcao::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+  transform: scale(0);
+  transition: transform var(--d-2) var(--ease-out);
+}
+.gx-marca:hover:not(:disabled),
+.gx-opcao:hover:not(:disabled) { border-color: var(--ink); }
+.gx-marca:active:not(:disabled),
+.gx-opcao:active:not(:disabled) {
+  transform: scale(0.96);
+  transition-duration: var(--d-2), var(--d-2), var(--d-1);
+}
+.gx-marca:checked,
+.gx-opcao:checked {
+  background: var(--accent);
+  border-color: var(--ink);
+}
+.gx-marca:checked::before { transform: translateY(-1px) rotate(-45deg) scale(1); }
+.gx-opcao:checked::before { transform: scale(1); }
+.gx-marca:disabled,
+.gx-opcao:disabled {
+  background: var(--bg-alt);
+  border-color: var(--rule-soft);
+  cursor: not-allowed;
+}
+.gx-marca:checked:disabled,
+.gx-opcao:checked:disabled { background: var(--rule-soft); }
+.gx-marca:checked:disabled::before { border-color: var(--ink-4); }
+.gx-opcao:checked:disabled::before { background: var(--ink-4); }
+
+/* ---------- Chave: o pino corre com a mola ---------- */
+.gx-chave {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 24px;
+  margin: 0;
+  border: 1px solid var(--rule-control);
+  border-radius: var(--r-full);
+  background: var(--bg-sheet);
+  cursor: pointer;
+  transition:
+    background-color var(--d-2) var(--ease-out),
+    border-color var(--d-2) var(--ease-out),
+    transform var(--d-3) var(--ease-spring);
+}
+.gx-chave::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink-3);
+  transition:
+    transform var(--d-3) var(--ease-spring),
+    background-color var(--d-2) var(--ease-out);
+}
+.gx-chave:hover:not(:disabled) { border-color: var(--ink); }
+.gx-chave:active:not(:disabled) {
+  transform: scale(0.96);
+  transition-duration: var(--d-2), var(--d-2), var(--d-1);
+}
+.gx-chave:checked {
+  background: var(--accent);
+  border-color: var(--ink);
+}
+.gx-chave:checked::before {
+  background: var(--accent-ink);
+  transform: translateX(16px);
+}
+.gx-chave:disabled {
+  background: var(--bg-alt);
+  border-color: var(--rule-soft);
+  cursor: not-allowed;
+}
+.gx-chave:disabled::before { background: var(--ink-5); }
+
+/* ---------- Abas ----------
+   Sem JavaScript, a aba selecionada leva o estilo do pino. Com o js/genius.js, o grupo ganha
+   [data-gx-pino] e as variáveis --gx-pino-x e --gx-pino-w, e o pino desliza por trás.
+   O grupo ocupa só a largura das abas, também como filho de grade ou de coluna flexível, que
+   esticariam a caixa; a variante --linha herda a mesma largura. */
+.gx-abas {
+  --gx-pino-x: 0px;
+  --gx-pino-w: 0px;
+  position: relative;
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--s-1);
+  border-radius: calc(var(--r-2) + var(--s-1));
+  background: var(--bg-track);
+}
+.gx-aba {
+  appearance: none;
+  position: relative;
+  z-index: 1;
+  height: var(--ctl-p);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--ink-3);
+  font-family: var(--font-body);
+  font-size: var(--fs-ui);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--d-2) var(--ease-out),
+    background-color var(--d-2) var(--ease-out),
+    box-shadow var(--d-2) var(--ease-out);
+}
+.gx-aba:hover:not(:disabled) { color: var(--ink); }
+.gx-aba:disabled {
+  color: var(--ink-4);
+  cursor: not-allowed;
+}
+.gx-aba[aria-selected="true"] {
+  background: var(--bg-thumb);
+  box-shadow: var(--e-1);
+  color: var(--ink);
+}
+.gx-abas[data-gx-pino]::before {
+  content: "";
+  position: absolute;
+  top: var(--s-1);
+  bottom: var(--s-1);
+  left: 0;
+  width: var(--gx-pino-w);
+  border-radius: var(--r-2);
+  background: var(--bg-thumb);
+  box-shadow: var(--e-1);
+  transform: translateX(var(--gx-pino-x));
+  transition:
+    transform var(--d-3) var(--ease-spring),
+    width var(--d-3) var(--ease-spring);
+}
+.gx-abas[data-gx-pino] .gx-aba[aria-selected="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+/* Variante sublinhada: sem trilho, o pino é um filete em --ink. */
+.gx-abas--linha {
+  padding: 0;
+  border-bottom: 1px solid var(--rule-soft);
+  border-radius: 0;
+  background: transparent;
+}
+.gx-abas--linha .gx-aba { border-radius: 0; }
+.gx-abas--linha .gx-aba[aria-selected="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+.gx-abas--linha .gx-aba[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--ink);
+}
+.gx-abas--linha[data-gx-pino]::before {
+  top: auto;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 0;
+  background: var(--ink);
+  box-shadow: none;
+}
+.gx-abas--linha[data-gx-pino] .gx-aba[aria-selected="true"]::after { content: none; }
+
+/* ---------- Cartão: a folha que se destaca do chão ---------- */
+.gx-cartao {
+  display: block;
+  padding: var(--s-5) var(--s-4) var(--s-4);
+  border-radius: var(--r-3);
+  background: var(--bg-sheet);
+  box-shadow: var(--e-1);
+  color: var(--ink);
+}
+a.gx-cartao { text-decoration: none; }
+.gx-cartao--interativo {
+  transition:
+    transform var(--d-3) var(--ease-out),
+    box-shadow var(--d-3) var(--ease-out);
+}
+.gx-cartao--interativo:hover,
+.gx-cartao--interativo:focus-within {
+  box-shadow: var(--e-2);
+  transform: translateY(-2px);
+}
+.gx-cartao--plano {
+  border: 1px solid var(--rule-soft);
+  box-shadow: none;
+}
+
+/* ---------- Chão: o fundo tingido sob os cartões ---------- */
+.gx-chao {
+  display: block;
+  padding: var(--s-4);
+  border-radius: var(--r-4);
+  background: var(--bg-floor);
+}
+.gx-chao--faixa { border-radius: 0; }
+
+/* ---------- Lista ---------- */
+.gx-lista {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--r-3);
+  background: var(--bg-sheet);
+  box-shadow: var(--e-1);
+  list-style: none;
+}
+.gx-linha {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-4);
+  border-top: 1px solid var(--rule-soft);
+  transition: background-color var(--d-2) var(--ease-out);
+}
+.gx-linha:first-child { border-top: 0; }
+.gx-linha:hover,
+.gx-linha:focus-within { background: var(--bg-hover-row); }
+
+/* ---------- Placar ---------- */
+.gx-placar {
+  display: grid;
+  gap: var(--s-3);
+}
+.gx-placar__n {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--fs-score);
+  font-variant-numeric: lining-nums tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+.gx-placar__l {
+  max-width: 26ch;
+  color: var(--ink-3);
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+}
+.gx-escuro .gx-placar__n { color: var(--accent-on-deep); }
+.gx-escuro .gx-placar__l { color: var(--ink-5); }
+
+/* ---------- Player ----------
+   --gx-progresso (de 0% a 100%) é quanto da barra está cheio; a página escreve no elemento. */
+.gx-player {
+  --gx-progresso: 0%;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--edge-deep);
+  border-radius: var(--r-3);
+  background: var(--bg-deep);
+  color: var(--ink-on-deep);
+}
+.gx-player__toca {
+  appearance: none;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--ctl-m);
+  height: var(--ctl-m);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-ink);
+  cursor: pointer;
+  transition: transform var(--d-3) var(--ease-spring);
+}
+.gx-player__toca:hover:not(:disabled) { transform: scale(1.06); }
+.gx-player__toca:active:not(:disabled) {
+  transform: scale(0.96);
+  transition-duration: var(--d-1);
+}
+.gx-player__toca:disabled {
+  background: var(--bg-alt);
+  color: var(--ink-4);
+  cursor: not-allowed;
+  transform: none;
+}
+.gx-player__icone { display: block; width: 16px; height: 16px; }
+.gx-player__icone--pausa { display: none; }
+.gx-player__toca[aria-pressed="true"] .gx-player__icone { display: none; }
+.gx-player__toca[aria-pressed="true"] .gx-player__icone--pausa { display: block; }
+.gx-player__faixa {
+  display: grid;
+  flex: 1;
+  gap: var(--s-2);
+  min-width: 0;
+}
+.gx-player__nome {
+  overflow: hidden;
+  font-size: var(--fs-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gx-player__barra {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--r-full);
+  background: var(--rule-on-deep);
+}
+.gx-player__barra::after {
+  content: "";
+  display: block;
+  width: var(--gx-progresso);
+  height: 100%;
+  background: var(--accent-on-deep);
+  transition: width var(--d-2) linear;
+}
+.gx-player__tempo {
+  color: var(--ink-5);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Tecla ---------- */
+.gx-kbd {
+  display: inline-block;
+  padding: 0 var(--s-1);
+  border: 1px solid var(--rule-soft);
+  border-bottom-width: 2px;
+  border-radius: var(--r-1);
+  background: var(--bg-sheet);
+  color: var(--ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  line-height: 1.5;
+}
+
+/* ---------- Foco de teclado: sempre visível ---------- */
+.gx-btn:focus-visible,
+.gx-link:focus-visible,
+.gx-link--titulo:focus-visible,
+.gx-marca:focus-visible,
+.gx-opcao:focus-visible,
+.gx-chave:focus-visible,
+.gx-aba:focus-visible,
+.gx-cartao--interativo:focus-visible,
+.gx-player__toca:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+.gx-escuro :focus-visible,
+.gx-topbar :focus-visible,
+.gx-player :focus-visible { outline-color: var(--accent-on-deep); }
+.gx-topbar--claro :focus-visible { outline-color: var(--ink); }
+
+/* ---------- [hidden] ----------
+   Peça que declara display derrota o display: none que o atributo hidden traz do navegador, e
+   por isso ele volta aqui (a cicatriz do chip da v2, de 07/09/2026). Vale também para o filho
+   que as peças mandam aparecer (a bolinha do chip vivo, a fonte da citação e o ícone de pausa com
+   o botão pressionado), com a força do seletor que o mostra. */
+.gx-topbar[hidden],
+.gx-chip[hidden],
+.gx-ficha[hidden],
+.gx-escuro[hidden],
+.gx-regua[hidden],
+.gx-btn[hidden],
+.gx-campo[hidden],
+.gx-campo__caixa[hidden],
+.gx-escolha[hidden],
+.gx-marca[hidden],
+.gx-opcao[hidden],
+.gx-abas[hidden],
+.gx-cartao[hidden],
+.gx-chao[hidden],
+.gx-linha[hidden],
+.gx-placar[hidden],
+.gx-player[hidden],
+.gx-player__toca[hidden],
+.gx-player__icone[hidden],
+.gx-player__faixa[hidden],
+.gx-player__barra[hidden],
+.gx-kbd[hidden],
+.gx-chip--vivo i[hidden],
+.gx-chip--vivo .bolinha[hidden],
+.gx-cit .fonte[hidden],
+.gx-player__toca[aria-pressed="true"] .gx-player__icone--pausa[hidden] { display: none; }
+
+/* genius-design-system · movimento
+   Vocabulário com nome: cada gesto ensina uma coisa. Tudo o que anima descansa no estado final,
+   então sem a classe de disparo (.gx-tocando) a tela está completa e parada. Quem põe a classe é
+   o js/genius.js ou a própria página. Duração e curva vêm de token; a exceção escrita é o linear
+   do giro e da régua de leitura. */
+
+/* ---------- Entrar: sobe 12 px e aparece, um item depois do outro (--gx-i é a ordem, --d-step o passo) ---------- */
+:where(.gx-entra) { --gx-i: 0; }
+
+.gx-tocando .gx-entra,
+.gx-tocando.gx-entra {
+  animation: gx-entrar var(--d-3) var(--ease-out) both;
+  animation-delay: calc(var(--gx-i, 0) * var(--d-step));
+}
+
+@keyframes gx-entrar {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+/* ---------- Marcar: o acento passa por trás do texto; em repouso o texto já está marcado ---------- */
+mark.gx-marca-texto {
+  color: var(--accent-ink);
+  background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / 100% 100%;
+  padding: 0 0.15em;
+  margin: 0 -0.15em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+.gx-tocando mark.gx-marca-texto {
+  animation: gx-marcar var(--d-4) var(--ease-swap) both;
+}
+
+@keyframes gx-marcar {
+  from { background-size: 0% 100%; }
+}
+
+/* ---------- Desenhar: o traço percorre o caminho (SVG com pathLength="1") ---------- */
+.gx-tocando .gx-desenha {
+  stroke-dasharray: 1;
+  animation: gx-desenhar var(--d-4) var(--ease-swap) both;
+}
+
+@keyframes gx-desenhar {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* ---------- Crescer: a barra sobe da base ---------- */
+.gx-cresce { transform-origin: 50% 100%; }
+
+.gx-tocando .gx-cresce {
+  animation: gx-crescer var(--d-4) var(--ease-out) both;
+}
+
+@keyframes gx-crescer {
+  from { transform: scaleY(0); }
+}
+
+/* ---------- Pulsar: a bolinha do chip vivo diz "isto está acontecendo agora" ----------
+   O estado continua legível parado, então quem pede menos movimento perde só a pulsação. */
+.gx-chip--vivo i,
+.gx-chip--vivo .bolinha {
+  animation: gx-pulsar calc(var(--d-5) * 2) var(--ease-swap) infinite;
+}
+
+@keyframes gx-pulsar {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* ---------- Girar: a volta contínua do botão ocupado (a regra que usa mora nas peças) ---------- */
+@keyframes gx-girar {
+  to { transform: rotate(1turn); }
+}
+
+/* ---------- Acompanhar: régua fixa no topo que mede a rolagem ----------
+   Só existe onde o navegador acompanha a rolagem sozinho; nos outros ela não aparece. */
+.gx-leitura {
+  display: none;
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 20;
+  height: 3px;
+  pointer-events: none;
+  background: var(--accent);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+
+@supports (animation-timeline: scroll()) {
+  .gx-leitura {
+    display: block;
+    animation: gx-ler linear both;
+    animation-timeline: scroll(root block);
+  }
+}
+
+@keyframes gx-ler {
+  to { transform: scaleX(1); }
+}
+
+/* ---------- Movimento reduzido: nada anima nem transita, e a tela segue completa ----------
+   O seletor de classe alcança as peças (css/components.css) sem depender de o arquivo existir, e
+   também o que está dentro delas e os pseudo-elementos de um e de outro. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="gx-"],
+  [class*="gx-"] *,
+  [class*="gx-"]::before,
+  [class*="gx-"]::after,
+  [class*="gx-"] *::before,
+  [class*="gx-"] *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

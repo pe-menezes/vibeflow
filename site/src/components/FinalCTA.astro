@@ -10,60 +10,84 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 ---
 
-<div class="cta reveal">
+<section class="gx-escuro cta">
   <div class="container cta-inner">
     <h2 class="cta-title">{t.ctaTitle2}</h2>
-    <div class="cta-badges">
-      <span class="cta-badge">{t.ctaBadgeOS}</span>
-      <span class="cta-badge">{t.ctaBadgeMIT}</span>
-      <span class="cta-badge">{t.ctaBadgeFree}</span>
+    <div class="cta-actions">
+      <a class="gx-btn gx-btn--primario gx-btn--g" href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener">
+        {t.ctaGithub}<svg class="arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4" /></svg>
+      </a>
+      <p class="cta-badges">
+        <span class="gx-chip gx-chip--escuro">{t.ctaBadgeOS}</span>
+        <span class="gx-chip gx-chip--escuro">{t.ctaBadgeMIT}</span>
+        <span class="gx-chip gx-chip--escuro">{t.ctaBadgeFree}</span>
+      </p>
     </div>
-    <a href="https://github.com/pe-menezes/vibeflow" target="_blank" rel="noopener" class="btn btn-dark">{t.ctaGithub}</a>
     <p class="cta-credit">{t.ctaCreator}</p>
   </div>
-</div>
+</section>
 
 <style>
+  /* The dark stage, with the lines already in order in the background: the end of the flow. */
   .cta {
-    text-align: center;
-    padding: 2rem 2rem 1.5rem;
+    position: relative;
+    margin-top: clamp(64px, 10vw, 136px);
+    padding-block: clamp(72px, 11vw, 144px);
+    overflow: hidden;
   }
-
+  .cta::after {
+    content: '';
+    position: absolute;
+    inset: 18% 0 18% 42%;
+    background: repeating-linear-gradient(to bottom, var(--rule-on-deep) 0 1px, transparent 1px 12px);
+    -webkit-mask-image: linear-gradient(to right, transparent, black 55%);
+    mask-image: linear-gradient(to right, transparent, black 55%);
+    pointer-events: none;
+  }
   .cta-inner {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    position: relative;
+    z-index: 1;
   }
-
   .cta-title {
+    max-width: 12ch;
+    color: var(--ink-on-deep);
     font-family: var(--font-display);
-    font-size: clamp(2rem, 4.5vw, 3.2rem);
-    font-weight: 800;
-    letter-spacing: -0.035em;
-    color: var(--text-primary);
-    margin-bottom: 0.75rem;
+    font-size: clamp(2.4rem, 6.4vw, 5.2rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    line-height: 0.98;
+    text-wrap: balance;
   }
-
+  .cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-4) var(--s-5);
+    margin-top: var(--s-6);
+  }
   .cta-badges {
     display: flex;
-    gap: 0.5rem;
-    justify-content: center;
-    margin-bottom: 1rem;
     flex-wrap: wrap;
+    gap: var(--s-2);
   }
-
-  .cta-badge {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    padding: 0.3rem 0.8rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-full);
-  }
-
   .cta-credit {
-    margin-top: 1rem;
-    font-size: 0.82rem;
-    color: var(--text-muted);
+    margin-top: var(--s-6);
+    color: var(--ink-5);
+    font-size: var(--fs-meta);
+  }
+  .arrow {
+    width: 16px;
+    height: 16px;
+    transition: transform var(--d-3) var(--ease-out);
+  }
+  .gx-btn:hover .arrow {
+    transform: translateX(4px);
+  }
+  .arrow path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 </style>

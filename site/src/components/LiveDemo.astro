@@ -8,224 +8,307 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(lang);
+
+// The i18n values carry their own markers ("Scope: …", "☐ …", "✓ …"); the sheet shows them as
+// fields and checkboxes, so the markers come off here.
+const unlabel = (s: string) => s.replace(/:\s*$/, '');
+const afterLabel = (s: string) => s.replace(/^[^:]+:\s*/, '');
+const unmark = (s: string) => s.replace(/^[☐✓]\s*/, '');
+
+const vibeflowSays = (label: string) => `${t.demoVibeflow} · ${unlabel(label)}`;
+const plannedChecks = [t.demoR5dod1, t.demoR5dod2, t.demoR5dod3, t.demoR5dod4].map(unmark);
+const verifiedChecks = [t.demoR7dod1, t.demoR7dod2, t.demoR7dod3, t.demoR7dod4];
+const files = [t.demoR6file1, t.demoR6file2, t.demoR6file3];
 ---
 
-<div class="section reveal" id="demo">
+<section class="section demo" id="demo">
   <div class="container">
-    <div class="section-label">{t.demoLabel}</div>
-    <h2 class="section-title">{t.demoTitle}</h2>
-    <p class="section-sub">{t.demoSubtitle}</p>
+    <div class="section-head">
+      <p class="gx-rotulo">{t.demoLabel}</p>
+      <h2 class="section-title">{t.demoTitle}</h2>
+      <p class="section-sub">{t.demoSubtitle}</p>
+    </div>
 
-    <div class="demo-container">
-      <!-- Chat conversation -->
-      <div class="chat-thread">
-        <div class="chat-message user">
-          <div class="msg-bubble">{t.demoR1user}</div>
-        </div>
+    <div class="demo-grid" data-demo>
+      <ol class="demo-talk">
+        <li class="demo-turn demo-turn--you" data-stage="1">
+          <p class="gx-rotulo">{t.demoYou}</p>
+          <p class="demo-said">{t.demoR1user}</p>
+        </li>
+        <li class="demo-turn" data-stage="2">
+          <p class="gx-rotulo">{vibeflowSays(t.demoChallengeLabel)}</p>
+          <ul class="demo-questions">
+            <li>{t.demoR2q1}</li>
+            <li>{t.demoR2q2}</li>
+            <li>{t.demoR2q3}</li>
+          </ul>
+        </li>
+        <li class="demo-turn demo-turn--you" data-stage="2">
+          <p class="gx-rotulo">{t.demoYou}</p>
+          <p class="demo-said">{t.demoR2user}</p>
+        </li>
+        <li class="demo-turn" data-stage="3">
+          <p class="gx-rotulo">{vibeflowSays(t.demoPushbackLabel)}</p>
+          <ul class="demo-questions">
+            <li>{t.demoR3q1}</li>
+            <li>{t.demoR3q2}</li>
+          </ul>
+        </li>
+        <li class="demo-turn demo-turn--you" data-stage="3">
+          <p class="gx-rotulo">{t.demoYou}</p>
+          <p class="demo-said">{t.demoR3user}</p>
+        </li>
+        <li class="demo-turn demo-turn--mark" data-stage="4">
+          <p class="gx-rotulo">{t.demoR4label}</p>
+          <p>{t.demoR4criteria}</p>
+        </li>
+        <li class="demo-turn demo-turn--mark" data-stage="5">
+          <p class="gx-rotulo">{t.demoR5label}</p>
+          <p>{t.demoR5pattern}</p>
+        </li>
+        <li class="demo-turn demo-turn--mark" data-stage="6">
+          <p class="gx-rotulo">{t.demoR6label}</p>
+          <p>{t.demoR6status}</p>
+        </li>
+        <li class="demo-turn demo-turn--mark" data-stage="7">
+          <p class="gx-rotulo">{t.demoR7label} &rarr; {t.demoR7verdict}</p>
+          <ul class="demo-verified">
+            {verifiedChecks.map((check) => <li>{check}</li>)}
+          </ul>
+          <p>{t.demoR7verdictDesc}</p>
+        </li>
+      </ol>
 
-        <div class="chat-message vibeflow">
-          <div class="msg-bubble">
-            <strong>{t.demoChallengeLabel}</strong>
-            <ul>
-              <li>{t.demoR2q1}</li>
-              <li>{t.demoR2q2}</li>
-              <li>{t.demoR2q3}</li>
-            </ul>
+      <aside class="demo-sheet-area" aria-label={t.demoSheetLabel}>
+        <div class="gx-cartao demo-sheet" data-demo-sheet>
+          <p class="gx-rotulo">{t.demoSheetName}</p>
+          <div class="demo-sheet__fields">
+            <div class="gx-ficha" data-since="4">
+              <span class="k">{unlabel(t.demoOutputScope)}</span><span class="v">{afterLabel(t.demoR4scope)}</span>
+            </div>
+            <div class="gx-ficha" data-since="4">
+              <span class="k">{unlabel(t.demoOutputAntiScope)}</span><span class="v">{afterLabel(t.demoR4antiscope)}</span>
+            </div>
+            <div class="gx-ficha" data-since="5">
+              <span class="k">{unlabel(t.demoOutputBudget)}</span><span class="v">{afterLabel(t.demoR5budget)}</span>
+            </div>
           </div>
+          <ul class="demo-sheet__dod">
+            {plannedChecks.map((check, i) => (
+              <li data-since="5" style={`--i: ${i}`}><i class="demo-box" aria-hidden="true"></i>{check}</li>
+            ))}
+          </ul>
+          <ul class="demo-sheet__files" data-since="6">
+            {files.map((file) => <li><code>{file}</code></li>)}
+          </ul>
+          <p class="demo-sheet__verdict" data-since="7">
+            <span class="gx-chip gx-chip--marcado">{t.demoR7verdict}</span><span>{unmark(t.demoR7patterns)}</span>
+          </p>
         </div>
-
-        <div class="chat-message user">
-          <div class="msg-bubble">{t.demoR2user}</div>
-        </div>
-
-        <div class="chat-message vibeflow">
-          <div class="msg-bubble">
-            <strong>{t.demoPushbackLabel}</strong>
-            <ul>
-              <li>{t.demoR3q1}</li>
-              <li>{t.demoR3q2}</li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="chat-message user">
-          <div class="msg-bubble">{t.demoR3user}</div>
-        </div>
-      </div>
-
-      <!-- Output cards -->
-      <div class="demo-output">
-        <div class="output-block">
-          <div class="output-label">{t.demoR4label}</div>
-          <div class="output-content">
-            <div><span class="key">{t.demoOutputScope}</span> <span class="val">{t.demoR4scope}</span></div>
-            <div class="mt"><span class="key">{t.demoOutputAntiScope}</span> <span class="dim">{t.demoR4antiscope}</span></div>
-          </div>
-        </div>
-
-        <div class="output-block">
-          <div class="output-label">{t.demoR5label}</div>
-          <div class="output-content">
-            <div><span class="check">☐</span> {t.demoR5dod1}</div>
-            <div><span class="check">☐</span> {t.demoR5dod2}</div>
-            <div><span class="check">☐</span> {t.demoR5dod3}</div>
-            <div><span class="check">☐</span> {t.demoR5dod4}</div>
-            <div class="mt"><span class="key">{t.demoOutputBudget}</span> <span class="val">{t.demoR5budget}</span></div>
-          </div>
-        </div>
-
-        <div class="output-block">
-          <div class="output-label">{t.demoR6label}</div>
-          <div class="output-content">
-            <div>{t.demoR6file1}</div>
-            <div>{t.demoR6file2}</div>
-            <div>{t.demoR6file3}</div>
-            <div class="mt"><span class="check">✓</span> <span class="dim">{t.demoR6status}</span></div>
-          </div>
-        </div>
-
-        <div class="output-block">
-          <div class="output-label">{t.demoR7label} &rarr; {t.demoR7verdict}</div>
-          <div class="output-content">
-            <div><span class="check">✓</span> {t.demoR7dod1}</div>
-            <div><span class="check">✓</span> {t.demoR7dod2}</div>
-            <div><span class="check">✓</span> {t.demoR7dod3}</div>
-            <div><span class="check">✓</span> {t.demoR7dod4}</div>
-            <div><span class="check">✓</span> {t.demoR7patterns}</div>
-            <div class="mt"><span class="check">{t.demoR7verdict}</span> <span class="dim">&mdash; {t.demoR7verdictDesc}</span></div>
-          </div>
-        </div>
-      </div>
+      </aside>
     </div>
   </div>
-</div>
+</section>
+
+<script>
+  import { demoStage, lastStage } from '../lib/demo.js';
+
+  // The sheet fills in as the conversation passes. It is an accent: without this script, on narrow
+  // screens or with reduced motion, the sheet is complete from the start. While live, what has not
+  // arrived yet is dimmed and still readable.
+  const live = matchMedia('(min-width: 980px) and (prefers-reduced-motion: no-preference)');
+
+  document.querySelectorAll<HTMLElement>('[data-demo]').forEach((demo) => {
+    const sheet = demo.querySelector<HTMLElement>('[data-demo-sheet]');
+    if (!sheet) return;
+    const turns = [...demo.querySelectorAll<HTMLElement>('.demo-turn[data-stage]')];
+    const items = [...sheet.querySelectorAll<HTMLElement>('[data-since]')];
+    const checks = [...sheet.querySelectorAll<HTMLElement>('.demo-sheet__dod li')];
+    const stages = turns.map((turn) => Number(turn.dataset.stage));
+    const last = lastStage(stages.map((stage) => ({ top: 0, stage })));
+
+    const update = () => {
+      if (!live.matches) {
+        delete sheet.dataset.live;
+        for (const item of items) delete item.dataset.arrived;
+        for (const check of checks) delete check.dataset.checked;
+        return;
+      }
+      const marks = turns.map((turn, i) => ({ top: turn.getBoundingClientRect().top, stage: stages[i] }));
+      const stage = demoStage(marks, { bottom: demo.getBoundingClientRect().bottom, viewport: innerHeight });
+      sheet.dataset.live = '';
+      sheet.dataset.stage = String(stage);
+      for (const item of items) item.dataset.arrived = String(Number(item.dataset.since) <= stage);
+      for (const check of checks) check.dataset.checked = String(stage >= last);
+    };
+
+    addEventListener('scroll', update, { passive: true });
+    addEventListener('resize', update);
+    live.addEventListener('change', update);
+    update();
+  });
+</script>
 
 <style>
-  .demo-container {
-    background: var(--bg-card);
-    border-radius: 20px;
-    padding: 2rem;
-    border: 1px solid var(--border);
+  .demo {
+    padding-top: clamp(64px, 10vw, 136px);
+  }
+  .section-head .gx-rotulo {
+    margin-bottom: var(--s-3);
   }
 
-  .chat-thread {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-
-  .chat-message {
-    display: flex;
-    gap: 0.75rem;
-    max-width: 700px;
-  }
-
-  .chat-message.user {
-    flex-direction: row-reverse;
-    justify-content: flex-end;
-  }
-
-  .chat-message.vibeflow {
-    justify-content: flex-start;
-  }
-
-  .msg-bubble {
-    padding: 1rem 1.25rem;
-    border-radius: 14px;
-    font-size: 0.9rem;
-    line-height: 1.6;
-  }
-
-  .chat-message.user .msg-bubble {
-    background: var(--accent-glow);
-    color: var(--text-primary);
-    max-width: 420px;
-    border: 1px solid var(--accent-glow-strong);
-  }
-
-  .chat-message.vibeflow .msg-bubble {
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    border: 1px solid var(--border);
-    max-width: 520px;
-  }
-
-  .msg-bubble strong {
-    display: block;
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-  }
-
-  .msg-bubble ul {
-    list-style: none;
-    margin-top: 0.5rem;
-  }
-
-  .msg-bubble li {
-    padding-left: 1.25rem;
-    position: relative;
-    margin-bottom: 0.35rem;
-  }
-
-  .msg-bubble li::before {
-    content: '•';
-    position: absolute;
-    left: 0;
-    color: var(--accent);
-  }
-
-  /* Output blocks */
-  .demo-output {
+  .demo-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
-    margin-top: 1.25rem;
+    gap: var(--s-7);
+    margin-top: var(--s-2);
+  }
+  .demo-talk {
+    display: grid;
+    gap: var(--s-6);
+    padding: 0;
+    list-style: none;
+  }
+  .demo-turn {
+    display: grid;
+    gap: var(--s-2);
+    max-width: 46ch;
+  }
+  .demo-said {
+    font-family: var(--font-display);
+    font-size: clamp(1.45rem, 2.5vw, 2.05rem);
+    font-style: italic;
+    letter-spacing: -0.015em;
+    line-height: 1.18;
+    text-wrap: balance;
+  }
+  .demo-questions,
+  .demo-verified {
+    display: grid;
+    gap: var(--s-2);
+    padding: 0;
+    list-style: none;
+    color: var(--ink-2);
+  }
+  .demo-questions li {
+    padding-left: var(--s-4);
+    border-left: 2px solid var(--accent-edge);
+  }
+  .demo-verified {
+    font-size: var(--fs-ui);
+  }
+  .demo-turn--mark {
+    padding-top: var(--s-4);
+    border-top: 1px solid var(--rule-soft);
+  }
+  .demo-turn--mark p:not(.gx-rotulo) {
+    color: var(--ink-2);
   }
 
-  .output-block {
-    background: var(--bg-code);
-    border-radius: 12px;
-    overflow: hidden;
-    padding: 1.25rem;
+  /* The sheet. At rest it is ready: fields in full ink, boxes ticked, verdict lit. */
+  .demo-sheet {
+    display: grid;
+    gap: var(--s-4);
+    padding: clamp(18px, 2.4vw, 30px);
+    box-shadow: var(--e-2);
+  }
+  .demo-sheet__fields {
+    display: grid;
+  }
+  .demo-sheet .gx-ficha .v {
+    max-width: 30ch;
+    font-family: var(--font-body);
+    font-size: var(--fs-ui);
+    text-align: right;
+  }
+  .demo-sheet__dod,
+  .demo-sheet__files {
+    display: grid;
+    padding: 0;
+    list-style: none;
+  }
+  .demo-sheet__dod {
+    gap: var(--s-2);
+    font-size: var(--fs-ui);
+  }
+  .demo-sheet__dod li {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+  }
+  .demo-box {
+    position: relative;
+    top: 2px;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid var(--accent);
+    border-radius: var(--r-1);
+    background: var(--accent);
+    transition:
+      background-color var(--d-2) var(--ease-out) calc(var(--i, 0) * var(--d-step)),
+      border-color var(--d-2) var(--ease-out) calc(var(--i, 0) * var(--d-step));
+  }
+  .demo-box::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 3.5px;
+    width: 4px;
+    height: 8px;
+    border: solid var(--accent-ink);
+    border-width: 0 1.8px 1.8px 0;
+    transform: rotate(45deg) scale(1);
+    transition: transform var(--d-3) var(--ease-spring) calc(var(--i, 0) * var(--d-step));
+  }
+  .demo-sheet__files {
+    gap: var(--s-1);
+    color: var(--ink-3);
+    font-size: var(--fs-meta);
+  }
+  .demo-sheet__verdict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--s-2);
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--rule-soft);
+    color: var(--ink-3);
+    font-size: var(--fs-meta);
   }
 
-  .output-label {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--accent);
-    margin-bottom: 0.75rem;
-    font-weight: 600;
+  /* While the script drives the sheet, what has not arrived is dimmed (still readable) and the
+     boxes stay empty until the audit. Dimming is by opacity and never by colour: a fixed dim ink
+     reads stronger than the arrived ink on the dark card, while opacity weakens every ink alike in
+     both themes. */
+  .demo-sheet [data-since] {
+    transition: opacity var(--d-3) var(--ease-out);
+  }
+  .demo-sheet[data-live] [data-arrived="false"] {
+    opacity: 0.65;
+  }
+  /* Until the verdict the chip is unfilled, in the ink of a plain chip on paper. */
+  .demo-sheet[data-live] [data-arrived="false"] .gx-chip {
+    border-color: var(--rule-soft);
+    background: transparent;
+    color: var(--ink-3);
+  }
+  .demo-sheet[data-live] li:not([data-checked="true"]) .demo-box {
+    border-color: var(--rule-control);
+    background: transparent;
+  }
+  .demo-sheet[data-live] li:not([data-checked="true"]) .demo-box::after {
+    transform: rotate(45deg) scale(0);
   }
 
-  .output-content {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    color: #e5e5ea;
-    line-height: 1.8;
-  }
-
-  .output-content .key { color: #818cf8; }
-  .output-content .val { color: #a78bfa; }
-  .output-content .check { color: #30d158; font-weight: 500; }
-  .output-content .dim { color: #8e8e93; }
-  .output-content .mt { margin-top: 0.5rem; }
-
-  @media (max-width: 768px) {
-    .demo-container {
-      padding: 1.5rem 1.25rem;
+  @media (min-width: 980px) {
+    .demo-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.92fr);
+      gap: var(--s-8);
+      align-items: start;
     }
-    .demo-output {
-      grid-template-columns: 1fr;
-    }
-    .chat-message {
-      max-width: 100%;
-    }
-    .chat-message.user .msg-bubble,
-    .chat-message.vibeflow .msg-bubble {
-      max-width: 100%;
+    .demo-sheet-area {
+      position: sticky;
+      top: var(--s-7);
     }
   }
 </style>

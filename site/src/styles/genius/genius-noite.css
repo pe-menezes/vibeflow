@@ -1,0 +1,73 @@
+/* genius-design-system 3.0.0-alpha.3 · arquivo gerado por src/build.mjs a partir de tokens/, não editar à mão */
+/* Tema escuro por adesão: quem inclui só genius.css segue claro. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --e-0: 0 1px 1.5px rgb(0 0 0 / 0.5);
+    --e-1: 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5);
+    --e-2: 0 0 0 1px rgb(255 255 255 / 0.09), 0 10px 20px -6px rgb(0 0 0 / 0.65);
+    --e-3: 0 0 0 1px rgb(255 255 255 / 0.12), 0 24px 48px -12px rgb(0 0 0 / 0.8);
+    --bg: #121211;
+    --bg-alt: #1B1B19;
+    --bg-frame: #252522;
+    --bg-deep: #050505;
+    --bg-floor: #0B0B0A;
+    --bg-sheet: #1B1B19;
+    --bg-track: #1E1E1C;
+    --bg-thumb: #3A3A37;
+    --bg-hover: #2A2A27;
+    --bg-hover-row: #232320;
+    --ink: #F2F2EC;
+    --ink-2: #D4D4CC;
+    --ink-3: #A8A8A0;
+    --ink-4: #92928A;
+    --ink-on-deep: #F2F2EC;
+    --rule: #E4E4DC;
+    --rule-soft: #32322E;
+    --rule-control: #757570;
+    --rule-on-deep: rgb(255 255 255 / 0.18);
+    --edge-deep: rgb(255 255 255 / 0.1);
+    --acid-text: #E4F222;
+    --violet: #9F8AE8;
+    --pos: #4ADE80;
+    --neg: #F87171;
+    --focus-halo: rgb(228 242 34 / 0.45);
+    --ink-on-violet: #0A0A0A;
+    --violet-halo: rgb(159 138 232 / 0.45);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --e-0: 0 1px 1.5px rgb(0 0 0 / 0.5);
+  --e-1: 0 0 0 1px rgb(255 255 255 / 0.07), 0 1px 2px rgb(0 0 0 / 0.5);
+  --e-2: 0 0 0 1px rgb(255 255 255 / 0.09), 0 10px 20px -6px rgb(0 0 0 / 0.65);
+  --e-3: 0 0 0 1px rgb(255 255 255 / 0.12), 0 24px 48px -12px rgb(0 0 0 / 0.8);
+  --bg: #121211;
+  --bg-alt: #1B1B19;
+  --bg-frame: #252522;
+  --bg-deep: #050505;
+  --bg-floor: #0B0B0A;
+  --bg-sheet: #1B1B19;
+  --bg-track: #1E1E1C;
+  --bg-thumb: #3A3A37;
+  --bg-hover: #2A2A27;
+  --bg-hover-row: #232320;
+  --ink: #F2F2EC;
+  --ink-2: #D4D4CC;
+  --ink-3: #A8A8A0;
+  --ink-4: #92928A;
+  --ink-on-deep: #F2F2EC;
+  --rule: #E4E4DC;
+  --rule-soft: #32322E;
+  --rule-control: #757570;
+  --rule-on-deep: rgb(255 255 255 / 0.18);
+  --edge-deep: rgb(255 255 255 / 0.1);
+  --acid-text: #E4F222;
+  --violet: #9F8AE8;
+  --pos: #4ADE80;
+  --neg: #F87171;
+  --focus-halo: rgb(228 242 34 / 0.45);
+  --ink-on-violet: #0A0A0A;
+  --violet-halo: rgb(159 138 232 / 0.45);
+}

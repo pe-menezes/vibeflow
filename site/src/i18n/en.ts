@@ -21,6 +21,9 @@ export default {
   heroNotice: 'New in 1.18: the OpenCode edition →',
   heroCta: 'See how it works',
   heroInstall: 'Install now',
+  heroFlowBefore: 'no spec',
+  heroFlowAfter: 'with a spec',
+  heroFlowLabel: 'Tangled lines enter from the left, pass through a spec and leave in order, up to a PASS verdict.',
   heroQuickStartTitle: 'vibeflow pipeline',
   heroQuickStart1Cmd: '$ analyze',
   heroQuickStart1Desc: '✓ 14 patterns · 8 conventions · .vibeflow/ ready',
@@ -45,6 +48,7 @@ export default {
   pipelineStep4Desc: 'Checks every DoD item with evidence, from a review package of the diff. Pattern compliance. Verdict: PASS, PARTIAL, or FAIL.',
   pipelineExtra: 'Plus 6 more:',
   pipelineExtraList: 'discover · prompt-pack · quick · hotfix · teach · stats',
+  pipelineFlowLabel: 'The work goes through four gates, analyze, gen-spec, implement and audit, and comes out more ordered at each one.',
 
   // Execution loop
   loopLabel: 'Execution loop',
@@ -103,6 +107,8 @@ export default {
   demoOutputBudget: 'Budget:',
   demoYou: 'You',
   demoVibeflow: 'Vibeflow',
+  demoSheetLabel: 'The spec, filled in as the conversation goes',
+  demoSheetName: 'spec · auth',
 
   // Round 1:User drops a vague idea
   demoR1user: '"I need user authentication for my app"',
@@ -301,6 +307,8 @@ export default {
   cmdOutput: 'Output',
   cmdWhenToUse: 'When to use',
   cmdPipeline: 'Pipeline',
+  cmdPageEyebrow: 'Reference',
+  cmdTocLabel: 'On this page',
 
   // analyze
   cmdAnalyzeDesc: 'Deep-scans your codebase and learns your patterns, conventions, and architecture. Generates curated documentation in .vibeflow/ that persists and can be committed to git.',
@@ -425,6 +433,7 @@ export default {
   anatomyEyebrow: 'Inside the .vibeflow/ folder',
   anatomyTitle: 'Anatomy of the<br>.vibeflow/ folder',
   anatomySubtitle: 'What each file is, why it exists, and how the agent uses it. So you know what you can change, and what you should leave alone.',
+  anatomyTocLabel: 'On this page',
   anatomyIntro: 'When you run /analyze, Vibeflow creates a .vibeflow/ folder at the root of your project. It is the project knowledge base the agent reads before every spec, implementation, and audit. Four artifacts make up that knowledge base; the other commands add their own folders next to them (PRDs, specs, audits and, with implement --loop, the loop\'s files).',
 
   // Anatomy — section labels (reused per artifact)

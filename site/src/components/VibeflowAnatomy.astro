@@ -12,6 +12,7 @@ const t = useTranslations(lang);
 
 const artifacts = [
   {
+    id: 'index-md',
     name: t.anatomyIndexName,
     tagline: t.anatomyIndexTagline,
     what: t.anatomyIndexWhat,
@@ -20,6 +21,7 @@ const artifacts = [
     edit: t.anatomyIndexEdit,
   },
   {
+    id: 'patterns',
     name: t.anatomyPatternsName,
     tagline: t.anatomyPatternsTagline,
     what: t.anatomyPatternsWhat,
@@ -28,6 +30,7 @@ const artifacts = [
     edit: t.anatomyPatternsEdit,
   },
   {
+    id: 'conventions-md',
     name: t.anatomyConventionsName,
     tagline: t.anatomyConventionsTagline,
     what: t.anatomyConventionsWhat,
@@ -36,6 +39,7 @@ const artifacts = [
     edit: t.anatomyConventionsEdit,
   },
   {
+    id: 'decisions-md',
     name: t.anatomyDecisionsName,
     tagline: t.anatomyDecisionsTagline,
     what: t.anatomyDecisionsWhat,
@@ -65,355 +69,463 @@ const patternsBullets = [
   t.anatomyVsPatternsBullet3,
   t.anatomyVsPatternsBullet4,
 ];
+
+// The sections after the four artifacts; together with the artifacts they make the index.
+const loopSection = { id: 'loop-folders', title: t.anatomyLoopTitle };
+const vsSection = { id: 'patterns-vs-conventions', title: t.anatomyVsTitle };
+const manualSection = { id: 'manual', title: t.anatomyCtaTitle };
+const toc = [...artifacts.map((a) => ({ id: a.id, title: a.name })), loopSection, vsSection, manualSection];
 ---
 
-<section class="anatomy-hero">
-  <div class="container">
-    <span class="anatomy-eyebrow">{t.anatomyEyebrow}</span>
-    <h1 class="anatomy-title"><Fragment set:html={t.anatomyTitle} /></h1>
-    <p class="anatomy-sub">{t.anatomySubtitle}</p>
-  </div>
-</section>
+<section class="anatomy">
+  <div class="container doc">
+    <header class="doc-head">
+      <p class="gx-rotulo doc-label">{t.anatomyEyebrow}</p>
+      <h1 class="doc-title"><Fragment set:html={t.anatomyTitle} /></h1>
+      <p class="doc-lede">{t.anatomySubtitle}</p>
+    </header>
 
-<section class="anatomy-section">
-  <div class="container narrow">
-    <p class="anatomy-intro">{t.anatomyIntro}</p>
+    <div class="doc-body">
+      <nav class="doc-toc" data-doc-toc aria-label={t.anatomyTocLabel}>
+        <p class="gx-rotulo">{t.anatomyTocLabel}</p>
+        <ol>
+          {toc.map((item) => (
+            <li><a href={`#${item.id}`}>{item.title}</a></li>
+          ))}
+        </ol>
+      </nav>
 
-    <div class="artifact-list">
-      {artifacts.map((a) => (
-        <article class="artifact-card">
-          <header class="artifact-head">
-            <code class="artifact-name">{a.name}</code>
-            <span class="artifact-tagline">{a.tagline}</span>
-          </header>
+      <div class="doc-main">
+        <p class="entry-text doc-intro">{t.anatomyIntro}</p>
 
-          <dl class="artifact-axes">
-            <div class="axis">
-              <dt>{t.anatomyWhatLabel}</dt>
-              <dd>{a.what}</dd>
-            </div>
-            <div class="axis">
-              <dt>{t.anatomyWhyLabel}</dt>
-              <dd>{a.why}</dd>
-            </div>
-            <div class="axis">
-              <dt>{t.anatomyAgentLabel}</dt>
-              <dd>{a.agent}</dd>
-            </div>
-            <div class="axis">
-              <dt>{t.anatomyEditLabel}</dt>
-              <dd>{a.edit}</dd>
-            </div>
-          </dl>
-        </article>
-      ))}
-    </div>
+        {artifacts.map((a) => (
+          <article id={a.id} class="doc-entry">
+            <header class="entry-head">
+              <h2 class="entry-name">{a.name}</h2>
+              <p class="gx-rotulo">{a.tagline}</p>
+            </header>
 
-    <article class="artifact-card loop-folders">
-      <header class="artifact-head">
-        <span class="loop-folders-title">{t.anatomyLoopTitle}</span>
-      </header>
-      <p class="loop-folders-intro"><InlineCode text={t.anatomyLoopIntro} /></p>
-      <ul class="loop-folders-list">
-        {loopFolders.map((f) => (
-          <li><code>{f.name}</code> <InlineCode text={f.desc} /></li>
+            <dl class="entry-defs">
+              <div class="entry-def">
+                <dt class="gx-rotulo">{t.anatomyWhatLabel}</dt>
+                <dd>{a.what}</dd>
+              </div>
+              <div class="entry-def">
+                <dt class="gx-rotulo">{t.anatomyWhyLabel}</dt>
+                <dd>{a.why}</dd>
+              </div>
+              <div class="entry-def">
+                <dt class="gx-rotulo">{t.anatomyAgentLabel}</dt>
+                <dd>{a.agent}</dd>
+              </div>
+              <div class="entry-def">
+                <dt class="gx-rotulo">{t.anatomyEditLabel}</dt>
+                <dd>{a.edit}</dd>
+              </div>
+            </dl>
+          </article>
         ))}
-      </ul>
-      <p class="loop-folders-git"><InlineCode text={t.anatomyLoopGit} /></p>
-    </article>
-  </div>
-</section>
 
-<section class="anatomy-section anatomy-vs">
-  <div class="container narrow">
-    <h2 class="vs-title">{t.anatomyVsTitle}</h2>
-    <p class="vs-intro">{t.anatomyVsIntro}</p>
+        <section id={loopSection.id} class="doc-entry">
+          <header class="entry-head">
+            <h2 class="entry-name">{loopSection.title}</h2>
+          </header>
+          <p class="entry-text"><InlineCode text={t.anatomyLoopIntro} /></p>
+          <ul class="gx-escuro entry-tree">
+            <li class="entry-tree-root"><code>.vibeflow/</code></li>
+            {loopFolders.map((f) => (
+              <li class="entry-tree-branch"><code class="entry-tree-name">{f.name}</code> <span><InlineCode text={f.desc} /></span></li>
+            ))}
+          </ul>
+          <p class="entry-text"><InlineCode text={t.anatomyLoopGit} /></p>
+        </section>
 
-    <div class="vs-grid">
-      <div class="vs-card">
-        <h3><code>{t.anatomyVsConventionsTitle}</code></h3>
-        <ul>
-          {conventionsBullets.map((b) => <li>{b}</li>)}
-        </ul>
-      </div>
-      <div class="vs-card">
-        <h3><code>{t.anatomyVsPatternsTitle}</code></h3>
-        <ul>
-          {patternsBullets.map((b) => <li>{b}</li>)}
-        </ul>
+        <section id={vsSection.id} class="doc-entry">
+          <header class="entry-head">
+            <h2 class="entry-name">{vsSection.title}</h2>
+          </header>
+          <p class="entry-text">{t.anatomyVsIntro}</p>
+
+          <div class="vs">
+            <div class="vs-side">
+              <h3><code class="gx-chip">{t.anatomyVsConventionsTitle}</code></h3>
+              <ul>
+                {conventionsBullets.map((b) => <li>{b}</li>)}
+              </ul>
+            </div>
+            <div class="vs-side">
+              <h3><code class="gx-chip">{t.anatomyVsPatternsTitle}</code></h3>
+              <ul>
+                {patternsBullets.map((b) => <li>{b}</li>)}
+              </ul>
+            </div>
+          </div>
+
+          <p class="gx-cit vs-closing">{t.anatomyVsClosing}</p>
+        </section>
+
+        <section id={manualSection.id} class="doc-entry">
+          <header class="entry-head">
+            <h2 class="entry-name">{manualSection.title}</h2>
+          </header>
+          <p class="entry-text">{t.anatomyCtaText}</p>
+          <p class="entry-more">
+            <a href={t.anatomyCtaHref} target="_blank" rel="noopener" class="gx-btn gx-btn--primario">{t.anatomyCtaBtn}</a>
+          </p>
+        </section>
       </div>
     </div>
-
-    <p class="vs-closing">{t.anatomyVsClosing}</p>
   </div>
 </section>
 
-<section class="anatomy-cta">
-  <div class="container narrow">
-    <h2>{t.anatomyCtaTitle}</h2>
-    <p>{t.anatomyCtaText}</p>
-    <a href={t.anatomyCtaHref} target="_blank" rel="noopener" class="btn btn-light">{t.anatomyCtaBtn}</a>
-  </div>
-</section>
+<script>
+  // Marks the index link of the entry being read. Without this script the index is a plain list of
+  // links and every entry is already on the page; the mark is an accent, never a gate.
+  //
+  // The entry being read is the last one whose top has passed the reading line, which sits just
+  // below the scroll margin a jump from the index lands an entry at. Near the page end the line
+  // slides down, at most half as fast as the page scrolls, so the entries too short or too late to
+  // ever reach the top still come up one by one, in order, and the last one is current at the very
+  // bottom. A jump from the index marks the entry jumped to, wherever the page end stops the scroll,
+  // and the mark stays until the reader scrolls on.
+  // A hash that does not decode (such as `#%`) names no entry: it reads as a hash without a target.
+  const targetOf = (hash: string) => {
+    try {
+      return decodeURIComponent(hash.slice(1));
+    } catch {
+      return '';
+    }
+  };
+  document.querySelectorAll<HTMLElement>('[data-doc-toc]').forEach((toc) => {
+    const links = new Map<string, HTMLAnchorElement>();
+    toc.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((a) => links.set(targetOf(a.hash), a));
+    const targets = [...links.keys()]
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (!targets.length) return;
+
+    const setCurrent = (id: string) => {
+      links.forEach((a, key) => {
+        if (key === id) a.setAttribute('aria-current', 'location');
+        else a.removeAttribute('aria-current');
+      });
+    };
+
+    // A few pixels below the scroll margin, so rounding never leaves a landed entry above the line.
+    const SLACK = 8;
+    const reading = () => {
+      const y = window.scrollY;
+      const end = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const tops = targets.map((el) => el.getBoundingClientRect().top);
+      const line0 = (parseFloat(window.getComputedStyle(targets[0]).scrollMarginTop) || 0) + SLACK;
+      // Where the line has to be at the page end for the last entry to be current, and how far it
+      // has to travel to get there; it travels over twice that distance of scrolling.
+      const extra = tops[tops.length - 1] + y - end + 1 - line0;
+      let line = line0;
+      if (extra > 0 && end > 0) {
+        const span = Math.min(end, 2 * extra);
+        line += extra * Math.min(1, Math.max(0, 1 - (end - y) / span));
+      }
+      let current = targets[0].id;
+      tops.forEach((top, i) => {
+        if (top <= line) current = targets[i].id;
+      });
+      return current;
+    };
+
+    // After a jump from the index the entry jumped to stays current: through the jump's own smooth
+    // scroll (until scrolling pauses), and then until the page scrolls again. A scroll gesture of
+    // the reader's own (wheel, touch, scroll key) lets go of it at once, paused or not.
+    const SETTLE_MS = 150;
+    const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Spacebar']);
+    let jumpedTo = '';
+    let restedAt = -1;
+    let settleTimer = 0;
+    const settle = () => {
+      window.clearTimeout(settleTimer);
+      settleTimer = window.setTimeout(() => {
+        restedAt = window.scrollY;
+      }, SETTLE_MS);
+    };
+    const jump = (id: string) => {
+      if (!links.has(id)) return;
+      jumpedTo = id;
+      restedAt = -1;
+      setCurrent(id);
+      settle();
+    };
+    const letGo = () => {
+      window.clearTimeout(settleTimer);
+      jumpedTo = '';
+    };
+
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      if (jumpedTo) {
+        if (restedAt < 0 || Math.abs(window.scrollY - restedAt) < 2) return;
+        jumpedTo = '';
+      }
+      setCurrent(reading());
+    };
+    const onScroll = () => {
+      if (jumpedTo && restedAt < 0) settle();
+      else if (!frame) frame = window.requestAnimationFrame(update);
+    };
+
+    document.addEventListener('click', (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.('a[href^="#"]');
+      links.forEach((link, id) => {
+        if (link === a) jump(id);
+      });
+    });
+    window.addEventListener('hashchange', () => jump(targetOf(window.location.hash)));
+    window.addEventListener('wheel', letGo, { passive: true });
+    window.addEventListener('touchstart', letGo, { passive: true });
+    window.addEventListener('keydown', (e) => {
+      if (SCROLL_KEYS.has(e.key)) letGo();
+    });
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+
+    const landed = targetOf(window.location.hash);
+    if (links.has(landed)) jump(landed);
+    else update();
+  });
+</script>
 
 <style>
-  .anatomy-hero {
-    padding: 6rem 0 3rem;
-    text-align: center;
-    border-bottom: 1px solid var(--border);
+  /* An editorial document: the head, then an index beside a reading column on wide screens. */
+  .doc {
+    /* The measure of running text, in em so it follows each block's font size: about 66 characters
+       of this face per line (counted in the browser; a `ch` is the width of "0" and holds more). */
+    --doc-measure: 31.5em;
+    padding-block: clamp(32px, 5vw, 72px) var(--s-8);
   }
 
-  .anatomy-eyebrow {
-    display: inline-block;
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    color: var(--accent);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin-bottom: 1rem;
-    padding: 0.3rem 0.7rem;
-    border-radius: 999px;
-    background: var(--accent-glow);
+  .doc-head {
+    padding-bottom: var(--s-7);
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .doc-title {
+    max-width: 18ch;
+    margin-top: var(--s-3);
+    font-family: var(--font-display);
+    font-size: clamp(2.4rem, 5.6vw, 4.4rem);
+    font-weight: 400;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    text-wrap: balance;
+  }
+  .doc-lede {
+    max-width: var(--doc-measure);
+    margin-top: var(--s-4);
+    color: var(--ink-3);
+    font-size: var(--fs-lede);
+    line-height: 1.45;
   }
 
-  .anatomy-title {
-    font-size: clamp(2rem, 5vw, 3.25rem);
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.1;
-    margin: 0 auto 1.25rem;
-    max-width: 22ch;
+  .doc-body {
+    display: grid;
+    gap: var(--s-6);
+    margin-top: var(--s-6);
+  }
+  .doc-main {
+    min-width: 0;
+    max-width: 50rem;
   }
 
-  .anatomy-sub {
-    font-size: 1.05rem;
-    color: var(--text-secondary);
-    max-width: 50ch;
-    margin: 0 auto;
-    line-height: 1.6;
-  }
-
-  .anatomy-section {
-    padding: 4rem 0;
-  }
-
-  .container.narrow {
-    max-width: 820px;
-  }
-
-  .anatomy-intro {
-    font-size: 1rem;
-    color: var(--text-secondary);
-    line-height: 1.7;
-    margin-bottom: 3rem;
-  }
-
-  .artifact-list {
+  /* The index: a wrapped list on top on narrow screens, a sticky column with a rule on wide ones. */
+  .doc-toc ol {
     display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+    flex-wrap: wrap;
+    gap: var(--s-1) var(--s-4);
+    margin-top: var(--s-3);
+    list-style: none;
+  }
+  .doc-toc a {
+    color: var(--ink-3);
+    font-size: var(--fs-ui);
+    transition: color var(--d-2) var(--ease-out), border-color var(--d-2) var(--ease-out);
+  }
+  .doc-toc a:hover,
+  .doc-toc a[aria-current] {
+    color: var(--ink);
   }
 
-  .artifact-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 2rem;
-    transition: border-color 0.3s var(--ease-out);
-  }
-  .artifact-card:hover {
-    border-color: var(--accent-glow-strong);
+  @media (min-width: 980px) {
+    .doc-body {
+      grid-template-columns: 13rem minmax(0, 1fr);
+      gap: var(--s-8);
+      align-items: start;
+      margin-top: var(--s-7);
+    }
+    .doc-toc {
+      position: sticky;
+      top: var(--s-6);
+    }
+    .doc-toc ol {
+      display: grid;
+      gap: 0;
+      border-left: 1px solid var(--rule-soft);
+    }
+    .doc-toc a {
+      display: block;
+      margin-left: -1px;
+      padding: var(--s-1) 0 var(--s-1) var(--s-3);
+      border-left: 2px solid transparent;
+      line-height: 1.35;
+    }
+    .doc-toc a[aria-current] {
+      border-left-color: var(--accent);
+    }
   }
 
-  .artifact-head {
+  /* One entry per artifact or section: one idea per block, a rule between them. */
+  .doc-intro {
+    margin-top: 0;
+    padding-bottom: var(--s-7);
+    font-size: var(--fs-lede);
+    line-height: 1.5;
+  }
+  .doc-entry {
+    padding-block: var(--s-7);
+    border-top: 1px solid var(--rule-soft);
+    scroll-margin-top: var(--s-5);
+  }
+  .doc-entry:last-child {
+    padding-bottom: 0;
+  }
+
+  .entry-head {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0.75rem;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px dashed var(--border);
+    gap: var(--s-2) var(--s-4);
+    margin-bottom: var(--s-5);
   }
-
-  .artifact-name {
-    font-family: var(--font-mono);
-    font-size: 1.15rem;
-    font-weight: 600;
-    color: var(--accent);
-    background: var(--accent-glow);
-    padding: 0.25rem 0.6rem;
-    border-radius: 6px;
-  }
-
-  .artifact-tagline {
-    font-size: 0.95rem;
-    color: var(--text-secondary);
+  .entry-name {
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 3vw, 2.4rem);
     font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
   }
 
-  .artifact-axes {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1.1rem;
-    margin: 0;
-  }
-
-  .axis dt {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-muted);
-    margin-bottom: 0.3rem;
-  }
-
-  .axis dd {
-    margin: 0;
-    font-size: 0.92rem;
-    color: var(--text-primary);
-    line-height: 1.65;
-  }
-
-  .loop-folders {
-    margin-top: 1.5rem;
-  }
-
-  .loop-folders-title {
-    font-size: 1.05rem;
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .loop-folders-intro,
-  .loop-folders-git {
-    font-size: 0.92rem;
-    color: var(--text-secondary);
-    line-height: 1.65;
-    margin: 0 0 1rem;
-  }
-
-  .loop-folders-git {
-    margin: 1rem 0 0;
-  }
-
-  .loop-folders-list {
-    margin: 0;
-    padding-left: 1.1rem;
-    font-size: 0.92rem;
-    color: var(--text-primary);
-    line-height: 1.65;
-  }
-
-  .loop-folders-list li + li {
-    margin-top: 0.4rem;
-  }
-
-  .loop-folders-list code {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    color: var(--accent);
-    background: var(--accent-glow);
-    padding: 0.1rem 0.4rem;
-    border-radius: 5px;
-  }
-
-  .anatomy-vs {
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .vs-title {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0 0 1rem;
-  }
-
-  .vs-intro {
-    font-size: 0.98rem;
-    color: var(--text-secondary);
+  .entry-text {
+    max-width: var(--doc-measure);
+    margin-top: var(--s-4);
+    color: var(--ink-2);
     line-height: 1.6;
-    margin: 0 0 2.5rem;
+  }
+  .entry-head + .entry-text {
+    margin-top: 0;
   }
 
-  .vs-grid {
+  /* The four questions of an artifact as definition rows, a rule between them. */
+  .entry-def {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.25rem;
-    margin-bottom: 2rem;
+    gap: var(--s-2) var(--s-5);
+    padding-block: var(--s-3);
+    border-top: 1px solid var(--rule-soft);
+  }
+  .entry-def:last-child {
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  @media (min-width: 720px) {
+    .entry-def {
+      grid-template-columns: 12rem minmax(0, 1fr);
+      align-items: baseline;
+    }
+  }
+  .entry-def dd {
+    max-width: var(--doc-measure);
+    color: var(--ink-3);
+    line-height: 1.6;
   }
 
-  .vs-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.5rem;
+  /* The folders the loop creates, as a tree on the dark stage. */
+  .entry-tree {
+    margin-top: var(--s-5);
+    padding: var(--s-5);
+    border-radius: var(--r-2);
+    font-size: var(--fs-ui);
+    line-height: 1.6;
+    list-style: none;
   }
-
-  .vs-card h3 {
-    font-size: 1rem;
-    margin: 0 0 1rem;
-    color: var(--text-primary);
+  .entry-tree code {
+    color: var(--ink-on-deep);
   }
-
-  .vs-card h3 code {
-    font-family: var(--font-mono);
-    color: var(--accent);
-    background: var(--accent-glow);
-    padding: 0.2rem 0.5rem;
-    border-radius: 5px;
-    font-size: 0.95rem;
-  }
-
-  .vs-card ul {
-    margin: 0;
-    padding-left: 1.1rem;
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    line-height: 1.7;
-  }
-
-  .vs-closing {
-    text-align: center;
-    font-size: 1.05rem;
-    color: var(--text-primary);
+  /* Two classes, so the folder names outrank `.entry-tree code` above, as the root does by order. */
+  .entry-tree-root code,
+  .entry-tree .entry-tree-name {
+    color: var(--accent-on-deep);
     font-weight: 500;
-    margin: 0;
-    padding: 1.25rem;
-    border-left: 3px solid var(--accent);
-    background: var(--bg-card);
-    border-radius: 0 8px 8px 0;
+  }
+  .entry-tree-branch {
+    position: relative;
+    margin-left: 0.4em;
+    padding: var(--s-2) 0 var(--s-2) var(--s-5);
+    border-left: 1px solid var(--rule-on-deep);
+    color: var(--ink-5);
+  }
+  .entry-tree-branch::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -1px;
+    width: var(--s-4);
+    height: calc(var(--s-2) + 0.8em);
+    border-bottom: 1px solid var(--rule-on-deep);
+    border-left: 1px solid var(--rule-on-deep);
+  }
+  .entry-tree-branch:last-child {
+    padding-bottom: 0;
+    border-left-color: transparent;
   }
 
-  .anatomy-cta {
-    padding: 4rem 0 6rem;
-    text-align: center;
+  /* Conventions beside patterns: two lists split by a rule, no boxes. */
+  .vs {
+    display: grid;
+    gap: var(--s-6);
+    margin-top: var(--s-6);
+  }
+  @media (min-width: 720px) {
+    .vs {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0;
+    }
+    .vs-side + .vs-side {
+      padding-left: var(--s-5);
+      border-left: 1px solid var(--rule-soft);
+    }
+    .vs-side:first-child {
+      padding-right: var(--s-5);
+    }
+  }
+  .vs-side h3 {
+    margin-bottom: var(--s-3);
+    font-weight: 400;
+  }
+  .vs-side ul {
+    list-style: none;
+  }
+  .vs-side li {
+    padding-block: var(--s-2);
+    border-top: 1px solid var(--rule-soft);
+    color: var(--ink-3);
+    line-height: 1.5;
+  }
+  .vs-side li:last-child {
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  .vs-closing {
+    margin-top: var(--s-6);
   }
 
-  .anatomy-cta h2 {
-    font-size: 1.5rem;
-    color: var(--text-primary);
-    margin: 0 0 0.75rem;
-  }
-
-  .anatomy-cta p {
-    color: var(--text-secondary);
-    margin: 0 0 1.5rem;
-  }
-
-  @media (max-width: 768px) {
-    .anatomy-hero {
-      padding: 4rem 0 2rem;
-    }
-    .anatomy-section {
-      padding: 3rem 0;
-    }
-    .artifact-card {
-      padding: 1.5rem;
-    }
-    .vs-grid {
-      grid-template-columns: 1fr;
-    }
+  .entry-more {
+    margin-top: var(--s-5);
   }
 </style>

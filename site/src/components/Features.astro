@@ -23,147 +23,107 @@ const commands = [
 ];
 ---
 
-<div class="section reveal" id="commands">
+<section class="section commands" id="commands">
   <div class="container">
-    <div class="section-label">{t.cmdLabel}</div>
-    <h2 class="section-title">{t.cmdGridTitle}</h2>
-    <p class="section-sub">{t.featuresSubtitle}</p>
+    <div class="section-head">
+      <p class="gx-rotulo">{t.cmdLabel}</p>
+      <h2 class="section-title">{t.cmdGridTitle}</h2>
+      <p class="section-sub">{t.featuresSubtitle}</p>
+    </div>
 
-    <div class="cmd-grid">
+    <ul class="cmd-list">
       {commands.map((cmd) => (
-        <div class="cmd-card">
-          <div class={`cmd-tier ${cmd.tier.toLowerCase()}`}>{cmd.tier}</div>
-          <div class="cmd-name">{cmd.title}</div>
-          <div class="cmd-for">{cmd.forLabel}</div>
-          <p>{cmd.desc}</p>
-          <div class="cmd-flags">
-            {cmd.highlights.map((h: string) => (
-              <span class="cmd-flag">{h}</span>
-            ))}
+        <li class="cmd-row">
+          <div class="cmd-name">
+            <h3><a class="gx-link gx-link--titulo" href={`/${lang}/commands#${cmd.id}`}>{cmd.title}</a></h3>
+            <p class={`cmd-tier cmd-tier--${cmd.tier.toLowerCase()}`}>{cmd.tier}</p>
           </div>
-          <a href={`/${lang}/commands#${cmd.id}`} class="cmd-detail-link">{t.cmdDetails}</a>
-        </div>
+          <div>
+            <p class="gx-rotulo">{cmd.forLabel}</p>
+            <p class="cmd-desc">{cmd.desc}</p>
+          </div>
+          <div class="cmd-side">
+            <p class="cmd-flags">
+              {cmd.highlights.map((h: string) => <span class="gx-chip">{h}</span>)}
+            </p>
+            {/* A mouse shortcut to the title's own target: the title link is the one read and reached. */}
+            <a class="gx-link cmd-details" href={`/${lang}/commands#${cmd.id}`} aria-hidden="true" tabindex="-1">{t.cmdDetails}</a>
+          </div>
+        </li>
       ))}
-    </div>
+    </ul>
 
-    <div class="cmd-cta">
-      <a href={`/${lang}/commands`} class="btn btn-light">{t.cmdFullRef}</a>
-    </div>
+    <p class="cmd-more">
+      <a class="gx-link" href={`/${lang}/commands`}>{t.cmdFullRef}</a>
+    </p>
   </div>
-</div>
+</section>
 
 <style>
-  .cmd-grid {
+  .commands {
+    padding-top: clamp(64px, 10vw, 136px);
+  }
+  .section-head .gx-rotulo {
+    margin-bottom: var(--s-3);
+  }
+
+  .cmd-list {
+    padding: 0;
+    list-style: none;
+  }
+  .cmd-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1.25rem;
+    gap: var(--s-2) var(--s-6);
+    align-items: baseline;
+    padding-block: var(--s-4);
+    border-top: 1px solid var(--rule-soft);
   }
-
-  .cmd-card {
-    background: var(--bg-card);
-    border-radius: 14px;
-    padding: 1.75rem;
-    border: 1px solid var(--border);
-    transition: all 0.35s var(--ease-out);
+  .cmd-row:last-child {
+    border-bottom: 1px solid var(--rule-soft);
   }
-  .cmd-card:hover {
-    border-color: var(--accent-glow-strong);
-    box-shadow: 0 8px 30px rgba(99, 102, 241, 0.08);
-    transform: translateY(-3px);
+  .cmd-name h3 {
+    font-family: var(--font-display);
+    font-size: var(--fs-d3);
+    font-style: italic;
+    font-weight: 400;
   }
-
   .cmd-tier {
-    display: inline-block;
-    font-size: 0.6rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 0.2rem 0.5rem;
-    border-radius: 4px;
-    margin-bottom: 0.75rem;
-  }
-  .cmd-tier.core {
-    background: var(--accent-glow);
-    color: var(--accent);
-  }
-  .cmd-tier.tool {
-    background: var(--bg-secondary);
-    color: var(--text-muted);
-  }
-
-  .cmd-name {
+    margin-top: var(--s-1);
+    color: var(--ink-4);
     font-family: var(--font-mono);
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.25rem;
+    font-size: var(--fs-label);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
-
-  .cmd-for {
-    font-size: 0.78rem;
-    color: var(--accent);
-    font-weight: 500;
-    margin-bottom: 0.75rem;
+  .cmd-tier--core {
+    color: var(--accent-text);
   }
-
-  .cmd-card p {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    line-height: 1.6;
-    margin-bottom: 1rem;
+  .cmd-desc {
+    max-width: 58ch;
+    margin-top: var(--s-1);
+    color: var(--ink-3);
+    font-size: var(--fs-ui);
   }
-
+  .cmd-side {
+    display: grid;
+    gap: var(--s-2);
+    justify-items: start;
+  }
   .cmd-flags {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-bottom: 0.75rem;
+    gap: var(--s-1) var(--s-2);
+  }
+  .cmd-details {
+    font-size: var(--fs-meta);
+  }
+  .cmd-more {
+    margin-top: var(--s-6);
   }
 
-  .cmd-flag {
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
-    color: var(--text-secondary);
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--bg-secondary);
-  }
-
-  .cmd-detail-link {
-    font-size: 0.78rem;
-    font-weight: 600;
-    color: var(--accent);
-    text-decoration: none;
-  }
-  .cmd-detail-link:hover {
-    color: var(--text-primary);
-  }
-
-  .cmd-cta {
-    text-align: center;
-    margin-top: 2.5rem;
-  }
-
-  /* 10 cards: 2 columns on tablets, 4 from 1024px (4 + 4 + 2), so no card sits alone in the last row */
-  @media (max-width: 1023px) {
-    .cmd-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .cmd-grid {
-      grid-template-columns: repeat(4, 1fr);
-    }
-    .cmd-card {
-      padding: 1.5rem;
-    }
-  }
-
-  @media (max-width: 768px) {
-    .cmd-grid {
-      grid-template-columns: 1fr;
+  @media (min-width: 900px) {
+    .cmd-row {
+      grid-template-columns: 170px minmax(0, 1fr) minmax(0, 290px);
     }
   }
 </style>

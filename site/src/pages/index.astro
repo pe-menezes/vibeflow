@@ -1,18 +1,25 @@
 ---
-// Immediate redirect to default locale — no layout, no visible "redirect" message
+// The root sends every visitor to the default locale: meta refresh and a script, with a plain
+// link for whoever arrives without either. No layout, no literal colour.
+const canonical = new URL('/en/', Astro.site).href;
 ---
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
     <meta http-equiv="refresh" content="0;url=/en/" />
     <title>Vibeflow</title>
+    <link rel="canonical" href={canonical} />
     <script>
       window.location.replace('/en/');
     </script>
   </head>
-  <body style="margin:0;background:#fff;">
-    <a href="/en/" style="position:absolute;left:-9999px;">Go to Vibeflow</a>
+  <body>
+    <main>
+      <h1>Vibeflow</h1>
+      <p><a href="/en/">Go to Vibeflow</a></p>
+    </main>
   </body>
 </html>
