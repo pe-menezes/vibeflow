@@ -7,6 +7,7 @@ import {
   HERO_MAX_AMPLITUDE,
   PIPELINE_GATES,
   activeStep,
+  createFlow,
   createLines,
   flowFront,
   heroGeometry,
@@ -254,3 +255,109 @@ test('the front of the flow never recedes as the progress grows, and passes ever
   for (let n = 0; n < 4; n++) assert.ok(flowFront(n / 4) > PIPELINE_GATES[n], `front at step ${n} has reached gate ${n}`);
   assert.ok(flowFront(1) >= 1, 'at the end the front covers the whole band');
 });
+
+// ---------------------------------------------------------------------------------------------
+// createFlow() against a stand-in canvas, in a browser with or without each observer.
+
+// A browser just big enough for createFlow(): a canvas whose 2d context records the strokes it is
+// asked for, animation frames run when the test says so, and window events.
+function browser({ resizeObserver, intersectionObserver }) {
+  const frames = [];
+  const windowListeners = new Map();
+  const rect = { width: 800, height: 300 };
+  let strokes = 0;
+  const ctx = new Proxy(
+    { fillStyle: '#000000' },
+    {
+      get(target, key) {
+        if (key in target) return target[key];
+        if (key === 'stroke' || key === 'fill') return () => { strokes += 1; };
+        // Any other call; what it returns stands in for a gradient too.
+        return () => ({ addColorStop() {} });
+      },
+      set(target, key, value) {
+        // A canvas normalises a colour it can parse to hex; the stand-in keeps a plain hex.
+        target[key] = key === 'fillStyle' ? '#336699' : value;
+        return true;
+      },
+    },
+  );
+  const shell = { getAttribute: () => null };
+  const canvas = {
+    dataset: { flow: 'pipeline' },
+    width: 0,
+    height: 0,
+    getContext: () => ctx,
+    closest: () => shell,
+    parentElement: null,
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: rect.width, height: rect.height }),
+    addEventListener: () => {},
+  };
+  const media = () => ({ matches: false, addEventListener: () => {} });
+  const globals = {
+    window: {
+      devicePixelRatio: 1,
+      addEventListener: (type, fn) => windowListeners.set(type, [...(windowListeners.get(type) ?? []), fn]),
+    },
+    document: { documentElement: shell },
+    matchMedia: media,
+    getComputedStyle: () => ({ getPropertyValue: () => '#336699' }),
+    requestAnimationFrame: (fn) => frames.push(fn),
+    cancelAnimationFrame: () => {},
+    MutationObserver: class { observe() {} disconnect() {} },
+    ResizeObserver: resizeObserver ? class { observe() {} disconnect() {} } : undefined,
+    IntersectionObserver: intersectionObserver ? class { observe() {} disconnect() {} } : undefined,
+  };
+  const saved = Object.fromEntries(Object.keys(globals).map((k) => [k, Object.getOwnPropertyDescriptor(globalThis, k)]));
+  for (const [k, v] of Object.entries(globals)) {
+    Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+  }
+  return {
+    canvas,
+    rect,
+    get strokes() { return strokes; },
+    // One round of the frames already asked for (a running loop asks for the next one).
+    frame(now = 1000) {
+      frames.splice(0).forEach((fn) => fn(now));
+    },
+    pending: () => frames.length,
+    fire: (type) => (windowListeners.get(type) ?? []).forEach((fn) => fn({ type })),
+    restore() {
+      for (const [k, d] of Object.entries(saved)) {
+        if (d) Object.defineProperty(globalThis, k, d);
+        else delete globalThis[k];
+      }
+    },
+  };
+}
+
+for (const resizeObserver of [true, false]) {
+  for (const intersectionObserver of [true, false]) {
+    const name = `ResizeObserver ${resizeObserver ? 'present' : 'absent'}, IntersectionObserver ${intersectionObserver ? 'present' : 'absent'}`;
+    test(`createFlow: ${name}: nothing throws, the flow draws, goTo() still works, a resize measures again`, () => {
+      const b = browser({ resizeObserver, intersectionObserver });
+      try {
+        let flow;
+        assert.doesNotThrow(() => { flow = createFlow(b.canvas); }, 'createFlow throws');
+        assert.equal(typeof flow?.goTo, 'function', 'createFlow returns goTo()');
+        assert.equal(b.canvas.width, 800, 'the canvas is measured at once');
+        b.frame();
+        const drawn = b.strokes;
+        assert.ok(drawn > 0, 'the flow draws');
+        // goTo() wakes the loop and the next frame draws again.
+        b.frame(1100);
+        flow.goTo(0.9);
+        assert.ok(b.pending() > 0, 'goTo() asks for a frame');
+        b.frame(1200);
+        assert.ok(b.strokes > drawn, 'the frame after goTo() draws');
+        // The canvas grows: the observer or the window resize measures it again.
+        // The stand-in observer never delivers, so only the case without it is measured here.
+        b.rect.width = 1000;
+        b.fire('resize');
+        if (!resizeObserver) assert.equal(b.canvas.width, 1000, 'without ResizeObserver the window resize measures again');
+      } finally {
+        b.restore();
+      }
+    });
+  }
+}

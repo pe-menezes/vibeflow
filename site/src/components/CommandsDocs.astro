@@ -271,9 +271,17 @@ const commands = [
   // ever reach the top still come up one by one, in order, and the last one is current at the very
   // bottom. A jump from the index marks the entry jumped to, wherever the page end stops the scroll,
   // and the mark stays until the reader scrolls on.
+  // A hash that does not decode (such as `#%`) names no entry: it reads as a hash without a target.
+  const targetOf = (hash: string) => {
+    try {
+      return decodeURIComponent(hash.slice(1));
+    } catch {
+      return '';
+    }
+  };
   document.querySelectorAll<HTMLElement>('[data-doc-toc]').forEach((toc) => {
     const links = new Map<string, HTMLAnchorElement>();
-    toc.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((a) => links.set(decodeURIComponent(a.hash.slice(1)), a));
+    toc.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((a) => links.set(targetOf(a.hash), a));
     const targets = [...links.keys()]
       .map((id) => document.getElementById(id))
       .filter((el): el is HTMLElement => el !== null);
@@ -355,7 +363,7 @@ const commands = [
         if (link === a) jump(id);
       });
     });
-    window.addEventListener('hashchange', () => jump(decodeURIComponent(window.location.hash.slice(1))));
+    window.addEventListener('hashchange', () => jump(targetOf(window.location.hash)));
     window.addEventListener('wheel', letGo, { passive: true });
     window.addEventListener('touchstart', letGo, { passive: true });
     window.addEventListener('keydown', (e) => {
@@ -364,7 +372,7 @@ const commands = [
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
 
-    const landed = decodeURIComponent(window.location.hash.slice(1));
+    const landed = targetOf(window.location.hash);
     if (links.has(landed)) jump(landed);
     else update();
   });

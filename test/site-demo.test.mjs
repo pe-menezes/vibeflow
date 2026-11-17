@@ -346,7 +346,7 @@ test('demo: what has not arrived reads weaker than what has, in both themes, and
       const dimmed = contrast(over(resolveColor(dimmedInk, tokens), paper, opacity), paper);
       t.diagnostic(`${theme} · ${item}: arrived ${arrived.toFixed(2)}:1, dimmed ${dimmed.toFixed(2)}:1`);
       assert.ok(dimmed < arrived, `${theme} · ${item}: dimmed ${dimmed.toFixed(2)} reads lower than arrived ${arrived.toFixed(2)}`);
-      assert.ok(dimmed >= 1.8, `${theme} · ${item}: dimmed ${dimmed.toFixed(2)} stays at 1.8:1 or more`);
+      assert.ok(dimmed >= 3, `${theme} · ${item}: dimmed ${dimmed.toFixed(2)} stays at 3:1 or more`);
     }
   }
 });

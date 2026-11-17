@@ -46,7 +46,7 @@ test('every CSS variable the site reads is defined: design system, global.css or
     const rel = relative(ROOT, f);
     if (rel.startsWith('site/src/styles/')) for (const name of defined(readFileSync(f, 'utf8'))) shared.add(name);
   }
-  assert.ok(shared.has('--ink') && shared.has('--accent') && shared.has('--bg-primary'), 'tokens and aliases are found where they live');
+  assert.ok(shared.has('--ink') && shared.has('--accent') && shared.has('--section-gap'), 'tokens and site variables are found where they live');
   const missing = [];
   for (const f of files) {
     const rel = relative(ROOT, f);

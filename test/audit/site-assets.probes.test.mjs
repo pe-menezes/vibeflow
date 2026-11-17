@@ -68,7 +68,7 @@ slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise
 whitesmoke yellow yellowgreen currentcolor`.split(/\s+/);
 
 // Contract: no literal colour in the HTML the script screenshots; every colour comes from a token
-// read from the design system CSS (executor briefing, "nada de cor literal"; auditor briefing).
+// read from the design system CSS (executor briefing, "no literal colour" rule; auditor briefing).
 // Built with a palette of sentinel values, the HTML of every asset, once those values are taken
 // out, carries no colour at all: no hex, no colour function, no named colour.
 // Breaks when: someone writes `color: #5A5A55` (today's --ink-3) or `color: red` or an hsl()/oklch()
@@ -125,7 +125,7 @@ test('every visible word of the share image comes from the locale keys, the bran
 
 // Contract: past the gate the lines of the share image run parallel to the right edge of the
 // image, and they are the lines of flow.js in the still frame the hero draws (seed 7, time zero),
-// not a geometry redone in the script (executor briefing, "Regras de desenho"; auditor briefing).
+// not a geometry redone in the script (executor briefing, drawing rules section; auditor briefing).
 // The oracle is flow.js itself: each path of the band's SVG follows lineY() for its line, spans
 // the whole image width, and is flat and evenly spaced from the end of the hero ramp on.
 // Breaks when: the band SVG is drawn with `flowLines(width - 4, ...)` (the prototype stopped the

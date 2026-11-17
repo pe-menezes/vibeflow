@@ -285,8 +285,15 @@ export function createFlow(canvas) {
 
   readColors();
   measure();
-  new ResizeObserver(() => { measure(); wake(); }).observe(canvas);
-  new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) wake(); }).observe(canvas);
+  // Each observer is an improvement where the browser has it, never a requirement: without
+  // ResizeObserver the window resize measures again, and without IntersectionObserver the flow
+  // counts as always visible.
+  const remeasure = () => { measure(); wake(); };
+  if (typeof ResizeObserver === 'function') new ResizeObserver(remeasure).observe(canvas);
+  else window.addEventListener('resize', remeasure);
+  if (typeof IntersectionObserver === 'function') {
+    new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) wake(); }).observe(canvas);
+  }
   const recolor = () => { readColors(); wake(); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', recolor);
   new MutationObserver(recolor).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });

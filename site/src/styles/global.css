@@ -89,49 +89,10 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* === Aliases for the sections not migrated yet ===
-   The names the other components still read, each pointing at a token. They are declared on the
-   body, where the violet accent scope lives, so --accent resolves to violet. They leave when the
-   last component that reads them is migrated. */
+/* === Site variables ===
+   Measures of this site that the design system has no token for. */
 body {
-  --bg-primary: var(--bg);
-  --bg-secondary: var(--bg-alt);
-  --bg-card: var(--bg);
-  --bg-card-hover: var(--bg-hover-row);
-  --bg-code: var(--bg-deep);
-  --bg-header: transparent;
-  --bg-header-glass: color-mix(in srgb, var(--bg) 82%, transparent);
-
-  --text-primary: var(--ink);
-  --text-secondary: var(--ink-3);
-  --text-muted: var(--ink-4);
-
-  --accent-light: color-mix(in srgb, var(--accent) 72%, var(--bg));
-  --accent-dark: var(--accent-edge);
-  --accent-glow: color-mix(in srgb, var(--accent) 10%, transparent);
-  --accent-glow-strong: color-mix(in srgb, var(--accent) 18%, transparent);
-  --accent-gradient: linear-gradient(135deg, var(--accent), var(--accent-light));
-
-  --success: var(--pos);
-  --success-light: var(--pos);
-  --danger: var(--neg);
-  --danger-light: var(--neg);
-  --warning: var(--acid-text);
-  --warning-light: var(--acid-text);
-
-  --border: var(--rule-soft);
-  --border-light: var(--rule-soft);
-  --border-accent: color-mix(in srgb, var(--accent) 12%, transparent);
-
-  --radius-sm: var(--r-1);
-  --radius-md: var(--r-2);
-  --radius-lg: var(--r-3);
-  --radius-xl: var(--r-4);
-  --radius-full: var(--r-full);
-
-  --font-sans: var(--font-body);
-
-  --max-width: var(--w-page);
+  /* The vertical padding of a section; narrower under 768px, below. */
   --section-gap: 2rem;
 }
 

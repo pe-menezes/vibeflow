@@ -28,10 +28,12 @@ const ptUrl = new URL(`/pt-br${pagePath}`, site);
     <meta name="description" content={description} />
     <meta name="color-scheme" content="light dark" />
 
-    <!-- Before the first paint: the saved theme (either way) and whether motion is allowed. -->
+    <!-- Before the first paint: the saved theme (either way), whether motion is allowed, and that
+         scripts run (the js class), so what only a script can open starts closed without a flash. -->
     <script is:inline>
       (function () {
         var html = document.documentElement;
+        html.classList.add('js');
         try {
           var saved = localStorage.getItem('theme');
           if (saved === 'light' || saved === 'dark') html.dataset.theme = saved;

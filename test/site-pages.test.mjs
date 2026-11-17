@@ -306,9 +306,9 @@ function indexScriptOf(file) {
   return nodeModule.stripTypeScriptTypes(scriptOf(read(file)), { mode: 'strip' });
 }
 
-function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 24 }) {
+function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 24, names, hash = '' }) {
   let y = 0;
-  const ids = heights.map((_, i) => `entry-${i}`);
+  const ids = names ?? heights.map((_, i) => `entry-${i}`);
   let top = head;
   const entries = heights.map((h, i) => {
     const e = { id: ids[i], pageTop: top, height: h };
@@ -341,12 +341,13 @@ function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 2
     ]),
   );
   const links = ids.map((id) => {
-    const a = withAttrs({ hash: `#${id}` });
+    // A browser serialises a link's hash percent-encoded.
+    const a = withAttrs({ hash: `#${encodeURIComponent(id)}` });
     a.closest = (sel) => (/\ba\b/.test(sel) ? a : null);
     return a;
   });
   const toc = withAttrs({ querySelectorAll: (sel) => (/\ba\b/.test(sel) ? links : []) });
-  const location = { hash: '' };
+  const location = { hash };
   // An IntersectionObserver that honours the rootMargin it is given, for a script that uses one.
   const observers = [];
   class IntersectionObserver {
@@ -465,11 +466,18 @@ function pageModel(code, { heights, viewport, head = 420, foot = 160, margin = 2
       if (changed && from === to) fire('hashchange', { type: 'hashchange' });
       if (rest) idle();
     },
+    // The address bar changes to `to` (taken as typed, malformed or not) and the page hears it.
+    setHash(to) {
+      location.hash = to;
+      fire('hashchange', { type: 'hashchange' });
+      runFrames();
+      idle();
+    },
     current() {
       const marked = links.filter((a) => a.getAttribute('aria-current') !== null);
       assert.ok(marked.length <= 1, `more than one current link: ${marked.map((a) => a.hash)}`);
       if (marked.length) assert.equal(marked[0].getAttribute('aria-current'), 'location');
-      return marked.length ? marked[0].hash.slice(1) : null;
+      return marked.length ? ids[links.indexOf(marked[0])] : null;
     },
   };
 }
@@ -517,6 +525,46 @@ for (const file of [COMMANDS, ANATOMY]) {
       if (up.join() !== [...p.ids].reverse().join()) failures.push(`${label(layout)}: going up marks ${up.join(' > ')}`);
     }
     assert.deepEqual(failures.slice(0, 10), [], `${failures.length} failures over ${LAYOUTS.length} layouts`);
+  });
+
+  test(`${name}: any address hash, malformed included, never throws; one that does not decode is a hash without a target`, () => {
+    const code = indexScriptOf(file);
+    const names = ['intro', 'ação', 'entry-2'];
+    const layout = { heights: [600, 600, 600], viewport: 900, names };
+    // What the page marks with no hash at all: the entry at the top.
+    const plain = pageModel(code, layout).current();
+    const HASHES = [
+      { hash: '', want: plain },
+      { hash: '#', want: plain },
+      { hash: '#entry-2', want: 'entry-2' },
+      { hash: '#missing', want: plain },
+      { hash: '#%', want: plain },
+      { hash: '#%E0%A4%A', want: plain },
+      { hash: `#${encodeURIComponent('ação')}`, want: 'ação' },
+    ];
+    const failures = [];
+    for (const { hash, want } of HASHES) {
+      let p;
+      try {
+        p = pageModel(code, { ...layout, hash });
+      } catch (e) {
+        failures.push(`landing on ${JSON.stringify(hash)} throws ${e.name}`);
+        continue;
+      }
+      if (p.current() !== want) failures.push(`landing on ${JSON.stringify(hash)} marks ${p.current()}, not ${want}`);
+      // The same hash arriving later, after a jump elsewhere: the mark follows reading when it has no target.
+      p.jump('entry-2');
+      p.hand('wheel', -1, 20);
+      try {
+        p.setHash(hash);
+      } catch (e) {
+        failures.push(`hashchange to ${JSON.stringify(hash)} throws ${e.name}`);
+        continue;
+      }
+      const after = names.includes(want) && want !== plain ? want : plain;
+      if (p.current() !== after) failures.push(`hashchange to ${JSON.stringify(hash)} marks ${p.current()}, not ${after}`);
+    }
+    assert.deepEqual(failures, []);
   });
 
   test(`${name}: a jump from the index marks the entry jumped to, from the top and from the end`, () => {

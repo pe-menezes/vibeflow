@@ -41,7 +41,7 @@ const github = 'https://github.com/pe-menezes/vibeflow';
     </div>
   </div>
 
-  <nav class="mobile-menu container" id="mobile-menu" hidden>
+  <nav class="mobile-menu container" id="mobile-menu">
     <a href={`/${lang}/#how`}>{t.navHow}</a>
     <a href={`/${lang}/commands`}>{t.navCommands}</a>
     <a href={`/${lang}/anatomy`}>{t.navAnatomy}</a>
@@ -69,15 +69,16 @@ const github = 'https://github.com/pe-menezes/vibeflow';
     });
   });
 
-  // Mobile menu
+  // Phone menu: it ships open for a page without scripts; under html.js it is closed until the
+  // button opens it (data-open).
   const hamburger = document.getElementById('hamburger');
   const mobileMenu = document.getElementById('mobile-menu');
   if (hamburger && mobileMenu) {
     const setOpen = (open: boolean) => {
       hamburger.setAttribute('aria-expanded', String(open));
-      mobileMenu.hidden = !open;
+      mobileMenu.toggleAttribute('data-open', open);
     };
-    hamburger.addEventListener('click', () => setOpen(mobileMenu.hidden));
+    hamburger.addEventListener('click', () => setOpen(!mobileMenu.hasAttribute('data-open')));
     mobileMenu.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => setOpen(false)));
   }
 </script>
@@ -178,15 +179,13 @@ const github = 'https://github.com/pe-menezes/vibeflow';
     background: currentColor;
   }
 
+  /* The phone menu shows only on a narrow screen (below). */
   .mobile-menu {
-    display: flex;
+    display: none;
     flex-direction: column;
     gap: var(--s-3);
     padding-bottom: var(--s-5);
     border-bottom: 1px solid var(--rule-soft);
-  }
-  .mobile-menu[hidden] {
-    display: none;
   }
   .mobile-menu a:not(.gx-btn) {
     padding-block: var(--s-1);
@@ -199,11 +198,20 @@ const github = 'https://github.com/pe-menezes/vibeflow';
     display: none;
   }
 
+  /* Narrow screen: without scripts the phone menu stays open under the header, and the menu button,
+     which only a script can work, stays out of view; with scripts (html.js, set before the first
+     paint) the menu is closed until the button opens it. */
   @media (max-width: 859px) {
     .desktop-only {
       display: none;
     }
-    .mobile-only {
+    .mobile-menu {
+      display: flex;
+    }
+    :global(html.js) .mobile-menu:not([data-open]) {
+      display: none;
+    }
+    :global(html.js) .mobile-only {
       display: inline-flex;
     }
   }

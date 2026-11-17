@@ -32,7 +32,7 @@ function home(lang, ids = {}) {
   const analyze = ids.analyze ?? 'analyze';
   return `<!doctype html><html lang="${lang}">${head(`${lang}/`)}<body>` +
     `<header><a href="/${lang}/#${how}">How</a><a href="/${lang}/commands">Commands</a><a href="/${lang}/anatomy">Anatomy</a></header>` +
-    `<nav class="mobile-menu" id="mobile-menu" hidden><a href="/${lang}/#${how}">How</a></nav>` +
+    `<nav class="mobile-menu" id="mobile-menu"><a href="/${lang}/#${how}">How</a></nav>` +
     `<section class="hero"><h1>Title</h1><p class="hero-sub">Subtitle</p></section>` +
     `<div class="section" id="${how}"><ul><li class="card">Item</li></ul>` +
     `<a href="#${how}">Here</a><a href="/${lang}/commands#${analyze}">Analyze</a></div>` +
@@ -164,6 +164,102 @@ test('the hidden attribute is allowed only on the listed elements a script shows
   assert.ok(named(checkPages(pages), 'en/', /at rest/));
 });
 
+// ---------- the header navigation on a narrow screen without JavaScript ----------
+
+test('the phone menu back to what it was, hidden in the markup, fails the check', () => {
+  for (const page of ['en/', 'pt-br/']) {
+    const pages = site();
+    pages[page] = pages[page].replace('id="mobile-menu"', 'id="mobile-menu" hidden');
+    assert.ok(named(checkPages(pages), page, /mobile-menu.*hidden attribute at rest/), page);
+  }
+});
+
+// The display of an element of the header, from the header's own rules, on a narrow or wide
+// screen, with or without the class the head script adds before the first paint, menu open or not.
+// Rules apply in source order; the ones this header writes never rely on specificity to win.
+function headerRules() {
+  const style = /<style>([\s\S]*?)<\/style>/.exec(read('site/src/components/Header.astro'))[1].replace(/\/\*[\s\S]*?\*\//g, '');
+  const rules = [];
+  const stack = [];
+  let buf = '';
+  for (const ch of style) {
+    if (ch === '{') {
+      stack.push(buf.trim());
+      buf = '';
+    } else if (ch === '}') {
+      const selector = stack.pop();
+      if (buf.trim()) rules.push({ selector, body: buf.trim(), at: [...stack] });
+      buf = '';
+    } else buf += ch;
+  }
+  return rules;
+}
+function displayOf(classes, { narrow, js, open }) {
+  let display = null;
+  for (const { selector, body, at } of headerRules()) {
+    if (at.some((a) => a !== '@media (max-width: 859px)')) continue;
+    if (at.length && !narrow) continue;
+    const value = /(?:^|;)\s*display\s*:\s*([^;]+)/.exec(body)?.[1]?.trim();
+    if (!value) continue;
+    for (const raw of selector.split(',').map((s) => s.trim())) {
+      let part = raw.replace(/:global\(([^()]*(?:\([^()]*\))?[^()]*)\)/g, '$1');
+      if (part.startsWith('html.js ')) {
+        if (!js) continue;
+        part = part.slice('html.js '.length);
+      }
+      if (part.endsWith(':not([data-open])')) {
+        if (open) continue;
+        part = part.slice(0, -':not([data-open])'.length);
+      }
+      if (classes.includes(part)) display = value;
+    }
+  }
+  return display;
+}
+const MENU = ['.mobile-menu'];
+const BUTTON = ['.hamburger', '.mobile-only'];
+const WIDE_NAV = ['.nav', '.desktop-only'];
+
+test('narrow screen without JavaScript: the phone menu is in view and the menu button, which needs a script, is not', () => {
+  assert.notEqual(displayOf(MENU, { narrow: true, js: false, open: false }) ?? 'block', 'none');
+  assert.equal(displayOf(BUTTON, { narrow: true, js: false, open: false }), 'none');
+  assert.equal(displayOf(WIDE_NAV, { narrow: true, js: false, open: false }), 'none');
+});
+
+test('narrow screen with JavaScript: the menu is closed at load, the button shows, and opening shows the menu', () => {
+  assert.equal(displayOf(MENU, { narrow: true, js: true, open: false }), 'none');
+  assert.notEqual(displayOf(BUTTON, { narrow: true, js: true, open: false }) ?? 'none', 'none');
+  assert.notEqual(displayOf(MENU, { narrow: true, js: true, open: true }) ?? 'block', 'none');
+});
+
+test('wide screen: the wide navigation shows and the phone menu does not, with or without JavaScript', () => {
+  for (const js of [false, true]) {
+    for (const open of [false, true]) {
+      assert.equal(displayOf(MENU, { narrow: false, js, open }), 'none', `js ${js}, open ${open}`);
+      assert.notEqual(displayOf(WIDE_NAV, { narrow: false, js, open }) ?? 'block', 'none');
+      assert.equal(displayOf(BUTTON, { narrow: false, js, open }), 'none');
+    }
+  }
+});
+
+test('the phone menu ships open in the markup with the four links, and the class that closes it is set before the first paint', () => {
+  const header = read('site/src/components/Header.astro');
+  const menu = /<nav class="mobile-menu[^"]*" id="mobile-menu"([^>]*)>([\s\S]*?)<\/nav>/.exec(header);
+  assert.ok(menu, 'the phone menu is in the header');
+  assert.ok(!/\shidden\b/.test(menu[1]), 'the phone menu has no hidden attribute');
+  for (const key of ['navHow', 'navCommands', 'navAnatomy', 'navInstall']) assert.ok(menu[2].includes(`{t.${key}}`), key);
+  // The script toggles data-open, never the hidden attribute.
+  const script = /<script>([\s\S]*?)<\/script>/.exec(header)[1];
+  assert.ok(/toggleAttribute\('data-open'/.test(script), 'the menu button toggles data-open');
+  assert.ok(!/\.hidden\s*=/.test(script), 'the script does not set hidden');
+  const inline = /<script is:inline>([\s\S]*?)<\/script>/.exec(read('site/src/layouts/Layout.astro'))[1];
+  assert.ok(/classList\.add\('js'\)/.test(inline), 'the head script marks the page as running JavaScript');
+});
+
+test('check-build no longer lists the phone menu among the elements shown later', () => {
+  assert.ok(!/'mobile-menu'\s*:/.test(read('site/scripts/check-build.mjs')));
+});
+
 // ---------- item 2: exactly one h1 per page ----------
 
 for (const page of ['en/', 'en/commands/', 'pt-br/anatomy/', '']) {
@@ -195,6 +291,39 @@ test('a pseudo-element with text, or a real element, at opacity 0 until hover st
   assert.ok(checkCss('.copy::after{content:"Copied";opacity:0}.copy:hover::after{opacity:1}', 'x.css').some((p) => /at rest/.test(p)));
   assert.ok(checkCss('.copy span{opacity:0}.copy:hover span{opacity:1}', 'x.css').some((p) => /at rest/.test(p)));
   assert.ok(checkCss('.copy::after{content:"";opacity:0}', 'x.css').some((p) => /at rest/.test(p)), 'never shown');
+});
+
+// Each selector of a list is judged on its own: a rule fails when any selector that hides text sits
+// outside the motion gate, whatever the other selectors of the list are.
+const GATE_SELECTORS = { gated: 'html.motion-ok .lede', 'gated by play': '.gx-tocando .lede', open: '.hero' };
+const HIDES = {
+  'opacity 0': '{opacity:0}',
+  'opacity 0%': '{opacity:0%}',
+  'visibility hidden': '{visibility:hidden}',
+  'visibility collapse': '{visibility:collapse}',
+  'a keyframe that starts hidden': '{animation:rise .4s both}',
+};
+const KEYFRAMES = '@keyframes rise{from{opacity:0}to{opacity:1}}';
+
+test('a selector list passes only when every selector that hides sits under the gate', () => {
+  const names = Object.keys(GATE_SELECTORS);
+  const lists = names.flatMap((a) => names.flatMap((b) => [[a], [a, b], [b, a, a]]));
+  const failures = [];
+  for (const list of lists) {
+    for (const [how, decl] of Object.entries(HIDES)) {
+      const selector = list.map((n) => GATE_SELECTORS[n]).join(', ');
+      const css = `${KEYFRAMES}${selector}${decl}`;
+      const flagged = checkCss(css, 'x.css').length > 0;
+      const shouldFlag = list.includes('open');
+      if (flagged !== shouldFlag) failures.push(`${selector} ${how}: ${flagged ? 'fails' : 'passes'}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('a comma inside a selector function does not split the list', () => {
+  assert.deepEqual(checkCss('html.motion-ok :is(.a, .b){opacity:0}', 'x.css'), []);
+  assert.ok(checkCss(':is(.a, .b), html.motion-ok .c{opacity:0}', 'x.css').length > 0);
 });
 
 test('a translated id on an inner page is not a difference in structure', () => {

@@ -221,9 +221,10 @@ const mix = (fg, bg, alpha) => fg.map((c, i) => alpha * c + (1 - alpha) * bg[i])
 // Contract: while the sheet is live and the verdict has not arrived, the verdict chip is unfilled and
 // its text stays readable on the card in both themes: the chip's own ink, under the opacity the
 // sheet gives to what has not arrived, against the card (or against the chip's fill if it gets one,
-// under the same opacity), reads at 1.8:1 or more, the floor the orchestrator set for the dimmed sheet.
-// Breaks when: the chip's dimmed ink goes back to --ink-5, the dim ink of before the fix: under the
-// 0.45 opacity it reads 1.33:1 on the white card, or the opacity drops so far that the chip fades out.
+// under the same opacity), reads at 3:1 or more, the floor the orchestrator set for the dimmed sheet.
+// Breaks when: the chip's dimmed ink goes back to --ink-5, the dim ink of before the fix (it read
+// 1.33:1 on the white card under the former 0.45 opacity), or the opacity drops so far that the chip
+// fades out.
 // Not covered by: test/site-demo.test.mjs measures fields, checks, files and the verdict sentence,
 // but not the chip, and its no-colour rule skips the chip rule, so any chip ink passes there.
 test('demo sheet: the verdict chip stays readable before the verdict, in both themes', (t) => {
@@ -249,7 +250,7 @@ test('demo sheet: the verdict chip stays readable before the verdict, in both th
     const text = mix(rgb(ink, theme), card, opacity);
     const r = ratio(text, under);
     t.diagnostic(`${name}: chip before the verdict ${r.toFixed(2)}:1`);
-    assert.ok(r >= 1.8, `${name}: the chip before the verdict reads ${r.toFixed(2)}:1, under 1.8:1 (ink ${ink}, opacity ${opacity})`);
+    assert.ok(r >= 3, `${name}: the chip before the verdict reads ${r.toFixed(2)}:1, under 3:1 (ink ${ink}, opacity ${opacity})`);
   }
 });
 

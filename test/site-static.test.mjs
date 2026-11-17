@@ -104,6 +104,70 @@ test('global.css has no literal colour', () => {
   assert.equal(found, null, `literal colours: ${found}`);
 });
 
+// The alias block that bridged the old variable names to tokens is gone with the last section that
+// read it; --section-gap, a measure of the site and not an alias, stays with the same values.
+const ALIASES = [
+  '--bg-primary', '--bg-secondary', '--bg-card', '--bg-card-hover', '--bg-code', '--bg-header', '--bg-header-glass',
+  '--text-primary', '--text-secondary', '--text-muted',
+  '--accent-light', '--accent-dark', '--accent-glow', '--accent-glow-strong', '--accent-gradient',
+  '--success', '--success-light', '--danger', '--danger-light', '--warning', '--warning-light',
+  '--border', '--border-light', '--border-accent',
+  '--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-full',
+  '--font-sans', '--max-width',
+];
+
+// Every custom property declaration of a stylesheet, with the at-rules it sits in.
+function declarations(css) {
+  const out = [];
+  const stack = [];
+  let start = 0;
+  for (let i = 0; i < css.length; i++) {
+    const ch = css[i];
+    if (ch === '{') {
+      stack.push(css.slice(start, i).trim().replace(/\s+/g, ' '));
+      start = i + 1;
+    } else if (ch === '}' || ch === ';') {
+      const m = /^\s*(--[\w-]+)\s*:\s*([^;]*?)\s*$/.exec(css.slice(start, i));
+      if (m) out.push({ name: m[1], value: m[2], at: stack.filter((p) => p.startsWith('@')) });
+      if (ch === '}') stack.pop();
+      start = i + 1;
+    }
+  }
+  return out;
+}
+
+test('global.css: the alias block is gone, and no file under site/src reads an alias', () => {
+  const strip = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '');
+  const tokens = new Set();
+  for (const file of walk(join(site, 'src', 'styles', 'genius'))) {
+    for (const d of declarations(strip(readFileSync(file, 'utf8')))) tokens.add(d.name);
+  }
+  // A name the design system declares itself is a token, not an alias.
+  const aliases = ALIASES.filter((name) => !tokens.has(name));
+  const declared = declarations(strip(read('site/src/styles/global.css'))).map((d) => d.name);
+  assert.deepEqual(aliases.filter((name) => declared.includes(name)), [], 'global.css still declares aliases');
+  const reads = [];
+  for (const file of walk(join(site, 'src'))) {
+    if (!/\.(astro|css|js|ts|mjs)$/.test(file)) continue;
+    const rel = relative(root, file);
+    if (rel.includes('/genius/')) continue;
+    for (const m of strip(readFileSync(file, 'utf8')).matchAll(/var\(\s*(--[\w-]+)/g)) {
+      if (aliases.includes(m[1])) reads.push(`${rel}: var(${m[1]})`);
+    }
+  }
+  assert.deepEqual(reads, []);
+});
+
+test('global.css: --section-gap keeps its values, 2rem wide and 1.25rem under 768px', () => {
+  const css = read('site/src/styles/global.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const gaps = declarations(css).filter((d) => d.name === '--section-gap');
+  const wide = gaps.filter((d) => d.at.length === 0).map((d) => d.value);
+  const narrow = gaps.filter((d) => d.at.join() === '@media (max-width: 768px)').map((d) => d.value);
+  assert.deepEqual(wide, ['2rem']);
+  assert.deepEqual(narrow, ['1.25rem']);
+  assert.equal(gaps.length, 2, `--section-gap declared ${gaps.length} times`);
+});
+
 // Runs the inline theme script of the layout against a fake document.
 function runThemeScript(saved, reduceMotion) {
   const layout = read('site/src/layouts/Layout.astro');

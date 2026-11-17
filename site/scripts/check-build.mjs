@@ -29,8 +29,9 @@ const BANNED = ['vibeflow.dev', 'vibeflow-two.vercel.app', 'fonts.googleapis.com
 // Classes a script adds only when motion is allowed or a piece is played; CSS under them may hide.
 const GATES = ['.motion-ok', '.gx-tocando'];
 // Elements that carry the hidden attribute in the HTML because a script shows them later, by id.
+// The phone menu is not one: it ships open, so the navigation works without a script, and only a
+// page running JavaScript closes it, by a class the head script sets before the first paint.
 const SHOWN_LATER = {
-  'mobile-menu': 'the phone menu, opened by the menu button in the header',
   'form-success': 'the contact form success message, shown after the form is sent',
 };
 
@@ -74,6 +75,25 @@ const hidesVisibility = (body) => /(^|;)\s*visibility\s*:\s*(hidden|collapse)/.t
 const hidesDisplay = (body) => /(^|;)\s*display\s*:\s*none/.test(body);
 const gated = (selector) => GATES.some((g) => selector.includes(g));
 
+// The selectors of a list, split on the commas outside parentheses, so `:is(.a, .b)` stays whole.
+function selectorList(selector) {
+  const parts = [];
+  let depth = 0;
+  let buf = '';
+  for (const ch of selector) {
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) {
+      parts.push(buf.trim());
+      buf = '';
+    } else {
+      buf += ch;
+    }
+  }
+  parts.push(buf.trim());
+  return parts.filter(Boolean);
+}
+
 // A length far enough to put text off screen: a negative value of at least 100vw, 100vh, 100%,
 // 1000px or 50em/rem.
 function offScreen(value) {
@@ -110,7 +130,7 @@ export function checkCss(css, where) {
     const frames = stack.find((s) => /^@(-webkit-)?keyframes\s/.test(s));
     if (frames && hidesOpacity(body)) hidingKeyframes.add(frames.split(/\s+/)[1]);
     if (frames) return;
-    for (const part of selector.split(',').map((s) => s.trim())) {
+    for (const part of selectorList(selector)) {
       if (!PSEUDO.test(part)) continue;
       const content = /(?:^|;)\s*content\s*:\s*([^;]+)/.exec(body)?.[1];
       const base = part.replace(SHOWN_ON, '');
@@ -122,17 +142,19 @@ export function checkCss(css, where) {
     }
   });
   // A decorative pseudo-element (no text) that a hover or focus rule shows is not hidden content.
-  const decorativeShownLater = (selector) =>
-    selector.split(',').map((s) => s.trim()).every((part) => PSEUDO.test(part) && !drawsText(contents.get(part)) && shownOnHover.has(part));
+  const decorativeShownLater = (part) => PSEUDO.test(part) && !drawsText(contents.get(part)) && shownOnHover.has(part);
   walkCss(css, (selector, body, stack) => {
     if (stack.some((s) => /^@(-webkit-)?keyframes\s/.test(s))) return;
     if (/\.(fade-in|reveal)\b/.test(selector)) found.push(`${where}: rule for ${selector}`);
-    if (gated(selector)) return;
-    if (hidesOpacity(body) && !decorativeShownLater(selector)) found.push(`${where}: ${selector} sets opacity 0 at rest`);
-    if (hidesVisibility(body)) found.push(`${where}: ${selector} sets visibility hidden at rest`);
-    for (const m of body.matchAll(/animation(-name)?\s*:\s*([^;]+)/g)) {
-      for (const name of hidingKeyframes) {
-        if (new RegExp(`(^|[\\s,])${name}([\\s,]|$)`).test(m[2])) found.push(`${where}: ${selector} runs ${name}, which starts hidden, without a motion gate`);
+    // Each selector of a list is judged on its own: one under the gate does not excuse the others.
+    for (const part of selectorList(selector)) {
+      if (gated(part)) continue;
+      if (hidesOpacity(body) && !decorativeShownLater(part)) found.push(`${where}: ${part} sets opacity 0 at rest`);
+      if (hidesVisibility(body)) found.push(`${where}: ${part} sets visibility hidden at rest`);
+      for (const m of body.matchAll(/animation(-name)?\s*:\s*([^;]+)/g)) {
+        for (const name of hidingKeyframes) {
+          if (new RegExp(`(^|[\\s,])${name}([\\s,]|$)`).test(m[2])) found.push(`${where}: ${part} runs ${name}, which starts hidden, without a motion gate`);
+        }
       }
     }
   });
