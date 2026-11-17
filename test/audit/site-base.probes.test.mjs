@@ -25,13 +25,14 @@ function walk(dir) {
   return out;
 }
 
-// Contract: the sections not migrated yet keep reading the old variable names as aliases of
-// design-system tokens (spec, part 1), and the flow canvas reads its colours from tokens by name.
+// Contract: every section reads design-system tokens or the site's own variables (--section-gap)
+// by name, with no alias left in between (spec, parts 1 and 3), and the flow canvas reads its
+// colours from tokens by name.
 // A var() whose name is defined nowhere makes the element lose its colour or size in silence.
 // Every var(--x) used under site/src without a fallback is defined in the copied design system,
 // in global.css or in the file that uses it; every token the scripts read by getPropertyValue is
 // defined in the design system or in global.css.
-// Breaks when: the alias cleanup of part 3 removes an alias a component still reads, a component
+// Breaks when: a variable leaves global.css while a component still reads it, a component
 // is migrated with a misspelt token (--ink-6, --accent-txt), or a design-system update renames a
 // token the canvas reads (--ink-4), which leaves the canvas with a stale colour.
 // Not covered by: site-static checks that global.css has no literal colour and that the copied
