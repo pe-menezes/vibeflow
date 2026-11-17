@@ -151,9 +151,12 @@ test('the favicon is the new mark, the same path as the header logo', () => {
   assert.ok(favicon.includes(d[1]), 'the favicon draws the same path');
 });
 
-test('the build runs the HTML check after astro build', () => {
+test('the build runs the HTML checks after astro build', () => {
   const pkg = JSON.parse(read('site/package.json'));
-  assert.equal(pkg.scripts.build, 'astro build && node scripts/check-build.mjs');
+  assert.equal(
+    pkg.scripts.build,
+    'astro build && node scripts/check-build.mjs && node scripts/check-pipeline.mjs && node scripts/check-home.mjs && node scripts/check-pages.mjs',
+  );
   assert.ok(existsSync(join(site, 'scripts', 'check-build.mjs')));
 });
 

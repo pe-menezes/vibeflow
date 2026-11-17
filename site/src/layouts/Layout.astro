@@ -14,6 +14,10 @@ const { title, description, lang } = Astro.props;
 const site = Astro.site!;
 const canonicalUrl = new URL(Astro.url.pathname, site);
 const ogImage = new URL('/og-image.png', site);
+// The same page in each language: /en/commands/ and /pt-br/commands/; x-default is the English one.
+const pagePath = Astro.url.pathname.replace(/^\/(en|pt-br)(\/|$)/, '/');
+const enUrl = new URL(`/en${pagePath}`, site);
+const ptUrl = new URL(`/pt-br${pagePath}`, site);
 ---
 
 <!doctype html>
@@ -63,8 +67,9 @@ const ogImage = new URL('/og-image.png', site);
 
     <!-- Canonical + hreflang -->
     <link rel="canonical" href={canonicalUrl.href} />
-    <link rel="alternate" hreflang="en" href={new URL('/en/', site).href} />
-    <link rel="alternate" hreflang="pt-BR" href={new URL('/pt-br/', site).href} />
+    <link rel="alternate" hreflang="en" href={enUrl.href} />
+    <link rel="alternate" hreflang="pt-BR" href={ptUrl.href} />
+    <link rel="alternate" hreflang="x-default" href={enUrl.href} />
   </head>
   <body data-gx-acento="violet">
     <slot />
