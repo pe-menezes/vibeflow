@@ -18,9 +18,9 @@
 //   by heroFlowLabel with the heroFlowBefore and heroFlowAfter notes, all read from src/i18n.
 //
 // checkPages and checkCss are exported so the checks can run on HTML in memory.
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const SITE = 'https://www.vibeflow.run';
 const PAGES = ['', 'en/', 'pt-br/', 'en/commands/', 'en/anatomy/', 'pt-br/commands/', 'pt-br/anatomy/'];
@@ -73,25 +73,90 @@ const ZERO = String.raw`(?:0*\.?0+|0+\.)%?`;
 const hidesOpacity = (body) => new RegExp(String.raw`(^|;)\s*opacity\s*:\s*${ZERO}\s*(!important)?\s*(;|$)`).test(body);
 const hidesVisibility = (body) => /(^|;)\s*visibility\s*:\s*(hidden|collapse)/.test(body);
 const hidesDisplay = (body) => /(^|;)\s*display\s*:\s*none/.test(body);
-const gated = (selector) => GATES.some((g) => selector.includes(g));
-
-// The selectors of a list, split on the commas outside parentheses, so `:is(.a, .b)` stays whole.
-function selectorList(selector) {
-  const parts = [];
+// Walks a selector one character at a time and tells, for each, the parenthesis depth and whether
+// it sits inside quotes, brackets or an escape, where a comma or a parenthesis is only text.
+function scan(selector, visit) {
   let depth = 0;
-  let buf = '';
-  for (const ch of selector) {
-    if (ch === '(') depth += 1;
-    else if (ch === ')') depth = Math.max(0, depth - 1);
-    if (ch === ',' && depth === 0) {
-      parts.push(buf.trim());
-      buf = '';
-    } else {
-      buf += ch;
+  let quote = '';
+  let bracket = 0;
+  for (let i = 0; i < selector.length; i += 1) {
+    const ch = selector[i];
+    if (ch === '\\') {
+      visit(i, depth, true);
+      i += 1;
+      if (i < selector.length) visit(i, depth, true);
+      continue;
     }
+    if (quote) {
+      if (ch === quote) quote = '';
+      visit(i, depth, true);
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '[') bracket += 1;
+    else if (ch === ']') bracket = Math.max(0, bracket - 1);
+    const text = quote !== '' || bracket > 0 || ch === ']';
+    if (!text && ch === ')') depth = Math.max(0, depth - 1);
+    visit(i, depth, text);
+    if (!text && ch === '(') depth += 1;
   }
-  parts.push(buf.trim());
+}
+
+// The selectors of a list, split on the commas outside parentheses, quotes and brackets, so
+// `:is(.a, .b)` and `[data-label="a,b"]` stay whole.
+function selectorList(selector) {
+  const cuts = [];
+  scan(selector, (i, depth, text) => {
+    if (!text && depth === 0 && selector[i] === ',') cuts.push(i);
+  });
+  const parts = [];
+  let start = 0;
+  for (const cut of [...cuts, selector.length]) {
+    parts.push(selector.slice(start, cut).trim());
+    start = cut + 1;
+  }
   return parts.filter(Boolean);
+}
+
+// The selectors a list stands for, with every :is() and :where() outside a negation replaced by
+// each selector of its own list, so `:is(html.motion-ok .a, .b)` stands for `html.motion-ok .a`
+// and `.b`, and each is judged like a selector of the outer list.
+function expandSelector(selector) {
+  return selectorList(selector).flatMap((part) => {
+    let open = -1;
+    scan(part, (i, depth, text) => {
+      if (open < 0 && !text && depth === 0 && /^:(is|where)\(/i.test(part.slice(i))) open = i;
+    });
+    if (open < 0) return [part];
+    const start = part.indexOf('(', open) + 1;
+    let end = -1;
+    scan(part, (i, depth, text) => {
+      if (end < 0 && i >= start && !text && depth === 0 && part[i] === ')') end = i;
+    });
+    if (end < 0) return [part];
+    const before = part.slice(0, open);
+    const after = part.slice(end + 1);
+    return selectorList(part.slice(start, end)).flatMap((alt) => {
+      // A complex selector inside :is() keeps its own ancestors apart from the compound around it.
+      const glue = /[\s>+~]/.test(alt) && before && !/[\s>+~]$/.test(before) ? ' ' : '';
+      return expandSelector(`${before}${glue}${alt}${after}`);
+    });
+  });
+}
+
+// A selector is gated when it requires the gate itself: html with the class motion-ok, or the play
+// class, in one of its compounds. What sits inside :not() or another selector function, inside an
+// attribute value or quotes, is not a requirement and does not gate.
+function gated(selector) {
+  // Arguments, attribute values and quotes become a filler that is neither a name nor a space, so
+  // they can neither gate nor split a compound.
+  let plain = '';
+  scan(selector, (i, depth, text) => {
+    plain += depth === 0 && !text ? selector[i] : '\u0001';
+  });
+  plain = plain.replace(/:[\w-]+\(\u0001*\)?/g, '\u0001');
+  return plain.split(/\s*[>+~]\s*|\s+/).some((compound) =>
+    (/^html(?![\w-])/i.test(compound) && /\.motion-ok(?![\w-])/.test(compound)) || /\.gx-tocando(?![\w-])/.test(compound));
 }
 
 // A length far enough to put text off screen: a negative value of at least 100vw, 100vh, 100%,
@@ -121,33 +186,52 @@ const SHOWN_ON = /:(hover|focus-visible|focus-within|focus)\b/g;
 // A pseudo-element draws text when its content is anything but an empty string or none.
 const drawsText = (content) => content !== undefined && !/^(["'])\1$|^none$|^normal$/.test(content.trim());
 
+// The simple selectors of the last compound of a selector, with its pseudo-element and the hover
+// and focus states taken out, and the pseudo-element itself ('before' or 'after').
+function pseudoTarget(selector) {
+  const kind = PSEUDO.exec(selector)?.[1];
+  const compounds = selector.replace(PSEUDO, '').replace(SHOWN_ON, '').trim().split(/\s*[>+~]\s*|\s+/);
+  const last = compounds[compounds.length - 1] ?? '';
+  const simples = new Set(last.match(/\[[^\]]*\]|[.#]?[\w-]+|:[\w-]+(\([^)]*\))?/g) ?? []);
+  simples.delete('*');
+  return { kind, simples };
+}
+const within = (a, b) => [...a].every((s) => b.has(s));
+// The single-colon form a minifier writes and the double-colon form read as one.
+const onePseudo = (selector) => selector.replace(PSEUDO, '::$1');
+
 export function checkCss(css, where) {
   const found = [];
   const hidingKeyframes = new Set();
-  const contents = new Map();
+  const texts = [];
   const shownOnHover = new Set();
   walkCss(css, (selector, body, stack) => {
     const frames = stack.find((s) => /^@(-webkit-)?keyframes\s/.test(s));
     if (frames && hidesOpacity(body)) hidingKeyframes.add(frames.split(/\s+/)[1]);
     if (frames) return;
-    for (const part of selectorList(selector)) {
+    for (const part of expandSelector(selector)) {
       if (!PSEUDO.test(part)) continue;
       const content = /(?:^|;)\s*content\s*:\s*([^;]+)/.exec(body)?.[1];
+      if (drawsText(content)) texts.push(pseudoTarget(part));
       const base = part.replace(SHOWN_ON, '');
-      if (base !== part) {
-        if (/(^|;)\s*opacity\s*:/.test(body) && !hidesOpacity(body)) shownOnHover.add(base);
-      } else if (content !== undefined) {
-        contents.set(part, content);
-      }
+      if (base !== part && /(^|;)\s*opacity\s*:/.test(body) && !hidesOpacity(body)) shownOnHover.add(onePseudo(base));
     }
   });
-  // A decorative pseudo-element (no text) that a hover or focus rule shows is not hidden content.
-  const decorativeShownLater = (part) => PSEUDO.test(part) && !drawsText(contents.get(part)) && shownOnHover.has(part);
+  // A pseudo-element draws text when any rule for the same pseudo-element that may apply to it (its
+  // last compound asks for no more than this one, or this one for no more than it) gives it text.
+  const mayDrawText = (part) => {
+    const me = pseudoTarget(part);
+    return texts.some((t) => t.kind === me.kind && (within(t.simples, me.simples) || within(me.simples, t.simples)));
+  };
+  // A decorative pseudo-element (no text in any rule) that a hover or focus rule shows is not
+  // hidden content.
+  const decorativeShownLater = (part) => PSEUDO.test(part) && shownOnHover.has(onePseudo(part)) && !mayDrawText(part);
   walkCss(css, (selector, body, stack) => {
     if (stack.some((s) => /^@(-webkit-)?keyframes\s/.test(s))) return;
     if (/\.(fade-in|reveal)\b/.test(selector)) found.push(`${where}: rule for ${selector}`);
-    // Each selector of a list is judged on its own: one under the gate does not excuse the others.
-    for (const part of selectorList(selector)) {
+    // Each selector of a list, and of an :is() or :where() list inside it, is judged on its own:
+    // one under the gate does not excuse the others.
+    for (const part of expandSelector(selector)) {
       if (gated(part)) continue;
       if (hidesOpacity(body) && !decorativeShownLater(part)) found.push(`${where}: ${part} sets opacity 0 at rest`);
       if (hidesVisibility(body)) found.push(`${where}: ${part} sets visibility hidden at rest`);
@@ -203,15 +287,31 @@ const attr = (tag, name) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 const tags = (html, re) => [...html.matchAll(re)].map((m) => m[0]);
 
 // The page a site link goes to ('en/commands/', '' for the root) and its fragment, or null when the
-// link is not a page of the site.
+// link is not a page of the site. An absolute link to the site counts as a site link, a query is
+// dropped, and an external link leaves before anything is decoded. A fragment that does not decode
+// comes back raw with `malformed` set.
 function resolve(href, page) {
-  const hash = href.indexOf('#');
-  const path = hash < 0 ? href : href.slice(0, hash);
-  const frag = hash < 0 ? '' : decodeURIComponent(href.slice(hash + 1));
-  if (path === '') return { page, frag };
-  if (path === '/') return { page: '', frag };
+  let rest = href;
+  if (rest.startsWith(`${SITE}/`) || rest === SITE) rest = rest.slice(SITE.length) || '/';
+  else if (/^([a-z][a-z\d+.-]*:|\/\/)/i.test(rest)) return null;
+  const hash = rest.indexOf('#');
+  const path = (hash < 0 ? rest : rest.slice(0, hash)).replace(/\?.*$/, '');
+  const raw = hash < 0 ? '' : rest.slice(hash + 1);
+  let frag = raw;
+  let malformed = false;
+  try {
+    frag = decodeURIComponent(raw);
+  } catch {
+    malformed = true;
+  }
+  const to = resolvePath(path, page);
+  return to && { ...to, frag, malformed };
+}
+function resolvePath(path, page) {
+  if (path === '') return { page };
+  if (path === '/') return { page: '' };
   const m = /^\/(en|pt-br)(?:\/([\w-]*))?\/?$/.exec(path);
-  return m ? { page: `${m[1]}/${m[2] ? `${m[2]}/` : ''}`, frag } : null;
+  return m ? { page: `${m[1]}/${m[2] ? `${m[2]}/` : ''}` } : null;
 }
 
 const ids = (html) => [...html.matchAll(/<([a-z][\w-]*)\b[^>]*?\sid="([^"]+)"/gi)].map((m) => ({ tag: m[1].toLowerCase(), id: m[2] }));
@@ -226,6 +326,7 @@ function checkAnchors(pages) {
       const to = resolve(href, page);
       if (!to) continue;
       if (!(to.page in pages)) found.push(`/${page}: link ${href} goes to a page that does not exist`);
+      else if (to.malformed) found.push(`/${page}: link ${href} has a fragment that does not decode`);
       else if (to.frag && !idsOf[to.page].has(to.frag)) found.push(`/${page}: link ${href} has no target`);
     }
   }
@@ -234,6 +335,7 @@ function checkAnchors(pages) {
 
 // An inner page may translate its ids: when both languages have the same number of ids, on the
 // same elements in the same order, the Portuguese id at each position stands for the English one.
+// The map is read only on the Portuguese page and on links to it.
 function translatedIds(en, pt) {
   const a = ids(en);
   const b = ids(pt);
@@ -245,7 +347,9 @@ function translatedIds(en, pt) {
 // English ones. Links to the site itself must match one for one; an external link may point at a
 // document in the page's language, so only their number has to match.
 function structure(html, page, idMaps) {
-  const map = (target) => idMaps[target.replace(/^(en|pt-br)\//, '')] ?? new Map();
+  // Only a Portuguese page's ids are translated; an English id is read as it is, even when it
+  // happens to be a Portuguese id of the same page.
+  const map = (target) => (target.startsWith('pt-br/') && idMaps[target.slice('pt-br/'.length)]) || new Map();
   const english = (href) => {
     const to = resolve(href, page);
     const mapped = to?.frag && map(to.page).get(to.frag);
@@ -384,4 +488,14 @@ if (problems.length) {
 console.log(`check-build: ok (${outputs.map((o) => relative(siteDir, o)).join(', ')})`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+// Run as a program, by its real path or through a symbolic link: Node gives import.meta.url the
+// real path and argv[1] the path typed, so both are resolved before they are compared.
+function isMain() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+if (isMain()) main();

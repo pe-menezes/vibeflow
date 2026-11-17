@@ -8,7 +8,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkPages, checkCss } from '../site/scripts/check-build.mjs';
@@ -395,4 +397,190 @@ test('npm run build runs the four checks after astro build, and assets is its ow
     'astro build && node scripts/check-build.mjs && node scripts/check-pipeline.mjs && node scripts/check-home.mjs && node scripts/check-pages.mjs',
   );
   assert.equal(pkg.scripts.assets, 'node scripts/make-assets.mjs');
+});
+
+// ---------- second review: the shape of a selector list ----------
+
+// Each shape a list of selectors can take, with the commas a selector may carry inside quotes or
+// brackets. A rule fails when any selector that hides sits outside the gate, whatever the shape.
+const LIST_SHAPES = {
+  'at the top': (s) => s.join(', '),
+  'inside :is()': (s) => `:is(${s.join(', ')})`,
+  'inside :where()': (s) => `:where(${s.join(', ')})`,
+  nested: (s) => `:is(${s[0]}${s.length > 1 ? `, :where(${s.slice(1).join(', ')})` : ''})`,
+};
+const COMMAS = {
+  'no comma': '',
+  'comma in quotes': '[data-label="a,b"]',
+  'comma in single quotes': "[data-label='a,b']",
+  'comma in brackets': '[data-label=a\\,b]',
+};
+const LIST_GATES = { under: 'html.motion-ok .lede', out: '.hero' };
+const LIST_HIDES = { 'opacity 0': '{opacity:0}', 'visibility hidden': '{visibility:hidden}', 'a keyframe that starts hidden': '{animation:rise .4s both}' };
+
+test('a selector list is judged the same at the top, inside :is() or :where(), nested, and with commas in quotes or brackets', () => {
+  const lists = [['under'], ['out'], ['under', 'under'], ['under', 'out'], ['out', 'under'], ['out', 'out']];
+  const failures = [];
+  for (const [shape, join] of Object.entries(LIST_SHAPES)) {
+    for (const [comma, extra] of Object.entries(COMMAS)) {
+      for (const list of lists) {
+        for (const [how, decl] of Object.entries(LIST_HIDES)) {
+          const selector = join(list.map((g) => `${LIST_GATES[g]}${extra}`));
+          const flagged = checkCss(`${KEYFRAMES}${selector}${decl}`, 'x.css').length > 0;
+          const shouldFlag = list.includes('out');
+          if (flagged !== shouldFlag) failures.push(`${shape}, ${comma}, ${list}, ${how}: ${selector} ${flagged ? 'fails' : 'passes'}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+// Only a selector that requires html.motion-ok (or the play class) is gated; a negation is no gate.
+const GATE_FORMS = {
+  'html.motion-ok': { selector: 'html.motion-ok .x', gated: true },
+  'html.motion-ok with a negation elsewhere': { selector: 'html.motion-ok .x:not(.y)', gated: true },
+  '.gx-tocando': { selector: '.gx-tocando .x', gated: true },
+  'loose .motion-ok': { selector: '.motion-ok .x', gated: false },
+  'html:not(.motion-ok)': { selector: 'html:not(.motion-ok) .x', gated: false },
+  ':not(.motion-ok) in the middle': { selector: 'html .wrap:not(.motion-ok) .x', gated: false },
+  ':not(.gx-tocando)': { selector: ':not(.gx-tocando) .x', gated: false },
+  'motion-ok in an attribute value': { selector: 'html[data-x=".motion-ok"] .x', gated: false },
+};
+
+test('only a selector that requires html.motion-ok counts as the motion gate', () => {
+  const failures = [];
+  for (const [form, { selector, gated }] of Object.entries(GATE_FORMS)) {
+    for (const [how, decl] of Object.entries(LIST_HIDES)) {
+      const flagged = checkCss(`${KEYFRAMES}${selector}${decl}`, 'x.css').length > 0;
+      if (flagged === gated) failures.push(`${form}, ${how}: ${selector} ${flagged ? 'fails' : 'passes'}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+// ---------- second review: a pseudo-element is decoration only when no rule gives it text ----------
+
+const CONTENT_PLACES = {
+  'in the same rule': (c) => `.x.tip::after{content:${c};opacity:0}`,
+  'in a broader selector': (c) => `.x::after{content:${c}}.x.tip::after{opacity:0}`,
+  'in a broader selector, single-colon form': (c) => `.x:after{content:${c}}.x.tip:after{opacity:0}`,
+  nowhere: () => '.x.tip::after{opacity:0}',
+};
+const CONTENTS = { text: '"help"', empty: '""' };
+
+test('a pseudo-element at opacity 0 passes only when it draws no text in any rule and a hover shows it', () => {
+  const failures = [];
+  for (const [place, rules] of Object.entries(CONTENT_PLACES)) {
+    for (const [kind, c] of Object.entries(CONTENTS)) {
+      for (const hover of [true, false]) {
+        const css = rules(c) + (hover ? '.x.tip:hover::after{opacity:1}' : '');
+        const flagged = checkCss(css, 'x.css').some((p) => /at rest/.test(p));
+        const shouldFlag = !hover || (place !== 'nowhere' && kind === 'text');
+        if (flagged !== shouldFlag) failures.push(`${place}, ${kind}, hover ${hover}: ${css} ${flagged ? 'fails' : 'passes'}`);
+      }
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+// ---------- second review: every form of link to the site has its anchor checked ----------
+
+// Each form of link: the page it sits on, its href for a fragment, and whether it is the site's.
+const HREF_FORMS = [
+  { form: '#x', page: 'commands/', id: 'analyze', href: (l, f) => `#${f}` },
+  { form: '/<lang>/#x', page: 'commands/', id: 'how', href: (l, f) => `/${l}/#${f}` },
+  { form: '/<lang>/<page>#x', page: '', id: 'analyze', href: (l, f) => `/${l}/commands#${f}` },
+  { form: '/<lang>/?q#x', page: 'commands/', id: 'how', href: (l, f) => `/${l}/?q=x#${f}` },
+  { form: '/<lang>/<page>?q#x', page: '', id: 'analyze', href: (l, f) => `/${l}/commands/?q=x#${f}` },
+  { form: 'absolute /<lang>/#x', page: 'commands/', id: 'how', href: (l, f) => `${SITE}/${l}/#${f}` },
+  { form: 'absolute /<lang>/<page>#x', page: '', id: 'analyze', href: (l, f) => `${SITE}/${l}/commands#${f}` },
+  { form: 'external', page: '', id: 'how', external: true, href: (l, f) => `https://example.com/#${f}` },
+];
+const TARGET_STATES = { exists: (id) => id, missing: (id) => `${id}-x`, 'does not decode': () => '100%' };
+
+for (const f of HREF_FORMS) {
+  for (const [state, frag] of Object.entries(TARGET_STATES)) {
+    test(`link ${f.form}, target ${state}: ${f.external || state === 'exists' ? 'passes' : 'fails and names the page'}`, () => {
+      const pages = site();
+      for (const l of ['en', 'pt-br']) {
+        pages[`${l}/${f.page}`] = pages[`${l}/${f.page}`].replace('</body>', `<a href="${f.href(l, frag(f.id))}">Link</a></body>`);
+      }
+      let problems;
+      assert.doesNotThrow(() => { problems = checkPages(pages); });
+      if (f.external || state === 'exists') assert.deepEqual(problems, []);
+      else assert.ok(named(problems, `en/${f.page}`, state === 'missing' ? /no target/ : /does not decode/), problems.join('\n'));
+    });
+  }
+}
+
+// ---------- second review: translated ids read only on the Portuguese page ----------
+
+// An inner page with the given ids, in-page links in the given order, and the home page's link to
+// its first id.
+function innerSite(enIds, ptIds, ptLinks = ptIds) {
+  const page = (lang, ids, order) =>
+    `<!doctype html><html lang="${lang}">${head(`${lang}/commands/`)}<body><h1>Commands</h1><nav>` +
+    order.map((id) => `<a href="#${id}">${id}</a>`).join('') + '</nav>' +
+    ids.map((id) => `<article id="${id}"><p>Text</p></article>`).join('') + '</body></html>';
+  const pages = site();
+  pages['en/commands/'] = page('en', enIds, enIds);
+  pages['pt-br/commands/'] = page('pt-br', ptIds, ptLinks);
+  pages['en/'] = home('en', { analyze: enIds[0] });
+  pages['pt-br/'] = home('pt-br', { analyze: ptIds[0] });
+  return pages;
+}
+const ID_SEQUENCES = ['a', 'b', 'c'].flatMap((x) => ['a', 'b', 'c'].filter((y) => y !== x).map((y) => [x, y]));
+
+test('every pair of translated id sequences on an inner page passes, and links in another order still differ', () => {
+  const failures = [];
+  for (const en of ID_SEQUENCES) {
+    for (const pt of ID_SEQUENCES) {
+      const same = checkPages(innerSite(en, pt));
+      if (same.length) failures.push(`[${en}] and [${pt}]: ${same.join('; ')}`);
+      const swapped = checkPages(innerSite(en, pt, [...pt].reverse()));
+      if (!swapped.some((p) => /commands\/ differ in links/.test(p))) failures.push(`[${en}] and [${pt}] with links swapped: passes`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+// ---------- audit A1: each check runs as a program by its real path and through a link ----------
+
+const CHECKS = ['check-build.mjs', 'check-pipeline.mjs', 'check-home.mjs', 'check-pages.mjs'];
+
+test('each check run through a symbolic link checks the same as by its real path, on an output with no pages', () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'site-checks-')));
+  try {
+    mkdirSync(join(tmp, 'real', 'site', 'scripts'), { recursive: true });
+    mkdirSync(join(tmp, 'real', 'site', 'dist'));
+    symlinkSync(join(tmp, 'real'), join(tmp, 'alias'));
+    for (const name of CHECKS) {
+      copyFileSync(join(ROOT, 'site', 'scripts', name), join(tmp, 'real', 'site', 'scripts', name));
+      symlinkSync(join(tmp, 'real', 'site', 'scripts', name), join(tmp, `link-${name}`));
+      for (const path of [join(tmp, 'real', 'site', 'scripts', name), join(tmp, `link-${name}`), join(tmp, 'alias', 'site', 'scripts', name)]) {
+        const run = spawnSync(process.execPath, [path], { encoding: 'utf8' });
+        assert.notEqual(run.status, 0, `${name} by ${path.slice(tmp.length)} exits with 0 on an output with no pages`);
+        assert.ok(run.stderr.length > 0, `${name} by ${path.slice(tmp.length)} says nothing`);
+      }
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('check-build run through a symbolic link checks the real output the same as by its real path', () => {
+  const real = join(ROOT, 'site', 'scripts', 'check-build.mjs');
+  if (!existsSync(join(ROOT, 'site', 'dist'))) return;
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'site-checks-')));
+  try {
+    symlinkSync(real, join(tmp, 'check-build.mjs'));
+    const byReal = spawnSync(process.execPath, [real], { encoding: 'utf8' });
+    const byLink = spawnSync(process.execPath, [join(tmp, 'check-build.mjs')], { encoding: 'utf8' });
+    assert.equal(byLink.status, byReal.status);
+    assert.equal(byLink.stdout + byLink.stderr, byReal.stdout + byReal.stderr);
+    assert.ok((byReal.stdout + byReal.stderr).length > 0);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 });
