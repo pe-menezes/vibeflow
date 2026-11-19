@@ -1,6 +1,6 @@
 # PR body
 
-The body of the pull request that ends a loop in company mode (`orchestrator.md`, "Ending: company mode"). The reviewer reads the proof before the diff, so every section is filled from a file the loop wrote, never from memory: the ledger (`.vibeflow/loop/<feature>.md`), the audit and re-audit reports (`.vibeflow/audits/`) and the progress files (`.vibeflow/progress/`). Each section's comment names its source and is deleted when the section is filled. A section with nothing to list says so in one line (`None.`) instead of disappearing, so the reviewer can tell an empty section from a forgotten one. Findings and `Decision:` lines are copied in their own format, word for word. The Critical Gate lines of each part's last report are copied word for word as well, because an `ALLOWED` line carries the `vibeflow:allow <RULE_ID>: <reason>` marker, and that marker in the PR body is what an audit of the PR reads to resolve the finding without the author's spec. The `Knowledge base:` line under "Verdict per part" is the same line as in the audit reports, word for word: `Knowledge base: .vibeflow/index.md`, or the `none` line when the project had no knowledge base. In the `none` state the `Knowledge base:` line is required, because a PASS without patterns and conventions reads like any other PASS.
+The body of the pull request that ends a loop in company mode (`orchestrator.md`, "Ending: company mode"). The reviewer reads the proof before the diff, so every section is filled from a file the loop wrote, never from memory: the ledger (`.vibeflow/loop/<feature>.md`), the audit and re-audit reports (`.vibeflow/audits/`) and the progress files (`.vibeflow/progress/`). Each section's comment names its source and is deleted when the section is filled. A section with nothing to list says so in one line (`None.`) instead of disappearing, so the reviewer can tell an empty section from a forgotten one. Findings and `Decision:` lines are copied in their own format, word for word. The Critical Gate lines of each part's last report are copied word for word as well, and so is every `ALLOWED` line of the part's earlier reports (its audit report and the re-audits before the last) that the last report does not repeat, because an `ALLOWED` line carries the `vibeflow:allow <RULE_ID>: <reason>` marker, and that marker in the PR body is what an audit of the PR reads to resolve the finding without the author's spec. A re-audit runs the Critical Gate on the fix diff only, so the `ALLOWED` line of a finding in the part's first diff lives in its audit report and not in its last. The `Knowledge base:` line under "Verdict per part" is the same line as in the audit reports, word for word: `Knowledge base: .vibeflow/index.md`, or the `none` line when the project had no knowledge base. In the `none` state the `Knowledge base:` line is required, because a PASS without patterns and conventions reads like any other PASS.
 
 ```markdown
 ## Summary
@@ -47,8 +47,8 @@ Knowledge base: .vibeflow/index.md | none (no .vibeflow/index.md); patterns and 
 
 ## Critical Gate
 
-<!-- from: the Critical Gate section of each part's last report -->
-- <part>: Critical Gate clean, or each line of the report's Critical Gate section, word for word
+<!-- from: the Critical Gate section of each part's last report, and every ALLOWED line of the part's earlier audit and re-audit reports that the last report does not repeat -->
+- <part>: each line of the last report's Critical Gate section and each ALLOWED line of the part's earlier reports that it does not repeat, word for word, or Critical Gate clean when there is no finding line to copy
 
 ## Commands
 

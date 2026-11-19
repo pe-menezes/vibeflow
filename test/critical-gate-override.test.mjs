@@ -37,13 +37,22 @@ function declaredForm(raw) {
   return form;
 }
 
+// A rule ID of the catalog: a letter first, a digit last, digits allowed in
+// between (DS104, SEC101, K8S101).
+const RULE_ID = '[A-Z][A-Z0-9]*[0-9]';
+
 // A matcher built from the declared form: the rule ID and the reason become
 // groups, so the line is held to the form 4c reads and not to a copy of it.
 function formMatcher(form) {
   const source = escape(form)
-    .replace(escape('<RULE_ID>'), '([A-Z]+[0-9]+)')
+    .replace(escape('<RULE_ID>'), `(${RULE_ID})`)
     .replace(escape('<reason>'), '(.*)');
   return new RegExp(source);
+}
+
+// The rule an ALLOWED line names in brackets.
+function bracketRule(line) {
+  return new RegExp(`ALLOWED \\[(${RULE_ID})\\]`).exec(line)?.[1];
 }
 
 // The Critical Gate section of the report template under "## Output format".
@@ -78,7 +87,7 @@ for (const [edition, path] of Object.entries(EDITIONS)) {
     const lines = allowedLines(raw);
     assert.ok(lines.length > 0, `${edition}: the report template has at least one ALLOWED line`);
     for (const line of lines) {
-      const bracket = /ALLOWED \[([A-Z]+[0-9]+)\]/.exec(line)?.[1];
+      const bracket = bracketRule(line);
       assert.ok(bracket, `${edition}: the ALLOWED line names its rule in brackets: ${line}`);
       const marker = matcher.exec(line);
       assert.ok(marker, `${edition}: the ALLOWED line carries the step 4c form: ${line}`);
@@ -100,6 +109,13 @@ for (const [edition, path] of Object.entries(EDITIONS)) {
     assert.ok(!text.includes('—'), `${edition}: the new text has no em dash`);
   });
 }
+
+test('the rule ID matcher takes a catalog rule with a digit in the middle (K8S101)', () => {
+  const form = declaredForm(read(EDITIONS.shared));
+  const line = '- ✅ ALLOWED [K8S101] deploy/app.yaml:3, privileged container, override: vibeflow:allow K8S101: the spec documents it';
+  assert.equal(bracketRule(line), 'K8S101', 'the bracket matcher reads K8S101');
+  assert.equal(formMatcher(form).exec(line)?.[1], 'K8S101', 'the marker matcher reads K8S101');
+});
 
 test('the ALLOWED lines and the sentence after the Critical Gate verdict rule read the same in the three editions', () => {
   const shared = read(EDITIONS.shared);
