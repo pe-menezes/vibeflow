@@ -46,10 +46,16 @@ export function sceneState(progress, pinned) {
 // the same, and only the band changes, so the measure gives the same answer in both states and the
 // scene never flips between them. Without a band there is nothing that gives way, and nothing to
 // measure.
+//
+// The screen it measures against is the height the pinned stage has: the ruler ([data-scene-ruler])
+// carries the stage's declared height (the visible one, which stays while the browser bars collapse
+// and come back), and the measure takes the smaller of it and innerHeight. Without a ruler, or with
+// a ruler of no height, it takes innerHeight.
 export function bindPipelineScene(root, flow) {
   const track = root.querySelector('[data-scene-track]');
   const stage = root.querySelector('[data-scene-stage]');
   const band = root.querySelector('[data-scene-band]');
+  const ruler = root.querySelector('[data-scene-ruler]');
   const gates = [...root.querySelectorAll('[data-gate]')];
   const steps = [...root.querySelectorAll('[data-step]')];
   const end = root.querySelector('[data-scene-end]');
@@ -66,9 +72,14 @@ export function bindPipelineScene(root, flow) {
     return bottom - top + parseFloat(pad.paddingTop) + parseFloat(pad.paddingBottom);
   }
 
+  function screenHeight() {
+    const declared = ruler ? ruler.getBoundingClientRect().height : 0;
+    return declared > 0 ? Math.min(innerHeight, declared) : innerHeight;
+  }
+
   function measure() {
     if (!band) return;
-    fits = contentHeight() - band.getBoundingClientRect().height + BAND_MIN <= innerHeight;
+    fits = contentHeight() - band.getBoundingClientRect().height + BAND_MIN <= screenHeight();
     if (root.hasAttribute(LOOSE) === fits) root.toggleAttribute(LOOSE, !fits);
   }
 
