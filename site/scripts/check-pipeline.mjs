@@ -6,8 +6,11 @@
 // * the pipeline: the four gates and the four steps are in the document, lit and not hidden, each
 //   step with its name, description and output; the band is an image named by pipelineFlowLabel;
 //   the verdict and the extra commands line are there;
-// * the loop: a dark stage, the thesis with its second line struck, every step, block and item of
-//   today, and the link to the details;
+// * the order of the sections: hero, pipeline, demo, loop, use cases, commands, editions, closing,
+//   contact;
+// * the loop: a dark stage, the thesis with its second line struck, every step of today, none of
+//   the four operation lists (they live on the commands page), one link to them with their four
+//   titles as its text, and the link to the details;
 // * the editions: six agents in today's order, each copy button holding an exact i18n command and
 //   the feedback of its language, the Claude Code tabs with both panels in the document.
 // Every expected text is read from src/i18n.
@@ -90,6 +93,10 @@ function checkPipeline(html, lang, where) {
   else if (isHidden(end[0])) fail(`${where}: the verdict is hidden at rest`);
 }
 
+// The loop's four operation lists, by i18n prefix, and the id they live under on the commands page.
+const LOOP_LISTS = ['loopOn', 'loopHosts', 'loopCompany', 'loopReq'];
+const LOOP_SETUP_ID = 'loop-setup';
+
 function checkLoop(html, lang, where) {
   const key = (k) => i18nValue(lang, k) ?? `(missing ${k})`;
   const found = section(html, 'loop');
@@ -107,16 +114,35 @@ function checkLoop(html, lang, where) {
   const text = squash(plain(body));
   const strings = ['loopLabel', 'loopSubtitle', 'loopMore'];
   for (let n = 1; n <= 5; n++) strings.push(`loopStep${n}Title`, `loopStep${n}Desc`);
-  for (const b of ['loopOn', 'loopHosts', 'loopCompany', 'loopReq']) strings.push(`${b}Title`);
   for (const k of strings) if (!text.includes(squash(key(k)))) fail(`${where}: loop without ${k}`);
-  for (const b of ['loopOnItems', 'loopHostsItems', 'loopCompanyItems', 'loopReqItems']) {
-    const items = i18nArray(lang, b);
-    if (!items?.length) fail(`${where}: no ${b} in i18n`);
-    for (const item of items ?? []) if (!text.includes(squash(item))) fail(`${where}: loop without an item of ${b}`);
+  // The four operation lists moved to the implement entry of the commands page (check-pages.mjs
+  // finds them there): none of their items is left in the section, which links to them instead,
+  // with their four titles as the link text.
+  for (const b of LOOP_LISTS) {
+    const items = i18nArray(lang, `${b}Items`);
+    if (!items?.length) fail(`${where}: no ${b}Items in i18n`);
+    for (const item of items ?? []) if (text.includes(squash(item))) fail(`${where}: loop still shows an item of ${b}Items`);
   }
+  if (/<ul\b/.test(body)) fail(`${where}: loop still has a list besides its steps`);
+  const setup = [...body.matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].filter((m) => m[1] === `/${lang}/commands#${LOOP_SETUP_ID}`);
+  const setupText = LOOP_LISTS.map((b) => key(`${b}Title`)).join(' · ');
+  if (setup.length !== 1) fail(`${where}: ${setup.length} links to /${lang}/commands#${LOOP_SETUP_ID} instead of 1`);
+  else if (plain(setup[0][2]) !== setupText) fail(`${where}: the link to the lists reads "${plain(setup[0][2])}"`);
   const steps = (/<ol\b[^>]*>([\s\S]*?)<\/ol>/.exec(body)?.[1].match(/<li\b/g) ?? []).length;
   if (steps !== 5) fail(`${where}: ${steps} loop steps in the ordered list instead of 5`);
   if (!body.includes(`href="${key('loopMoreHref')}"`)) fail(`${where}: loop without the loopMoreHref link`);
+}
+
+// The sections of the home page, in order: by id, and by class for the two that have none (the
+// hero and the closing stage).
+const HOME_ORDER = ['hero', 'how', 'demo', 'loop', 'use-cases', 'commands', 'editions', 'cta', 'contact'];
+function checkOrder(html, where) {
+  const main = /<main\b[^>]*>([\s\S]*?)<\/main>/.exec(html)?.[1] ?? '';
+  const order = [...main.matchAll(/<section\b[^>]*>/g)].map((m) => {
+    const classes = (attr(m[0], 'class') ?? '').split(/\s+/);
+    return attr(m[0], 'id') ?? classes.find((c) => c === 'hero' || c === 'cta') ?? classes.join('.');
+  });
+  if (JSON.stringify(order) !== JSON.stringify(HOME_ORDER)) fail(`${where}: sections in the order ${JSON.stringify(order)}`);
 }
 
 const EDITIONS = ['codexTitle', 'hermesTitle', 'claudeTitle', 'cursorTitle', 'copilotTitle', 'opencodeTitle'];
@@ -169,6 +195,7 @@ for (const out of outputs) {
       continue;
     }
     const html = readFileSync(file, 'utf8');
+    checkOrder(html, where);
     checkPipeline(html, lang, where);
     checkLoop(html, lang, where);
     checkEditions(html, lang, where);

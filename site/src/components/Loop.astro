@@ -21,12 +21,10 @@ const steps = [
   { title: t.loopStep5Title, desc: t.loopStep5Desc },
 ];
 
-const blocks = [
-  { title: t.loopOnTitle, items: t.loopOnItems },
-  { title: t.loopHostsTitle, items: t.loopHostsItems },
-  { title: t.loopCompanyTitle, items: t.loopCompanyItems },
-  { title: t.loopReqTitle, items: t.loopReqItems },
-];
+// The four operation lists (turning it on, the hosts, company mode, the requirements) live in the
+// implement entry of the commands page, under this id; the loop links there with their titles.
+const LOOP_SETUP_ID = 'loop-setup';
+const setupLink = [t.loopOnTitle, t.loopHostsTitle, t.loopCompanyTitle, t.loopReqTitle].join(' · ');
 ---
 
 <section class="gx-escuro loop" id="loop" data-loop>
@@ -51,22 +49,10 @@ const blocks = [
       ))}
     </ol>
 
-    <div class="loop-lists">
-      {blocks.map((block) => (
-        <div class="loop-list">
-          <h3>{block.title}</h3>
-          <ul>
-            {block.items.map((item: string) => (
-              <li><InlineCode text={item} /></li>
-            ))}
-          </ul>
-        </div>
-      ))}
+    <div class="loop-more">
+      <p><a href={`/${lang}/commands#${LOOP_SETUP_ID}`} class="gx-link">{setupLink}</a></p>
+      <p><a href={t.loopMoreHref} target="_blank" rel="noopener" class="gx-link">{t.loopMore}</a></p>
     </div>
-
-    <p class="loop-more">
-      <a href={t.loopMoreHref} target="_blank" rel="noopener" class="gx-link">{t.loopMore}</a>
-    </p>
   </div>
 </section>
 
@@ -174,7 +160,7 @@ const blocks = [
     line-height: 1.15;
   }
   .loop-step p {
-    font-size: var(--fs-ui);
+    font-size: var(--fs-body);
     line-height: 1.5;
   }
   @media (min-width: 720px) {
@@ -188,37 +174,10 @@ const blocks = [
     }
   }
 
-  /* Turning it on, the hosts, company mode and the requirements: plain lists, no card. */
-  .loop-lists {
-    display: grid;
-    gap: var(--s-6) var(--s-7);
-  }
-  .loop-list h3 {
-    padding-bottom: var(--s-2);
-    border-bottom: 1px solid var(--rule-on-deep);
-    color: var(--ink-on-deep);
-    font-size: var(--fs-body);
-    font-weight: 600;
-  }
-  .loop-list ul {
+  /* The links: to the operation lists on the commands page, then to the README. */
+  .loop-more {
     display: grid;
     gap: var(--s-2);
-    margin: var(--s-3) 0 0;
-    padding-left: 1.1rem;
-    color: var(--ink-5);
-    font-size: var(--fs-ui);
-    line-height: 1.55;
-  }
-  .loop-list li::marker {
-    color: var(--accent-on-deep);
-  }
-  @media (min-width: 860px) {
-    .loop-lists {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  .loop-more {
     font-size: var(--fs-ui);
   }
 </style>

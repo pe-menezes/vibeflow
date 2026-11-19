@@ -157,7 +157,8 @@ test('every i18n key and every literal of the start commit is still used', () =>
 test('every key the two components use exists in both languages', () => {
   const en = read('site/src/i18n/en.ts');
   const pt = read('site/src/i18n/pt-br.ts');
-  const has = (text, key) => new RegExp(`\\n\\s*${key}:\\s*'`).test(text);
+  // A string key, or a list of strings (the loop's operation lists in the implement entry).
+  const has = (text, key) => new RegExp(`\\n\\s*${key}:\\s*(?:'|\\[\\s*')`).test(text);
   for (const file of [COMMANDS, ANATOMY]) {
     for (const key of keysOf(read(file))) {
       assert.ok(has(en, key), `${key} (used by ${file}) is missing in en.ts`);

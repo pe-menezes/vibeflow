@@ -3,7 +3,10 @@
 //
 // * every anchor these pages had before the redesign still exists;
 // * every in-page link lands on an id of the same page, and the index links to every entry;
-// * every i18n text the component uses is on the page, in that page's language;
+// * every i18n text the component uses is on the page, in that page's language, every item of a
+//   list included;
+// * on the commands page, the four operation lists of the loop sit once in the implement entry,
+//   after the loop mode block, under their own id, and none of their items is anywhere else;
 // * no element of the page content carries the hidden attribute.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -19,7 +22,8 @@ const HEADER_IDS = ['header', 'hamburger', 'mobile-menu'];
 const PAGES = {
   commands: {
     component: 'CommandsDocs.astro',
-    ids: [...HEADER_IDS, 'analyze', 'discover', 'gen-spec', 'implement', 'prompt-pack', 'audit', 'quick', 'hotfix', 'teach', 'stats'],
+    // ...and the id of the loop's operation lists, which the home loop links to.
+    ids: [...HEADER_IDS, 'analyze', 'discover', 'gen-spec', 'implement', 'prompt-pack', 'audit', 'quick', 'hotfix', 'teach', 'stats', 'loop-setup'],
   },
   anatomy: {
     component: 'VibeflowAnatomy.astro',
@@ -27,12 +31,22 @@ const PAGES = {
   },
 };
 
+const i18nText = (lang) => readFileSync(join(siteDir, 'src', 'i18n', `${lang}.ts`), 'utf8');
+const unescape = (s) => s.replace(/\\(.)/g, '$1');
 // The value of a string key in an i18n file, single-quoted as the files write them.
 function i18nValue(lang, key) {
-  const text = readFileSync(join(siteDir, 'src', 'i18n', `${lang}.ts`), 'utf8');
-  const m = new RegExp(`\\n\\s*${key}:\\s*'((?:[^'\\\\]|\\\\.)*)'`).exec(text);
-  return m ? m[1].replace(/\\(.)/g, '$1') : undefined;
+  const m = new RegExp(`\\n\\s*${key}:\\s*'((?:[^'\\\\]|\\\\.)*)'`).exec(i18nText(lang));
+  return m ? unescape(m[1]) : undefined;
 }
+// The items of an array key of single-quoted strings.
+function i18nArray(lang, key) {
+  const m = new RegExp(`\\n\\s*${key}:\\s*\\[([\\s\\S]*?)\\n\\s*\\]`).exec(i18nText(lang));
+  return m ? [...m[1].matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((x) => unescape(x[1])) : undefined;
+}
+
+// The loop's four operation lists, moved from the home page to the implement entry, under this id.
+const LOOP_LISTS = ['loopOn', 'loopHosts', 'loopCompany', 'loopReq'];
+const LOOP_SETUP_ID = 'loop-setup';
 const decode = (s) =>
   s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
@@ -43,6 +57,45 @@ const plain = (html) => squash(decode(html.replace(/<(script|style)\b[\s\S]*?<\/
 const shown = (value) => squash(value.replace(/`/g, ' ').replace(/<br\s*\/?>/g, ' '));
 // Spaces around code and line breaks differ between the source and the page; compare without them.
 const tight = (s) => s.replace(/\s+/g, '');
+
+// The element opened at `start` in `html`, up to its matching </div>.
+function divFrom(html, start) {
+  const tags = /<div\b|<\/div>/g;
+  tags.lastIndex = start;
+  let depth = 0;
+  for (let m; (m = tags.exec(html)); ) {
+    depth += m[0] === '</div>' ? -1 : 1;
+    if (depth === 0) return html.slice(start, tags.lastIndex);
+  }
+  return html.slice(start);
+}
+
+// The loop's four operation lists: once on the page, under their id, in the implement entry after
+// the loop mode block, each with its title and every item in order, and no item anywhere else.
+function checkLoopSetup(main, lang, where) {
+  const opens = [...main.matchAll(new RegExp(`<div\\b[^>]*\\sid="${LOOP_SETUP_ID}"[^>]*>`, 'g'))];
+  if (opens.length !== 1) return fail(`${where}: ${opens.length} elements with id ${LOOP_SETUP_ID} instead of 1`);
+  const at = opens[0].index;
+  const entry = /<article\b[^>]*\sid="implement"[^>]*>[\s\S]*?<\/article>/.exec(main);
+  if (!entry || at < entry.index || at > entry.index + entry[0].length) return fail(`${where}: #${LOOP_SETUP_ID} is not in the implement entry`);
+  const mode = i18nValue(lang, 'cmdLoopMode');
+  const before = plain(main.slice(entry.index, at));
+  if (!mode || !before.includes(shown(mode))) fail(`${where}: #${LOOP_SETUP_ID} does not follow the loop mode block`);
+  const block = divFrom(main, at);
+  if (/gx-escuro/.test(block)) fail(`${where}: #${LOOP_SETUP_ID} is on the dark stage`);
+  const rest = tight(plain(main.slice(0, at) + main.slice(at + block.length)));
+  const titles = [...block.matchAll(/<h3\b[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => plain(m[1]));
+  const expected = LOOP_LISTS.map((b) => i18nValue(lang, `${b}Title`));
+  if (JSON.stringify(titles) !== JSON.stringify(expected)) fail(`${where}: #${LOOP_SETUP_ID} titles are ${JSON.stringify(titles)}`);
+  const lists = [...block.matchAll(/<ul\b[^>]*>([\s\S]*?)<\/ul>/g)].map((m) => [...m[1].matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/g)].map((li) => tight(plain(li[1]))));
+  if (lists.length !== LOOP_LISTS.length) return fail(`${where}: #${LOOP_SETUP_ID} has ${lists.length} lists instead of ${LOOP_LISTS.length}`);
+  LOOP_LISTS.forEach((b, i) => {
+    const items = (i18nArray(lang, `${b}Items`) ?? []).map((item) => tight(shown(item)));
+    if (!items.length) fail(`${where}: no ${b}Items in i18n`);
+    if (JSON.stringify(lists[i]) !== JSON.stringify(items)) fail(`${where}: the list under ${expected[i]} is not ${b}Items, in order`);
+    for (const item of items) if (rest.includes(item)) fail(`${where}: an item of ${b}Items is on the page outside #${LOOP_SETUP_ID}`);
+  });
+}
 
 if (!outputs.length) fail('no build output found (dist/ or .vercel/output/static/)');
 
@@ -80,6 +133,12 @@ for (const out of outputs) {
       const text = tight(plain(main));
       const hrefs = new Set([...main.matchAll(/\shref="([^"]+)"/g)].map((m) => decode(m[1])));
       for (const key of keys) {
+        const items = i18nArray(lang, key);
+        if (items) {
+          if (!items.length) fail(`${where}: ${key} has no ${lang} items`);
+          for (const item of items) if (!text.includes(tight(shown(item)))) fail(`${where}: an item of ${key} is not on the page`);
+          continue;
+        }
         const value = i18nValue(lang, key);
         if (value === undefined) {
           fail(`${where}: ${key} has no ${lang} value`);
@@ -91,6 +150,7 @@ for (const out of outputs) {
           fail(`${where}: ${key} is not on the page`);
         }
       }
+      if (page === 'commands') checkLoopSetup(main, lang, where);
     }
   }
 }

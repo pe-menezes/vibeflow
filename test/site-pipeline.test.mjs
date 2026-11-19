@@ -1,5 +1,6 @@
 // Checks on the pipeline scene, the loop and the editions of the site (site/src/components/
-// HowItWorks.astro, Loop.astro and Editions.astro, and site/src/lib/pipeline-scene.js).
+// HowItWorks.astro, Loop.astro and Editions.astro, and site/src/lib/pipeline-scene.js). The loop's
+// four operation lists live in CommandsDocs.astro since they left the home page.
 // None of this needs the build; what only the built HTML can show lives in
 // site/scripts/check-pipeline.mjs.
 import { test } from 'node:test';
@@ -48,6 +49,17 @@ const NEW_KEYS = {
   Editions: ['copied'],
 };
 
+// Keys that left a section for another component: the loop's four operation lists moved to the
+// implement entry of the commands page. Their items are read there and no longer in the section;
+// their titles are read there and still in the section, as the text of its link to the lists.
+const MOVED_KEYS = {
+  Loop: {
+    to: 'CommandsDocs',
+    keys: ['loopCompanyItems', 'loopHostsItems', 'loopOnItems', 'loopReqItems'],
+    shared: ['loopCompanyTitle', 'loopHostsTitle', 'loopOnTitle', 'loopReqTitle'],
+  },
+};
+
 const I18N_KEYS = new Set([...read('site/src/i18n/en.ts').matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]));
 
 // The i18n keys a component reads as `t.<key>`, outside its <script> blocks.
@@ -67,8 +79,14 @@ function template(source) {
 test('every key a section used before the redesign is still used, plus the ones the design adds', () => {
   for (const name of Object.keys(BASE_KEYS)) {
     const now = new Set(usedKeys(component(name)));
+    const moved = MOVED_KEYS[name] ?? { keys: [], shared: [] };
+    const there = moved.to ? new Set(usedKeys(component(moved.to))) : new Set();
     for (const key of [...BASE_KEYS[name], ...NEW_KEYS[name]]) {
-      assert.ok(now.has(key), `${name} no longer uses t.${key}`);
+      if (moved.keys.includes(key) || moved.shared.includes(key)) {
+        assert.ok(there.has(key), `${moved.to} does not use t.${key}, moved from ${name}`);
+      }
+      if (moved.keys.includes(key)) assert.ok(!now.has(key), `${name} still uses t.${key}, moved to ${moved.to}`);
+      else assert.ok(now.has(key), `${name} no longer uses t.${key}`);
     }
   }
 });
@@ -163,14 +181,16 @@ test('nothing in the three sections starts hidden: no hidden attribute and every
   assert.match(how, /data-active="true"/, 'steps and gates are lit at rest');
 });
 
-test('the loop is a dark stage: the thesis struck on its second line, steps in sequence, blocks as lists', () => {
+test('the loop is a dark stage: the thesis struck on its second line, steps in sequence, a link to the lists', () => {
   const loop = component('Loop');
   const markup = template(loop);
   assert.match(markup, /<section[^>]*class="[^"]*\bgx-escuro\b[^"]*"[^>]*id="loop"|<section[^>]*id="loop"[^>]*class="[^"]*\bgx-escuro\b/);
   assert.match(loop, /t\.loopTitle\.split\(/, 'the title is split at its line break');
   assert.match(markup, /class="[^"]*\bloop-strike\b/, 'the second line carries the strike');
   assert.match(markup, /<ol\b/, 'the five steps are an ordered list');
-  assert.match(markup, /<ul\b/, 'the blocks are lists');
+  // The operation lists moved to the commands page (site-reading.test.mjs checks where they went).
+  assert.ok(!/<ul\b/.test(markup), 'no operation list left on the stage');
+  assert.match(markup, /href=\{`\/\$\{lang\}\/commands#\$\{LOOP_SETUP_ID\}`\}/, 'the stage links to the lists on the commands page');
   assert.ok(!/gx-cartao|loop-block\b/.test(markup), 'no card inside the stage');
   assert.ok(!/fixed header/i.test(loop), 'no note about a fixed header that is gone');
 });
