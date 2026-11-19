@@ -7,13 +7,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findHidden, hiddenReasons } from '../../site/scripts/measure-rendered.mjs';
 import { checkCss, checkPages } from '../../site/scripts/check-build.mjs';
-import { collectSources, generateAssets } from '../../site/scripts/make-assets.mjs';
+import { chromeVersion, collectSources, generateAssets } from '../../site/scripts/make-assets.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const SITE_DIR = join(ROOT, 'site');
@@ -213,6 +213,121 @@ test('a fixed or absolute box with paint containment still escapes its ancestors
   const tip = box('div.tip', { position: 'absolute', contain: 'strict', box: { x: 20, y: 700, width: 100, height: 30 } });
   const card = box('div.card', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 100, width: 390, height: 50 } });
   assert.deepEqual(hiddenReasons(text([box('span'), tip, card, box('section'), ...ROOTS()], [{ x: 25, y: 705, width: 50, height: 20 }]), VIEWPORT), [], 'absolute tip out of a static card');
+});
+
+// What is left of a text after one pass up its chain, run on a chain that ends at body and html.
+const leftOf = (chain, boxes) => hiddenReasons(text([...chain, ...ROOTS()], boxes), VIEWPORT);
+
+// Contract: a scrolling box shows what it holds only inside its own box, so of a text that crosses
+// its end only the part inside the box is left for the boxes further up (measure-rendered.mjs,
+// header, "leaves the part inside it of what crosses it").
+// Breaks when: a text that crosses the end of a scrolling box is passed up whole, so an outer
+// `overflow: hidden` frame that misses the scrolling box but meets the overflowing part of the text
+// lets a text pass that can never be seen.
+// Not covered by: the one-pass matrix of test/site-measure.test.mjs places every level against the
+// text alone, so an outer level always meets the part inside the inner one when it meets the text.
+test('a text crossing the end of a scrolling box keeps only the part inside that box', () => {
+  const code = box('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: 0, y: 100, width: 100, height: 200 } });
+  const at = [{ x: 50, y: 120, width: 300, height: 20 }];
+  const apart = box('div.frame', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 200, y: 50, width: 190, height: 300 } });
+  assert.deepEqual(leftOf([box('p'), code, apart], at), ['clipped away by div.frame'], 'a frame that misses the scrolling box');
+  const over = box('div.frame', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 60, y: 50, width: 330, height: 300 } });
+  assert.deepEqual(leftOf([box('p'), code, over], at), [], 'a frame that meets the part inside the scrolling box');
+});
+
+// Contract: clip: rect() cuts only an absolute or fixed box, and an auto offset stands for the
+// edge it names: auto right is the width of the box, auto bottom its height (CSS 2.1, clip;
+// measure-rendered.mjs, clipRectRegion).
+// Breaks when: a clip on a static box is read as a cut, so a stray `clip` on a paragraph reports
+// it; or auto right and auto bottom are swapped, so `clip: rect(0px, auto, auto, 0px)`, which cuts
+// nothing, reports a text on a wide and short box, or misses one on a narrow and tall box.
+// Not covered by: test/site-measure.test.mjs and its matrix give clip: rect() only to absolute
+// boxes and only in px, with no auto.
+test('clip: rect() cuts only an absolute or fixed box, and auto stands for the edge it names', () => {
+  const flat = box('p.cut', { clip: 'rect(80px, 200px, 100px, 0px)', box: { x: 20, y: 0, width: 200, height: 200 } });
+  assert.deepEqual(leftOf([flat], [{ x: 20, y: 10, width: 200, height: 20 }]), [], 'a clip on a static box');
+  const wide = box('p.cut', { position: 'absolute', clip: 'rect(0px, auto, auto, 0px)', box: { x: 0, y: 100, width: 390, height: 40 } });
+  assert.deepEqual(leftOf([wide], [{ x: 200, y: 110, width: 100, height: 20 }]), [], 'auto right on a wide and short box');
+  const tall = box('p.cut', { position: 'absolute', clip: 'rect(0px, auto, auto, 0px)', box: { x: 0, y: 100, width: 100, height: 400 } });
+  assert.deepEqual(leftOf([tall], [{ x: 10, y: 400, width: 80, height: 20 }]), [], 'auto bottom on a narrow and tall box');
+  const cut = box('p.cut', { position: 'absolute', clip: 'rect(auto, auto, 20px, auto)', box: { x: 0, y: 100, width: 390, height: 400 } });
+  assert.deepEqual(leftOf([cut], [{ x: 10, y: 400, width: 80, height: 20 }]), ['clipped away by p.cut'], 'a bottom offset that leaves the text out');
+});
+
+// Contract: clip: rect() and clip-path on one box both cut what the box paints, so only what lies
+// in both regions is left (measure-rendered.mjs, clipRegion).
+// Breaks when: only one of the two regions is kept, so a box whose clip keeps its top and whose
+// clip-path keeps its bottom passes a text that neither leaves visible.
+// Not covered by: no case of test/site-measure.test.mjs gives one box both a clip and a clip-path.
+test('clip: rect() and a clip-path on one box both cut what it paints', () => {
+  const both = box('div.box', { position: 'absolute', clip: 'rect(0px, auto, 40px, auto)', clipPath: 'inset(60px 0px 0px 0px)', box: { x: 0, y: 100, width: 390, height: 100 } });
+  assert.deepEqual(leftOf([box('p'), both], [{ x: 20, y: 110, width: 200, height: 80 }]), ['clipped away by div.box']);
+  const meeting = box('div.box', { position: 'absolute', clip: 'rect(0px, auto, 70px, auto)', clipPath: 'inset(30px 0px 0px 0px)', box: { x: 0, y: 100, width: 390, height: 100 } });
+  assert.deepEqual(leftOf([box('p'), meeting], [{ x: 20, y: 110, width: 200, height: 80 }]), [], 'the two regions meet over the text');
+});
+
+// Contract: a clip-path inset() is measured from each of its four sides, each against its own
+// edge of the box (CSS Shapes, inset(); measure-rendered.mjs, shapeRegion).
+// Breaks when: the right and bottom insets are read as the left and top ones, so
+// `inset(0 200px 0 0)` keeps the whole width and a text in the cut-off right part passes.
+// Not covered by: the matrix of test/site-measure.test.mjs uses one inset on all four sides, and the
+// shape cases there read only whether a shape has an area.
+test('a clip-path inset() is measured from each of its own sides', () => {
+  const owner = (clipPath) => box('p.cut', { clipPath, box: { x: 0, y: 100, width: 390, height: 40 } });
+  assert.deepEqual(leftOf([owner('inset(0px 200px 0px 0px)')], [{ x: 300, y: 110, width: 80, height: 20 }]), ['clipped away by p.cut'], 'right inset');
+  assert.deepEqual(leftOf([owner('inset(0px 200px 0px 0px)')], [{ x: 20, y: 110, width: 80, height: 20 }]), [], 'right inset, text on the kept side');
+  assert.deepEqual(leftOf([owner('inset(0px 0px 30px 0px)')], [{ x: 20, y: 115, width: 80, height: 20 }]), ['clipped away by p.cut'], 'bottom inset');
+  assert.deepEqual(leftOf([owner('inset(0px 0px 30px 0px)')], [{ x: 20, y: 102, width: 80, height: 6 }]), [], 'bottom inset, text on the kept side');
+});
+
+// Contract: a text with several lines is in view while some part of any line is left, and is
+// reported only when nothing of any line is (measure-rendered.mjs, header, "some part left on
+// screen").
+// Breaks when: the pass starts from the first line alone, so a paragraph whose first line is cut
+// off by a frame and whose second line shows is reported.
+// Not covered by: every case of test/site-measure.test.mjs and its matrix gives the text one box.
+test('a text with several lines is in view while any of its lines is', () => {
+  const frame = box('div.frame', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 115, width: 390, height: 300 } });
+  const lines = [{ x: 20, y: 90, width: 300, height: 20 }, { x: 20, y: 120, width: 120, height: 20 }];
+  assert.deepEqual(leftOf([box('p'), frame], lines), [], 'the second line shows');
+  const out = [{ x: 20, y: 50, width: 300, height: 20 }, { x: 20, y: 80, width: 120, height: 20 }];
+  assert.deepEqual(leftOf([box('p'), frame], out), ['clipped away by div.frame'], 'no line shows');
+});
+
+// Contract: a text that only reaches an edge of the screen has nothing on it: ending at the top or
+// the left edge of the page, or starting at the right edge of the viewport or, held by a fixed box,
+// at its bottom edge, is off screen; one pixel over the edge is in view (measure-rendered.mjs,
+// header, "must not lie wholly to the left, to the right or above, nor ... wholly below").
+// Breaks when: one of the four final comparisons loses its `=`.
+// Not covered by: the screen positions of test/site-measure.test.mjs and its matrix sit thousands
+// of pixels away from every edge.
+test('a text on the very edge of the screen is off it, and one pixel over is in view', () => {
+  const flow = (b) => leftOf([box('p')], [b]);
+  assert.deepEqual(flow({ x: 20, y: -20, width: 100, height: 20 }), ['off screen above']);
+  assert.deepEqual(flow({ x: -100, y: 100, width: 100, height: 20 }), ['off screen to the left']);
+  assert.deepEqual(flow({ x: 390, y: 100, width: 100, height: 20 }), ['off screen to the right']);
+  assert.deepEqual(flow({ x: 289, y: -19, width: 100, height: 20 }), [], 'one pixel on the page, top and right');
+  const fixed = (y) => leftOf([box('p.bar', { position: 'fixed', box: { x: 20, y, width: 100, height: 20 } })], [{ x: 20, y, width: 100, height: 20 }]);
+  assert.deepEqual(fixed(844), ['off screen below']);
+  assert.deepEqual(fixed(843), [], 'one pixel on the screen, bottom');
+});
+
+// Contract: a text whose fill is transparent is not hidden when an ancestor paints it with its
+// background through background-clip: text, which clips that background to the text of the
+// element and of everything inside it (CSS Backgrounds 4, background-clip: text; measure-rendered.mjs,
+// header, "unless background-clip: text paints the text with the background").
+// Breaks when: only the element that owns the text is asked for background-clip: text, as it is
+// now, so the links inside a paragraph with a gradient fill are reported as transparent although
+// they show the gradient; Chrome draws them (a broken copy of /en/anatomy/ with
+// `.footer-links{background:linear-gradient(...);background-clip:text;-webkit-text-fill-color:transparent}`).
+// The case is marked todo until the measure reads background-clip: text up the chain.
+// Not covered by: the colour cases of test/site-measure.test.mjs set background-clip on the element
+// that owns the text only.
+test('a transparent fill painted by the background of an ancestor through background-clip: text is not transparent', { todo: 'open gap: background-clip: text is read on the owner of the text only' }, () => {
+  const fill = { color: 'rgb(10, 10, 10)', textFillColor: 'rgba(0, 0, 0, 0)' };
+  const link = box('a.gx-link', { ...fill, backgroundClip: 'border-box' });
+  const band = box('p.footer-links', { ...fill, backgroundClip: 'text' });
+  assert.deepEqual(leftOf([link, band], [{ x: 20, y: 100, width: 60, height: 20 }]), []);
 });
 
 // ---------- the selector reader of check-build ----------
@@ -455,5 +570,69 @@ test('a put-back that fails too is said in the one line of the error, with the f
     assert.equal(readFileSync(join(yard.publicDir, 'favicon-64.png'), 'utf8'), 'old favicon-64.png', 'a file never reached is untouched');
   } finally {
     rmSync(yard.root, { recursive: true, force: true });
+  }
+});
+
+// Contract: the guard against symbolic links looks at the six destinations only: a link beside
+// them, in public/ or in the manifest folder, pointing somewhere or nowhere, neither stops the
+// generator nor is touched by it, and the six destinations are written (make-assets.mjs,
+// refuseLinks, "A destination that is a symbolic link").
+// Breaks when: the guard refuses any link it finds in public/ or the manifest folder, so a
+// repository that keeps an unrelated link there can no longer make its assets; or the copy follows
+// or replaces a link that is not one of its destinations.
+// Not covered by: the link cases of test/site-assets.test.mjs put the link on a destination every
+// time, and no case keeps a link beside them.
+test('a symbolic link beside the six destinations does not stop the generator and is left as it is', () => {
+  const yard = assetYard();
+  try {
+    const target = join(yard.root, 'elsewhere.txt');
+    writeFileSync(target, 'not the generator\'s');
+    const beside = join(yard.publicDir, 'robots-link.txt');
+    symlinkSync(target, beside);
+    const dangling = join(dirname(yard.manifestPath), 'old.json');
+    symlinkSync(join(yard.root, 'nowhere.json'), dangling);
+    const manifest = generate(yard, copyFileSync);
+    assert.ok(manifest && manifest.outputs['favicon.ico'], 'the generator made its outputs');
+    for (const f of ASSET_FILES) {
+      assert.ok(!lstatSync(join(yard.publicDir, f)).isSymbolicLink(), `${f} is a plain file`);
+      assert.notEqual(readFileSync(join(yard.publicDir, f), 'utf8'), `old ${f}`, `${f} was written`);
+    }
+    assert.ok(existsSync(yard.manifestPath), 'the manifest was written');
+    assert.ok(lstatSync(beside).isSymbolicLink() && readlinkSync(beside) === target, 'the link in public/ is as it was');
+    assert.ok(lstatSync(dangling).isSymbolicLink() && readlinkSync(dangling) === join(yard.root, 'nowhere.json'), 'the dangling link is as it was');
+    assert.equal(readFileSync(target, 'utf8'), 'not the generator\'s', 'the target of the link is as it was');
+    assert.ok(!existsSync(join(yard.root, 'nowhere.json')), 'nothing was written through the dangling link');
+  } finally {
+    rmSync(yard.root, { recursive: true, force: true });
+  }
+});
+
+// Contract: a Chrome that does not answer --version in time is killed outright, as the screenshot
+// is, and is an error of one line (make-assets.mjs, header, "it is then killed, in the screenshots
+// and in the version query alike").
+// Breaks when: the version query falls back to the default signal to terminate, so a Chrome that
+// ignores it holds the generator for as long as it likes; a stand-in that leaves a mark when asked
+// to terminate shows the difference without timing anything.
+// Not covered by: the stand-in of test/site-assets.test.mjs ignores the signal and then ends on its
+// own, so with the default signal the query still returns, only later, with the same message.
+test('a version query that does not answer is killed, never asked to terminate', () => {
+  const work = mkdtempSync(join(tmpdir(), 'site-assets-version-probe-'));
+  try {
+    const mark = join(work, 'asked-to-terminate');
+    const stub = join(work, 'chrome.sh');
+    writeFileSync(stub, `#!/bin/sh\ntrap 'echo asked > "${mark}"; exit 0' TERM\nwhile :; do sleep 1; done\n`);
+    chmodSync(stub, 0o755);
+    let message = null;
+    try {
+      chromeVersion(stub, { timeout: 2000 });
+    } catch (e) {
+      message = e.message;
+    }
+    assert.ok(message, 'the query failed');
+    assert.doesNotMatch(message, /\n/);
+    assert.match(message, /--version/);
+    assert.ok(!existsSync(mark), 'the stand-in was asked to terminate instead of being killed');
+  } finally {
+    rmSync(work, { recursive: true, force: true });
   }
 });
