@@ -6,7 +6,7 @@
 //   data, display heading). Running text takes the body size (--fs-body), the long notes the
 //   control size (--fs-ui); nothing uses a literal size but the display headings, and every size
 //   is a token of the design system scale. Inside the block where the pipeline scene pins, the
-//   step descriptions take one declaration of their own, so the size there is one token to change.
+//   step descriptions take one declaration of their own, at the control size (spec 1c, measured).
 // * the order: the home pages run hero, pipeline, demo, loop, use cases, commands, editions,
 //   closing, contact; the loop on the home page keeps its head, its five steps and its links, and
 //   its four operation lists live in the `implement` entry of the commands page, after the loop
@@ -109,45 +109,50 @@ const RUNNING = {
   },
 };
 
-// Everything else that sets a size on the home page, and what it is. A display heading may take a
-// literal size; nothing else may.
+// Everything else that sets a size on the home page: selector, the size it takes, and what it is.
+// A display heading may take a literal size; nothing else may. The sizes are the ones these
+// components had at 30e6ae6: this redesign changes running text only.
+const LEDE = 'var(--fs-lede)';
+const LABEL = 'var(--fs-label)';
+const META = 'var(--fs-meta)';
+const D3 = 'var(--fs-d3)';
 const OTHER = {
   HowItWorks: {
-    '.pipe-sub': 'the lede of the section',
-    '.pipe-gate': 'a gate label of the band',
-    '.pipe-step__cmd': 'a command name',
-    '.pipe-step__out': 'the output of a step, mono',
-    '.pipe-extra': 'the line with the extra commands, a list of command names',
+    '.pipe-sub': [LEDE, 'the lede of the section'],
+    '.pipe-gate': [LABEL, 'a gate label of the band'],
+    '.pipe-step__cmd': [D3, 'a command name'],
+    '.pipe-step__out': [META, 'the output of a step, mono'],
+    '.pipe-extra': [META, 'the line with the extra commands, a list of command names'],
   },
   Loop: {
-    '.loop-title': 'the display heading of the thesis (literal size)',
-    '.loop-sub': 'the lede of the section',
-    '.loop-num': 'a step number',
-    '.loop-step h3': 'a role name',
-    '.loop-more': 'the links of the section',
+    '.loop-title': ['clamp(2.4rem, 6.4vw, 5.2rem)', 'the display heading of the thesis (literal size)'],
+    '.loop-sub': [LEDE, 'the lede of the section'],
+    '.loop-num': [LABEL, 'a step number'],
+    '.loop-step h3': [D3, 'a role name'],
+    '.loop-more': [UI, 'the links of the section'],
   },
   LiveDemo: {
-    '.demo-said': 'what the person says, a display quote (literal size)',
-    '.demo-sheet .gx-ficha .v': 'a field value of the spec sheet, data',
-    '.demo-sheet__files': 'file names, mono',
-    '.demo-sheet__verdict': 'the verdict chip and its status line',
+    '.demo-said': ['clamp(1.45rem, 2.5vw, 2.05rem)', 'what the person says, a display quote (literal size)'],
+    '.demo-sheet .gx-ficha .v': [UI, 'a field value of the spec sheet, data'],
+    '.demo-sheet__files': [META, 'file names, mono'],
+    '.demo-sheet__verdict': [META, 'the verdict chip and its status line'],
   },
   UseCases: {
-    '.uc-row h3': 'a use case title',
-    '.uc-route': 'the route of commands, mono',
+    '.uc-row h3': [D3, 'a use case title'],
+    '.uc-route': [META, 'the route of commands, mono'],
   },
   Features: {
-    '.cmd-name h3': 'a command name',
-    '.cmd-tier': 'a tier label',
-    '.cmd-details': 'a details link',
+    '.cmd-name h3': [D3, 'a command name'],
+    '.cmd-tier': [LABEL, 'a tier label'],
+    '.cmd-details': [META, 'a details link'],
   },
   Editions: {
-    '.ed-name h3': 'an edition name',
-    '.ed-cmd-text': 'an install command, mono',
-    '.ed-steps li::before': 'a step number',
+    '.ed-name h3': [D3, 'an edition name'],
+    '.ed-cmd-text': [META, 'an install command, mono'],
+    '.ed-steps li::before': [META, 'a step number'],
   },
   ContactForm: {
-    '.contact-success': 'the success message, at the lede size',
+    '.contact-success': [LEDE, 'the success message, at the lede size'],
   },
 };
 const LITERAL_OK = new Set(['.loop-title', '.demo-said']);
@@ -205,6 +210,20 @@ test('the running text list is not empty or stale: each selector is on the page 
   assert.ok(tokens.includes(UI), 'the notes at the control size');
 });
 
+test('what is not running text keeps its size: each label, control, datum and heading takes the size listed', () => {
+  const wrong = [];
+  for (const name of HOME_COMPONENTS) {
+    const rules = cssRules(styleOf(component(name)));
+    for (const [sel, [expected, why]] of Object.entries(OTHER[name])) {
+      assert.ok(why.length > 0, `${name}: ${sel} has its reason`);
+      const sizes = rules.filter((r) => r.selectors.includes(sel)).flatMap((r) => fontSizes(r.body));
+      if (!sizes.length) wrong.push(`${name}: ${sel} sets no size`);
+      for (const size of sizes) if (size !== expected) wrong.push(`${name}: ${sel} takes ${size}, not ${expected}`);
+    }
+  }
+  assert.deepEqual(wrong, []);
+});
+
 test('every font size on the home page is a token of the design system scale, but the display headings', () => {
   for (const token of ['--fs-label', '--fs-meta', '--fs-ui', '--fs-body']) assert.ok(SCALE.has(token), `${token} in the scale`);
   const wrong = [];
@@ -229,7 +248,9 @@ test('where the scene pins, the step descriptions take one declaration of their 
   assert.ok(!/data-scene-loose/.test(inBlock[0].selectors.join()), 'the size does not depend on the loose mark, so the measure gives one answer');
   const sizes = fontSizes(inBlock[0].body);
   assert.equal(sizes.length, 1, 'one declaration');
-  assert.ok([UI, BODY].includes(sizes[0]), `the size is a token, control or body: ${sizes[0]}`);
+  // The control size, measured (spec 1c, 19/11): with the body size there, 18 of 154 screens stop
+  // pinning, all in Portuguese, one of them 1024x700, where the scene has to pin.
+  assert.equal(sizes[0], UI, 'where the scene pins, the step descriptions take the control size');
   const elsewhere = rules.filter((r) => r.media !== SCENE_QUERY && r.selectors.some((s) => /\.pipe-step__desc\b/.test(s))).flatMap((r) => fontSizes(r.body));
   assert.deepEqual(elsewhere, [BODY], 'outside the block the step descriptions take the body size');
 });

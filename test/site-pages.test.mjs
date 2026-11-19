@@ -20,6 +20,7 @@ import * as nodeModule from 'node:module';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loopSetupProblems } from '../site/scripts/check-pages.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -157,14 +158,20 @@ test('every i18n key and every literal of the start commit is still used', () =>
 test('every key the two components use exists in both languages', () => {
   const en = read('site/src/i18n/en.ts');
   const pt = read('site/src/i18n/pt-br.ts');
-  // A string key, or a list of strings (the loop's operation lists in the implement entry).
-  const has = (text, key) => new RegExp(`\\n\\s*${key}:\\s*(?:'|\\[\\s*')`).test(text);
+  // The items of the loop's four operation lists are lists of strings, in both languages; every
+  // other key the two components read is a string, in both.
+  const LIST_KEYS = new Set(['loopOnItems', 'loopHostsItems', 'loopCompanyItems', 'loopReqItems']);
+  const isString = (text, key) => new RegExp(`\\n\\s*${key}:\\s*'`).test(text);
+  const isList = (text, key) => new RegExp(`\\n\\s*${key}:\\s*\\[\\s*'`).test(text);
   for (const file of [COMMANDS, ANATOMY]) {
     for (const key of keysOf(read(file))) {
-      assert.ok(has(en, key), `${key} (used by ${file}) is missing in en.ts`);
-      assert.ok(has(pt, key), `${key} (used by ${file}) is missing in pt-br.ts`);
+      const [has, kind] = LIST_KEYS.has(key) ? [isList, 'a list of strings'] : [isString, 'a string'];
+      assert.ok(has(en, key), `${key} (used by ${file}) is not ${kind} in en.ts`);
+      assert.ok(has(pt, key), `${key} (used by ${file}) is not ${kind} in pt-br.ts`);
     }
   }
+  const commandKeys = keysOf(read(COMMANDS));
+  for (const key of LIST_KEYS) assert.ok(commandKeys.has(key), `${COMMANDS} reads ${key}`);
 });
 
 test('the commands keep one anchor per command, in order', () => {
@@ -172,6 +179,69 @@ test('the commands keep one anchor per command, in order', () => {
   const ids = [...frontmatter(src).matchAll(/^\s{4}id: '([^']+)'/gm)].map((m) => m[1]);
   assert.deepEqual(ids, COMMAND_IDS);
   assert.match(markup(src), /\sid=\{cmd\.id\}/, 'each command entry carries its id');
+});
+
+// The check-pages rule for the loop's lists, run on <main> HTML built from forms: where the block
+// sits, what separates the tags around it, the state of its lists, and a second element with its
+// id. It must find a problem in every combination that breaks the rule and none in the right ones.
+test('check-pages finds a problem in every misplaced, altered or doubled loop setup block, and none in the right one', () => {
+  const EXPECTED = {
+    mode: 'Loop mode',
+    lists: [
+      { key: 'loopOnItems', title: 'Turning it on', items: ['Off by default. Without `--loop`, `implement` runs phases 0 to 8.', '`--no-loop` turns it off for one run.'] },
+      { key: 'loopHostsItems', title: 'Hosts', items: ['Claude Code runs each role in a fresh session.', 'Codex opens a new task given the briefing.'] },
+      { key: 'loopCompanyItems', title: 'In a company', items: ['One OK per feature to commit each round.', 'The loop never runs on the default branch.'] },
+      { key: 'loopReqItems', title: 'Requirements', items: ['Node.js 18 or newer for `implement <spec> --loop`.', 'The kit, installed by the CLI.'] },
+    ],
+  };
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // An item as InlineCode renders it: each backtick span becomes a code element.
+  const li = (item) => `<li>${esc(item).replace(/`([^`]*)`/g, '<code class="ic">$1</code>')}</li>`;
+  const LIST_STATES = {
+    equal: (lists) => lists,
+    'one space less': (lists) => lists.map((l, i) => (i ? l : { ...l, items: [l.items[0].replace(' ', ''), ...l.items.slice(1)] })),
+    'a space inside a word': (lists) => lists.map((l, i) => (i ? l : { ...l, items: [l.items[0].replace('default', 'def ault'), ...l.items.slice(1)] })),
+    'an item less': (lists) => lists.map((l, i) => (i === 1 ? { ...l, items: l.items.slice(0, -1) } : l)),
+    'two items swapped': (lists) => lists.map((l, i) => (i === 2 ? { ...l, items: [...l.items].reverse() } : l)),
+    'a title swapped': (lists) => lists.map((l, i) => (i < 2 ? { ...l, title: lists[1 - i].title } : l)),
+  };
+  const SEPARATORS = { nothing: '', 'a space': ' ', 'a line break': '\n' };
+  const DOUBLES = { none: '', div: '<div id="loop-setup"></div>', section: '<section id="loop-setup"></section>', a: '<a id="loop-setup"></a>' };
+  const PLACES = ['after the loop mode block', 'last in the entry', 'inside the loop mode block', 'before the loop mode block', 'right after the entry', 'in another entry'];
+  const RIGHT = new Set(['after the loop mode block', 'last in the entry']);
+
+  const pageMain = (place, sep, lists, double) => {
+    const j = (...parts) => parts.join(sep);
+    const setup = j('<div class="entry-block entry-setup" id="loop-setup">', ...lists.map((l) => j('<div class="entry-group">', `<h3 class="gx-rotulo entry-label">${esc(l.title)}</h3>`, j('<ul class="entry-list">', ...l.items.map(li), '</ul>'), '</div>')), '</div>');
+    const label = '<p class="gx-rotulo entry-label">Loop mode</p>';
+    const flags = j('<dl class="entry-defs">', '<div class="entry-def"><dt><code class="gx-chip">--loop</code></dt><dd>Phases 0 to 3 run as above.</dd></div>', '</dl>', '<p class="entry-more"><a href="/en/#loop" class="gx-link">How the execution loop works →</a></p>');
+    const mode = j('<div class="entry-block">', label, ...(place === 'inside the loop mode block' ? [setup] : []), flags, '</div>');
+    const phases = j('<div class="entry-block">', '<p class="gx-rotulo entry-label">Phases</p>', '<dl class="entry-defs"><div class="entry-def"><dt>Phase 0</dt><dd>Find the spec.</dd></div></dl>', '</div>');
+    const output = j('<div class="entry-block entry-output">', '<p class="gx-rotulo entry-label">Output</p>', '<p>Code and tests.</p>', '</div>');
+    const blocks = [phases, ...(place === 'before the loop mode block' ? [setup] : []), mode, ...(place === 'after the loop mode block' ? [setup] : []), output, ...(place === 'last in the entry' ? [setup] : [])];
+    const implement = j('<article id="implement" class="doc-entry">', '<h2>implement</h2>', ...blocks, '</article>');
+    const before = j('<article id="gen-spec" class="doc-entry">', '<h2>gen-spec</h2>', '<p>Writes the spec.</p>', double, '</article>');
+    const after = j('<article id="prompt-pack" class="doc-entry">', '<h2>prompt-pack</h2>', '<p>Packs a prompt.</p>', ...(place === 'in another entry' ? [setup] : []), '</article>');
+    return j(before, place === 'right after the entry' ? j(implement, setup) : implement, after);
+  };
+
+  const failures = [];
+  let cases = 0;
+  for (const place of PLACES) {
+    for (const [sepName, sep] of Object.entries(SEPARATORS)) {
+      for (const [state, alter] of Object.entries(LIST_STATES)) {
+        for (const [doubleName, double] of Object.entries(DOUBLES)) {
+          cases++;
+          const problems = loopSetupProblems(pageMain(place, sep, alter(EXPECTED.lists), double), EXPECTED);
+          const right = RIGHT.has(place) && state === 'equal' && doubleName === 'none';
+          if (right && problems.length) failures.push(`${place}, ${sepName}, ${state}, no double: ${problems.join('; ')}`);
+          if (!right && !problems.length) failures.push(`${place}, ${sepName}, ${state}, double ${doubleName}: passes`);
+        }
+      }
+    }
+  }
+  assert.equal(cases, 6 * 3 * 6 * 4);
+  assert.deepEqual(failures, [], `${failures.length} failures over ${cases} cases`);
 });
 
 test('the anatomy gives every section an anchor, and the index links to each one', () => {
