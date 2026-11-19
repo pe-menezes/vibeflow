@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { runScript, withSandbox } from '../loop-helpers.mjs';
 
 const LINE_NOTE = '(line left out: it looks like a secret or credential; see HEADER LINES LEFT OUT at the top)';
-const NO_UNTRACKED = '(no untracked file; a file added since the base and already in git is marked new under Files and lines)';
+const NO_UNTRACKED = '(no untracked file in the change; a file added since the base and already in git is marked new under Files and lines)';
 // Split so secret scanners do not flag this file.
 const SECRET_VALUE = `${'f4ke'}${'Va1ue9x7Q'}`;
 const SECRET_NAME = `${'API'}${'_TOKEN'}=${SECRET_VALUE}`;

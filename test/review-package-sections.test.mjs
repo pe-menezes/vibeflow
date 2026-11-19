@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { runScript, withSandbox } from './loop-helpers.mjs';
 
 const LINE_NOTE = '(line left out: it looks like a secret or credential; see HEADER LINES LEFT OUT at the top)';
-const NO_UNTRACKED = '(no untracked file; a file added since the base and already in git is marked new under Files and lines)';
+const NO_UNTRACKED = '(no untracked file in the change; a file added since the base and already in git is marked new under Files and lines)';
 // Split so secret scanners do not flag this file; the same name as in loop-scripts.test.mjs.
 const SECRET_LOOKING_NAME = `${'API'}${'_TOKEN'}=${'f4ke'}${'Va1ue9x7Q'}`;
 
@@ -245,6 +245,93 @@ test('git status --short without the untracked knowledge base keeps the leading 
     assert.equal(actual, expected);
   });
 });
+
+// Every character String.prototype.trim takes off the ends of a text, found by walking the code
+// points: none is listed by hand.
+const TRIMMED = [];
+for (let cp = 0; cp <= 0x10ffff; cp += 1) {
+  if (cp >= 0xd800 && cp <= 0xdfff) continue;
+  const c = String.fromCodePoint(cp);
+  if (`x${c}`.trim() === 'x') TRIMMED.push(c);
+}
+
+// The states that put a path in each place of the package: only the status (changed in the index
+// and back to the base in the worktree), the status, Files and lines and the diff (staged, or
+// changed in the worktree), the status, New files and the diff (untracked).
+const PLACES = {
+  'index only': { tracked: true, inDiff: false, setUp: (box, path) => {
+    box.write(path, 'staged\n');
+    box.git('add', '--', path);
+    box.write(path, 'base\n');
+  } },
+  staged: { tracked: true, inDiff: true, setUp: (box, path) => {
+    box.write(path, 'staged\n');
+    box.git('add', '--', path);
+  } },
+  worktree: { tracked: true, inDiff: true, setUp: (box, path) => box.write(path, 'changed\n') },
+  untracked: { tracked: false, inDiff: false, setUp: (box, path) => box.write(path, 'new\n') },
+};
+
+// The entries of `git status --porcelain -z`, each as its path.
+function statusPaths(box) {
+  return box.git('status', '--porcelain', '-z').split('\0').filter(Boolean).map((entry) => entry.slice(3));
+}
+
+// A path that looks like a secret with the character after its value, in one place of the
+// package, first or last in the status; the package must hold no line with the name and value.
+function trailingSpaceCase(c, place, position) {
+  return withSandbox((box) => {
+    const { tracked, inDiff, setUp } = PLACES[place];
+    const path = `m-${SECRET_LOOKING_NAME}${c}`;
+    // git sorts the status by path, the untracked after the tracked: the other path comes after
+    // the secret-looking one for "first" and before it for "last".
+    const other = position === 'first' ? 'z-other.txt' : '0-other.txt';
+    if (tracked) {
+      box.write(path, 'base\n');
+      box.write(other, 'other\n');
+      box.git('add', '-A');
+      box.git('commit', '-q', '-m', 'trailing space base');
+    }
+    const base = box.git('rev-parse', 'HEAD').trim();
+    setUp(box, path);
+    box.write(other, 'other changed\n');
+
+    // The case is the one it says: the path is in that place and in that position of the status.
+    const status = statusPaths(box);
+    assert.equal(position === 'first' ? status[0] : status.at(-1), path, JSON.stringify(status));
+    const diffPaths = box.git('diff', '--name-only', '-z', base).split('\0');
+    assert.equal(diffPaths.includes(path), inDiff, JSON.stringify(diffPaths));
+    const untrackedPaths = box.git('ls-files', '--others', '--exclude-standard', '-z').split('\0');
+    assert.equal(untrackedPaths.includes(path), !tracked);
+
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+    if (result.status !== 0) return `exit ${result.status}: ${result.out.trim()}`;
+    const leaks = readFileSync(out, 'utf8').split('\n')
+      .map((line, i) => ({ line, i }))
+      .filter(({ line }) => line.includes(SECRET_LOOKING_NAME));
+    return leaks.length ? `line ${leaks[0].i + 1}: ${JSON.stringify(leaks[0].line)}` : null;
+  });
+}
+
+test('the characters trim takes off are found, U+00A0 among them', () => {
+  assert.ok(TRIMMED.includes(' '));
+  assert.ok(TRIMMED.includes(' ') && TRIMMED.includes('\t') && TRIMMED.includes('\n'));
+  assert.ok(TRIMMED.length > 10, `${TRIMMED.length}`);
+});
+
+for (const place of Object.keys(PLACES)) {
+  for (const position of ['first', 'last']) {
+    test(`a secret-looking path ending in a space trim takes off stays out of the package (${place}, ${position} in the status)`, () => {
+      const failures = [];
+      for (const c of TRIMMED) {
+        const failure = trailingSpaceCase(c, place, position);
+        if (failure) failures.push(`U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')} ${failure}`);
+      }
+      assert.deepEqual(failures, []);
+    });
+  }
+}
 
 test('git status --short without the untracked knowledge base when it is git\'s first line', () => {
   withSandbox((box) => {

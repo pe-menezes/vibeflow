@@ -179,10 +179,13 @@ function secretLine(chunk) {
   return 0;
 }
 
-// A line of the package that looks like a secret, tested as secretLine tests a diff line: without
-// a final "\r".
+// A line of the package or a path that looks like a secret, tested as secretLine tests a diff
+// line (without a final "\r") and also without the spaces at its ends that String.prototype.trim
+// takes off (U+00A0 and the other Unicode spaces among them): a bare value followed by such a
+// space, as at the end of a path, is not followed by what the detector reads as the end of it.
 function looksSecret(printed) {
-  return SECRET.test(printed.endsWith('\r') ? printed.slice(0, -1) : printed);
+  const line = printed.endsWith('\r') ? printed.slice(0, -1) : printed;
+  return SECRET.test(line) || SECRET.test(line.trim());
 }
 
 // Whether a file diff's path looks like a secret: the path, the `## New file:` heading, or a line
@@ -212,7 +215,7 @@ function printedForms(path) {
 }
 
 // What the New files section says when no file is untracked.
-const NO_UNTRACKED = '(no untracked file; a file added since the base and already in git is marked new under Files and lines)';
+const NO_UNTRACKED = '(no untracked file in the change; a file added since the base and already in git is marked new under Files and lines)';
 
 // What replaces, in the header, a line that looks like a secret or holds a path that does.
 const LINE_NOTE = '(line left out: it looks like a secret or credential; see HEADER LINES LEFT OUT at the top)';
