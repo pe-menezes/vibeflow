@@ -137,3 +137,28 @@ test('a part with a fix round: the ALLOWED line of its audit still reaches the P
       `${edition}: the PR body takes the Critical Gate from the last report only (${sources.trim()}) and the re-audit does not carry the ALLOWED lines, so a part with a fix round loses its marker`);
   }
 });
+
+// Re-audit 1 probe.
+// Contract (A1 fix): the placeholder line a model fills in the PR body's Critical Gate section, the
+// line left once the source comment is deleted, asks itself for the ALLOWED lines of the part's
+// earlier reports, and offers "Critical Gate clean" only when there is nothing to copy. A part with
+// a fix round has a clean last report and its ALLOWED line in the audit report; a placeholder that
+// asks for the last report alone, or that offers "clean" first with no condition, lets the model
+// write "p1: Critical Gate clean" and the marker never reaches the PR.
+// Breaks when: the placeholder goes back to "Critical Gate clean, or each line of the report's
+// Critical Gate section, word for word" while the opening and the comment keep the fix (sabotage
+// S10 of the re-audit), or keeps both sources but puts an unconditioned "Critical Gate clean" first
+// (S11).
+// Not covered by: the A1 probe reads the comment and the opening sentence, either of which names
+// the earlier reports; the placeholder probe asks only for "word for word"; the implementer's
+// pr-body test joins the opening and the section. S10 and S11 survived all of them.
+test('pr-body.md: the Critical Gate placeholder itself asks for the earlier ALLOWED lines, and clean only when nothing is left to copy', () => {
+  const { body } = prBodyGate();
+  assert.match(body, /\bALLOWED\b/, `the placeholder asks for the ALLOWED lines: ${body}`);
+  assert.match(body, /\b(earlier|previous|every)\b[^.]*\breports?\b|(?<!re-)\baudit report/,
+    `the placeholder names the part's earlier reports, not the last one alone: ${body}`);
+  if (/\bclean\b/i.test(body)) {
+    assert.match(body, /\bclean\b[^,.]*\b(when|if)\b|\bonly (when|if)\b[^.]*\bclean\b/i,
+      `the placeholder offers "clean" only when there is nothing to copy: ${body}`);
+  }
+});
