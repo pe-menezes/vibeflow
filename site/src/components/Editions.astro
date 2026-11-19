@@ -34,6 +34,23 @@ const cmdHtml = (cmd: string) =>
     <h2 class="section-title">{t.editionsTitle2}</h2>
     <p class="section-sub">{t.editionsSubtitle2}</p>
 
+    <!-- Three answers before the rows: cost, code, first command. Titles are dt, not h3: the h3 of
+         this section are the six agents. -->
+    <dl class="ed-answers">
+      <div class="ed-answer">
+        <dt>{t.editionsCostTitle}</dt>
+        <dd><InlineCode text={t.editionsCostBody} /></dd>
+      </div>
+      <div class="ed-answer">
+        <dt>{t.editionsCodeTitle}</dt>
+        <dd><InlineCode text={t.editionsCodeBody} /></dd>
+      </div>
+      <div class="ed-answer">
+        <dt>{t.editionsFirstTitle}</dt>
+        <dd><InlineCode text={t.editionsFirstBody} /></dd>
+      </div>
+    </dl>
+
     <!-- One row per agent, in this order: Codex, Hermes, Claude Code, Cursor, Copilot, OpenCode. -->
     <ul class="gx-lista ed-list">
       <li class="gx-linha ed-row">
@@ -175,6 +192,31 @@ const cmdHtml = (cmd: string) =>
 <style>
   .ed-label {
     margin-bottom: var(--s-3);
+  }
+
+  /* The three answers: one column on a phone, three where the section is wide enough. The rows
+     follow at the distance the subtitle keeps above them. */
+  .ed-answers {
+    display: grid;
+    gap: var(--s-5) var(--s-6);
+    margin: 0 0 var(--s-6);
+  }
+  @media (min-width: 760px) {
+    .ed-answers {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .ed-answers dt {
+    color: var(--ink);
+    font-size: var(--fs-body);
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .ed-answers dd {
+    margin: var(--s-1) 0 0;
+    color: var(--ink-3);
+    font-size: var(--fs-body);
+    line-height: 1.5;
   }
 
   .ed-row {

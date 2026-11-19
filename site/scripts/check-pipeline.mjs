@@ -9,10 +9,11 @@
 // * the order of the sections: hero, pipeline, demo, loop, use cases, commands, editions, closing,
 //   contact;
 // * the loop: a dark stage, the thesis with its second line struck, every step of today, none of
-//   the four operation lists (they live on the commands page), one link to them with their four
-//   titles as its text, and the link to the details;
+//   the four operation lists (they live on the commands page), one link to them with
+//   loopSetupLink as its text, and the link to the details;
 // * the editions: six agents in today's order, each copy button holding an exact i18n command and
-//   the feedback of its language, the Claude Code tabs with both panels in the document.
+//   the feedback of its language, the Claude Code tabs with both panels in the document, and the
+//   texts of the three answers above the rows (where and in what order is the source test's).
 // Every expected text is read from src/i18n.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -117,7 +118,7 @@ function checkLoop(html, lang, where) {
   for (const k of strings) if (!text.includes(squash(key(k)))) fail(`${where}: loop without ${k}`);
   // The four operation lists moved to the implement entry of the commands page (check-pages.mjs
   // finds them there): none of their items is left in the section, which links to them instead,
-  // with their four titles as the link text.
+  // with loopSetupLink as the link text.
   for (const b of LOOP_LISTS) {
     const items = i18nArray(lang, `${b}Items`);
     if (!items?.length) fail(`${where}: no ${b}Items in i18n`);
@@ -125,7 +126,7 @@ function checkLoop(html, lang, where) {
   }
   if (/<ul\b/.test(body)) fail(`${where}: loop still has a list besides its steps`);
   const setup = [...body.matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].filter((m) => m[1] === `/${lang}/commands#${LOOP_SETUP_ID}`);
-  const setupText = LOOP_LISTS.map((b) => key(`${b}Title`)).join(' · ');
+  const setupText = key('loopSetupLink');
   if (setup.length !== 1) fail(`${where}: ${setup.length} links to /${lang}/commands#${LOOP_SETUP_ID} instead of 1`);
   else if (plain(setup[0][2]) !== setupText) fail(`${where}: the link to the lists reads "${plain(setup[0][2])}"`);
   const steps = (/<ol\b[^>]*>([\s\S]*?)<\/ol>/.exec(body)?.[1].match(/<li\b/g) ?? []).length;
@@ -180,7 +181,8 @@ function checkEditions(html, lang, where) {
   const text = squash(plain(body));
   const strings = ['editionsLabel', 'editionsTitle2', 'editionsSubtitle2', 'claudeDesktopLabel', 'claudeCliLabel',
     'claudeStep1', 'claudeStep2', 'claudeStep4', 'claudeStep5', 'editionsLoopKit', 'editionsHermesScan',
-    'editionsGitDisclaimer', 'editionsTagline', ...EDITIONS.map((k) => k.replace('Title', 'Desc')), ...COMMANDS];
+    'editionsGitDisclaimer', 'editionsTagline', 'editionsCostTitle', 'editionsCostBody', 'editionsCodeTitle',
+    'editionsCodeBody', 'editionsFirstTitle', 'editionsFirstBody', ...EDITIONS.map((k) => k.replace('Title', 'Desc')), ...COMMANDS];
   for (const k of strings) if (!text.includes(squash(key(k)))) fail(`${where}: editions without ${k}`);
 }
 

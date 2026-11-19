@@ -45,18 +45,25 @@ const BASE_KEYS = {
 // Keys that only the new design reads, on top of the ones of BASE.
 const NEW_KEYS = {
   HowItWorks: ['heroQuickStart1Desc', 'heroQuickStart2Desc', 'heroQuickStart3Desc', 'heroQuickStart4Desc'],
-  Loop: [],
-  Editions: ['copied'],
+  Loop: ['loopSetupLink'],
+  Editions: [
+    'copied',
+    'editionsCodeBody', 'editionsCodeTitle', 'editionsCostBody', 'editionsCostTitle',
+    'editionsFirstBody', 'editionsFirstTitle',
+  ],
 };
 
 // Keys that left a section for another component: the loop's four operation lists moved to the
-// implement entry of the commands page. Their items are read there and no longer in the section;
-// their titles are read there and still in the section, as the text of its link to the lists.
+// implement entry of the commands page. Their titles and items are read there and no longer in the
+// section, which links to them with a sentence of its own (loopSetupLink).
 const MOVED_KEYS = {
   Loop: {
     to: 'CommandsDocs',
-    keys: ['loopCompanyItems', 'loopHostsItems', 'loopOnItems', 'loopReqItems'],
-    shared: ['loopCompanyTitle', 'loopHostsTitle', 'loopOnTitle', 'loopReqTitle'],
+    keys: [
+      'loopCompanyItems', 'loopHostsItems', 'loopOnItems', 'loopReqItems',
+      'loopCompanyTitle', 'loopHostsTitle', 'loopOnTitle', 'loopReqTitle',
+    ],
+    shared: [],
   },
 };
 
@@ -218,6 +225,29 @@ test('the editions are a list with one row per agent, in today\'s order, and the
     [...new Set(copies.map((c) => c.slice(2)))].sort(),
     ['claudeInstall', 'claudeInstall2', 'codexInstall', 'codexInstall2', 'copilotInstall', 'cursorInstall', 'hermesInstall', 'hermesInstall2', 'opencodeInstall'],
   );
+});
+
+// The three answers above the edition rows: cost, code, first command, in that order.
+const ANSWERS = ['editionsCost', 'editionsCode', 'editionsFirst'];
+
+test('the editions open with three answers between the subtitle and the rows: a definition list, no h3', () => {
+  const ed = component('Editions');
+  const markup = template(ed);
+  const sub = markup.indexOf('{t.editionsSubtitle2}');
+  const rows = markup.indexOf('<ul class="gx-lista ed-list">');
+  assert.ok(sub >= 0 && rows > sub, 'the subtitle, then the rows');
+  const between = markup.slice(sub, rows);
+  const dl = /<dl class="ed-answers">([\s\S]*?)<\/dl>/.exec(between);
+  assert.ok(dl, 'a definition list between the subtitle and the rows');
+  assert.equal(markup.split('<dl').length, 2, 'one definition list in the section');
+  const pairs = [...dl[1].matchAll(/<dt>\{t\.(\w+)Title\}<\/dt>\s*<dd><InlineCode text=\{t\.(\w+)Body\} \/><\/dd>/g)];
+  assert.deepEqual(pairs.map((m) => m[1]), ANSWERS, 'each title in a dt, in the order cost, code, first command');
+  assert.deepEqual(pairs.map((m) => m[2]), ANSWERS, 'each body in the dd that follows its title, through InlineCode');
+  for (const base of ANSWERS) {
+    for (const key of [`${base}Title`, `${base}Body`]) assert.equal(ed.split(`t.${key}`).length, 2, `t.${key} once`);
+  }
+  assert.ok(!/<h[1-6]\b/.test(dl[1]), 'no heading inside the answers: the h3 of the section are the six agents');
+  assert.ok(!/aria-label/.test(dl[0]), 'no aria-label on the answers');
 });
 
 test('the copy buttons speak the page language from i18n, not from literals', () => {
