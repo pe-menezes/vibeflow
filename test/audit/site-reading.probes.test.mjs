@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loopSetupProblems } from '../../site/scripts/check-pages.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -80,4 +81,50 @@ test('every key the commands and anatomy pages read has the same form in both la
     assert.ok(keys.has(key), `the commands page reads ${key}`);
     assert.equal(form(en, key), 'list', `${key} is a list`);
   }
+});
+
+// The commands page check of the loop's lists (check-pages.mjs, loopSetupProblems) on two entry
+// shapes the generated forms of the executor's test do not build: the entry's blocks wrapped in one
+// body div, and the loop mode label gone from the entry.
+const LOOP_EXPECTED = {
+  mode: 'Loop mode',
+  lists: [
+    { key: 'loopOnItems', title: 'Turning it on', items: ['Off by default. Without `--loop`, `implement` runs phases 0 to 8.'] },
+    { key: 'loopHostsItems', title: 'Hosts', items: ['Codex opens a new task.'] },
+    { key: 'loopCompanyItems', title: 'In a company', items: ['One OK per feature.'] },
+    { key: 'loopReqItems', title: 'Requirements', items: ['Node.js 18 or newer.'] },
+  ],
+};
+const loopSetup = () =>
+  `<div class="entry-block entry-setup" id="loop-setup">${LOOP_EXPECTED.lists
+    .map((l) => `<div class="entry-group"><h3 class="entry-label">${l.title}</h3><ul class="entry-list">${l.items.map((i) => `<li>${i.replace(/`([^`]*)`/g, '<code class="ic">$1</code>')}</li>`).join('')}</ul></div>`)
+    .join('')}</div>`;
+const LOOP_FLAGS = '<dl class="entry-defs"><div class="entry-def"><dt><code class="gx-chip">--loop</code></dt><dd>Phases 0 to 3.</dd></div></dl>';
+const loopModeBlock = (inside = '') => `<div class="entry-block"><p class="gx-rotulo entry-label">Loop mode</p>${inside}${LOOP_FLAGS}</div>`;
+const PHASES = '<div class="entry-block"><p class="entry-label">Phases</p><p>Phase 0.</p></div>';
+const OUTPUT = '<dl class="entry-defs entry-output"><div class="entry-def"><dt>Output</dt><dd>Code.</dd></div></dl>';
+const commandsMain = (implement, genSpec = '<p>Writes the spec.</p>') =>
+  `<article id="gen-spec" class="doc-entry">${genSpec}</article><article id="implement" class="doc-entry"><header class="entry-head"><h2>implement</h2></header>${implement}</article>`;
+
+// Contract: spec 2c and C6 of fix round 1, the lists come after the whole loop mode block, and the
+// end of that block is the div that holds its label, the innermost one. Regression: blockEnd takes
+// the outermost open div (open[0]) instead of the innermost, so an entry whose blocks sit in one body
+// div reads as if the loop mode block ran to the end of the entry. Why the executor's test misses it:
+// its entries put every block straight in the article, where the outermost and innermost open div
+// around the label are the same one (the open[0] mutant passes all 432 cases).
+test('the loop lists check reads the end of the loop mode block when the entry wraps its blocks in one div', () => {
+  const after = commandsMain(`<div class="entry-body">${PHASES}${loopModeBlock()}${loopSetup()}${OUTPUT}</div>`);
+  assert.deepEqual(loopSetupProblems(after, LOOP_EXPECTED), [], 'after the loop mode block, inside the body div: right');
+  const inside = commandsMain(`<div class="entry-body">${PHASES}${loopModeBlock(loopSetup())}${OUTPUT}</div>`);
+  assert.ok(loopSetupProblems(inside, LOOP_EXPECTED).length > 0, 'inside the loop mode block, inside the body div: a problem');
+});
+
+// Contract: C6 of fix round 1 fails closed, an implement entry with no loop mode block cannot pass,
+// even with the label elsewhere on the page (where the general key check of check-pages still finds
+// it). Regression: a missing label read as "nothing to follow" (dropping `modeEnd < 0`), so the lists
+// pass with the loop mode block gone. Why the executor's test misses it: every one of its entries
+// has the label in the implement entry.
+test('the loop lists check finds a problem when the implement entry has no loop mode label', () => {
+  const html = commandsMain(`${PHASES}<div class="entry-block">${LOOP_FLAGS}</div>${loopSetup()}${OUTPUT}`, '<div><p class="gx-rotulo entry-label">Loop mode</p></div>');
+  assert.ok(loopSetupProblems(html, LOOP_EXPECTED).length > 0);
 });
