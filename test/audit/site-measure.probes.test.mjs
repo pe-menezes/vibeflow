@@ -11,7 +11,7 @@ import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync,
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findHidden, hiddenReasons } from '../../site/scripts/measure-rendered.mjs';
+import { PAGES, findHidden, hiddenReasons, measureSite } from '../../site/scripts/measure-rendered.mjs';
 import { checkCss, checkPages } from '../../site/scripts/check-build.mjs';
 import { chromeVersion, collectSources, generateAssets } from '../../site/scripts/make-assets.mjs';
 
@@ -330,6 +330,79 @@ test('a transparent fill painted by the background of an ancestor through backgr
   assert.deepEqual(leftOf([link, band], [{ x: 20, y: 100, width: 60, height: 20 }]), []);
 });
 
+// Contract: a line that a box cuts away, by overflow or by a clip-path region, is gone, and what is
+// left of it never stands for the text on screen (measure-rendered.mjs, header, "a box with nothing
+// inside is gone"; "Some box left must not lie wholly ... above"). Chrome agrees: in a broken copy
+// of /en/anatomy/, an absolute box at top:-100px, 150px high with overflow: hidden, holding a
+// paragraph of two lines 100px apart, keeps the first line above the page and cuts the second
+// away, and the measure reports the paragraph off screen above.
+// Breaks when: the cut keeps the box it leaves empty (or the region keeps the box it leaves apart)
+// and only asks whether some box has area; the empty remainder of the second line then sits on the
+// page and the paragraph passes.
+// Not covered by: test/site-measure.test.mjs and its point model put every cutter on the screen, so
+// a box left over by a cut is off screen only when the kept ones are too.
+test('a line cut away by a box does not stand for the text on the screen', () => {
+  const lines = [{ x: 20, y: -47, width: 200, height: 14 }, { x: 20, y: 53, width: 200, height: 14 }];
+  const cutter = box('div.top', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: -100, width: 300, height: 150 } });
+  assert.deepEqual(leftOf([box('p'), cutter], lines), ['off screen above'], 'overflow: hidden across the page top');
+  const shaped = box('div.top', { clipPath: 'inset(0px 0px 30px 0px)', box: { x: 0, y: -100, width: 300, height: 180 } });
+  assert.deepEqual(leftOf([box('p'), shaped], lines), ['off screen above'], 'a clip-path region across the page top');
+  const lower = [{ x: 20, y: 10, width: 200, height: 14 }, { x: 20, y: 53, width: 200, height: 14 }];
+  assert.deepEqual(leftOf([box('p'), cutter], lower), [], 'the kept line on the page');
+});
+
+// Contract: lines wholly after the end of a box that scrolls are brought into its span each on its
+// own row, so a frame that shows only the row of the second line still shows that line
+// (measure-rendered.mjs, onePass, "scrolling brings them into its span, each keeping its place on
+// the other axis"). Chrome agrees: in a broken copy of /en/anatomy/, a paragraph of two lines
+// 300px past the end of a 100px box that scrolls across, inside a 20px frame over the second row,
+// is not reported.
+// Breaks when: only the first box is brought in, or the boxes brought in lose their rows, so a
+// paragraph whose first row the frame cuts off is reported although the second can be scrolled to.
+// Not covered by: the case of scrolled lines in test/site-measure.test.mjs puts its frame over both
+// rows or over the gap between them, never over the second row alone.
+test('lines scrolled in from past the end of a box keep their own rows', () => {
+  const code = box('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: 0, y: 90, width: 300, height: 80 } });
+  const frame = (y, height) => box('div.frame', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y, width: 390, height } });
+  const far = [{ x: 500, y: 100, width: 200, height: 20 }, { x: 500, y: 140, width: 200, height: 20 }];
+  assert.deepEqual(leftOf([box('p'), code, frame(138, 24)], far), [], 'frame over the second row');
+  assert.deepEqual(leftOf([box('p'), code, frame(98, 24)], far), [], 'frame over the first row');
+});
+
+// Contract: a line wholly past the end of a box that scrolls can be scrolled to even when another
+// line of the same text crosses that end, so a frame that shows only its row still shows it.
+// Chrome shows it: in a broken copy of /en/anatomy/, a right-aligned paragraph of two lines in a
+// 100px box with overflow-x: auto, the first line crossing the end and the second ("bb") wholly
+// past it, inside a 20px frame over the second row, shows "bb" in the frame once the box is
+// scrolled to its end; the measure reports the paragraph clipped away by the frame.
+// Breaks when: as now, a box that scrolls keeps of a text only the part inside it whenever one of
+// its lines crosses the end, and drops the lines wholly past the end, which scrolling would bring
+// in. The case is marked todo until the reach of a box that scrolls is worked out line by line.
+// Not covered by: no case of test/site-measure.test.mjs or of its point model gives a text one line
+// that crosses the end of a box that scrolls and another wholly past it.
+test('a line past the end of a box that scrolls is in reach while another line crosses that end', { todo: 'open gap: a line crossing the end of a box that scrolls makes the lines past the end count as cut away' }, () => {
+  const code = box('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: 0, y: 90, width: 100, height: 200 } });
+  const frame = box('div.frame', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 138, width: 300, height: 20 } });
+  const lines = [{ x: 11, y: 100, width: 289, height: 14 }, { x: 285.5, y: 140, width: 14.5, height: 14 }];
+  assert.deepEqual(leftOf([box('p'), code, frame], lines), []);
+});
+
+// Contract: a box that scrolls and has a clip-path of its own cuts what it paints after scrolling,
+// so a text past its end, which scrolling brings inside it, is in view (measure-rendered.mjs,
+// header, "a clip-path shape ... cut all the box paints"; a box that scrolls "brings them into its
+// span"). Chrome agrees: in a broken copy of /en/anatomy/, a paragraph 300px past the end of a
+// 100px box with overflow-x: auto and clip-path: inset(0) is not reported.
+// Breaks when: the clip-path region of a box is applied before its own overflow, so the text past
+// the end is cut away by the region before scrolling brings it in.
+// Not covered by: no case of test/site-measure.test.mjs or of its matrices gives one box both an
+// overflow that scrolls and a clip-path.
+test('a box that scrolls under its own clip-path still reaches the text past its end', () => {
+  const scroller = box('div.scroller', { overflowX: 'auto', overflowY: 'hidden', clipPath: 'inset(0px)', box: { x: 0, y: 90, width: 100, height: 40 } });
+  assert.deepEqual(leftOf([box('p'), scroller], [{ x: 300, y: 100, width: 180, height: 16 }]), []);
+  const closed = box('div.scroller', { overflowX: 'auto', overflowY: 'hidden', clipPath: 'inset(0px 0px 0px 100%)', box: { x: 0, y: 90, width: 100, height: 40 } });
+  assert.deepEqual(leftOf([box('p'), closed], [{ x: 300, y: 100, width: 180, height: 16 }]), ['clipped away by div.scroller'], 'a region of no area');
+});
+
 // ---------- the selector reader of check-build ----------
 
 // Contract: a selector is under the motion gate only when one compound requires both html and
@@ -634,5 +707,74 @@ test('a version query that does not answer is killed, never asked to terminate',
     assert.ok(!existsSync(mark), 'the stand-in was asked to terminate instead of being killed');
   } finally {
     rmSync(work, { recursive: true, force: true });
+  }
+});
+
+// ---------- the measure's run ----------
+
+// The timers, child processes, pipes, sockets and servers alive in this process, by kind, once the
+// event loop has gone round and run the close callbacks of the handles already closed.
+const activeResources = async () => {
+  for (let turn = 0; turn < 2; turn += 1) await new Promise((done) => setImmediate(done));
+  const out = {};
+  for (const kind of process.getActiveResourcesInfo()) out[kind] = (out[kind] ?? 0) + 1;
+  return out;
+};
+
+// Contract: when the measure fails part way through a page, after it has started to wait for the
+// page to load, it ends with that error and leaves no timer, process, server or folder behind
+// (measure-rendered.mjs, header, "no folder, timer or process left behind, so it ends as soon as it
+// says so"; connect, "close fails every call and every wait still open, with their timers").
+// Breaks when: closing the connection no longer fails the waits still open, or a wait it fails
+// keeps its timer; the 30-second wait for the load then holds the process after the error has
+// been said. A stand-in for Chrome that
+// speaks the protocol and refuses the navigation shows it by counting what is alive, with no clock.
+// Not covered by: test/site-measure.test.mjs fails the measure only before any page is opened (a
+// Chrome that does not start or never answers), where no wait for a page has been made.
+test('a measure that fails part way through a page leaves no timer, process or folder behind', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'site-measure-midpage-probe-'));
+  try {
+    const dist = join(root, 'dist');
+    for (const page of PAGES) {
+      mkdirSync(join(dist, page), { recursive: true });
+      writeFileSync(join(dist, page, 'index.html'), '<p>x</p>');
+    }
+    const tmp = join(root, 'tmp');
+    mkdirSync(tmp);
+    const fake = join(root, 'fake-chrome.mjs');
+    writeFileSync(fake, [
+      "import { createReadStream, createWriteStream } from 'node:fs';",
+      'const input = createReadStream(null, { fd: 3 });',
+      'const output = createWriteStream(null, { fd: 4 });',
+      "let buffer = '';",
+      "input.on('data', (chunk) => {",
+      "  buffer += chunk.toString('utf8');",
+      "  for (let end = buffer.indexOf('\\0'); end >= 0; end = buffer.indexOf('\\0')) {",
+      '    const { id, method } = JSON.parse(buffer.slice(0, end));',
+      '    buffer = buffer.slice(end + 1);',
+      "    const result = method === 'Target.createTarget' ? { targetId: 't' } : method === 'Target.attachToTarget' ? { sessionId: 's' } : {};",
+      "    const answer = method === 'Page.navigate' ? { id, error: { message: 'navigation refused by the stand-in' } } : { id, result };",
+      "    output.write(JSON.stringify(answer) + '\\0');",
+      '  }',
+      '});',
+    ].join('\n'));
+    const chrome = join(root, 'chrome.sh');
+    writeFileSync(chrome, `#!/bin/sh\nexec '${process.execPath}' '${fake}'\n`);
+    chmodSync(chrome, 0o755);
+    const before = await activeResources();
+    let message = null;
+    try {
+      await measureSite(chrome, dist, { tmp, grace: 100 });
+    } catch (e) {
+      message = e.message;
+    }
+    const after = await activeResources();
+    assert.ok(message, 'the measure failed');
+    assert.match(message, /navigation refused by the stand-in/);
+    const left = Object.entries(after).filter(([kind, n]) => n > (before[kind] ?? 0)).map(([kind, n]) => `${kind}: ${before[kind] ?? 0} before, ${n} after`);
+    assert.deepEqual(left, [], 'the measure left something alive');
+    assert.deepEqual(readdirSync(tmp), [], 'a folder was left');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
