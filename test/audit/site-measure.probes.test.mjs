@@ -1,7 +1,8 @@
-// Audit probes for the site scripts (site-restos, part 1): the rendered measure's pure decision
-// (hiddenReasons, findHidden and the shipped EXCEPTIONS), the selector reader of check-build, and
-// the two-phase write of make-assets. No build and no browser: what needs Chrome stays in the audit
-// report, with the command that runs it.
+// Probes for the site scripts: the rendered measure's pure decision (hiddenReasons, findHidden and
+// the shipped EXCEPTIONS), the selector reader of check-build, and the two-phase write of
+// make-assets. Each names the contract it holds, the change that breaks it and why the main tests
+// miss that change. No build and no browser: what needs Chrome is run by hand with
+// `npm run measure` on a broken copy of the build.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -48,8 +49,8 @@ const text = (chain, boxes) => ({ kind: 'text', element: chain[0].element, text:
 // Breaks when: the containing-block walk in hiddenReasons stops checking positioned ancestors of an
 // absolute box (a text in a `position: relative; overflow: hidden; height: 0` card passes), or
 // stops letting it escape static ones (a tooltip that leaves a static overflow box is reported).
-// Not covered by: test/site-measure.test.mjs builds every chain with `position: static`, so both
-// mutations of the `holds` line survive it (audit report, mutants r15 and r16).
+// Not covered by: test/site-measure.test.mjs builds most chains with `position: static`, so
+// dropping either half of the rule of who holds an absolute box survives it.
 test('an absolute text is clipped by a positioned ancestor that misses it and escapes a static one', () => {
   const card = (position) => box('div.card', { position, overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 100, width: 390, height: 50 } });
   const tip = () => box('span.tip', { position: 'absolute', box: { x: 20, y: 700, width: 40, height: 20 } });
@@ -71,13 +72,10 @@ const seen = (target, width, theme) => ({ page: '/en/', width, theme, viewport: 
 // Breaks when: an exception loses its width, so the wide navigation, the phone menu or the verdict
 // note could vanish at the width where the reader needs it and the measure would still say ok; the
 // width is moved to the other screen; or the verdict exception covers its whole block again, so the
-// PASS chip of the hero flow band could vanish on a phone (audit report, B1, e01).
+// PASS chip of the hero flow band could vanish on a phone.
 // Not covered by: test/site-measure.test.mjs scopes a made-up exception (#how) and checks the
 // shipped verdict entry in the light theme only, so dropping the width of .desktop-only or
-// #mobile-menu survives it (audit report, mutants l01, l02, l03, l05).
-// Rewritten in the reaudit 1 (authorised in its brief): the verdict case used a bare `p` inside the
-// block and expected it excused at 390; the fix narrowed that exception to the note, so the excused
-// case is now the note and the chip is the case that must be reported.
+// #mobile-menu survives it.
 test('each shipped exception excuses hidden text only at its own width, in both themes', () => {
   const cases = [
     ['nav.nav.desktop-only', 'p', 390],
@@ -109,13 +107,11 @@ test('each shipped exception excuses hidden text only at its own width, in both 
 // Contract: text wholly out of view is reported (spec 1a, wholly off screen); a box that
 // scrolls excuses only what scrolling can bring into view, and nothing before its scroll origin
 // can be scrolled to.
-// Breaks when: today's code, which skips the off-screen test on an axis as soon as any ancestor
-// scrolls on it. `overflow-x: hidden` makes the computed overflow-y `auto`, so text pushed above
-// the page inside such a box passes; `text-indent: -9999px` inside an `overflow-x: auto` box passes
-// too. Both pass `npm run measure` on a broken copy of the site (audit report, f26 and f27). The
-// case turns green when the gap closes.
-// Not covered by: the executor's scroll case puts the text to the right of the box, the one side a
-// scroll does reach.
+// Breaks when: the off-screen test on an axis is skipped as soon as any ancestor scrolls on it.
+// `overflow-x: hidden` makes the computed overflow-y `auto`, so text pushed above the page inside
+// such a box passes; `text-indent: -9999px` inside an `overflow-x: auto` box passes too.
+// Not covered by: the scroll case of test/site-measure.test.mjs that sees the text as in view puts
+// it to the right of the box, the one side a scroll does reach.
 test('text before the scroll origin of a scrolling ancestor is out of view', () => {
   const above = text(
     [box('p'), box('div.band', { overflowX: 'hidden', overflowY: 'auto', box: { x: 0, y: 100, width: 390, height: 200 } }), ...ROOTS()],
@@ -130,16 +126,14 @@ test('text before the scroll origin of a scrolling ancestor is out of view', () 
 });
 
 // Contract: a clip that leaves nothing of the text is reported (spec 1a, a clip that cuts it away).
-// Breaks when: today's code, which reads clip rect(), inset(), circle() and ellipse() but not a
-// polygon of no area; `clip-path: polygon(0 0, 0 0, 0 0)` on a section title passes
-// `npm run measure` on a broken copy (audit report, f15). The case turns green when the gap closes.
-// Not covered by: test/site-measure.test.mjs hides by clip with rect() and inset(50%) only.
+// Breaks when: a polygon of no area is not read as one, so `clip-path: polygon(0 0, 0 0, 0 0)` on a
+// section title passes.
+// Not covered by: the list of ways to hide in test/site-measure.test.mjs clips with rect() and
+// inset(50%) only.
 test('a clip-path polygon of no area clips the text away', () => {
   const t = text([box('h2.title', { clipPath: 'polygon(0px 0px, 0px 0px, 0px 0px)', box: { x: 20, y: 100, width: 350, height: 40 } }), ...ROOTS()], [{ x: 20, y: 100, width: 200, height: 30 }]);
   assert.notDeepEqual(hiddenReasons(t, VIEWPORT), []);
 });
-
-// Probes of the reaudit 1 (fix round 1 of D1 and D2).
 
 // Contract: the reach of a scrolling box is decided by its own edges, apart from the edges of the
 // page: text wholly before its origin is out of reach even when it sits on the page, text wholly
@@ -150,10 +144,11 @@ test('a clip-path polygon of no area clips the text away', () => {
 // `overflow-x: hidden` section, still on the page, passes), the after-end branch is dropped on y,
 // the final left or above test reads the text boxes instead of the reach, an edge comparison loses
 // its `=`, or the reach climbs ancestors that do not hold the text (an absolute tooltip beside a
-// static scrolling box is reported). Mutants d1c, d1f, d1g, d1h, d1i, d1j and d1k of the reaudit.
-// Not covered by: the executor's product puts the box inside the page at 50 px, so every text
-// before its origin is also off the page and the page test alone reports it; its boxes off screen
-// get texts after their end that are off screen too; it has no edge case and no positioned text.
+// static scrolling box is reported).
+// Not covered by: the one-axis product of test/site-measure.test.mjs puts the box inside the page
+// at 50 px, so every text before its origin is also off the page and the page test alone reports
+// it; its boxes off screen get texts after their end that are off screen too; it has no edge case
+// and no positioned text.
 test('the reach of a scrolling box follows its own edges, apart from the page edges', () => {
   const scroller = (extra) => box('div.band', { overflowX: 'hidden', overflowY: 'auto', ...extra });
   const reasons = (chain, at) => hiddenReasons(text([...chain, ...ROOTS()], [at]), VIEWPORT);
@@ -182,10 +177,10 @@ test('the reach of a scrolling box follows its own edges, apart from the page ed
 // Breaks when: the containment cut is dropped on x (a text pushed to the right out of a
 // `contain: paint` box passes while its row is inside the box), or the mode is not reset after a
 // contained box (an absolute text inside a contained card inside a zero-height `overflow: hidden`
-// wrapper passes). Mutants d2m and d2p of the reaudit.
-// Not covered by: the executor's containment cases give the box a height of 0 whenever the text is
-// outside it, so the cut on y alone reports every one; no case nests a contained box in another
-// box that cuts.
+// wrapper passes).
+// Not covered by: the containment cases of test/site-measure.test.mjs give the box a height of 0
+// whenever the text is outside it, so the cut on y alone reports every one, and they never nest a
+// contained box in another box that cuts.
 test('paint containment cuts on each axis alone and hands an absolute text on to its ancestors', () => {
   const contained = box('div.c', { contain: 'paint', box: { x: 20, y: 100, width: 200, height: 200 } });
   const right = hiddenReasons(text([box('p'), contained, ...ROOTS()], [{ x: 300, y: 120, width: 40, height: 20 }]), VIEWPORT);
@@ -202,13 +197,13 @@ test('paint containment cuts on each axis alone and hands an absolute text on to
 // inside it (measure-rendered.mjs, "overflow cuts what its box holds, except what escapes it by
 // absolute or fixed position"; CSS Containment, paint containment makes the box the containing
 // block of its descendants, not of itself).
-// Breaks when: today's code, which sets the mode back to `in` after any box with paint containment,
-// even one that is itself fixed or absolute: a fixed bar with `contain: paint` inside an
-// `overflow-x: hidden` section lower on the page is reported "out of reach, above the scroll
-// origin", and inside a static zero-height `overflow: hidden` wrapper "clipped away" (reaudit 1,
-// Chrome run B, /en/anatomy/). The case turns green when the gap closes.
-// Not covered by: the executor's containment cases put `contain` on a static ancestor only.
-test('a fixed or absolute box with paint containment still escapes its ancestors', { todo: 'open gap: paint containment on a fixed or absolute box resets the mode to in' }, () => {
+// Breaks when: a box with paint containment is taken to be held by its ancestors even when it is
+// itself fixed or absolute: a fixed bar with `contain: paint` inside an `overflow-x: hidden`
+// section lower on the page is reported "out of reach, above the scroll origin", and inside a
+// static zero-height `overflow: hidden` wrapper "clipped away".
+// Not covered by: the containment cases of test/site-measure.test.mjs put `contain` on a static
+// ancestor only.
+test('a fixed or absolute box with paint containment still escapes its ancestors', () => {
   const at = [{ x: 20, y: 20, width: 100, height: 20 }];
   const bar = box('header.bar', { position: 'fixed', contain: 'paint', box: { x: 0, y: 0, width: 390, height: 60 } });
   const section = box('section.s', { overflowX: 'hidden', overflowY: 'auto', box: { x: 0, y: 600, width: 390, height: 900 } });
@@ -227,8 +222,8 @@ test('a fixed or absolute box with paint containment still escapes its ancestors
 // Breaks when: the gate test looks for html in one compound and .motion-ok in any other, so
 // `html .motion-ok .x{opacity:0}`, which hides .x for every reader whose page has a .motion-ok
 // element, passes the build.
-// Not covered by: the executor's product writes the gate always on html itself and its negation as
-// html:not(.motion-ok); no case splits html and the class (audit report, mutant s04).
+// Not covered by: the product of test/site-integration.test.mjs writes the gate always on html
+// itself and its negation as html:not(.motion-ok); no case splits html and the class.
 test('html and .motion-ok in different compounds are not the gate', () => {
   for (const css of ['html .motion-ok .x{opacity:0}', 'html.a .motion-ok .x{opacity:0}', 'html > body.motion-ok .x{visibility:hidden}']) {
     assert.ok(checkCss(css, 'x.css').some((p) => /at rest/.test(p)), css);
@@ -242,8 +237,8 @@ test('html and .motion-ok in different compounds are not the gate', () => {
 // Breaks when: the pseudo-element is looked for in another compound than the last, so the text
 // given by `.card .tip::after` no longer counts and `.tip::after{opacity:0}` passes as a decoration
 // shown on hover.
-// Not covered by: the executor's text rules are one compound each (`.x::after`), so reading the
-// first compound instead of the last survives them (audit report, mutant s12).
+// Not covered by: the text rules of test/site-integration.test.mjs are one compound each
+// (`.x::after`), so reading the first compound instead of the last survives them.
 test('text given to a pseudo-element by a selector with ancestors counts as text', () => {
   const css = '.card .tip::after{content:"help"}.tip::after{opacity:0}.tip:hover::after{opacity:1}';
   assert.ok(checkCss(css, 'x.css').some((p) => /\.tip::after sets opacity 0 at rest/.test(p)), checkCss(css, 'x.css').join('\n'));
@@ -253,8 +248,8 @@ test('text given to a pseudo-element by a selector with ancestors counts as text
 // `scan`, "is not escaped").
 // Breaks when: the reader stops skipping escapes, so `.a\,.b` splits into `.a\` and `.b`, and a
 // rule wholly under the gate fails the build for a selector that does not exist.
-// Not covered by: the executor's escaped comma sits inside brackets (`[data-label=a\,b]`), where the
-// bracket alone already protects it (audit report, mutant s06).
+// Not covered by: the escaped comma of test/site-integration.test.mjs sits inside brackets
+// (`[data-label=a\,b]`), where the bracket alone already protects it.
 test('an escaped comma does not split a selector under the gate', () => {
   assert.deepEqual(checkCss('html.motion-ok .a\\,.b{opacity:0}', 'x.css'), []);
   assert.ok(checkCss('.a\\,.b{opacity:0}', 'x.css').length > 0);
@@ -262,10 +257,10 @@ test('an escaped comma does not split a selector under the gate', () => {
 
 // Contract: the declarations of a rule count whatever rules it nests (check-build.mjs reads the
 // CSS rule by rule; spec 1b, the alarm).
-// Breaks when: today's code, whose rule walker takes the text from the last `;` or `}` to a `{` as
-// the selector, so `.x{opacity:0;html.motion-ok &{opacity:1}}` hands `opacity:0` to the nested
-// selector and the hiding rule passes. The site does not nest CSS today (audit report). The case
-// turns green when the gap closes.
+// Breaks when: the rule walker takes the text from the last `;` or `}` to a `{` as the selector, as
+// it does now, so `.x{opacity:0;html.motion-ok &{opacity:1}}` hands `opacity:0` to the nested
+// selector and the hiding rule passes. The site does not nest CSS, and check-build.mjs states this
+// limit in its header; the case is marked todo until the walker reads nesting.
 // Not covered by: no test of check-build writes nested CSS.
 test('a hiding declaration before a nested rule still fails', { todo: 'open gap: walkCss loses the declarations written before a nested rule' }, () => {
   assert.ok(checkCss('.x{opacity:0;html.motion-ok &{opacity:1}}', 'x.css').length > 0);
@@ -297,8 +292,8 @@ function smallSite(link) {
 // Breaks when: the port or the scheme test is dropped, so `https://www.vibeflow.run:8443/...` or
 // `ftp://www.vibeflow.run/...` is read as a page of this site and fails the build for an id it
 // was never meant to have.
-// Not covered by: the executor's host forms keep the port at 443 or none and the scheme at https
-// (audit report, mutants h01 and h06).
+// Not covered by: the host forms of test/site-integration.test.mjs keep the port at 443 or none and
+// the scheme at https.
 test('a link to the site host on another port or scheme is another origin', () => {
   assert.deepEqual(checkPages(smallSite()), []);
   for (const href of [(l) => `https://www.vibeflow.run:8443/${l}/#nowhere`, (l) => `ftp://www.vibeflow.run/${l}/#nowhere`]) {
@@ -311,12 +306,12 @@ test('a link to the site host on another port or scheme is another origin', () =
 
 // Contract: a failure on the way leaves site/public/ and the manifest as they were, so no new image
 // sits beside an old manifest (spec 1c; make-assets.mjs header).
-// Breaks when: today's code, which copies the five files one by one and the manifest last, so a
-// copy that fails part way (a destination file that cannot be written) leaves four new PNGs with
-// the old favicon.ico and the old manifest (audit report, step 5). The case turns green when the
-// gap closes.
-// Not covered by: the executor injects the failure only while the files are made in the stage
-// folder, before any copy starts.
+// Breaks when: the five files are copied one by one and the manifest last with nothing put back, so
+// a copy that fails part way (a destination file that cannot be written) leaves four new PNGs with
+// the old favicon.ico and the old manifest.
+// Not covered by: the staging test of test/site-assets.test.mjs injects the failure only while the
+// files are made in the stage folder, before any copy starts; this one fails a real copy, by a
+// read-only destination.
 test('a copy that fails part way leaves the destination as it was', () => {
   const root = mkdtempSync(join(tmpdir(), 'site-assets-probe-'));
   const files = ['og-image.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png', 'favicon.ico'];
@@ -350,7 +345,7 @@ test('a copy that fails part way leaves the destination as it was', () => {
   }
 });
 
-// Probes of the reaudit 1 (fix round 1 of B5, the all-or-nothing copy).
+// The all-or-nothing copy: what a failed copy may touch, and what its error says.
 
 const ASSET_FILES = ['og-image.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png', 'favicon.ico'];
 // A folder for one run of the generator: public/ with the five old files and a file of someone
@@ -396,9 +391,10 @@ const generate = (yard, copy) => generateAssets({
 // spec 1c, a failure leaves site/public/ and the manifest as they were).
 // Breaks when: the put-back of a destination that did not exist removes more than that file, as
 // `rmSync(dirname(to), { recursive: true })` does to the whole manifest folder; or any write of
-// the put-back lands beside the destination. Mutant r4 of the reaudit.
-// Not covered by: the executor's "did not exist" case checks only that the manifest is gone and
-// that favicon.ico is old; its six-destination case lists the folders but always has a manifest.
+// the put-back lands beside the destination.
+// Not covered by: the "did not exist" case of test/site-assets.test.mjs checks only that the
+// manifest is gone and that favicon.ico is old; its six-destination case lists the folders but
+// always has a manifest.
 test('a failed copy touches nothing but the six destinations and its own temp folder', () => {
   const failures = [];
   for (const failOn of [...ASSET_FILES, 'manifest.json']) {
@@ -432,8 +428,7 @@ test('a failed copy touches nothing but the six destinations and its own temp fo
 // generator's header, every failure is one line).
 // Breaks when: a failed put-back is swallowed by its own catch, or the message drops the list or
 // the names, so a half-replaced public/ looks like a clean failure that left everything as it was.
-// Mutants r5, r6 and r7 of the reaudit.
-// Not covered by: no test of the executor makes the put-back itself fail.
+// Not covered by: no test in test/site-assets.test.mjs makes the put-back itself fail.
 test('a put-back that fails too is said in the one line of the error, with the file', () => {
   const yard = assetYard();
   try {

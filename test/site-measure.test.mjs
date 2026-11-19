@@ -6,10 +6,14 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:http';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EXCEPTIONS, PAGES, THEMES, WIDTHS, describeFinding, findHidden, hiddenReasons } from '../site/scripts/measure-rendered.mjs';
+import * as measure from '../site/scripts/measure-rendered.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const VIEWPORT = { width: 390, height: 844 };
@@ -231,6 +235,328 @@ test('paint containment cuts what leaves the box on both axes, like overflow: cl
   tip.boxes = [{ x: 30, y: 400, width: 40, height: 20 }];
   if (!hiddenReasons(tip, VIEWPORT).some((r) => r.startsWith('clipped away'))) failures.push('absolute text in a paint-contained box');
   assert.deepEqual(failures, []);
+});
+
+// ---------- one pass up the chain, with a running rectangle ----------
+
+// The reference model, written apart from the measure, with nothing but the intersection of
+// rectangles and the rule of who holds whom. A box is held by its containing block: an in-flow box
+// by its parent, an absolute box by the nearest box that is positioned or has paint containment, a
+// fixed box by the nearest box with paint containment, or else by the screen. The text is held by
+// its own element; walking up, each box that holds the box last held becomes the box last held.
+// A rectangle starts as the text's box and climbs the chain. A box that holds and cuts on an axis
+// (overflow hidden or clip, paint containment) leaves the intersection with its box; one that
+// scrolls on an axis leaves nothing of what lies wholly before its origin, its own span of what
+// lies wholly after its end, and the intersection of what crosses it. clip: rect() on an absolute
+// or fixed box and a clip-path inset() cut all the box paints, held or not; their region is closed,
+// so a text that only touches its edge keeps a line. Nothing left is "clipped away". What is left must not lie wholly left of the page, right of the viewport or above
+// the page, nor, when the screen holds it, wholly below the viewport. html and body hand their
+// overflow to the viewport.
+const sides = { x: ['x0', 'x1', 'left of'], y: ['y0', 'y1', 'above'] };
+const rectOf = (b) => ({ x0: b.x, x1: b.x + b.width, y0: b.y, y1: b.y + b.height });
+const meet = (a, b) => ({ x0: Math.max(a.x0, b.x0), x1: Math.min(a.x1, b.x1), y0: Math.max(a.y0, b.y0), y1: Math.min(a.y1, b.y1) });
+const empty = (r) => r.x1 < r.x0 || r.y1 < r.y0;
+const pxList = (s) => s.split(/[\s,]+/).filter(Boolean).map((v) => Number(v.replace(/px$/, '')));
+function referenceModel(t, viewport) {
+  let r = rectOf(t.boxes[0]);
+  let last = t.chain[0].position;
+  for (const [i, s] of t.chain.entries()) {
+    const contained = s.contain === 'paint';
+    const holds = i === 0 || last === 'static' || last === 'relative'
+      || (last === 'absolute' && (s.position !== 'static' || contained))
+      || (last === 'fixed' && contained);
+    if (holds && i > 0) last = s.position;
+    const b = rectOf(s.box);
+    if (holds && s.element !== 'html' && s.element !== 'body') {
+      for (const axis of ['x', 'y']) {
+        const [lo, hi, before] = sides[axis];
+        const overflow = axis === 'x' ? s.overflowX : s.overflowY;
+        if (overflow === 'auto' || overflow === 'scroll') {
+          if (r[hi] <= b[lo]) return [`out of reach, ${before} the scroll origin of ${s.element}`];
+          r = r[lo] >= b[hi] ? { ...r, [lo]: b[lo], [hi]: b[hi] } : { ...r, [lo]: Math.max(r[lo], b[lo]), [hi]: Math.min(r[hi], b[hi]) };
+        } else if (overflow === 'hidden' || overflow === 'clip' || contained) {
+          r = { ...r, [lo]: Math.max(r[lo], b[lo]), [hi]: Math.min(r[hi], b[hi]) };
+          if (r[hi] <= r[lo]) return [`clipped away by ${s.element}`];
+        }
+      }
+    }
+    if ((s.position === 'absolute' || s.position === 'fixed') && String(s.clip).startsWith('rect(')) {
+      const [top, right, bottom, left] = pxList(s.clip.slice(5, -1));
+      r = meet(r, { x0: b.x0 + left, x1: b.x0 + right, y0: b.y0 + top, y1: b.y0 + bottom });
+      if (empty(r)) return [`clipped away by ${s.element}`];
+    }
+    if (String(s.clipPath).startsWith('inset(')) {
+      const [top, right = top, bottom = top, left = right] = pxList(s.clipPath.slice(6, -1));
+      r = meet(r, { x0: b.x0 + left, x1: b.x1 - right, y0: b.y0 + top, y1: b.y1 - bottom });
+      if (empty(r)) return [`clipped away by ${s.element}`];
+    }
+  }
+  if (r.x1 <= 0) return ['off screen to the left'];
+  if (r.x0 >= viewport.width) return ['off screen to the right'];
+  if (r.y1 <= 0) return ['off screen above'];
+  if (last === 'fixed' && r.y0 >= viewport.height) return ['off screen below'];
+  return [];
+}
+
+// The ancestors of the matrix: each takes the span it stands for on the axis and the cover on the
+// other axis, and gives its style. The clip rect and the clip-path cut 30 px inside a box 30 px
+// larger, so the region they let through is the span itself.
+const grow = (b, by) => ({ x: b.x - by, y: b.y - by, width: b.width + 2 * by, height: b.height + 2 * by });
+const ANCESTORS = {
+  'overflow hidden': { positions: ['static', 'relative'], style: (b) => ({ overflowX: 'hidden', overflowY: 'hidden', box: b }) },
+  'paint containment': { positions: ['static', 'relative'], style: (b) => ({ contain: 'paint', box: b }) },
+  'clip rect': { positions: ['absolute'], style: (b) => ({ clip: `rect(30px, ${b.width + 30}px, ${b.height + 30}px, 30px)`, box: grow(b, 30) }) },
+  'clip-path inset': { positions: ['static', 'relative'], style: (b) => ({ clipPath: 'inset(30px 30px 30px 30px)', box: grow(b, 30) }) },
+  scrolls: { positions: ['static', 'relative'], style: (b) => ({ overflowX: 'auto', overflowY: 'auto', box: b }) },
+  visible: { positions: ['static', 'relative'], style: (b) => ({ box: b }) },
+};
+const ANCESTOR_VARIANTS = Object.entries(ANCESTORS).flatMap(([kind, a]) => a.positions.map((position) => ({ kind, position, style: a.style })));
+// Where a level's box stands against the text on the axis: around it, starting inside it, wholly
+// after it (the text before its origin) or wholly before it (the text after its end).
+const PLACES = {
+  inside: (lo, hi) => [lo - 50, hi + 50],
+  crossing: (lo, hi) => [lo + 10, hi + 200],
+  'text before': (lo, hi) => [hi + 50, hi + 250],
+  'text after': (lo, hi) => [lo - 250, lo - 50],
+};
+const SHIFTS = { x: { 'on screen': 0, left: -5000, right: 5000 }, y: { 'on screen': 0, above: -5000, below: 5000 } };
+
+function matrixCase(axis, levels, position, shift) {
+  const [p, size, other, otherSize] = axis === 'x' ? ['x', 'width', 'y', 'height'] : ['y', 'height', 'x', 'width'];
+  const lo = 100 + shift;
+  const hi = lo + 20;
+  const text = { [p]: lo, [size]: 20, [other]: 120, [otherSize]: 100 };
+  const chain = [style('p.t', { position, box: text })];
+  levels.forEach(({ variant, place }, k) => {
+    const [a, b] = PLACES[place](lo, hi);
+    const span = { [p]: a, [size]: b - a, [other]: 120 - 40 * (k + 1), [otherSize]: 100 + 80 * (k + 1) };
+    chain.push(style(`div.l${k + 1}`, { position: variant.position, ...variant.style(span) }));
+  });
+  chain.push(style('body'), style('html'));
+  return { kind: 'text', element: 'p.t', text: 'Spec first', boxes: [text], chain };
+}
+
+test('one pass up the chain agrees with the reference model on every ancestor, nesting, place, position and screen', () => {
+  const diffs = [];
+  const seenReasons = new Set();
+  let cases = 0;
+  const level = Object.keys(PLACES).flatMap((place) => ANCESTOR_VARIANTS.map((variant) => ({ variant, place })));
+  const nestings = [...level.map((l) => [l]), ...level.flatMap((inner) => level.map((outer) => [inner, outer]))];
+  for (const axis of ['x', 'y']) {
+    for (const levels of nestings) {
+      for (const position of ['static', 'absolute', 'fixed']) {
+        for (const [screen, shift] of Object.entries(SHIFTS[axis])) {
+          const t = matrixCase(axis, levels, position, shift);
+          const want = referenceModel(t, VIEWPORT);
+          const got = hiddenReasons(t, VIEWPORT);
+          cases += 1;
+          seenReasons.add(want.length ? want[0].replace(/ (of )?the scroll origin of .*$| by .*$/, '') : 'in view');
+          if (JSON.stringify(got) !== JSON.stringify(want)) {
+            const where = levels.map(({ variant, place }) => `${variant.kind} (${variant.position}), ${place}`).join(' in ');
+            diffs.push(`${axis} · ${where} · ${position} text · ${screen}: got ${JSON.stringify(got)}, model ${JSON.stringify(want)}`);
+          }
+        }
+      }
+    }
+  }
+  assert.ok(cases > 30000, `${cases} cases`);
+  // the matrix reaches every verdict of the model
+  for (const reason of ['in view', 'clipped away', 'out of reach, left', 'out of reach, above', 'off screen to the left', 'off screen to the right', 'off screen above', 'off screen below']) {
+    assert.ok(seenReasons.has(reason), `the matrix never gives "${reason}"`);
+  }
+  assert.deepEqual(diffs.slice(0, 40), [], `${diffs.length} differences in ${cases} cases`);
+});
+
+test('the reported ways of hiding that one pass decides, by name', () => {
+  const t = (chain, box) => ({ kind: 'text', element: chain[0].element, text: 'Spec first', boxes: [box], chain: [...chain, style('body'), style('html')] });
+  // a fixed text below the viewport can never be scrolled to
+  const fixedLow = t([style('p.bar', { position: 'fixed', box: { x: 20, y: 900, width: 200, height: 20 } })], { x: 20, y: 900, width: 200, height: 20 });
+  assert.deepEqual(hiddenReasons(fixedLow, VIEWPORT), ['off screen below'], 'a fixed text below the viewport');
+  const flowLow = t([style('p.bar', { box: { x: 20, y: 900, width: 200, height: 20 } })], { x: 20, y: 900, width: 200, height: 20 });
+  assert.deepEqual(hiddenReasons(flowLow, VIEWPORT), [], 'an in-flow text below the viewport is scrolled to');
+  // a clip: rect() with area that misses the text
+  const rect = t([style('p.cut', { position: 'absolute', clip: 'rect(80px, 200px, 100px, 0px)', box: { x: 20, y: 0, width: 200, height: 200 } })], { x: 20, y: 10, width: 200, height: 20 });
+  assert.deepEqual(hiddenReasons(rect, VIEWPORT), ['clipped away by p.cut'], 'a clip rect() that misses the text');
+  // two nested clips that each meet the text but not each other
+  const disjoint = t([
+    style('p'),
+    style('div.inner', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 90, width: 390, height: 50 } }),
+    style('div.outer', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 160, width: 390, height: 60 } }),
+  ], { x: 20, y: 100, width: 200, height: 100 });
+  assert.deepEqual(hiddenReasons(disjoint, VIEWPORT), ['clipped away by div.outer'], 'disjoint nested clips');
+  // a text an inner scroller brings into reach, inside an outer clip it lies outside of
+  const reached = t([
+    style('p'),
+    style('div.scroller', { overflowX: 'auto', overflowY: 'hidden', box: { x: 0, y: 100, width: 200, height: 50 } }),
+    style('div.frame', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 90, width: 250, height: 80 } }),
+  ], { x: 300, y: 110, width: 40, height: 20 });
+  assert.deepEqual(hiddenReasons(reached, VIEWPORT), [], 'reachable through an inner scroller inside an outer clip');
+  // a fixed bar with paint containment escapes a scrolling section lower on the page
+  const bar = t([
+    style('p'),
+    style('header.bar', { position: 'fixed', contain: 'paint', box: { x: 0, y: 0, width: 390, height: 60 } }),
+    style('section.s', { overflowX: 'hidden', overflowY: 'auto', box: { x: 0, y: 600, width: 390, height: 900 } }),
+  ], { x: 20, y: 20, width: 100, height: 20 });
+  assert.deepEqual(hiddenReasons(bar, VIEWPORT), [], 'a fixed bar with paint containment');
+  // the two reasons of reach, word for word
+  const before = (overflowX, overflowY, box) => hiddenReasons(t([style('p'), style('div.code', { overflowX, overflowY, box: { x: 100, y: 100, width: 200, height: 200 } })], box), VIEWPORT);
+  assert.deepEqual(before('auto', 'hidden', { x: 20, y: 120, width: 40, height: 20 }), ['out of reach, left of the scroll origin of div.code']);
+  assert.deepEqual(before('hidden', 'auto', { x: 120, y: 20, width: 40, height: 20 }), ['out of reach, above the scroll origin of div.code']);
+  // Known limit, written in the measure's header: the containing block of a fixed or absolute box
+  // is read from position and paint containment only. Chrome clips this fixed text, held by its
+  // `contain: layout` box of no height; the measure lets it pass.
+  const layoutHeld = t([
+    style('p.fixed', { position: 'fixed', box: { x: 20, y: 300, width: 200, height: 20 } }),
+    style('div.box', { contain: 'layout', overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 100, width: 390, height: 0 } }),
+  ], { x: 20, y: 300, width: 200, height: 20 });
+  assert.deepEqual(hiddenReasons(layoutHeld, VIEWPORT), [], 'known limit: contain: layout does not hold a fixed box here');
+});
+
+// ---------- the colour that paints the text ----------
+
+test('the colour that paints the text is its computed fill, and a fill the background paints through is not transparent', () => {
+  const colours = { opaque: 'rgb(10, 10, 10)', transparent: 'rgba(0, 0, 0, 0)' };
+  // The computed -webkit-text-fill-color: by default it is the colour (currentcolor), or its own.
+  const fills = { inherited: (c) => c, opaque: () => 'rgb(0, 0, 0)', transparent: () => 'rgba(0, 0, 0, 0)' };
+  const failures = [];
+  for (const kind of ['text', 'pseudo']) {
+    for (const [c, color] of Object.entries(colours)) {
+      for (const [f, fill] of Object.entries(fills)) {
+        for (const backgroundClip of ['text', 'border-box']) {
+          const t = target(kind);
+          const textFillColor = fill(color);
+          Object.assign(t.chain[0], { color, textFillColor, backgroundClip });
+          const want = textFillColor === 'rgba(0, 0, 0, 0)' && backgroundClip !== 'text';
+          const got = hiddenReasons(t, VIEWPORT).includes('transparent colour');
+          if (got !== want) failures.push(`${kind}, colour ${c}, fill ${f}, background-clip ${backgroundClip}: ${got ? 'reported' : 'passed'}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+// ---------- what the page script makes of a text with no layout of its own ----------
+
+test('a text or a pseudo-element with text whose element has display: contents has a box when its boxed ancestor is drawn', () => {
+  const failures = [];
+  for (const display of ['block', 'contents']) {
+    for (const kind of ['text', 'pseudo']) {
+      for (const ancestorDrawn of [true, false]) {
+        // What the page reports: checkVisibility() says no for an element with display: contents;
+        // the nearest ancestor with a box is the element itself unless it has display: contents.
+        const facts = {
+          kind,
+          rects: ancestorDrawn ? 1 : 0,
+          pseudoDisplay: 'inline',
+          contents: display === 'contents',
+          drawn: display === 'contents' ? false : ancestorDrawn,
+          boxedDrawn: ancestorDrawn,
+        };
+        const got = typeof measure.unlaidVerdict === 'function' ? measure.unlaidVerdict(facts) : 'missing';
+        const want = ancestorDrawn ? 'has a box' : 'no box';
+        if ((got === 'no box' ? 'no box' : got === 'missing' ? 'missing' : 'has a box') !== want) failures.push(`${kind} in a ${display} element, ancestor ${ancestorDrawn ? 'drawn' : 'not drawn'}: ${got}`);
+      }
+    }
+  }
+  if (typeof measure.unlaidVerdict === 'function') {
+    const none = measure.unlaidVerdict({ kind: 'pseudo', rects: 0, pseudoDisplay: 'none', contents: true, drawn: false, boxedDrawn: true });
+    if (none !== 'no box') failures.push(`a pseudo-element with display: none in a contents element: ${none}`);
+  }
+  assert.deepEqual(failures, []);
+});
+
+// ---------- running the measure: the server and Chrome ----------
+
+// A build with the seven pages, each a bare paragraph, in a folder of its own.
+function fakeDist(root) {
+  const dist = join(root, 'dist');
+  for (const page of PAGES) {
+    mkdirSync(join(dist, page), { recursive: true });
+    writeFileSync(join(dist, page, 'index.html'), '<p>x</p>');
+  }
+  return dist;
+}
+
+test('a port the server cannot open ends the measure with 2 and one line, and leaves no folder', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'site-measure-port-'));
+  const busy = createServer();
+  await new Promise((done) => busy.listen(0, '127.0.0.1', done));
+  try {
+    const dist = fakeDist(root);
+    const tmp = join(root, 'tmp');
+    mkdirSync(tmp);
+    const lines = [];
+    const code = typeof measure.main === 'function'
+      ? await measure.main([dist], { env: { CHROME_PATH: process.execPath }, port: busy.address().port, tmp, say: (l) => lines.push(l), fail: (l) => lines.push(l) })
+      : 'no main to call';
+    assert.equal(code, 2);
+    assert.equal(lines.length, 1, lines.join('\n'));
+    assert.doesNotMatch(lines[0], /\n/);
+    assert.match(lines[0], /^measure: .*EADDRINUSE/);
+    assert.deepEqual(readdirSync(tmp), [], 'a folder was left');
+  } finally {
+    await new Promise((done) => busy.close(done));
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A stand-in for Chrome that ignores the signal to terminate and never answers; it writes its pid
+// first, so the test can tell whether it is still alive.
+function stubbornChild(root) {
+  const pidFile = join(root, 'pid');
+  const script = join(root, 'stubborn.sh');
+  writeFileSync(script, `#!/bin/sh\ntrap '' TERM\necho $$ > '${pidFile}'\necho ready\nexec sleep 120\n`);
+  chmodSync(script, 0o755);
+  return { script, pidFile };
+}
+const alive = (pid) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+test('a child that ignores the signal to terminate is killed, and stopping it returns', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'site-measure-stop-'));
+  try {
+    const { script } = stubbornChild(root);
+    const proc = spawn(script, [], { stdio: ['ignore', 'pipe', 'ignore'] });
+    await new Promise((done) => proc.stdout.once('data', done));
+    assert.equal(typeof measure.stopChild, 'function', 'stopChild is exported');
+    await measure.stopChild(proc, { grace: 100 });
+    assert.equal(proc.signalCode, 'SIGKILL');
+    assert.ok(!alive(proc.pid), 'the child is still alive');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a Chrome that never answers and ignores the signal to terminate is killed, and the measure ends with one line and no folder', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'site-measure-hang-'));
+  try {
+    const dist = fakeDist(root);
+    const tmp = join(root, 'tmp');
+    mkdirSync(tmp);
+    const { script, pidFile } = stubbornChild(root);
+    let message = null;
+    try {
+      // The protocol call waits long enough for the stand-in to set its trap and write its pid.
+      await measure.measureSite(script, dist, { tmp, grace: 100, answerWithin: 2000 });
+    } catch (e) {
+      message = e.message;
+    }
+    assert.ok(message, 'the measure returned');
+    assert.doesNotMatch(message, /\n/);
+    assert.match(message, /no answer from Chrome/);
+    assert.deepEqual(readdirSync(tmp), [], 'a folder was left');
+    assert.ok(existsSync(pidFile), 'the stand-in ran');
+    assert.ok(!alive(Number(readFileSync(pidFile, 'utf8'))), 'the stand-in is still alive');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 // What the measure saw on one page, at one width, in one theme.

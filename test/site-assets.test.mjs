@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -340,6 +340,84 @@ test('a screenshot that never finishes is an error of one line once the time lim
     assert.ok(message, 'the screenshot returned');
     assert.doesNotMatch(message, /\n/);
     assert.match(message, /^favicon-32: Chrome did not finish/);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
+// Every file, folder and link under a root: a file by its sha256, a link by where it points.
+function treeOf(root) {
+  const out = {};
+  const walk = (dir) => {
+    for (const name of readdirSync(dir).sort()) {
+      const path = join(dir, name);
+      const rel = path.slice(root.length + 1);
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink()) out[rel] = `link to ${readlinkSync(path)}`;
+      else if (stat.isDirectory()) { out[`${rel}/`] = 'dir'; walk(path); } else out[rel] = sha256(readFileSync(path));
+    }
+  };
+  walk(root);
+  return out;
+}
+
+test('a destination that is a symbolic link, dangling or not, stops the generator before any write, naming it', () => {
+  const sources = collectSources(SITE);
+  const failures = [];
+  for (const destination of [...OUTPUTS, 'manifest.json']) {
+    for (const kind of ['dangling', 'to a file']) {
+      const p = playground();
+      try {
+        const elsewhere = join(p.root, 'elsewhere');
+        mkdirSync(elsewhere);
+        const linkTarget = join(elsewhere, 'target.txt');
+        if (kind === 'to a file') writeFileSync(linkTarget, 'not the generator\'s');
+        const path = destination === 'manifest.json' ? p.manifestPath : join(p.publicDir, destination);
+        rmSync(path);
+        symlinkSync(linkTarget, path);
+        const before = treeOf(p.root);
+        let shots = 0;
+        let copies = 0;
+        let message = null;
+        try {
+          generateAssets({
+            sources, chromeVersion: 'Test Chrome 1.0', publicDir: p.publicDir, manifestPath: p.manifestPath, tmp: p.tmp,
+            shoot: (...args) => { shots += 1; return fakeShoot(...args); },
+            copy: (from, to) => { copies += 1; copyFileSync(from, to); },
+          });
+        } catch (e) {
+          message = e.message;
+        }
+        const name = `${destination}, link ${kind}`;
+        if (!message) failures.push(`${name}: the generator did not stop`);
+        else if (/\n/.test(message) || !message.includes(path) || !/symbolic link/.test(message)) failures.push(`${name}: ${message}`);
+        if (shots || copies) failures.push(`${name}: ${shots} screenshots and ${copies} copies before stopping`);
+        const after = treeOf(p.root);
+        if (JSON.stringify(after) !== JSON.stringify(before)) failures.push(`${name}: ${JSON.stringify({ before, after })}`);
+      } finally {
+        rmSync(p.root, { recursive: true, force: true });
+      }
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('a Chrome that never answers --version, even to the signal to terminate, is killed and is an error of one line', () => {
+  const work = mkdtempSync(join(tmpdir(), 'site-assets-version-'));
+  try {
+    const hang = join(work, 'stubborn.sh');
+    writeFileSync(hang, '#!/bin/sh\ntrap \'\' TERM\nexec sleep 120\n');
+    chmodSync(hang, 0o755);
+    let message = null;
+    try {
+      makeAssets.chromeVersion(hang, { timeout: 300 });
+    } catch (e) {
+      message = e.message;
+    }
+    assert.ok(message, 'the version query returned');
+    assert.doesNotMatch(message, /\n/);
+    assert.match(message, /--version/);
+    assert.match(message, /stopped/);
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

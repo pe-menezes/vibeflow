@@ -9,23 +9,45 @@
 // 1280 pixels wide, in the light and the dark theme. It measures each page at rest: once the fonts
 // are in, every animation and transition with an end is taken to its end, and one with no end is
 // paused at the start of its first cycle. Every run of text in the body and every pseudo-element
-// that draws text must have a box (a text with boxes of its own has one, even when its element has
-// display: contents), no display: none, visibility visible, an effective opacity above zero (its
-// own times its ancestors'), a font size above zero, a colour that is not transparent, no clip
-// that cuts it away (clip: rect(), a basic clip-path shape of no area, overflow or paint
-// containment that leaves it wholly outside the box) and some part within reach on screen. A box
-// that scrolls brings into reach what lies after its end, never what lies before its origin; the
-// reach must not be wholly to the left, to the right or above. A page with no text at all is a
-// finding too. EXCEPTIONS lists what may be hidden, each with its reason.
+// that draws text must have a box (a text or a pseudo-element with boxes of its own has one, even
+// when its element has display: contents), no display: none, visibility visible, an effective
+// opacity above zero (its own times its ancestors'), a font size above zero, a fill that is not
+// transparent (the computed -webkit-text-fill-color, unless background-clip: text paints the text
+// with the background) and some part left on screen.
+//
+// What is left on screen comes from one pass up the chain, from the text to the root, with a
+// rectangle that starts as the text's boxes. A box that holds the text (its containing block, read
+// from position and paint containment) and cuts it, by overflow or paint containment, leaves the
+// part inside it; a box that scrolls on an axis leaves nothing of what lies wholly before its
+// origin, brings what lies wholly after its end into its own span, and leaves the part inside it of
+// what crosses it. clip: rect() on an absolute or fixed box and a basic clip-path shape (inset(),
+// rect(), xywh(), and polygon() by the rectangle around it) cut all the box paints, held or not; a
+// text that only touches the edge of such a clip keeps it. A shape of no area cuts everything.
+// Nothing left is "clipped away" or "out of reach". What is left must not
+// lie wholly to the left, to the right or above, nor, for a text the screen holds through a fixed
+// box, wholly below. A page with no text at all is a finding too. EXCEPTIONS lists what may be
+// hidden, each with its reason.
 //
 // What it does not see, and so passes: filter: opacity(0), a transparent mask, an opaque box drawn
 // over the text, transform: scale(0), a font too small to read, a colour equal to the background,
-// and a clip-path given by path() or url(), whose area it does not work out.
+// a transparent background behind background-clip: text, and a clip-path given by path() or
+// url(), whose area it does not work out. Its limits:
+// * the containing block of a fixed or absolute box is read from position and paint containment
+//   only; contain: layout, transform, filter and will-change on an ancestor do not count, so the
+//   overflow of such an ancestor does not cut the box, and a text it cuts away passes;
+// * the fill rule of a polygon() is not read, so a polygon whose area evenodd cancels out passes;
+// * a box that scrolls is taken to run left to right and top to bottom: in a box that scrolls from
+//   its end (direction: rtl, row-reverse or column-reverse) what lies before its origin is reported
+//   out of reach although it can be scrolled to, which errs on the side of failing;
+// * a circle() or ellipse() cuts only when a radius it gives in px or percent is zero: where it
+//   lies is not worked out, so one that misses the text passes, and a radius given by a keyword
+//   (closest-side, farthest-side) is not measured, so one of no radius passes too.
 //
 // Exit 0 when nothing is hidden; 1 when something is, with one line per finding naming the page,
 // the width, the theme, the element and the reason; 2 when it cannot measure (no Chrome, no build,
-// a file of the build it cannot read), with one line. It needs Chrome, so it runs by hand and
-// stays out of `npm run build`.
+// a file of the build it cannot read, a port its server cannot open), with one line, and no folder
+// left behind. A Chrome that does not end when asked is killed. It needs Chrome, so it runs by hand
+// and stays out of `npm run build`.
 //
 // hiddenReasons and findHidden decide "hidden, and why" from what Chrome measured, with no browser,
 // so the suite tests them (test/site-measure.test.mjs). Everything that talks to Chrome sits below
@@ -62,7 +84,7 @@ export const EXCEPTIONS = [
 // `boxes` are its text boxes in page coordinates (none when it has no box), and `chain` the computed
 // style of the box that owns it (the text's element, or the pseudo-element itself) followed by each
 // ancestor up to html: { element, id, classes, display, visibility, opacity, fontSize, color,
-// textFillColor, clip, clipPath, overflowX, overflowY, position, contain, box }.
+// textFillColor, backgroundClip, clip, clipPath, overflowX, overflowY, position, contain, box }.
 
 const ROOTS = new Set(['html', 'body']);
 const isRoot = (s) => ROOTS.has(s.element);
@@ -122,29 +144,138 @@ function shapeHasNoArea(path, w, h) {
   return len(cw, w) === 0 || len(ch, h) === 0;
 }
 
-// A clip: rect() of no area on a positioned box, or a clip-path that closes to nothing.
-function clipsAway(s) {
-  if (/^(absolute|fixed)$/.test(s.position)) {
-    const r = /^rect\(([^)]*)\)$/.exec(String(s.clip).trim());
-    if (r) {
-      const [top, right, bottom, left] = r[1].split(/\s*,\s*|\s+/).map((v) => (v === 'auto' ? null : parseFloat(v)));
-      if ((top !== null && bottom !== null && bottom <= top) || (left !== null && right !== null && right <= left)) return true;
-    }
+// A rectangle { x0, x1, y0, y1 } in page coordinates; it is empty when it has no area. A clip
+// region is taken as closed: a text that only touches its edge is not counted as cut away.
+const rectOf = (b) => ({ x0: b.x, x1: b.x + b.width, y0: b.y, y1: b.y + b.height });
+const meet = (a, b) => ({ x0: Math.max(a.x0, b.x0), x1: Math.min(a.x1, b.x1), y0: Math.max(a.y0, b.y0), y1: Math.min(a.y1, b.y1) });
+const isEmpty = (r) => r.x1 <= r.x0 || r.y1 <= r.y0;
+const isApart = (r) => r.x1 < r.x0 || r.y1 < r.y0;
+
+// The region a basic clip-path shape lets through, in page coordinates, measured against the box
+// (px, or percent of the box): a rectangle, 'none' when the shape has no area, or null when it
+// cannot say (path(), url(), a length it cannot read), which cuts nothing. A polygon stands for
+// the rectangle around it. A circle or an ellipse cuts only when it has no area: where it lies is
+// not worked out.
+function shapeRegion(path, box) {
+  const { x: bx = 0, y: by = 0, width: w = 0, height: h = 0 } = box ?? {};
+  if (shapeHasNoArea(path, w, h)) return 'none';
+  const shape = /^(inset|circle|ellipse|polygon|rect|xywh)\((.*)\)$/.exec(path.replace(/^[a-z-]+-box\s+|\s+[a-z-]+-box$/g, '').trim());
+  if (!shape) return null;
+  const [, name, args] = shape;
+  const body = args.split(/\s+round\s/)[0].trim();
+  const len = (v, of) => (v === undefined ? null : px(v === '0' ? '0px' : v, of));
+  const region = (x0, x1, y0, y1) => ([x0, x1, y0, y1].some((v) => v === null || Number.isNaN(v)) ? null : { x0: bx + x0, x1: bx + x1, y0: by + y0, y1: by + y1 });
+  if (name === 'inset') {
+    const [t, r = t, b = t, l = r] = body.split(/\s+/);
+    const [top, right, bottom, left] = [len(t, h), len(r, w), len(b, h), len(l, w)];
+    if ([top, right, bottom, left].includes(null)) return null;
+    return region(left, w - right, top, h - bottom);
   }
-  return shapeHasNoArea(String(s.clipPath ?? 'none').trim(), s.box?.width ?? 0, s.box?.height ?? 0);
+  if (name === 'rect') {
+    const [t, r, b, l] = body.split(/\s+/);
+    const edge = (v, auto, of) => (v === 'auto' ? auto : len(v, of));
+    return region(edge(l, 0, w), edge(r, w, w), edge(t, 0, h), edge(b, h, h));
+  }
+  if (name === 'xywh') {
+    const [x, y, cw, ch] = body.split(/\s+/).map((v, i) => len(v, i % 2 ? h : w));
+    if ([x, y, cw, ch].includes(null)) return null;
+    return region(x, x + cw, y, y + ch);
+  }
+  if (name === 'polygon') {
+    const points = body.split(/\s*,\s*/).filter((p) => !/^(nonzero|evenodd)$/.test(p)).map((p) => {
+      const [x, y] = p.split(/\s+/);
+      return [len(x, w), len(y, h)];
+    });
+    if (points.some(([x, y]) => x === null || y === null)) return null;
+    const xs = points.map(([x]) => x);
+    const ys = points.map(([, y]) => y);
+    return region(Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys));
+  }
+  return null;
+}
+
+// The region a clip: rect() lets through on an absolute or fixed box (its offsets are from the top
+// left corner of the box, auto standing for the edge): a rectangle, 'none' when it has no area, or
+// null when the box has no such clip.
+function clipRectRegion(s) {
+  if (!/^(absolute|fixed)$/.test(s.position)) return null;
+  const found = /^rect\(([^)]*)\)$/.exec(String(s.clip ?? 'auto').trim());
+  if (!found) return null;
+  const { x = 0, y = 0, width = 0, height = 0 } = s.box ?? {};
+  const [top, right, bottom, left] = found[1].split(/\s*,\s*|\s+/).map((v, i) => (v === 'auto' ? [0, width, height, 0][i] : parseFloat(v)));
+  if ([top, right, bottom, left].some((v) => Number.isNaN(v))) return null;
+  if (bottom <= top || right <= left) return 'none';
+  return { x0: x + left, x1: x + right, y0: y + top, y1: y + bottom };
+}
+
+// What clip: rect() and clip-path leave of a box and all it paints: a rectangle, 'none' or null.
+function clipRegion(s) {
+  const regions = [clipRectRegion(s), shapeRegion(String(s.clipPath ?? 'none').trim(), s.box)];
+  if (regions.includes('none')) return 'none';
+  const cut = regions.filter(Boolean);
+  if (!cut.length) return null;
+  const region = cut.reduce(meet);
+  return isEmpty(region) ? 'none' : region;
 }
 
 // Paint containment (contain: paint, strict or content) cuts what leaves the box on both axes, as
 // overflow: clip does, and holds absolute and fixed descendants.
 const paintContained = (s) => /\b(paint|strict|content)\b/.test(String(s.contain ?? 'none'));
-
-// Whether every text box lies wholly outside a box on one axis.
-const outside = (boxes, box, axis) => {
-  const [p, size] = axis === 'x' ? ['x', 'width'] : ['y', 'height'];
-  return boxes.every((b) => b[p] + b[size] <= box[p] || b[p] >= box[p] + box[size]);
-};
 const scrolls = (v) => v === 'auto' || v === 'scroll';
 const cuts = (v) => v === 'hidden' || v === 'clip';
+
+// The fill that paints a text is transparent when its computed -webkit-text-fill-color (which is
+// the colour unless it is set) has no alpha, and background-clip: text does not paint the text with
+// the background instead.
+const transparentFill = (s) => zeroAlpha(s.textFillColor || s.color) && !/\btext\b/.test(String(s.backgroundClip ?? ''));
+
+// What one pass up the chain leaves of a text: the reason it is lost on the way, or the rectangle
+// left and whether the screen holds it through a fixed box.
+//
+// The rectangle starts as the text's boxes. Each box that holds the text, its containing block in
+// turn (an in-flow box is held by its parent, an absolute box by the nearest positioned or
+// paint-contained ancestor, a fixed box by the nearest paint-contained ancestor or else by the
+// screen), acts on it axis by axis: when it scrolls on the axis, what lies wholly before its origin
+// is out of reach, what lies wholly after its end is brought into its span, and what crosses it is
+// cut to the part inside; when it cuts on the axis (overflow hidden or clip, paint containment) the
+// rectangle is cut to the part inside it. clip: rect() and clip-path cut every box of the chain,
+// held or not, with what they paint. html and body hand their overflow to the viewport, which the
+// off-screen test stands for. A text whose boxes have no area (font size 0) is not cut, so a cut
+// says nothing of it.
+function onePass(chain, boxes) {
+  const sized = boxes.filter((b) => b.width > 0 && b.height > 0);
+  let r = (sized.length ? sized : boxes).map(rectOf).reduce((a, b) => ({ x0: Math.min(a.x0, b.x0), x1: Math.max(a.x1, b.x1), y0: Math.min(a.y0, b.y0), y1: Math.max(a.y1, b.y1) }));
+  let mode = 'in';
+  for (const s of chain) {
+    const contained = paintContained(s);
+    const holds = mode === 'in' || (mode === 'abs' && s.position !== 'static') || contained;
+    if (holds && !isRoot(s) && s.box) {
+      const b = rectOf(s.box);
+      for (const [lo, hi, overflow, side] of [['x0', 'x1', s.overflowX, 'left of'], ['y0', 'y1', s.overflowY, 'above']]) {
+        if (scrolls(overflow)) {
+          if (r[hi] <= b[lo]) return { lost: `out of reach, ${side} the scroll origin of ${s.element}` };
+          r = r[lo] >= b[hi] ? { ...r, [lo]: b[lo], [hi]: b[hi] } : { ...r, [lo]: Math.max(r[lo], b[lo]), [hi]: Math.min(r[hi], b[hi]) };
+        } else if (sized.length && (cuts(overflow) || contained)) {
+          r = { ...r, [lo]: Math.max(r[lo], b[lo]), [hi]: Math.min(r[hi], b[hi]) };
+          if (r[hi] <= r[lo]) return { lost: `clipped away by ${s.element}` };
+        }
+      }
+    }
+    const region = clipRegion(s);
+    if (region === 'none') return { lost: `clipped away by ${s.element}` };
+    if (region && sized.length) {
+      r = meet(r, region);
+      if (isApart(r)) return { lost: `clipped away by ${s.element}` };
+    }
+    // Who holds the next box: a box held is the one whose containing block comes next. Paint
+    // containment holds what is inside the box, not the box itself.
+    if (mode === 'abs' && s.position !== 'static') mode = 'in';
+    if (contained) mode = 'in';
+    if (s.position === 'absolute' && mode !== 'fixed') mode = 'abs';
+    if (s.position === 'fixed') mode = 'fixed';
+  }
+  return { left: r, fixed: mode === 'fixed' };
+}
 
 // The reasons a target is out of sight, in a viewport { width, height }; none when it is in view.
 export function hiddenReasons(target, viewport) {
@@ -161,53 +292,16 @@ export function hiddenReasons(target, viewport) {
     if (faded) reasons.push(`opacity 0 on an ancestor (${faded.element})`);
   }
   if (parseFloat(owner.fontSize) === 0) reasons.push('font size 0');
-  if (zeroAlpha(owner.color) || zeroAlpha(owner.textFillColor)) reasons.push('transparent colour');
+  if (transparentFill(owner)) reasons.push('transparent colour');
 
-  // Clipping: clip and clip-path cut a box and all it holds; overflow cuts what its box holds,
-  // except what escapes it by absolute or fixed position; paint containment cuts like overflow:
-  // clip and holds everything inside it. html and body hand their overflow to the viewport, which
-  // the off-screen test below stands for.
-  //
-  // Reach: the span the text can be brought to, on each axis, starts as the span of its boxes. A
-  // box that holds it and scrolls on an axis cannot reach what lies wholly before its origin, which
-  // is out of reach; it brings what lies wholly after its end into its own span, which becomes the
-  // reach; what crosses it stays as it is.
-  const sized = boxes.filter((b) => b.width > 0 && b.height > 0);
-  const span = (p, size) => ({ lo: Math.min(...boxes.map((b) => b[p])), hi: Math.max(...boxes.map((b) => b[p] + b[size])) });
-  const reach = { x: span('x', 'width'), y: span('y', 'height') };
-  const unreachable = { x: null, y: null };
-  let mode = 'in';
-  let clipped = null;
-  for (const s of chain) {
-    if (!clipped && clipsAway(s)) clipped = s;
-    const holds = mode === 'in' || (mode === 'abs' && s.position !== 'static') || paintContained(s);
-    if (!clipped && holds && !isRoot(s) && sized.length && s.box) {
-      const cutX = cuts(s.overflowX) || paintContained(s);
-      const cutY = cuts(s.overflowY) || paintContained(s);
-      if ((cutX && outside(sized, s.box, 'x')) || (cutY && outside(sized, s.box, 'y'))) clipped = s;
-    }
-    if (holds && !isRoot(s) && s.box) {
-      for (const [axis, p, size, overflow] of [['x', 'x', 'width', s.overflowX], ['y', 'y', 'height', s.overflowY]]) {
-        if (unreachable[axis] || !scrolls(overflow)) continue;
-        const lo = s.box[p];
-        const hi = lo + s.box[size];
-        if (reach[axis].hi <= lo) unreachable[axis] = s;
-        else if (reach[axis].lo >= hi) reach[axis] = { lo, hi };
-      }
-    }
-    if (mode === 'abs' && s.position !== 'static') mode = 'in';
-    if (s.position === 'absolute' && mode !== 'fixed') mode = 'abs';
-    if (s.position === 'fixed') mode = 'fixed';
-    if (paintContained(s)) mode = 'in';
-  }
-  if (clipped) reasons.push(`clipped away by ${clipped.element}`);
-
-  // Off screen: the reach wholly left of the page, right of the viewport or above the page.
-  if (unreachable.x) reasons.push(`out of reach, left of the scroll origin of ${unreachable.x.element}`);
-  else if (reach.x.hi <= 0) reasons.push('off screen to the left');
-  else if (reach.x.lo >= viewport.width) reasons.push('off screen to the right');
-  if (unreachable.y) reasons.push(`out of reach, above the scroll origin of ${unreachable.y.element}`);
-  else if (reach.y.hi <= 0) reasons.push('off screen above');
+  const { lost, left: r, fixed } = onePass(chain, boxes);
+  if (lost) return [...reasons, lost];
+  // Off screen: what is left wholly left of the page, right of the viewport or above the page, or,
+  // when the screen holds it through a fixed box, wholly below the viewport.
+  if (r.x1 <= 0) reasons.push('off screen to the left');
+  else if (r.x0 >= viewport.width) reasons.push('off screen to the right');
+  if (r.y1 <= 0) reasons.push('off screen above');
+  else if (fixed && r.y0 >= viewport.height) reasons.push('off screen below');
   return reasons;
 }
 
@@ -261,7 +355,27 @@ const STYLE_PROPS = [
   ['display', 'display'], ['visibility', 'visibility'], ['opacity', 'opacity'], ['font-size', 'fontSize'],
   ['color', 'color'], ['-webkit-text-fill-color', 'textFillColor'], ['clip', 'clip'], ['clip-path', 'clipPath'],
   ['overflow-x', 'overflowX'], ['overflow-y', 'overflowY'], ['position', 'position'], ['contain', 'contain'],
+  ['background-clip', 'backgroundClip'],
 ];
+
+// What the page script makes of one run of text or one pseudo-element with text, from what the page
+// says of it: 'boxes' when it is measured with the boxes it has, which the snapshot leaves out
+// because its element has no box of its own (display: contents); 'snapshot' when the snapshot
+// measures it; 'no box' when nothing of it is drawn. The facts: `kind` ('text' or 'pseudo'),
+// `rects` (the number of boxes of a text), `pseudoDisplay` (the display of a pseudo-element),
+// `contents` (its element has display: contents), `drawn` (its element and every ancestor are
+// drawn) and `boxedDrawn` (the nearest ancestor with a box is drawn, with what it holds). Like a
+// text, a pseudo-element of an element with display: contents has a box of its own when that
+// ancestor is drawn. It runs in the page, and is exported so the suite tests it.
+export function unlaidVerdict({ kind, rects = 0, pseudoDisplay = 'inline', contents = false, drawn = false, boxedDrawn = false }) {
+  if (kind === 'pseudo') {
+    if (pseudoDisplay === 'none') return 'no box';
+    return drawn || (contents && boxedDrawn) ? 'snapshot' : 'no box';
+  }
+  if (rects > 0 && contents && boxedDrawn) return 'boxes';
+  if (rects > 0 && drawn) return 'snapshot';
+  return 'no box';
+}
 // Elements whose text is never drawn by design: scripts, styles, templates, and the SVG title and
 // description, which are read by assistive technology.
 const UNDRAWN = ['script', 'style', 'template', 'title', 'desc'];
@@ -336,6 +450,7 @@ function snapshotTargets({ documents, strings }) {
 // text whose own display is none or whose element is skipped. A skipped text the snapshot also
 // keeps comes out twice, once in view and once with no box, which reports it once.
 const UNLAID = `(() => {
+  const unlaidVerdict = ${unlaidVerdict.toString()};
   const UNDRAWN = new Set(${JSON.stringify(UNDRAWN)});
   const KEYS = ${JSON.stringify(STYLE_PROPS)};
   const describe = (el) => el.localName + (el.id ? '#' + el.id : '') + [...el.classList].map((c) => '.' + c).join('');
@@ -366,23 +481,23 @@ const UNLAID = `(() => {
   const targets = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
+  const boxedDrawn = (el) => { const boxed = boxedAncestor(el); return Boolean(boxed) && holdsDrawn(boxed); };
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if (!node.data.trim() || undrawn(node.parentElement)) continue;
+    const el = node.parentElement;
+    if (!node.data.trim() || undrawn(el)) continue;
     range.selectNodeContents(node);
     const rects = [...range.getClientRects()];
-    if (rects.length && contents(node.parentElement)) {
-      const boxed = boxedAncestor(node.parentElement);
-      if (boxed && holdsDrawn(boxed)) {
-        // A text with boxes of its own is measured with them, whatever box its element lacks; the
-        // snapshot leaves it out, because its element has no layout.
-        const chain = chainFrom(node.parentElement).map((s) => (s.display === 'contents' ? boxless(s) : s));
-        const boxes = rects.map((r) => ({ x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height }));
-        targets.push({ kind: 'text', element: describe(node.parentElement), text: node.data, boxes, chain });
-        continue;
-      }
+    const verdict = unlaidVerdict({ kind: 'text', rects: rects.length, contents: contents(el), drawn: holdsDrawn(el), boxedDrawn: boxedDrawn(el) });
+    if (verdict === 'snapshot') continue;
+    if (verdict === 'boxes') {
+      // A text with boxes of its own is measured with them, whatever box its element lacks; the
+      // snapshot leaves it out, because its element has no layout.
+      const chain = chainFrom(el).map((s) => (s.display === 'contents' ? boxless(s) : s));
+      const boxes = rects.map((r) => ({ x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height }));
+      targets.push({ kind: 'text', element: describe(el), text: node.data, boxes, chain });
+      continue;
     }
-    if (rects.length && holdsDrawn(node.parentElement)) continue;
-    targets.push({ kind: 'text', element: describe(node.parentElement), text: node.data, boxes: [], chain: chainFrom(node.parentElement) });
+    targets.push({ kind: 'text', element: describe(el), text: node.data, boxes: [], chain: chainFrom(el) });
   }
   for (const el of [document.body, ...document.body.querySelectorAll('*')]) {
     if (undrawn(el)) continue;
@@ -390,7 +505,8 @@ const UNLAID = `(() => {
       const cs = getComputedStyle(el, which);
       const content = cs.content;
       if (!content || /^(none|normal|""|'')$/.test(content.trim())) continue;
-      if (cs.display !== 'none' && holdsDrawn(el)) continue;
+      // A pseudo-element with a box is in the snapshot, even when its element has display: contents.
+      if (unlaidVerdict({ kind: 'pseudo', pseudoDisplay: cs.display, contents: contents(el), drawn: holdsDrawn(el), boxedDrawn: boxedDrawn(el) }) === 'snapshot') continue;
       const own = styleOf(cs, el, describe(el) + which);
       targets.push({ kind: 'pseudo', element: own.element, text: content.replace(/^["']|["']$/g, ''), boxes: [], chain: [own, ...chainFrom(el)] });
     }
@@ -415,8 +531,9 @@ const SETTLE = `(() => {
   return 10;
 })()`;
 
-// A DevTools protocol connection over the pipe Chrome opens with --remote-debugging-pipe.
-function connect(proc) {
+// A DevTools protocol connection over the pipe Chrome opens with --remote-debugging-pipe. A call
+// with no answer within `answerWithin` milliseconds fails.
+function connect(proc, answerWithin = 60000) {
   const out = proc.stdio[3];
   const inp = proc.stdio[4];
   let next = 0;
@@ -451,7 +568,7 @@ function connect(proc) {
     if (closed) { reject(closed); return; }
     next += 1;
     const id = next;
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method}: no answer from Chrome in 60 s`)); }, 60000);
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method}: no answer from Chrome in ${answerWithin / 1000} s`)); }, answerWithin);
     pending.set(id, { resolve: (v) => { clearTimeout(timer); done(v); }, reject: (e) => { clearTimeout(timer); reject(e); }, method });
     out.write(`${JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) })}\0`);
   });
@@ -471,10 +588,11 @@ const TYPES = {
   '.woff2': 'font/woff2', '.xml': 'application/xml', '.txt': 'text/plain', '.webmanifest': 'application/manifest+json',
 };
 
-// Serves a build output on 127.0.0.1 at a free port; a folder answers with its index.html. A file
-// it cannot read answers 500 and is kept in `server.failures`, which the measure turns into an
-// error of one line; the server itself never throws.
-function serve(dist) {
+// Serves a build output on 127.0.0.1 at a free port (or at `port`); a folder answers with its
+// index.html. A file it cannot read answers 500 and is kept in `server.failures`, which the measure
+// turns into an error of one line; the server itself never throws. A port it cannot listen on is
+// an error of one line.
+function serve(dist, port = 0) {
   const failures = [];
   const server = createServer((req, res) => {
     let path;
@@ -498,7 +616,26 @@ function serve(dist) {
     }
   });
   server.failures = failures;
-  return new Promise((done) => server.listen(0, '127.0.0.1', () => done(server)));
+  return new Promise((done, fail) => {
+    server.once('error', (e) => fail(new Error(`the server could not listen on 127.0.0.1:${port} (${e.code ?? e.message})`)));
+    server.listen(port, '127.0.0.1', () => done(server));
+  });
+}
+
+// Stops a child process and returns once it is gone, or once it cannot be waited for any longer: it
+// gets `grace` milliseconds to end on its own, then the signal to terminate and as long again, then
+// SIGKILL and as long again. A child that never started returns at once.
+export async function stopChild(proc, { grace = 5000 } = {}) {
+  if (proc.pid === undefined) return;
+  const ended = () => proc.exitCode !== null || proc.signalCode !== null;
+  const exited = new Promise((done) => proc.once('exit', done));
+  for (const signal of [null, 'SIGTERM', 'SIGKILL']) {
+    if (ended()) return;
+    if (signal) proc.kill(signal);
+    let timer;
+    await Promise.race([exited, new Promise((done) => { timer = setTimeout(done, grace); })]);
+    clearTimeout(timer);
+  }
 }
 
 // Opens one page at one width and theme, with scripts off and any later navigation of the page
@@ -534,18 +671,23 @@ async function measurePage(cdp, sessionId, origin, page, width, theme, failures 
   }
 }
 
-// Every page at every width and theme, in one Chrome, with a throwaway profile.
-export async function measureSite(chrome, dist) {
-  const work = mkdtempSync(join(tmpdir(), 'vibeflow-measure-'));
-  const server = await serve(dist);
-  const proc = spawn(chrome, [
-    '--headless=new', '--remote-debugging-pipe', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check',
-    `--user-data-dir=${join(work, 'profile')}`, 'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
-  const exited = new Promise((done) => proc.once('exit', done));
+// Every page at every width and theme, in one Chrome, with a throwaway profile in a folder under
+// `tmp`. The server starts first, so a port it cannot listen on leaves nothing behind. Whatever
+// happens, Chrome is stopped (killed when it does not end, see stopChild, with `grace`), the server
+// is closed and the folder removed. `port` and `answerWithin` (the time a protocol call may take)
+// are there for the tests.
+export async function measureSite(chrome, dist, { port = 0, tmp = tmpdir(), grace = 5000, answerWithin = 60000 } = {}) {
+  const server = await serve(dist, port);
+  let work = null;
+  let proc = null;
   try {
+    work = mkdtempSync(join(tmp, 'vibeflow-measure-'));
+    proc = spawn(chrome, [
+      '--headless=new', '--remote-debugging-pipe', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check',
+      `--user-data-dir=${join(work, 'profile')}`, 'about:blank',
+    ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
     const failed = new Promise((_, reject) => proc.once('error', (e) => reject(new Error(`Chrome did not start: ${e.message}`))));
-    const cdp = connect(proc);
+    const cdp = connect(proc, answerWithin);
     const { targetId } = await Promise.race([cdp.send('Target.createTarget', { url: 'about:blank' }), failed]);
     const { sessionId } = await cdp.send('Target.attachToTarget', { targetId, flatten: true }, undefined);
     await cdp.send('Emulation.setScriptExecutionDisabled', { value: true }, sessionId);
@@ -564,48 +706,50 @@ export async function measureSite(chrome, dist) {
     await cdp.send('Browser.close').catch(() => {});
     return measurements;
   } finally {
-    const timer = setTimeout(() => proc.kill(), 5000);
-    if (proc.exitCode === null && proc.signalCode === null) await exited;
-    clearTimeout(timer);
-    await new Promise((done) => server.close(done));
-    rmSync(work, { recursive: true, force: true });
+    if (proc) await stopChild(proc, { grace });
+    server.closeAllConnections?.();
+    await new Promise((done) => server.close(() => done()));
+    if (work) rmSync(work, { recursive: true, force: true });
   }
 }
 
-async function main() {
+// The program: measures the build in `args[0]` (site/dist by default) and returns the exit code,
+// after writing its lines through `say` and `fail`. `env`, `port` and `tmp` are there for the tests.
+export async function main(args = process.argv.slice(2), { env = process.env, port = 0, tmp = tmpdir(), say = console.log, fail = console.error } = {}) {
   const siteDir = join(dirname(fileURLToPath(import.meta.url)), '..');
-  const dist = resolve(process.argv[2] ?? join(siteDir, 'dist'));
+  const dist = resolve(args[0] ?? join(siteDir, 'dist'));
   const missing = PAGES.filter((p) => !existsSync(join(dist, p, 'index.html')));
   if (missing.length) {
-    console.error(`measure: no built pages ${missing.join(', ')} in ${dist}; run npm run build first.`);
-    process.exit(2);
+    fail(`measure: no built pages ${missing.join(', ')} in ${dist}; run npm run build first.`);
+    return 2;
   }
   let chrome;
   try {
-    chrome = findChrome();
+    chrome = findChrome(env);
   } catch (e) {
-    console.error(`measure: ${e.message}`);
-    process.exit(2);
+    fail(`measure: ${e.message}`);
+    return 2;
   }
   if (!chrome) {
-    console.error('measure: Chrome or Chromium not found; set CHROME_PATH to its executable.');
-    process.exit(2);
+    fail('measure: Chrome or Chromium not found; set CHROME_PATH to its executable.');
+    return 2;
   }
   let measurements;
   try {
-    measurements = await measureSite(chrome, dist);
+    measurements = await measureSite(chrome, dist, { port, tmp });
   } catch (e) {
-    console.error(`measure: ${e.message}`);
-    process.exit(2);
+    fail(`measure: ${e.message}`);
+    return 2;
   }
   const found = findHidden(measurements);
   const count = measurements.reduce((n, m) => n + m.targets.length, 0);
   if (found.length) {
-    console.error(`measure: ${found.length} hidden text(s)`);
-    for (const f of found) console.error(`  - ${describeFinding(f)}`);
-    process.exit(1);
+    fail(`measure: ${found.length} hidden text(s)`);
+    for (const f of found) fail(`  - ${describeFinding(f)}`);
+    return 1;
   }
-  console.log(`measure: ok (${PAGES.length} pages, ${WIDTHS.length} widths, ${THEMES.length} themes, ${count} texts)`);
+  say(`measure: ok (${PAGES.length} pages, ${WIDTHS.length} widths, ${THEMES.length} themes, ${count} texts)`);
+  return 0;
 }
 
 // Run as a program, by its real path or through a symbolic link.
@@ -616,4 +760,4 @@ function isMain() {
     return false;
   }
 }
-if (isMain()) main();
+if (isMain()) main().then((code) => { process.exitCode = code; });

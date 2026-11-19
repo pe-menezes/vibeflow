@@ -623,6 +623,9 @@ test('check-build says in its header that it is an alarm, that the proof is npm 
   for (const spelling of [/trailing dot/i, /percent/i, /without (the )?slashes/i, /protocol-relative/i]) {
     assert.match(header, spelling, `the rare spelling of the site address: ${spelling}`);
   }
+  assert.match(header, /hexadecimal escape/i, 'a hexadecimal escape in the gate class is judged wrong');
+  assert.match(header, /invalid branch/i, 'an invalid branch inside :is() is judged wrong');
+  assert.match(header, /:is\(\)/, 'the invalid branch is named inside :is()');
 });
 
 // ---------- second review: translated ids read only on the Portuguese page ----------

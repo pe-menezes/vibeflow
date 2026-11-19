@@ -7,7 +7,8 @@
 // output, the inputs it was made from and, as information, the Chrome that took the screenshots.
 // Everything is made in a temporary folder first and copied over only when all of it is made, all
 // or nothing, so a failure on the way, in the making or in the copying, leaves site/public/ and the
-// manifest as they were.
+// manifest as they were. A destination that is a symbolic link stops it before anything is written,
+// with one line that names it.
 // test/site-assets.test.mjs checks the files against the manifest and the manifest against today's
 // sources, so a change to the hero copy, the mark or a colour token fails the suite until the
 // assets are generated again.
@@ -19,11 +20,12 @@
 //
 // Chrome is needed only to take the screenshots. It is found through CHROME_PATH, which must exist
 // when set, or the usual macOS and Linux locations; a Chrome missing, failing, not finishing in
-// time or writing no screenshot ends the run with one line. This script is not part of the build or CI: the PNGs are
+// time (it is then killed, in the screenshots and in the version query alike) or writing no
+// screenshot ends the run with one line. This script is not part of the build or CI: the PNGs are
 // committed.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -335,12 +337,14 @@ export function findChrome(env = process.env, exists = existsSync) {
   return CHROME_LOCATIONS.find((path) => exists(path)) ?? null;
 }
 
-// The name and version Chrome reports, recorded in the manifest as information; null when it says
-// nothing.
-function chromeVersion(chrome) {
+// The name and version Chrome reports, recorded in the manifest as information; null when it fails
+// or says nothing. A Chrome that does not answer within `timeout` milliseconds is killed, as in the
+// screenshot, and is an error of one line.
+export function chromeVersion(chrome, { timeout = 30000 } = {}) {
   try {
-    return execFileSync(chrome, ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 }).trim() || null;
-  } catch {
+    return execFileSync(chrome, ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout, killSignal: 'SIGKILL' }).trim() || null;
+  } catch (e) {
+    if (e.code === 'ETIMEDOUT') throw new Error(`Chrome did not answer --version within ${timeout / 1000} s and was stopped.`);
     return null;
   }
 }
@@ -406,12 +410,28 @@ function copyAll(pairs, copy) {
   }
 }
 
+// A destination that is a symbolic link, pointing anywhere or nowhere, would carry the copy out of
+// the destinations, so the generator stops before it writes anything, naming the first one.
+function refuseLinks(destinations) {
+  for (const to of destinations) {
+    let link = false;
+    try {
+      link = lstatSync(to).isSymbolicLink();
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+    }
+    if (link) throw new Error(`${to} is a symbolic link; the generator writes only plain files and changed nothing.`);
+  }
+}
+
 // Makes every output and the manifest in a folder of its own under `tmp`, and only when all of them
 // are made copies them to `publicDir` and `manifestPath`, all or nothing: a failure on the way, in
-// the making or in the copying, leaves both as they were. The folder is removed either way.
+// the making or in the copying, leaves both as they were. The folder is removed either way. A
+// destination that is a symbolic link stops it before anything is made.
 // `shoot(html, asset, work)` returns the PNG of an asset; `staged(file)` is told of each output
 // once it is made; `copy(from, to)` copies one file.
 export function generateAssets({ sources, shoot, chromeVersion: chrome = null, publicDir, manifestPath, tmp = tmpdir(), staged = () => {}, copy = copyFileSync }) {
+  refuseLinks([...OUTPUT_FILES.map((file) => join(publicDir, file)), manifestPath]);
   const stage = mkdtempSync(join(tmp, 'vibeflow-assets-'));
   try {
     const work = join(stage, 'work');
