@@ -6,6 +6,7 @@
     "dev": "astro dev",
     "build": "astro build && node scripts/check-build.mjs && node scripts/check-pipeline.mjs && node scripts/check-home.mjs && node scripts/check-pages.mjs",
     "assets": "node scripts/make-assets.mjs",
+    "measure": "node scripts/measure-rendered.mjs",
     "preview": "astro preview",
     "astro": "astro"
   },

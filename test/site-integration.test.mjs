@@ -8,7 +8,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -514,6 +514,112 @@ for (const f of HREF_FORMS) {
   }
 }
 
+// ---------- third review: selectors read by a parser, not by a pattern ----------
+
+// Each writing of the motion gate: the class on html, or inside :is() with an attribute of each
+// operator, whose `~`, `|`, `^`, `$` and `*` are not combinators.
+const ATTR_OPS = ['~=', '|=', '^=', '$=', '*='];
+const UNDER = {
+  'html.motion-ok': 'html.motion-ok .lede',
+  ...Object.fromEntries(ATTR_OPS.map((op) => [`html:is(.motion-ok[data-state${op}"on"])`, `html:is(.motion-ok[data-state${op}"on"]) .lede`])),
+};
+const OUT = '.hero';
+const NEGATED = 'html:not(.motion-ok) .lede';
+// What each selector of the list carries besides the gate: commas in quotes or brackets, a
+// negation with a space inside, an attribute of each operator with a space in its value.
+const DECORATIONS = {
+  none: '',
+  'comma in quotes': '[data-label="a,b"]',
+  'comma in brackets': '[data-label=a\\,b]',
+  ':not(.a .b)': ':not(.a .b)',
+  ...Object.fromEntries(ATTR_OPS.map((op) => [`attribute ${op}`, `[data-k${op}"a b"]`])),
+};
+// The gate of each selector of a list: all under it, one out, all out, or the gate negated.
+const GATE_LISTS = {
+  'all under': ['under', 'under'],
+  'one out': ['under', 'out'],
+  'all out': ['out', 'out'],
+  'gate negated': ['negated'],
+  'one under, one negated': ['under', 'negated'],
+};
+
+test('the parser judges every shape of list, every decoration and every writing of the gate the same way', () => {
+  const failures = [];
+  let cases = 0;
+  for (const [shape, join] of Object.entries(LIST_SHAPES)) {
+    for (const [decoration, extra] of Object.entries(DECORATIONS)) {
+      for (const [writing, under] of Object.entries(UNDER)) {
+        for (const [gates, list] of Object.entries(GATE_LISTS)) {
+          const selectors = list.map((g) => `${g === 'under' ? under : g === 'out' ? OUT : NEGATED}${extra}`);
+          for (const [how, decl] of Object.entries(LIST_HIDES)) {
+            cases += 1;
+            const selector = join(selectors);
+            const flagged = checkCss(`${KEYFRAMES}${selector}${decl}`, 'x.css').length > 0;
+            const shouldFlag = list.some((g) => g !== 'under');
+            if (flagged !== shouldFlag) failures.push(`${shape}, ${decoration}, ${writing}, ${gates}, ${how}: ${selector} ${flagged ? 'fails' : 'passes'}`);
+          }
+        }
+      }
+    }
+  }
+  assert.ok(cases > 3000, `${cases} cases`);
+  assert.deepEqual(failures.slice(0, 20), [], `${failures.length} of ${cases} cases judged wrong`);
+});
+
+test('a pseudo-element given text by a broader rule fails whatever the hiding rule carries, a space inside :not() included', () => {
+  const failures = [];
+  for (const [decoration, extra] of Object.entries(DECORATIONS)) {
+    for (const [place, rules] of Object.entries({
+      'same rule': (d) => `.x.tip${d}::after{content:"help";opacity:0}`,
+      'broader rule': (d) => `.x::after{content:"help"}.x.tip${d}::after{opacity:0}`,
+      'broader rule, single colon': (d) => `.x:after{content:"help"}.x.tip${d}:after{opacity:0}`,
+    })) {
+      const css = `${rules(extra)}.x.tip${extra}:hover::after{opacity:1}`;
+      if (!checkCss(css, 'x.css').some((p) => /at rest/.test(p))) failures.push(`${decoration}, ${place}: ${css} passes`);
+    }
+    // The same rules with no text anywhere stay decoration shown on hover.
+    const empty = `.x::after{content:""}.x.tip${extra}::after{opacity:0}.x.tip${extra}:hover::after{opacity:1}`;
+    if (checkCss(empty, 'x.css').length) failures.push(`${decoration}, no text: ${empty} fails`);
+  }
+  assert.deepEqual(failures, []);
+});
+
+// Each spelling of a link to the site, by its host and not by the text it starts with, and an
+// external host that is never checked. `page` is where the link sits and `target` the page with the
+// id it names.
+const HOST_FORMS = [
+  { form: 'https://www.vibeflow.run/<lang>/#x', page: 'commands/', target: '', id: 'how', href: (l, f) => `https://www.vibeflow.run/${l}/#${f}` },
+  { form: 'with :443', page: 'commands/', target: '', id: 'how', href: (l, f) => `https://www.vibeflow.run:443/${l}/#${f}` },
+  { form: 'in capitals', page: 'commands/', target: '', id: 'how', href: (l, f) => `HTTPS://WWW.VIBEFLOW.RUN/${l}/#${f}` },
+  { form: 'without www', page: '', target: 'commands/', id: 'analyze', href: (l, f) => `https://vibeflow.run/${l}/commands#${f}` },
+  { form: '? right after the host', page: 'commands/', target: 'root', id: 'main', href: (l, f) => `https://www.vibeflow.run?x=1#${f}` },
+  { form: 'relative', page: '', target: 'commands/', id: 'analyze', href: (l, f) => `commands/#${f}` },
+  { form: 'another host', page: '', target: 'commands/', id: 'analyze', external: true, href: (l, f) => `https://vibeflow.example.com/${l}/commands#${f}` },
+];
+
+for (const f of HOST_FORMS) {
+  for (const [state, frag] of Object.entries({ exists: (id) => id, missing: (id) => `${id}-x` })) {
+    test(`site link ${f.form}, target ${state}: ${f.external || state === 'exists' ? 'passes' : 'fails and names the page'}`, () => {
+      const pages = site();
+      pages[''] = pages[''].replace('<main>', '<main id="main">');
+      for (const l of ['en', 'pt-br']) {
+        pages[`${l}/${f.page}`] = pages[`${l}/${f.page}`].replace('</body>', `<a href="${f.href(l, frag(f.id))}">Link</a></body>`);
+      }
+      const problems = checkPages(pages);
+      if (f.external || state === 'exists') assert.deepEqual(problems, []);
+      else assert.ok(named(problems, `en/${f.page}`, /no target/), problems.join('\n'));
+    });
+  }
+}
+
+test('check-build says in its header that it is an alarm, that the proof is npm run measure, and the two limits left', () => {
+  const header = read('site/scripts/check-build.mjs').split('\nimport ')[0];
+  assert.match(header, /alarm/i);
+  assert.match(header, /npm run measure/);
+  assert.match(header, /same element/i, 'two selectors that fall on the same element');
+  assert.match(header, /never (apply|hold|match) together/i, 'two selectors that never apply together');
+});
+
 // ---------- second review: translated ids read only on the Portuguese page ----------
 
 // An inner page with the given ids, in-page links in the given order, and the home page's link to
@@ -548,6 +654,8 @@ test('every pair of translated id sequences on an inner page passes, and links i
 // ---------- audit A1: each check runs as a program by its real path and through a link ----------
 
 const CHECKS = ['check-build.mjs', 'check-pipeline.mjs', 'check-home.mjs', 'check-pages.mjs'];
+// The modules of site/scripts the checks import.
+const HELPERS = readdirSync(join(ROOT, 'site', 'scripts')).filter((n) => n.endsWith('.mjs') && !CHECKS.includes(n) && CHECKS.some((c) => read(`site/scripts/${c}`).includes(`./${n}'`)));
 
 test('each check run through a symbolic link checks the same as by its real path, on an output with no pages', () => {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'site-checks-')));
@@ -555,6 +663,7 @@ test('each check run through a symbolic link checks the same as by its real path
     mkdirSync(join(tmp, 'real', 'site', 'scripts'), { recursive: true });
     mkdirSync(join(tmp, 'real', 'site', 'dist'));
     symlinkSync(join(tmp, 'real'), join(tmp, 'alias'));
+    for (const helper of HELPERS) copyFileSync(join(ROOT, 'site', 'scripts', helper), join(tmp, 'real', 'site', 'scripts', helper));
     for (const name of CHECKS) {
       copyFileSync(join(ROOT, 'site', 'scripts', name), join(tmp, 'real', 'site', 'scripts', name));
       symlinkSync(join(tmp, 'real', 'site', 'scripts', name), join(tmp, `link-${name}`));
@@ -562,6 +671,7 @@ test('each check run through a symbolic link checks the same as by its real path
         const run = spawnSync(process.execPath, [path], { encoding: 'utf8' });
         assert.notEqual(run.status, 0, `${name} by ${path.slice(tmp.length)} exits with 0 on an output with no pages`);
         assert.ok(run.stderr.length > 0, `${name} by ${path.slice(tmp.length)} says nothing`);
+        assert.doesNotMatch(run.stderr, /ERR_MODULE_NOT_FOUND|Cannot find module/, `${name} by ${path.slice(tmp.length)} fails to load, not to check`);
       }
     }
   } finally {

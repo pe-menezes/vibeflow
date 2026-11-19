@@ -4,20 +4,25 @@
 //
 // Writes og-image.png (1600 x 900), favicon-32.png, favicon-64.png, apple-touch-icon.png and
 // favicon.ico into site/public/, and site/scripts/assets/manifest.json with the sha256 of each
-// output and the inputs it was made from. test/site-assets.test.mjs checks the files against the
-// manifest and the manifest against today's sources, so a change to the hero copy, the mark or a
-// colour token fails the suite until the assets are generated again.
+// output, the inputs it was made from and, as information, the Chrome that took the screenshots.
+// Everything is made in a temporary folder first and copied over only when all of it is made, so a
+// failure on the way leaves site/public/ and the manifest as they were.
+// test/site-assets.test.mjs checks the files against the manifest and the manifest against today's
+// sources, so a change to the hero copy, the mark or a colour token fails the suite until the
+// assets are generated again.
 //
 // Nothing is invented here: the copy comes from src/i18n/en.ts (the keys Hero.astro uses), the
 // colours from the design system tokens (violet accent), the fonts from public/fonts/, the mark
 // from public/favicon.svg and the lines from the pure functions of src/lib/flow.js, in the still
 // frame the hero draws with reduced motion (seed 7, time zero).
 //
-// Chrome is needed only to take the screenshots. It is found through CHROME_PATH or the usual
-// macOS and Linux locations. This script is not part of the build or CI: the PNGs are committed.
+// Chrome is needed only to take the screenshots. It is found through CHROME_PATH, which must exist
+// when set, or the usual macOS and Linux locations; a Chrome missing, failing or writing no
+// screenshot ends the run with one line. This script is not part of the build or CI: the PNGs are
+// committed.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -318,23 +323,51 @@ const CHROME_LOCATIONS = [
   '/snap/bin/chromium',
 ];
 
+// The Chrome to use: CHROME_PATH when it is set, which must exist (a misspelt path is an error, not
+// a quiet fall back to another browser that may draw other bytes), or else the first usual
+// location that exists, or null.
 export function findChrome(env = process.env, exists = existsSync) {
-  if (env.CHROME_PATH && exists(env.CHROME_PATH)) return env.CHROME_PATH;
+  if (env.CHROME_PATH) {
+    if (!exists(env.CHROME_PATH)) throw new Error(`CHROME_PATH is set to ${env.CHROME_PATH}, which does not exist.`);
+    return env.CHROME_PATH;
+  }
   return CHROME_LOCATIONS.find((path) => exists(path)) ?? null;
 }
 
+// The name and version Chrome reports, recorded in the manifest as information; null when it says
+// nothing.
+function chromeVersion(chrome) {
+  try {
+    return execFileSync(chrome, ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 }).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+// One screenshot, taken in the work folder. A Chrome that fails or writes no PNG of the right size
+// is an error of one line.
 function screenshot(chrome, work, html, name, { width, height, transparent }) {
   const page = join(work, `${name}.html`);
   const out = join(work, `${name}.png`);
   writeFileSync(page, html);
-  execFileSync(chrome, [
-    '--headless=new', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check',
-    `--user-data-dir=${join(work, 'profile')}`, '--force-device-scale-factor=1',
-    `--window-size=${width},${height}`, ...(transparent ? ['--default-background-color=00000000'] : []),
-    '--virtual-time-budget=4000', `--screenshot=${out}`, pathToFileURL(page).href,
-  ], { stdio: 'ignore' });
+  try {
+    execFileSync(chrome, [
+      '--headless=new', '--hide-scrollbars', '--no-first-run', '--no-default-browser-check',
+      `--user-data-dir=${join(work, 'profile')}`, '--force-device-scale-factor=1',
+      `--window-size=${width},${height}`, ...(transparent ? ['--default-background-color=00000000'] : []),
+      '--virtual-time-budget=4000', `--screenshot=${out}`, pathToFileURL(page).href,
+    ], { stdio: 'ignore' });
+  } catch (e) {
+    throw new Error(`${name}: Chrome failed (${e.status ?? e.signal ?? e.code}) before writing the screenshot.`);
+  }
+  if (!existsSync(out)) throw new Error(`${name}: Chrome ran but wrote no screenshot.`);
   const png = readFileSync(out);
-  const size = pngSize(png);
+  let size;
+  try {
+    size = pngSize(png);
+  } catch {
+    throw new Error(`${name}: the screenshot Chrome wrote is not a PNG.`);
+  }
   if (size.width !== width || size.height !== height) {
     throw new Error(`${name}: Chrome returned ${size.width}x${size.height}, expected ${width}x${height}`);
   }
@@ -343,35 +376,59 @@ function screenshot(chrome, work, html, name, { width, height, transparent }) {
 
 const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 
-function main() {
-  const chrome = findChrome();
-  if (!chrome) {
-    console.error('make-assets: Chrome or Chromium not found; set CHROME_PATH to its executable.');
-    process.exit(1);
-  }
-  const sources = collectSources(SITE_DIR);
-  const publicDir = join(SITE_DIR, 'public');
-  const work = mkdtempSync(join(tmpdir(), 'vibeflow-assets-'));
-  const manifest = { inputs: manifestInputs(sources), html: {}, outputs: {} };
+// What the generator writes into public/, in order.
+export const OUTPUT_FILES = [...ASSETS.map((asset) => asset.file), 'favicon.ico'];
+
+// Makes every output and the manifest in a folder of its own under `tmp`, and only when all of them
+// are made copies them to `publicDir` and `manifestPath`; a failure on the way leaves both as they
+// were. The folder is removed either way. `shoot(html, asset, work)` returns the PNG of an asset;
+// `staged(file)` is told of each output once it is made.
+export function generateAssets({ sources, shoot, chromeVersion: chrome = null, publicDir, manifestPath, tmp = tmpdir(), staged = () => {} }) {
+  const stage = mkdtempSync(join(tmp, 'vibeflow-assets-'));
   try {
+    const work = join(stage, 'work');
+    const out = join(stage, 'out');
+    mkdirSync(work);
+    mkdirSync(out);
+    const manifest = { inputs: manifestInputs(sources), html: {}, outputs: {}, chrome };
     for (const asset of ASSETS) {
       const html = asset.html(sources);
-      const png = screenshot(chrome, work, html, asset.file.replace(/\.png$/, ''), asset);
-      writeFileSync(join(publicDir, asset.file), png);
+      const png = shoot(html, asset, work);
+      writeFileSync(join(out, asset.file), png);
       manifest.html[asset.file] = sha256(html);
       manifest.outputs[asset.file] = sha256(png);
-      console.log(`site/public/${asset.file}`);
+      staged(asset.file);
     }
-    const ico = buildIco([readFileSync(join(publicDir, 'favicon-32.png'))]);
-    writeFileSync(join(publicDir, 'favicon.ico'), ico);
+    const ico = buildIco([readFileSync(join(out, 'favicon-32.png'))]);
+    writeFileSync(join(out, 'favicon.ico'), ico);
     manifest.outputs['favicon.ico'] = sha256(ico);
-    console.log('site/public/favicon.ico');
+    staged('favicon.ico');
+    writeFileSync(join(out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    for (const file of OUTPUT_FILES) copyFileSync(join(out, file), join(publicDir, file));
+    mkdirSync(dirname(manifestPath), { recursive: true });
+    copyFileSync(join(out, 'manifest.json'), manifestPath);
+    return manifest;
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    rmSync(stage, { recursive: true, force: true });
   }
-  const manifestPath = join(SITE_DIR, 'scripts', 'assets', 'manifest.json');
-  mkdirSync(dirname(manifestPath), { recursive: true });
-  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function main() {
+  try {
+    const chrome = findChrome();
+    if (!chrome) throw new Error('Chrome or Chromium not found; set CHROME_PATH to its executable.');
+    generateAssets({
+      sources: collectSources(SITE_DIR),
+      shoot: (html, asset, work) => screenshot(chrome, work, html, asset.file.replace(/\.png$/, ''), asset),
+      chromeVersion: chromeVersion(chrome),
+      publicDir: join(SITE_DIR, 'public'),
+      manifestPath: join(SITE_DIR, 'scripts', 'assets', 'manifest.json'),
+    });
+  } catch (e) {
+    console.error(`make-assets: ${e.message}`);
+    process.exit(1);
+  }
+  for (const file of OUTPUT_FILES) console.log(`site/public/${file}`);
   console.log('site/scripts/assets/manifest.json');
 }
 

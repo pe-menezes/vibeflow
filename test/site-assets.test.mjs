@@ -5,7 +5,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -16,6 +18,7 @@ import {
   collectSources,
   findChrome,
   flowLines,
+  generateAssets,
   heroContent,
   manifestInputs,
   pngSize,
@@ -197,6 +200,130 @@ test('buildIco and readIco round-trip the PNG that went in', () => {
   assert.ok(entry.data.equals(png));
   assert.deepEqual([entry.width, entry.height], [32, 32]);
   assert.deepEqual(pngSize(png), { width: 32, height: 32 });
+});
+
+// ---------- the generator's robustness (Chrome missing or silent, two-phase writes, version) ----------
+
+const COMMON_FIRST = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+
+test('findChrome: a CHROME_PATH that does not exist is an error naming it, whatever the usual locations hold', () => {
+  const failures = [];
+  for (const common of [true, false]) {
+    const exists = (p) => (p === '/opt/x/chrome' ? true : p === '/opt/missing/chrome' ? false : common);
+    // unset: the first usual location, or nothing
+    const unset = findChrome({}, exists);
+    if (unset !== (common ? COMMON_FIRST : null)) failures.push(`unset, common ${common}: ${unset}`);
+    // set and present: the variable wins
+    const valid = findChrome({ CHROME_PATH: '/opt/x/chrome' }, exists);
+    if (valid !== '/opt/x/chrome') failures.push(`valid, common ${common}: ${valid}`);
+    // set and missing: an error of one line that names it, never another browser
+    try {
+      const got = findChrome({ CHROME_PATH: '/opt/missing/chrome' }, exists);
+      failures.push(`missing, common ${common}: returned ${got}`);
+    } catch (e) {
+      if (!e.message.includes('/opt/missing/chrome') || /\n/.test(e.message) || !/CHROME_PATH/.test(e.message)) failures.push(`missing, common ${common}: ${e.message}`);
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+// A destination with an old copy of every output and of the manifest, and a temp root of its own.
+function playground() {
+  const root = mkdtempSync(join(tmpdir(), 'site-assets-test-'));
+  const publicDir = join(root, 'public');
+  const manifestPath = join(root, 'scripts', 'assets', 'manifest.json');
+  const tmp = join(root, 'tmp');
+  mkdirSync(publicDir, { recursive: true });
+  mkdirSync(dirname(manifestPath), { recursive: true });
+  mkdirSync(tmp);
+  for (const file of OUTPUTS) writeFileSync(join(publicDir, file), `old ${file}`);
+  writeFileSync(manifestPath, '{"old":true}\n');
+  const snapshot = () => [...OUTPUTS.map((f) => readFileSync(join(publicDir, f), 'utf8')), readFileSync(manifestPath, 'utf8')];
+  return { root, publicDir, manifestPath, tmp, snapshot };
+}
+// A screenshot stand-in: the committed 32 px icon for every asset, so favicon.ico can be built.
+const fakeShoot = () => readFileSync(join(PUBLIC, 'favicon-32.png'));
+
+test('a failure after any of the five files leaves the destination as it was and nothing in the temp folder', () => {
+  const sources = collectSources(SITE);
+  const failures = [];
+  for (const failAfter of OUTPUTS) {
+    const p = playground();
+    try {
+      const before = p.snapshot();
+      let threw = false;
+      try {
+        generateAssets({
+          sources, shoot: fakeShoot, chromeVersion: 'Test Chrome 1.0', publicDir: p.publicDir, manifestPath: p.manifestPath, tmp: p.tmp,
+          staged: (file) => { if (file === failAfter) throw new Error(`injected after ${file}`); },
+        });
+      } catch (e) {
+        threw = /injected/.test(e.message);
+      }
+      if (!threw) failures.push(`${failAfter}: the injected failure did not surface`);
+      if (JSON.stringify(p.snapshot()) !== JSON.stringify(before)) failures.push(`${failAfter}: the destination changed`);
+      if (readdirSync(p.tmp).length) failures.push(`${failAfter}: left ${readdirSync(p.tmp)} in the temp folder`);
+    } finally {
+      rmSync(p.root, { recursive: true, force: true });
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('a run that finishes writes the five files and a manifest that records the Chrome version and still checks out', () => {
+  const sources = collectSources(SITE);
+  const p = playground();
+  try {
+    const staged = [];
+    generateAssets({ sources, shoot: fakeShoot, chromeVersion: 'Test Chrome 1.0', publicDir: p.publicDir, manifestPath: p.manifestPath, tmp: p.tmp, staged: (f) => staged.push(f) });
+    assert.deepEqual(staged, OUTPUTS);
+    const manifest = JSON.parse(readFileSync(p.manifestPath, 'utf8'));
+    assert.equal(manifest.chrome, 'Test Chrome 1.0');
+    assert.deepEqual(Object.keys(manifest.outputs).sort(), [...OUTPUTS].sort());
+    for (const file of OUTPUTS) assert.equal(sha256(readFileSync(join(p.publicDir, file))), manifest.outputs[file], file);
+    assert.deepEqual(manifest.inputs, manifestInputs(sources));
+    for (const asset of ASSETS) assert.equal(manifest.html[asset.file], sha256(asset.html(sources)), asset.file);
+    assert.deepEqual(readdirSync(p.tmp), []);
+  } finally {
+    rmSync(p.root, { recursive: true, force: true });
+  }
+});
+
+test('the committed manifest records the Chrome that made the files', () => {
+  const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+  assert.match(manifest.chrome ?? '', /^\S.*\d+\.\d+/, 'chrome: name and version');
+});
+
+// The generator run as a program in a copy of the site, so nothing of the repository is written.
+function runInCopy(chromePath) {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'site-assets-run-')));
+  try {
+    for (const dir of ['scripts', 'src', 'public']) cpSync(join(SITE, dir), join(root, 'site', dir), { recursive: true });
+    const files = [...OUTPUTS.map((f) => join(root, 'site', 'public', f)), join(root, 'site', 'scripts', 'assets', 'manifest.json')];
+    const before = files.map((f) => sha256(readFileSync(f)));
+    const run = spawnSync(process.execPath, [join(root, 'site', 'scripts', 'make-assets.mjs')], { encoding: 'utf8', env: { ...process.env, CHROME_PATH: chromePath } });
+    const after = files.map((f) => sha256(readFileSync(f)));
+    return { ...run, unchanged: JSON.stringify(before) === JSON.stringify(after) };
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+test('make-assets with a CHROME_PATH that does not exist exits with one line naming it and writes nothing', () => {
+  const run = runInCopy('/nonexistent/chrome');
+  assert.equal(run.status, 1);
+  assert.equal(run.stderr.trim().split('\n').length, 1, run.stderr);
+  assert.match(run.stderr, /\/nonexistent\/chrome/);
+  assert.ok(run.unchanged, 'the copy was written');
+});
+
+test('make-assets with a Chrome that runs and writes no screenshot exits with one line and writes nothing', () => {
+  const run = runInCopy('/usr/bin/true');
+  assert.equal(run.status, 1);
+  assert.equal(run.stderr.trim().split('\n').length, 1, run.stderr);
+  assert.match(run.stderr, /^make-assets: .*screenshot/);
+  assert.doesNotMatch(run.stderr, /\s+at\s/, 'no stack trace');
+  assert.ok(run.unchanged, 'the copy was written');
 });
 
 test('findChrome prefers the environment variable and reports nothing when no browser exists', () => {
