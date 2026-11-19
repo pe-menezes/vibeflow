@@ -246,13 +246,38 @@ test('pinned, the stage is the screen, the band sits between BAND_MIN and BAND_M
   assert.ok(!/\b\d+vh\b/.test(/\.pipe-band\s*\{([^}]*)\}/.exec(pinning[2])?.[1] ?? ''), 'no height of its own in vh for the pinned band');
 });
 
+test('where the scene pins, the stage and the track take the visible height (svh), after a vh fallback', async () => {
+  const { SCENE_QUERY } = await import('../site/src/lib/pipeline-scene.js');
+  const style = /<style>([\s\S]*?)<\/style>/.exec(component('HowItWorks'))?.[1] ?? '';
+  const pinning = [...style.matchAll(/@media\s*([^{]+)\{([\s\S]*?)\n  \}/g)].find((m) => /position:\s*sticky/.test(m[2]));
+  assert.ok(pinning, 'a media block pins the stage');
+  assert.equal(pinning[1].trim(), SCENE_QUERY);
+  for (const [selector, size] of [['pipe-track', 330], ['pipe-stage', 100]]) {
+    const rule = new RegExp(`\\.pipe:not\\(\\[data-scene-loose\\]\\)\\s+\\.${selector}\\s*\\{([^}]*)\\}`).exec(pinning[2])?.[1] ?? '';
+    assert.ok(rule, `the pinned ${selector} rule`);
+    const heights = [...rule.matchAll(/(?:^|[\s;])height:\s*([^;]+);/g)].map((m) => m[1].trim());
+    assert.deepEqual(heights, [`${size}vh`, `${size}svh`], `${selector}: height in vh, then in svh`);
+  }
+  // Outside the block nothing takes svh: the unit changes only where the scene pins.
+  assert.ok(!/svh/.test(style.replace(pinning[0], '')), 'svh only inside the pinning block');
+});
+
 // A stand-in for the scene's DOM, laid out the way the component's CSS lays it out. The stage holds
 // three children (head, band, steps) with a gap between them and a padding above and below;
 // `rest` is all of that but the band. Pinned (query, motion class, and the root not marked loose)
 // the stage is the screen, the band takes what is left between bandMin and bandMax, and the
 // children sit in the middle; when they do not fit they start at the padding and run past the
 // foot (the stage does not grow). Loose, the band has its own height and the stage its content's.
-function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin, bandMax }) {
+// The query's block also lays out the head in two columns, so `rest` is the content under the
+// block (query and motion class) and `restOff` the content without it. `setMatches` changes the
+// query with the page open; the caller then fires the media change.
+// `ruler` is the declared height of the pinned stage, read from the ruler ([data-scene-ruler]):
+// undefined leaves the ruler out of the scene (the stand-ins written before it, which answer null),
+// and a number gives it that height under the query's block and none outside it, as the CSS does.
+// With a ruler of some height the pinned stage takes it; without one, it takes the screen.
+// `setScreen` moves innerHeight with the page open (the browser bars collapse or come back) while
+// the ruler stays; the caller then fires the resize.
+function fitHarness({ rest, restOff = rest, screen, matches, motion, looseAtStart, bandMin, bandMax, ruler }) {
   const attrs = new Set(looseAtStart ? ['data-scene-loose'] : []);
   const node = () => ({ dataset: {}, hidden: false });
   const gates = [node(), node(), node(), node()];
@@ -261,37 +286,43 @@ function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin, band
   const cssPinned = () => matches && motion && !attrs.has('data-scene-loose');
   const PAD = 32;
   const GAP = 24;
-  const headHeight = Math.round(0.4 * (rest - 2 * PAD - 2 * GAP));
-  const stepsHeight = rest - 2 * PAD - 2 * GAP - headHeight;
+  const rulerHeight = () => (matches && motion ? ruler ?? 0 : 0);
+  const pinnedHeight = () => (rulerHeight() > 0 ? rulerHeight() : screen);
+  const laidOut = () => (matches && motion ? rest : restOff);
+  const headHeight = () => Math.round(0.4 * (laidOut() - 2 * PAD - 2 * GAP));
+  const stepsHeight = () => laidOut() - 2 * PAD - 2 * GAP - headHeight();
   const bandHeight = () => (cssPinned()
-    ? Math.min(bandMax, Math.max(bandMin, screen - rest))
+    ? Math.min(bandMax, Math.max(bandMin, pinnedHeight() - laidOut()))
     : Math.min(320, Math.max(180, Math.round(0.3 * screen))));
-  const contentHeight = () => headHeight + GAP + bandHeight() + GAP + stepsHeight;
-  const stageHeight = () => (cssPinned() ? screen : 2 * PAD + contentHeight());
+  const contentHeight = () => headHeight() + GAP + bandHeight() + GAP + stepsHeight();
+  const stageHeight = () => (cssPinned() ? pinnedHeight() : 2 * PAD + contentHeight());
   let progress = 0;
-  const trackHeight = () => (cssPinned() ? Math.round(3.3 * screen) : stageHeight());
+  const trackHeight = () => (cssPinned() ? Math.round(3.3 * pinnedHeight()) : stageHeight());
   const trackTop = () => -progress * (trackHeight() - stageHeight());
   // Pinned, the stage sits at the top of the screen; loose, it scrolls with the track.
   const stageTop = () => (cssPinned() ? 0 : trackTop());
-  const contentTop = () => stageTop() + (cssPinned() ? Math.max(PAD, (screen - contentHeight()) / 2) : PAD);
+  const contentTop = () => stageTop() + (cssPinned() ? Math.max(PAD, (pinnedHeight() - contentHeight()) / 2) : PAD);
   const child = (offset, height) => ({
     getBoundingClientRect: () => {
       const top = contentTop() + offset();
       return { top, bottom: top + height(), height: height() };
     },
   });
-  const band = Object.defineProperty(child(() => headHeight + GAP, bandHeight), 'offsetHeight', { get: bandHeight });
+  const band = Object.defineProperty(child(() => headHeight() + GAP, bandHeight), 'offsetHeight', { get: bandHeight });
   const stage = {
     get offsetHeight() { return stageHeight(); },
     children: [
-      child(() => 0, () => headHeight),
+      child(() => 0, headHeight),
       band,
-      child(() => headHeight + GAP + bandHeight() + GAP, () => stepsHeight),
+      child(() => headHeight() + GAP + bandHeight() + GAP, stepsHeight),
     ],
     padding: { paddingTop: `${PAD}px`, paddingBottom: `${PAD}px` },
   };
   const track = { getBoundingClientRect: () => ({ top: trackTop(), height: trackHeight() }) };
   const one = { '[data-scene-track]': track, '[data-scene-stage]': stage, '[data-scene-band]': band, '[data-scene-end]': end };
+  if (ruler !== undefined) {
+    one['[data-scene-ruler]'] = { getBoundingClientRect: () => ({ top: 0, bottom: rulerHeight(), height: rulerHeight() }) };
+  }
   const root = {
     querySelector: (selector) => one[selector] ?? null,
     querySelectorAll: (selector) => (selector === '[data-gate]' ? gates : selector === '[data-step]' ? steps : []),
@@ -304,7 +335,7 @@ function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin, band
   const saved = Object.fromEntries(names.map((n) => [n, Object.getOwnPropertyDescriptor(globalThis, n)]));
   const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
   define('getComputedStyle', (el) => el.padding ?? { paddingTop: '0px', paddingBottom: '0px' });
-  define('matchMedia', () => ({ matches, addEventListener: (_type, f) => media.push(f) }));
+  define('matchMedia', () => ({ get matches() { return matches; }, addEventListener: (_type, f) => media.push(f) }));
   define('document', { documentElement: { classList: { contains: (name) => name === 'motion-ok' && motion } } });
   define('addEventListener', (type, f) => { (listeners[type] ??= []).push(f); });
   define('innerHeight', screen);
@@ -319,7 +350,12 @@ function fitHarness({ rest, screen, matches, motion, looseAtStart, bandMin, band
     for (const f of listeners[type] ?? []) f();
   };
   const changeMedia = () => { for (const f of media) f(); };
-  return { root, steps, end, attrs, fire, changeMedia, restore, cssPinned, flow: { goTo() {} } };
+  const setMatches = (value) => { matches = value; };
+  const setScreen = (value) => {
+    screen = value;
+    define('innerHeight', value);
+  };
+  return { root, steps, end, attrs, fire, changeMedia, setMatches, setScreen, restore, cssPinned, flow: { goTo() {} } };
 }
 
 test('pinned only where the stage fits the screen: the measure gives the same answer pinned and loose, and never flips', async () => {
@@ -354,6 +390,186 @@ test('pinned only where the stage fits the screen: the measure gives the same an
         }
       }
     }
+  }
+});
+
+// The query changes with the page open (the reduced motion preference turned on or off, or the
+// screen crossing the query): the scene measures again, and the loose mark, the lit steps and the
+// verdict are the ones of a page opened already in the new state. The content is laid out
+// differently under the query and without it, so the measure before the change says nothing about
+// the one after.
+test('a media change with the page open measures again: the scene is what a page opened in that state shows', async () => {
+  const { bindPipelineScene, BAND_MIN, BAND_MAX } = await import('../site/src/lib/pipeline-scene.js');
+  const restFor = (screen, fits) => screen - BAND_MIN + (fits ? -120 : 120);
+  const view = (h) => ({ loose: h.attrs.has('data-scene-loose'), lit: h.steps.map((s) => s.dataset.active), verdict: !h.end.hidden });
+  let cases = 0;
+  for (const screen of [700, 900, 1080]) {
+    for (const fitsBefore of [true, false]) {
+      for (const turnsOn of [true, false]) {
+        for (const fitsAfter of [true, false]) {
+          for (const p of [0.1, 0.6]) {
+            const before = turnsOn ? 'restOff' : 'rest';
+            const after = turnsOn ? 'rest' : 'restOff';
+            const layout = { [before]: restFor(screen, fitsBefore), [after]: restFor(screen, fitsAfter) };
+            const where = `screen ${screen}, ${fitsBefore ? 'fits' : 'loose'} before, query ${turnsOn ? 'starts' : 'stops'} matching, content ${fitsAfter ? 'fits' : 'does not fit'} after, at ${p}`;
+            const common = { ...layout, screen, motion: true, bandMin: BAND_MIN, bandMax: BAND_MAX };
+            const h = fitHarness({ ...common, matches: !turnsOn, looseAtStart: false });
+            let changed;
+            try {
+              bindPipelineScene(h.root, h.flow);
+              h.fire('scroll', p);
+              assert.equal(h.attrs.has('data-scene-loose'), !fitsBefore, `loose mark before the change (${where})`);
+              h.setMatches(turnsOn);
+              h.changeMedia();
+              changed = view(h);
+            } finally {
+              h.restore();
+            }
+            const fresh = fitHarness({ ...common, matches: turnsOn, looseAtStart: false });
+            let opened;
+            try {
+              bindPipelineScene(fresh.root, fresh.flow);
+              fresh.fire('scroll', p);
+              opened = view(fresh);
+            } finally {
+              fresh.restore();
+            }
+            assert.equal(changed.loose, !fitsAfter, `loose mark after the change (${where})`);
+            assert.deepEqual(changed, opened, `after the change, as a page opened in that state (${where})`);
+            const pinned = turnsOn && fitsAfter;
+            const step = Math.min(3, Math.floor(4 * p));
+            assert.deepEqual(changed.lit, pinned ? [0, 1, 2, 3].map((i) => String(i === step)) : ['true', 'true', 'true', 'true'], `steps (${where})`);
+            cases++;
+          }
+        }
+      }
+    }
+  }
+  assert.equal(cases, 48);
+});
+
+// Where the scene pins, the stage has the visible height (100svh), which a browser with collapsing
+// bars keeps apart from innerHeight. The ruler ([data-scene-ruler]) carries the same declared
+// height, so the measure compares the content with the smaller of the ruler and innerHeight; with
+// no ruler, or a ruler of no height, it compares with innerHeight. Oracle: the scene pins if and
+// only if the content, with the band at its least height, fits the smaller of the two.
+test('the measure compares the content with the smaller of the ruler and innerHeight, from either start', async () => {
+  const { bindPipelineScene, BAND_MIN, BAND_MAX } = await import('../site/src/lib/pipeline-scene.js');
+  let cases = 0;
+  for (const screen of [700, 900, 1248]) {
+    for (const [name, ruler] of [['lower', screen - 71], ['equal', screen], ['higher', screen + 71], ['absent', undefined], ['zero', 0]]) {
+      const small = ruler > 0 ? Math.min(screen, ruler) : screen;
+      const large = ruler > 0 ? Math.max(screen, ruler) : screen;
+      const contents = [['fits the smaller', -40], ['fits the smaller', 0]];
+      if (large > small) contents.push(['fits only the larger', 1], ['fits only the larger', large - small]);
+      contents.push(['fits neither', large - small + 1], ['fits neither', large - small + 120]);
+      for (const [content, slack] of contents) {
+        const fits = slack <= 0;
+        for (const looseAtStart of [false, true]) {
+          const where = `innerHeight ${screen}, ruler ${name} (${ruler}), content ${content} (${slack >= 0 ? '+' : ''}${slack} px), loose at start ${looseAtStart}`;
+          const h = fitHarness({ rest: small - BAND_MIN + slack, screen, ruler, matches: true, motion: true, looseAtStart, bandMin: BAND_MIN, bandMax: BAND_MAX });
+          try {
+            bindPipelineScene(h.root, h.flow);
+            for (const [type, p] of [['scroll', 0.4], ['resize', 0.4], ['scroll', 0.6], ['change', 0.6], ['scroll', 0.1]]) {
+              if (type === 'change') h.changeMedia();
+              else h.fire(type, p);
+              assert.equal(h.attrs.has('data-scene-loose'), !fits, `loose mark after ${type} (${where})`);
+              const step = Math.min(3, Math.floor(4 * p));
+              const expected = fits ? [0, 1, 2, 3].map((i) => String(i === step)) : ['true', 'true', 'true', 'true'];
+              assert.deepEqual(h.steps.map((s) => s.dataset.active), expected, `steps after ${type} at ${p} (${where})`);
+              if (!fits) assert.equal(h.end.hidden, false, `verdict shown loose (${where})`);
+            }
+          } finally {
+            h.restore();
+          }
+          cases++;
+        }
+      }
+    }
+  }
+  // Per screen: 3 ruler heights with two heights apart (lower, higher) or equal give 6, 4 and 6
+  // contents; absent and zero give 4 each. Times two starts and three screens.
+  assert.equal(cases, 3 * 2 * (6 + 4 + 6 + 4 + 4));
+});
+
+// The browser bars collapse and come back: innerHeight goes up and down and the resize fires, while
+// the ruler (the visible height) stays. As long as the ruler is the smaller of the two, the answer
+// of the measure does not move, so the loose mark and the lit steps stay as they were.
+test('with the ruler still, innerHeight going up and down does not flip the scene', async () => {
+  const { bindPipelineScene, BAND_MIN, BAND_MAX } = await import('../site/src/lib/pipeline-scene.js');
+  const view = (h) => ({ loose: h.attrs.has('data-scene-loose'), lit: h.steps.map((s) => s.dataset.active), verdict: !h.end.hidden });
+  let cases = 0;
+  for (const ruler of [660, 900, 1248]) {
+    const walks = [
+      [ruler, ruler + 71, ruler + 20, ruler + 71, ruler, ruler + 45],
+      [ruler + 71, ruler, ruler + 71, ruler + 35, ruler, ruler + 71],
+    ];
+    for (const walk of walks) {
+      for (const slack of [-60, 0, 1, 30, 71, 72, 200]) {
+        const fits = slack <= 0;
+        for (const looseAtStart of [false, true]) {
+          for (const p of [0.1, 0.6]) {
+            const where = `ruler ${ruler}, innerHeight ${walk.join(' > ')}, content ${slack >= 0 ? '+' : ''}${slack} px over the ruler, loose at start ${looseAtStart}, at ${p}`;
+            const h = fitHarness({ rest: ruler - BAND_MIN + slack, screen: walk[0], ruler, matches: true, motion: true, looseAtStart, bandMin: BAND_MIN, bandMax: BAND_MAX });
+            try {
+              bindPipelineScene(h.root, h.flow);
+              h.fire('scroll', p);
+              const first = view(h);
+              assert.equal(first.loose, !fits, `loose mark at load (${where})`);
+              for (const height of walk.slice(1)) {
+                h.setScreen(height);
+                h.fire('resize', p);
+                assert.deepEqual(view(h), first, `after innerHeight went to ${height} (${where})`);
+                h.fire('scroll', p);
+                assert.deepEqual(view(h), first, `scroll after innerHeight went to ${height} (${where})`);
+              }
+            } finally {
+              h.restore();
+            }
+            cases++;
+          }
+        }
+      }
+    }
+  }
+  assert.equal(cases, 3 * 2 * 7 * 2 * 2);
+});
+
+test('the ruler: an empty hidden node at the scene root, as tall as the pinned stage where the scene pins, with no box elsewhere', async () => {
+  const { SCENE_QUERY } = await import('../site/src/lib/pipeline-scene.js');
+  const how = component('HowItWorks');
+  const markup = template(how);
+  const tag = /<div\b[^>]*\sdata-scene-ruler\b[^>]*>\s*<\/div>/.exec(markup)?.[0];
+  assert.ok(tag, 'an empty ruler node');
+  assert.match(tag, /\saria-hidden="true"/, 'the ruler is hidden from assistive technology');
+  assert.match(markup, /<section[^>]*\sdata-pipeline-scene\b[^>]*>[\s\S]*\sdata-scene-ruler\b[\s\S]*<\/section>/, 'the ruler sits in the scene');
+  const track = divAt(markup, /<div[^>]*\sdata-scene-track\b/);
+  assert.ok(track.length > 0 && !/data-scene-ruler/.test(track), 'the ruler sits at the scene root, outside the track and the stage');
+  const cls = /\sclass="([\w-]+)"/.exec(tag)?.[1];
+  assert.ok(cls, 'the ruler has one class for its style');
+  const ofRuler = new RegExp(`\\.${cls}(?![\\w-])`);
+  const rules = (css) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter((m) => ofRuler.test(m[1]));
+  const heights = (body) => [...body.matchAll(/(?:^|[\s;])height:\s*([^;]+);/g)].map((m) => m[1].trim());
+
+  const style = /<style>([\s\S]*?)<\/style>/.exec(how)?.[1] ?? '';
+  const pinning = [...style.matchAll(/@media\s*([^{]+)\{([\s\S]*?)\n  \}/g)].find((m) => /position:\s*sticky/.test(m[2]));
+  assert.ok(pinning, 'a media block pins the stage');
+  assert.equal(pinning[1].trim(), SCENE_QUERY);
+  const inside = rules(pinning[2]);
+  assert.equal(inside.length, 1, 'one ruler rule where the scene pins');
+  const [, selector, body] = inside[0];
+  assert.ok(!/data-scene-loose/.test(selector), `the ruler does not depend on the loose mark: ${selector.trim()}`);
+  assert.deepEqual(heights(body), ['100vh', '100svh'], 'the ruler has the declared height of the pinned stage: vh, then svh');
+  assert.match(body, /position:\s*fixed\s*;/, 'out of the flow: it moves no other node and adds nothing to the scroll');
+  assert.match(body, /(^|[\s;])width:\s*0\s*;/, 'no width');
+  assert.match(body, /visibility:\s*hidden\s*;/, 'it draws nothing');
+  assert.match(body, /pointer-events:\s*none\s*;/, 'it takes no pointer');
+
+  const outside = rules(style.replace(pinning[0], ''));
+  assert.ok(outside.length >= 1, 'a ruler rule outside the block');
+  for (const [, sel, decls] of outside) {
+    assert.deepEqual(heights(decls), [], `no height outside the block: ${sel.trim()}`);
+    assert.match(decls, /display:\s*contents\s*;/, `no box outside the block: ${sel.trim()}`);
   }
 });
 

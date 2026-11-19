@@ -2,7 +2,6 @@ export default {
   lang: 'pt-br',
   langLabel: 'PT',
   switchLang: 'EN',
-  switchPath: '/en/',
 
   // Header
   headerGithub: 'GitHub',
@@ -12,6 +11,8 @@ export default {
   navAnatomy: 'Anatomia',
   navInstall: 'Edições',
   navStarGithub: 'Star no GitHub',
+  headerThemeLabel: 'Alternar tema',
+  headerMenuLabel: 'Menu',
 
   // Hero
   heroEyebrow: 'Open source · Licença MIT',

@@ -250,6 +250,115 @@ test('pipeline scene: the pin follows the screen height on every resize, both wa
   }
 });
 
+// Contract: the screen the measure compares the content with is the height the pinned stage has
+// at that moment. The ruler ([data-scene-ruler]) carries the stage's declared height (100svh) only
+// under the scene's media query, and it is read at every measure: when the window grows or shrinks
+// (and 100svh with it), or the query starts to hold on a tablet whose visible height is below
+// innerHeight, the scene pins if and only if its content fits that height, as a page opened in that
+// state does.
+// Breaks when: the ruler's height is read once, when the script binds, and cached. A window grown
+// past the content then keeps the scene loose; a tablet whose query turns on after load (the ruler
+// had no box at load) measures against innerHeight and pins a stage whose foot sits under the
+// browser bar. Going back to innerHeight alone breaks it too.
+// Not covered by: the implementer's ruler tests hold the ruler still (only innerHeight moves) and
+// keep the query on, so a ruler read once at load gives the same answers there; caching it survives
+// every test and probe of the scene (measured by the reaudit on a scratch copy).
+test('pipeline scene: the ruler is read at every measure, so the pin follows the pinned stage height as the window and the query change', async () => {
+  const { bindPipelineScene, BAND_MIN, BAND_MAX } = await import('../../site/src/lib/pipeline-scene.js');
+  const PAD = 32;
+  const GAP = 24;
+  const HEAD = 230;
+  const STEPS = 250;
+  const need = 2 * PAD + 2 * GAP + HEAD + STEPS + BAND_MIN;
+  // A walk is a list of states [query holds, visible height (the stage's 100svh), innerHeight];
+  // innerHeight is never below the visible height. The first state is the load.
+  const grow = [-60, 60, -1, 0, 1, -60, 9, 200, -9];
+  const walks = {
+    'desktop window resized (innerHeight equal to the visible height)': grow.map((d) => [true, need + d, need + d]),
+    'tablet with the bars collapsed (innerHeight 71 px over the visible height)': grow.map((d) => [true, need + d, need + d + 71]),
+    'tablet rotated and the query turning on and off': [
+      [false, need - 20, need + 51], [true, need - 20, need + 51], [true, need + 20, need + 91], [false, need + 20, need + 91],
+      [false, need - 20, need + 51], [true, need - 20, need + 51], [true, need, need + 71], [false, need - 1, need + 70], [true, need - 1, need + 70],
+    ],
+    'query on after load on a screen where the content fits': [[false, need + 30, need + 30], [true, need + 30, need + 30], [true, need - 30, need - 30]],
+  };
+  const names = ['matchMedia', 'document', 'addEventListener', 'innerHeight', 'getComputedStyle'];
+  for (const [walkName, walk] of Object.entries(walks)) {
+    let [matches, visible, inner] = walk[0];
+    const attrs = new Set();
+    const pinnedByCss = () => matches && !attrs.has('data-scene-loose');
+    const bandHeight = () => (pinnedByCss() ? Math.min(BAND_MAX, Math.max(BAND_MIN, visible - (need - BAND_MIN))) : 260);
+    const content = () => HEAD + GAP + bandHeight() + GAP + STEPS;
+    const stageHeight = () => (pinnedByCss() ? visible : 2 * PAD + content());
+    const trackHeight = () => (pinnedByCss() ? Math.round(3.3 * visible) : stageHeight());
+    const trackTop = () => -0.4 * (trackHeight() - stageHeight());
+    const contentTop = () => (pinnedByCss() ? Math.max(PAD, (visible - content()) / 2) : trackTop() + PAD);
+    const box = (from, height) => ({
+      getBoundingClientRect: () => ({ top: contentTop() + from(), bottom: contentTop() + from() + height(), height: height() }),
+    });
+    const band = box(() => HEAD + GAP, bandHeight);
+    const stage = {
+      get offsetHeight() { return stageHeight(); },
+      children: [box(() => 0, () => HEAD), band, box(() => HEAD + GAP + bandHeight() + GAP, () => STEPS)],
+      padding: { paddingTop: `${PAD}px`, paddingBottom: `${PAD}px` },
+    };
+    // The ruler as the component's CSS lays it out: the visible height under the query, no box
+    // outside it, whether or not the scene is loose.
+    const rulerHeight = () => (matches ? visible : 0);
+    const ruler = { getBoundingClientRect: () => ({ top: 0, bottom: rulerHeight(), height: rulerHeight() }) };
+    const node = () => ({ dataset: {}, hidden: false });
+    const gates = [node(), node(), node(), node()];
+    const steps = [node(), node(), node(), node()];
+    const end = node();
+    const one = {
+      '[data-scene-track]': { getBoundingClientRect: () => ({ top: trackTop(), height: trackHeight() }) },
+      '[data-scene-stage]': stage,
+      '[data-scene-band]': band,
+      '[data-scene-ruler]': ruler,
+      '[data-scene-end]': end,
+    };
+    const root = {
+      querySelector: (selector) => one[selector] ?? null,
+      querySelectorAll: (selector) => (selector === '[data-gate]' ? gates : selector === '[data-step]' ? steps : []),
+      hasAttribute: (name) => attrs.has(name),
+      toggleAttribute: (name, force = !attrs.has(name)) => { if (force) attrs.add(name); else attrs.delete(name); return force; },
+    };
+    const saved = Object.fromEntries(names.map((n) => [n, Object.getOwnPropertyDescriptor(globalThis, n)]));
+    const define = (name, value) => Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
+    const listeners = {};
+    const media = [];
+    define('matchMedia', () => ({ get matches() { return matches; }, addEventListener: (type, f) => { if (type === 'change') media.push(f); } }));
+    define('document', { documentElement: { classList: { contains: (name) => name === 'motion-ok' } } });
+    define('addEventListener', (type, f) => { (listeners[type] ??= []).push(f); });
+    define('getComputedStyle', (el) => el.padding ?? { paddingTop: '0px', paddingBottom: '0px' });
+    define('innerHeight', inner);
+    try {
+      bindPipelineScene(root, { goTo() {} });
+      walk.forEach(([nextMatches, nextVisible, nextInner], i) => {
+        const queryChanged = nextMatches !== matches;
+        [matches, visible, inner] = [nextMatches, nextVisible, nextInner];
+        define('innerHeight', inner);
+        if (i > 0) for (const f of (queryChanged ? media : listeners.resize ?? [])) f();
+        const where = `${walkName}, state ${i}: query ${matches}, visible ${visible}, innerHeight ${inner}, content needs ${need}`;
+        const lit = steps.map((s) => s.dataset.active);
+        if (matches) {
+          const fits = need <= visible;
+          assert.equal(attrs.has('data-scene-loose'), !fits, `loose mark (${where})`);
+          assert.deepEqual(lit, fits ? ['false', 'true', 'false', 'false'] : ['true', 'true', 'true', 'true'], `steps (${where})`);
+        } else {
+          assert.deepEqual(lit, ['true', 'true', 'true', 'true'], `steps, query off (${where})`);
+        }
+        if (!pinnedByCss()) assert.equal(end.hidden, false, `verdict shown where the stage does not pin (${where})`);
+      });
+    } finally {
+      for (const [name, descriptor] of Object.entries(saved)) {
+        if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+        else delete globalThis[name];
+      }
+    }
+  }
+});
+
 // The copy buttons' script in Editions.astro, run as the browser runs it, against stand-in buttons.
 async function runCopyScript({ fail = false } = {}) {
   const source = /<script>([\s\S]*?)<\/script>/.exec(read('site/src/components/Editions.astro'))?.[1];
