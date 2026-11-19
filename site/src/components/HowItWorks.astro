@@ -24,6 +24,8 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
 ---
 
 <section class="pipe" id="how" data-pipeline-scene>
+  <!-- The ruler: as tall as the pinned stage, read by the script's measure (src/lib/pipeline-scene.js). -->
+  <div class="pipe-ruler" data-scene-ruler aria-hidden="true"></div>
   <div class="pipe-track" data-scene-track>
     <div class="container pipe-stage" data-scene-stage>
       <div class="pipe-head">
@@ -209,6 +211,11 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
     font-weight: 500;
   }
 
+  /* The ruler has no box where the scene does not pin. */
+  .pipe-ruler {
+    display: contents;
+  }
+
   /* The timeline by scroll exists only on a wide, tall screen with motion allowed and the script
      running (html.motion-ok), and only while the stage fits the screen: when it does not, the
      script marks the section [data-scene-loose] (src/lib/pipeline-scene.js). Anywhere else the
@@ -240,6 +247,20 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
     }
     :global(html.motion-ok) .pipe:not([data-scene-loose]) .pipe-band {
       height: auto;
+    }
+    /* The ruler: the declared height of the pinned stage, pinned or loose, so the script measures
+       the content against the height the stage has. Fixed and with no width, it draws nothing,
+       moves no other node and adds nothing to the scroll. */
+    :global(html.motion-ok) .pipe-ruler {
+      display: block;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0;
+      height: 100vh;
+      height: 100svh;
+      visibility: hidden;
+      pointer-events: none;
     }
   }
 </style>
