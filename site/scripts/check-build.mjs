@@ -1,6 +1,29 @@
 // Checks on the built site that only the generated HTML and CSS can show. `npm run build` runs it
 // after `astro build`; it exits with 1 and lists every problem it finds.
 //
+// For hidden text it is an alarm, not the proof. It reads the HTML and the CSS as text, with no
+// browser, so the build can stop the usual ways of hiding text early; that no text is hidden at
+// rest is proved in Chrome by `npm run measure` (scripts/measure-rendered.mjs). Selectors are read
+// by scripts/selectors.mjs. Two questions no reader of the CSS answers without the document, so
+// this alarm leaves them to the measure:
+// * whether two different selectors fall on the same element: a pseudo-element given text by one
+//   selector and hidden by another that is neither broader nor narrower (`a::after{content:"help"}`
+//   with `.tip::after{opacity:0}`, or `.x.a` with `.x.b`) passes here;
+// * whether two selectors never apply together: text that exists only under one theme
+//   (`html[data-theme="dark"] .x::after{content:"help"}`) fails here the empty hover decoration of
+//   the other theme.
+// Three more limits of this reader, also left to the measure:
+// * nested CSS is not read in full: a declaration written before a nested rule is lost, so
+//   `.x{opacity:0;html.motion-ok &{opacity:1}}` passes here;
+// * a link to the site in a rare spelling may be judged wrong: a host with a trailing dot
+//   (`www.vibeflow.run.`), a path with a percent escape (`/%65n/`) or a scheme without slashes
+//   (`https:www.vibeflow.run/...`) passes with its target missing, and a protocol-relative link
+//   (`//www.vibeflow.run/...`) with its target present fails as a difference between the languages;
+// * two rare spellings of a selector are judged wrong, on the side of failing: a hexadecimal escape
+//   in the gate class (`html.\6d otion-ok .x{opacity:0}`) is not read as .motion-ok, and an
+//   invalid branch inside :is() (`:is(>,html.motion-ok .x){opacity:0}`) stops the reader instead
+//   of being dropped as browsers do, so an innocent rule fails here.
+//
 // * the seven pages exist;
 // * no old domain and no Google Fonts request anywhere in the output;
 // * canonical, og:url and the share images come from https://www.vibeflow.run, the root page's
@@ -21,8 +44,11 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { expandSelectors, serialize } from './selectors.mjs';
 
 const SITE = 'https://www.vibeflow.run';
+// The hosts of the site: a link to either, in any spelling URL accepts, is a link to a page here.
+const SITE_HOSTS = new Set(['www.vibeflow.run', 'vibeflow.run']);
 const PAGES = ['', 'en/', 'pt-br/', 'en/commands/', 'en/anatomy/', 'pt-br/commands/', 'pt-br/anatomy/'];
 const INNER = ['commands/', 'anatomy/'];
 const BANNED = ['vibeflow.dev', 'vibeflow-two.vercel.app', 'fonts.googleapis.com', 'fonts.gstatic.com'];
@@ -73,91 +99,12 @@ const ZERO = String.raw`(?:0*\.?0+|0+\.)%?`;
 const hidesOpacity = (body) => new RegExp(String.raw`(^|;)\s*opacity\s*:\s*${ZERO}\s*(!important)?\s*(;|$)`).test(body);
 const hidesVisibility = (body) => /(^|;)\s*visibility\s*:\s*(hidden|collapse)/.test(body);
 const hidesDisplay = (body) => /(^|;)\s*display\s*:\s*none/.test(body);
-// Walks a selector one character at a time and tells, for each, the parenthesis depth and whether
-// it sits inside quotes, brackets or an escape, where a comma or a parenthesis is only text.
-function scan(selector, visit) {
-  let depth = 0;
-  let quote = '';
-  let bracket = 0;
-  for (let i = 0; i < selector.length; i += 1) {
-    const ch = selector[i];
-    if (ch === '\\') {
-      visit(i, depth, true);
-      i += 1;
-      if (i < selector.length) visit(i, depth, true);
-      continue;
-    }
-    if (quote) {
-      if (ch === quote) quote = '';
-      visit(i, depth, true);
-      continue;
-    }
-    if (ch === '"' || ch === "'") quote = ch;
-    else if (ch === '[') bracket += 1;
-    else if (ch === ']') bracket = Math.max(0, bracket - 1);
-    const text = quote !== '' || bracket > 0 || ch === ']';
-    if (!text && ch === ')') depth = Math.max(0, depth - 1);
-    visit(i, depth, text);
-    if (!text && ch === '(') depth += 1;
-  }
-}
-
-// The selectors of a list, split on the commas outside parentheses, quotes and brackets, so
-// `:is(.a, .b)` and `[data-label="a,b"]` stay whole.
-function selectorList(selector) {
-  const cuts = [];
-  scan(selector, (i, depth, text) => {
-    if (!text && depth === 0 && selector[i] === ',') cuts.push(i);
-  });
-  const parts = [];
-  let start = 0;
-  for (const cut of [...cuts, selector.length]) {
-    parts.push(selector.slice(start, cut).trim());
-    start = cut + 1;
-  }
-  return parts.filter(Boolean);
-}
-
-// The selectors a list stands for, with every :is() and :where() outside a negation replaced by
-// each selector of its own list, so `:is(html.motion-ok .a, .b)` stands for `html.motion-ok .a`
-// and `.b`, and each is judged like a selector of the outer list.
-function expandSelector(selector) {
-  return selectorList(selector).flatMap((part) => {
-    let open = -1;
-    scan(part, (i, depth, text) => {
-      if (open < 0 && !text && depth === 0 && /^:(is|where)\(/i.test(part.slice(i))) open = i;
-    });
-    if (open < 0) return [part];
-    const start = part.indexOf('(', open) + 1;
-    let end = -1;
-    scan(part, (i, depth, text) => {
-      if (end < 0 && i >= start && !text && depth === 0 && part[i] === ')') end = i;
-    });
-    if (end < 0) return [part];
-    const before = part.slice(0, open);
-    const after = part.slice(end + 1);
-    return selectorList(part.slice(start, end)).flatMap((alt) => {
-      // A complex selector inside :is() keeps its own ancestors apart from the compound around it.
-      const glue = /[\s>+~]/.test(alt) && before && !/[\s>+~]$/.test(before) ? ' ' : '';
-      return expandSelector(`${before}${glue}${alt}${after}`);
-    });
-  });
-}
-
-// A selector is gated when it requires the gate itself: html with the class motion-ok, or the play
-// class, in one of its compounds. What sits inside :not() or another selector function, inside an
-// attribute value or quotes, is not a requirement and does not gate.
-function gated(selector) {
-  // Arguments, attribute values and quotes become a filler that is neither a name nor a space, so
-  // they can neither gate nor split a compound.
-  let plain = '';
-  scan(selector, (i, depth, text) => {
-    plain += depth === 0 && !text ? selector[i] : '\u0001';
-  });
-  plain = plain.replace(/:[\w-]+\(\u0001*\)?/g, '\u0001');
-  return plain.split(/\s*[>+~]\s*|\s+/).some((compound) =>
-    (/^html(?![\w-])/i.test(compound) && /\.motion-ok(?![\w-])/.test(compound)) || /\.gx-tocando(?![\w-])/.test(compound));
-}
+// A selector, parsed by selectors.mjs with :is() and :where() expanded, is gated when one of its
+// compounds requires the gate itself: html with the class motion-ok, or the play class. What sits
+// inside :not() or another selector function, or in an attribute value, is not a requirement and
+// does not gate.
+const has = (compound, kind, name) => compound.some((s) => s.kind === kind && s.name === name);
+const gated = (complex) => complex.compounds.some((c) => (has(c, 'type', 'html') && has(c, 'class', 'motion-ok')) || has(c, 'class', 'gx-tocando'));
 
 // A length far enough to put text off screen: a negative value of at least 100vw, 100vh, 100%,
 // 1000px or 50em/rem.
@@ -180,25 +127,29 @@ function pushesOffScreen(body) {
   return false;
 }
 
-// A pseudo-element (::before, ::after, or the single-colon form a minifier writes).
-const PSEUDO = /::?(before|after)$/;
-const SHOWN_ON = /:(hover|focus-visible|focus-within|focus)\b/g;
+// The pseudo-element a selector's last compound asks for, 'before' or 'after' (in the double- or
+// the single-colon form a minifier writes), or undefined.
+const pseudoOf = (complex) => complex.compounds.at(-1)?.find((s) => s.kind === 'pseudo-element' && /^(before|after)$/.test(s.name))?.name;
+const SHOWN_ON = /^(hover|focus-visible|focus-within|focus)$/;
+const isState = (s) => s.kind === 'pseudo-class' && SHOWN_ON.test(s.name);
 // A pseudo-element draws text when its content is anything but an empty string or none.
 const drawsText = (content) => content !== undefined && !/^(["'])\1$|^none$|^normal$/.test(content.trim());
+// One spelling of a simple selector: the pseudo-elements in the double-colon form.
+const spell = (s) => (s.kind === 'pseudo-element' ? `::${s.name}${s.args === undefined ? '' : `(${s.args})`}` : s.raw);
+// A selector with the hover and focus states taken out, spelt one way, so the rule a hover shows
+// and the rule that hides at rest compare equal.
+const atRest = (complex) => complex.compounds
+  .map((c, i) => (i ? complex.combinators[i - 1] : '') + c.filter((s) => !isState(s)).map(spell).join(''))
+  .join('');
 
-// The simple selectors of the last compound of a selector, with its pseudo-element and the hover
-// and focus states taken out, and the pseudo-element itself ('before' or 'after').
-function pseudoTarget(selector) {
-  const kind = PSEUDO.exec(selector)?.[1];
-  const compounds = selector.replace(PSEUDO, '').replace(SHOWN_ON, '').trim().split(/\s*[>+~]\s*|\s+/);
-  const last = compounds[compounds.length - 1] ?? '';
-  const simples = new Set(last.match(/\[[^\]]*\]|[.#]?[\w-]+|:[\w-]+(\([^)]*\))?/g) ?? []);
-  simples.delete('*');
-  return { kind, simples };
+// The simple selectors of the last compound of a selector, with its pseudo-element, the hover and
+// focus states and the universal selector taken out, and the pseudo-element itself.
+function pseudoTarget(complex) {
+  const last = complex.compounds.at(-1) ?? [];
+  const simples = new Set(last.filter((s) => s.kind !== 'pseudo-element' && s.kind !== 'universal' && !isState(s)).map(spell));
+  return { kind: pseudoOf(complex), simples };
 }
 const within = (a, b) => [...a].every((s) => b.has(s));
-// The single-colon form a minifier writes and the double-colon form read as one.
-const onePseudo = (selector) => selector.replace(PSEUDO, '::$1');
 
 export function checkCss(css, where) {
   const found = [];
@@ -209,31 +160,32 @@ export function checkCss(css, where) {
     const frames = stack.find((s) => /^@(-webkit-)?keyframes\s/.test(s));
     if (frames && hidesOpacity(body)) hidingKeyframes.add(frames.split(/\s+/)[1]);
     if (frames) return;
-    for (const part of expandSelector(selector)) {
-      if (!PSEUDO.test(part)) continue;
+    for (const complex of expandSelectors(selector)) {
+      if (!pseudoOf(complex)) continue;
       const content = /(?:^|;)\s*content\s*:\s*([^;]+)/.exec(body)?.[1];
-      if (drawsText(content)) texts.push(pseudoTarget(part));
-      const base = part.replace(SHOWN_ON, '');
-      if (base !== part && /(^|;)\s*opacity\s*:/.test(body) && !hidesOpacity(body)) shownOnHover.add(onePseudo(base));
+      if (drawsText(content)) texts.push(pseudoTarget(complex));
+      const shown = complex.compounds.some((c) => c.some(isState));
+      if (shown && /(^|;)\s*opacity\s*:/.test(body) && !hidesOpacity(body)) shownOnHover.add(atRest(complex));
     }
   });
   // A pseudo-element draws text when any rule for the same pseudo-element that may apply to it (its
   // last compound asks for no more than this one, or this one for no more than it) gives it text.
-  const mayDrawText = (part) => {
-    const me = pseudoTarget(part);
+  const mayDrawText = (complex) => {
+    const me = pseudoTarget(complex);
     return texts.some((t) => t.kind === me.kind && (within(t.simples, me.simples) || within(me.simples, t.simples)));
   };
   // A decorative pseudo-element (no text in any rule) that a hover or focus rule shows is not
   // hidden content.
-  const decorativeShownLater = (part) => PSEUDO.test(part) && shownOnHover.has(onePseudo(part)) && !mayDrawText(part);
+  const decorativeShownLater = (complex) => Boolean(pseudoOf(complex)) && shownOnHover.has(atRest(complex)) && !mayDrawText(complex);
   walkCss(css, (selector, body, stack) => {
     if (stack.some((s) => /^@(-webkit-)?keyframes\s/.test(s))) return;
     if (/\.(fade-in|reveal)\b/.test(selector)) found.push(`${where}: rule for ${selector}`);
     // Each selector of a list, and of an :is() or :where() list inside it, is judged on its own:
     // one under the gate does not excuse the others.
-    for (const part of expandSelector(selector)) {
-      if (gated(part)) continue;
-      if (hidesOpacity(body) && !decorativeShownLater(part)) found.push(`${where}: ${part} sets opacity 0 at rest`);
+    for (const complex of expandSelectors(selector)) {
+      if (gated(complex)) continue;
+      const part = serialize(complex);
+      if (hidesOpacity(body) && !decorativeShownLater(complex)) found.push(`${where}: ${part} sets opacity 0 at rest`);
       if (hidesVisibility(body)) found.push(`${where}: ${part} sets visibility hidden at rest`);
       for (const m of body.matchAll(/animation(-name)?\s*:\s*([^;]+)/g)) {
         for (const name of hidingKeyframes) {
@@ -287,16 +239,22 @@ const attr = (tag, name) => new RegExp(`\\s${name}="([^"]*)"`).exec(tag)?.[1];
 const tags = (html, re) => [...html.matchAll(re)].map((m) => m[0]);
 
 // The page a site link goes to ('en/commands/', '' for the root) and its fragment, or null when the
-// link is not a page of the site. An absolute link to the site counts as a site link, a query is
-// dropped, and an external link leaves before anything is decoded. A fragment that does not decode
-// comes back raw with `malformed` set.
+// link is not a page of the site. The link is read as a URL against the page it sits on, and it is
+// a site link when its host is the site's, in any spelling (capitals, the default port, with or
+// without www, a query right after the host) or relative; a query is dropped, and a link to
+// another host or scheme leaves before anything is decoded. A fragment that does not decode comes
+// back raw with `malformed` set.
 function resolve(href, page) {
-  let rest = href;
-  if (rest.startsWith(`${SITE}/`) || rest === SITE) rest = rest.slice(SITE.length) || '/';
-  else if (/^([a-z][a-z\d+.-]*:|\/\/)/i.test(rest)) return null;
-  const hash = rest.indexOf('#');
-  const path = (hash < 0 ? rest : rest.slice(0, hash)).replace(/\?.*$/, '');
-  const raw = hash < 0 ? '' : rest.slice(hash + 1);
+  let url;
+  try {
+    url = new URL(href, `${SITE}/${page}`);
+  } catch {
+    return null;
+  }
+  if (!/^https?:$/.test(url.protocol) || !SITE_HOSTS.has(url.hostname) || url.port !== '') return null;
+  const hash = href.indexOf('#');
+  const path = url.pathname;
+  const raw = hash < 0 ? '' : href.slice(hash + 1);
   let frag = raw;
   let malformed = false;
   try {
