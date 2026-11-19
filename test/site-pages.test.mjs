@@ -12,15 +12,19 @@
 //   while scrolling both ways, the last one at the page end, and the entry jumped to after a jump.
 //
 // What only the built HTML can show (every index link lands on an id, every text is on the page)
-// lives in site/scripts/check-pages.mjs, run after `npm run build` in site/. Characters per line
-// can only be counted in a browser; this file checks that the reading blocks share one measure.
+// lives in site/scripts/check-pages.mjs, run after `npm run build` in site/. Its rule for the loop's
+// lists lives in site/scripts/loop-setup.mjs, a module with no effect on import, which this file
+// imports and runs on HTML built from forms. Characters per line can only be counted in a browser;
+// this file checks that the reading blocks share one measure.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as nodeModule from 'node:module';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loopSetupProblems } from '../site/scripts/check-pages.mjs';
+import { loopSetupProblems } from '../site/scripts/loop-setup.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -181,9 +185,32 @@ test('the commands keep one anchor per command, in order', () => {
   assert.match(markup(src), /\sid=\{cmd\.id\}/, 'each command entry carries its id');
 });
 
-// The check-pages rule for the loop's lists, run on <main> HTML built from forms: where the block
-// sits, what separates the tags around it, the state of its lists, and a second element with its
-// id. It must find a problem in every combination that breaks the rule and none in the right ones.
+// Imported, the module of the loop lists rule runs nothing: in a folder of its own with no built
+// site, an import by the argument of another program exits with 0, says nothing and writes nothing.
+test('loop-setup.mjs imported runs nothing, says nothing and writes nothing', () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'loop-setup-')));
+  try {
+    const scripts = join(tmp, 'site', 'scripts');
+    mkdirSync(scripts, { recursive: true });
+    const module = join(scripts, 'loop-setup.mjs');
+    copyFileSync(join(root, 'site', 'scripts', 'loop-setup.mjs'), module);
+    const listing = () => readdirSync(tmp, { recursive: true }).sort();
+    const before = listing();
+    const run = spawnSync(process.execPath, ['--input-type=module', '-e', 'const m = await import(process.argv[1]); if (typeof m.loopSetupProblems !== "function") process.exit(2);', module], { cwd: tmp, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout + run.stderr, '');
+    assert.deepEqual(listing(), before);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+// The rule for the loop's lists (loop-setup.mjs), run on <main> HTML built from forms: where the
+// block sits and whether its div closes, what separates the tags around it, the state of its lists
+// and of each item next to its code spans, and something else on the page (a second element with
+// its id, or a copy of an item in the entry or in another one). It must find a problem in every
+// combination that breaks the rule and none in the right ones; right and wrong come from the names
+// of the forms, never from the rule.
 test('check-pages finds a problem in every misplaced, altered or doubled loop setup block, and none in the right one', () => {
   const EXPECTED = {
     mode: 'Loop mode',
@@ -195,32 +222,62 @@ test('check-pages finds a problem in every misplaced, altered or doubled loop se
     ],
   };
   const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // An item as InlineCode renders it: each backtick span becomes a code element.
-  const li = (item) => `<li>${esc(item).replace(/`([^`]*)`/g, '<code class="ic">$1</code>')}</li>`;
+  // Text as InlineCode renders it: each backtick span becomes a code element. A `*word*` of a form
+  // becomes an em element, a tag InlineCode never writes.
+  const inline = (item) => esc(item).replace(/`([^`]*)`/g, '<code class="ic">$1</code>').replace(/\*([^*]*)\*/g, '<em>$1</em>');
+  const li = (item) => `<li>${inline(item)}</li>`;
+  // The first item of the first list, changed by `edit` (the forms of an item next to its code).
+  const firstItem = (edit) => (lists) => lists.map((l, i) => (i ? l : { ...l, items: [edit(l.items[0]), ...l.items.slice(1)] }));
+  const secondItem = (edit) => (lists) => lists.map((l, i) => (i ? l : { ...l, items: [l.items[0], edit(l.items[1]), ...l.items.slice(2)] }));
   const LIST_STATES = {
     equal: (lists) => lists,
-    'one space less': (lists) => lists.map((l, i) => (i ? l : { ...l, items: [l.items[0].replace(' ', ''), ...l.items.slice(1)] })),
-    'a space inside a word': (lists) => lists.map((l, i) => (i ? l : { ...l, items: [l.items[0].replace('default', 'def ault'), ...l.items.slice(1)] })),
+    'one space less': firstItem((s) => s.replace(' ', '')),
+    'a space inside a word': firstItem((s) => s.replace('default', 'def ault')),
     'an item less': (lists) => lists.map((l, i) => (i === 1 ? { ...l, items: l.items.slice(0, -1) } : l)),
     'two items swapped': (lists) => lists.map((l, i) => (i === 2 ? { ...l, items: [...l.items].reverse() } : l)),
     'a title swapped': (lists) => lists.map((l, i) => (i < 2 ? { ...l, title: lists[1 - i].title } : l)),
+    'no space right after a code span': firstItem((s) => s.replace('` runs', '`runs')),
+    'no space right before a code span': firstItem((s) => s.replace('Without `', 'Without`')),
+    'a space more inside a code span': firstItem((s) => s.replace('`--loop`', '`--loop `')),
+    'punctuation moved into a code span': firstItem((s) => s.replace('`--loop`,', '`--loop,`')),
+    'punctuation moved out of a code span': secondItem((s) => s.replace('`--no-loop`', '-`-no-loop`')),
+    'a code span turned plain text': firstItem((s) => s.replace('`implement`', 'implement')),
+    'another tag inside the item': firstItem((s) => s.replace(' by ', ' *by* ')),
+    'a space left at the start of the item': firstItem((s) => ` ${s}`),
+    'a space left at the end of the item': firstItem((s) => `${s} `),
   };
   const SEPARATORS = { nothing: '', 'a space': ' ', 'a line break': '\n' };
-  const DOUBLES = { none: '', div: '<div id="loop-setup"></div>', section: '<section id="loop-setup"></section>', a: '<a id="loop-setup"></a>' };
-  const PLACES = ['after the loop mode block', 'last in the entry', 'inside the loop mode block', 'before the loop mode block', 'right after the entry', 'in another entry'];
+  // Something else on the page: a second element with the id, or a copy of an item of the lists,
+  // in the implement entry or in another one, at the lists' spacing or at another.
+  const copy = inline(EXPECTED.lists[0].items[0]);
+  const spread = inline(EXPECTED.lists[0].items[0].replace(/ /g, '  ')).replace(/>/, '>\n');
+  const EXTRAS = {
+    none: {},
+    'a div with the id': { other: '<div id="loop-setup"></div>' },
+    'a section with the id': { other: '<section id="loop-setup"></section>' },
+    'an a with the id': { other: '<a id="loop-setup"></a>' },
+    'an item in the entry': { implement: `<p>${copy}</p>` },
+    'an item in the entry, at another spacing': { implement: `<p>${spread}</p>` },
+    'an item in another entry': { other: `<p>${copy}</p>` },
+    'an item in another entry, at another spacing': { other: `<p>${spread}</p>` },
+  };
+  const UNCLOSED = ', its div unclosed';
+  const PLACES = ['after the loop mode block', 'last in the entry', 'inside the loop mode block', 'before the loop mode block', 'right after the entry', 'in another entry', `after the loop mode block${UNCLOSED}`, `last in the entry${UNCLOSED}`];
   const RIGHT = new Set(['after the loop mode block', 'last in the entry']);
 
-  const pageMain = (place, sep, lists, double) => {
+  const pageMain = (where, sep, lists, extra) => {
     const j = (...parts) => parts.join(sep);
-    const setup = j('<div class="entry-block entry-setup" id="loop-setup">', ...lists.map((l) => j('<div class="entry-group">', `<h3 class="gx-rotulo entry-label">${esc(l.title)}</h3>`, j('<ul class="entry-list">', ...l.items.map(li), '</ul>'), '</div>')), '</div>');
+    const place = where.replace(UNCLOSED, '');
+    const groups = lists.map((l) => j('<div class="entry-group">', `<h3 class="gx-rotulo entry-label">${esc(l.title)}</h3>`, j('<ul class="entry-list">', ...l.items.map(li), '</ul>'), '</div>'));
+    const setup = j('<div class="entry-block entry-setup" id="loop-setup">', ...groups, ...(where.endsWith(UNCLOSED) ? [] : ['</div>']));
     const label = '<p class="gx-rotulo entry-label">Loop mode</p>';
     const flags = j('<dl class="entry-defs">', '<div class="entry-def"><dt><code class="gx-chip">--loop</code></dt><dd>Phases 0 to 3 run as above.</dd></div>', '</dl>', '<p class="entry-more"><a href="/en/#loop" class="gx-link">How the execution loop works →</a></p>');
     const mode = j('<div class="entry-block">', label, ...(place === 'inside the loop mode block' ? [setup] : []), flags, '</div>');
     const phases = j('<div class="entry-block">', '<p class="gx-rotulo entry-label">Phases</p>', '<dl class="entry-defs"><div class="entry-def"><dt>Phase 0</dt><dd>Find the spec.</dd></div></dl>', '</div>');
     const output = j('<div class="entry-block entry-output">', '<p class="gx-rotulo entry-label">Output</p>', '<p>Code and tests.</p>', '</div>');
     const blocks = [phases, ...(place === 'before the loop mode block' ? [setup] : []), mode, ...(place === 'after the loop mode block' ? [setup] : []), output, ...(place === 'last in the entry' ? [setup] : [])];
-    const implement = j('<article id="implement" class="doc-entry">', '<h2>implement</h2>', ...blocks, '</article>');
-    const before = j('<article id="gen-spec" class="doc-entry">', '<h2>gen-spec</h2>', '<p>Writes the spec.</p>', double, '</article>');
+    const implement = j('<article id="implement" class="doc-entry">', '<h2>implement</h2>', extra.implement ?? '', ...blocks, '</article>');
+    const before = j('<article id="gen-spec" class="doc-entry">', '<h2>gen-spec</h2>', '<p>Writes the spec.</p>', extra.other ?? '', '</article>');
     const after = j('<article id="prompt-pack" class="doc-entry">', '<h2>prompt-pack</h2>', '<p>Packs a prompt.</p>', ...(place === 'in another entry' ? [setup] : []), '</article>');
     return j(before, place === 'right after the entry' ? j(implement, setup) : implement, after);
   };
@@ -230,17 +287,17 @@ test('check-pages finds a problem in every misplaced, altered or doubled loop se
   for (const place of PLACES) {
     for (const [sepName, sep] of Object.entries(SEPARATORS)) {
       for (const [state, alter] of Object.entries(LIST_STATES)) {
-        for (const [doubleName, double] of Object.entries(DOUBLES)) {
+        for (const [extraName, extra] of Object.entries(EXTRAS)) {
           cases++;
-          const problems = loopSetupProblems(pageMain(place, sep, alter(EXPECTED.lists), double), EXPECTED);
-          const right = RIGHT.has(place) && state === 'equal' && doubleName === 'none';
-          if (right && problems.length) failures.push(`${place}, ${sepName}, ${state}, no double: ${problems.join('; ')}`);
-          if (!right && !problems.length) failures.push(`${place}, ${sepName}, ${state}, double ${doubleName}: passes`);
+          const problems = loopSetupProblems(pageMain(place, sep, alter(EXPECTED.lists), extra), EXPECTED);
+          const right = RIGHT.has(place) && state === 'equal' && extraName === 'none';
+          if (right && problems.length) failures.push(`${place}, ${sepName}, ${state}, nothing else: ${problems.join('; ')}`);
+          if (!right && !problems.length) failures.push(`${place}, ${sepName}, ${state}, ${extraName}: passes`);
         }
       }
     }
   }
-  assert.equal(cases, 6 * 3 * 6 * 4);
+  assert.equal(cases, 8 * 3 * 15 * 8);
   assert.deepEqual(failures, [], `${failures.length} failures over ${cases} cases`);
 });
 
