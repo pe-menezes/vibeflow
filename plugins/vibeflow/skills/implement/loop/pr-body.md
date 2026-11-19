@@ -1,6 +1,6 @@
 # PR body
 
-The body of the pull request that ends a loop in company mode (`orchestrator.md`, "Ending: company mode"). The reviewer reads the proof before the diff, so every section is filled from a file the loop wrote, never from memory: the ledger (`.vibeflow/loop/<feature>.md`), the audit and re-audit reports (`.vibeflow/audits/`) and the progress files (`.vibeflow/progress/`). Each section's comment names its source and is deleted when the section is filled. A section with nothing to list says so in one line (`None.`) instead of disappearing, so the reviewer can tell an empty section from a forgotten one. Findings and `Decision:` lines are copied in their own format, word for word. The `Knowledge base:` line under "Verdict per part" is the same line as in the audit reports, word for word: `Knowledge base: .vibeflow/index.md`, or the `none` line when the project had no knowledge base. In the `none` state the `Knowledge base:` line is required, because a PASS without patterns and conventions reads like any other PASS.
+The body of the pull request that ends a loop in company mode (`orchestrator.md`, "Ending: company mode"). The reviewer reads the proof before the diff, so every section is filled from a file the loop wrote, never from memory: the ledger (`.vibeflow/loop/<feature>.md`), the audit and re-audit reports (`.vibeflow/audits/`) and the progress files (`.vibeflow/progress/`). Each section's comment names its source and is deleted when the section is filled. A section with nothing to list says so in one line (`None.`) instead of disappearing, so the reviewer can tell an empty section from a forgotten one. Findings and `Decision:` lines are copied in their own format, word for word. The Critical Gate lines of each part's last report are copied word for word as well, because an `ALLOWED` line carries the `vibeflow:allow <RULE_ID>: <reason>` marker, and that marker in the PR body is what an audit of the PR reads to resolve the finding without the author's spec. The `Knowledge base:` line under "Verdict per part" is the same line as in the audit reports, word for word: `Knowledge base: .vibeflow/index.md`, or the `none` line when the project had no knowledge base. In the `none` state the `Knowledge base:` line is required, because a PASS without patterns and conventions reads like any other PASS.
 
 ```markdown
 ## Summary
@@ -48,7 +48,7 @@ Knowledge base: .vibeflow/index.md | none (no .vibeflow/index.md); patterns and 
 ## Critical Gate
 
 <!-- from: the Critical Gate section of each part's last report -->
-- <part>: Critical Gate clean, or each finding with its ID, severity and how it was resolved
+- <part>: Critical Gate clean, or each line of the report's Critical Gate section, word for word
 
 ## Commands
 

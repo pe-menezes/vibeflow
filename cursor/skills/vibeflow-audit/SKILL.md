@@ -482,7 +482,7 @@ Left out of the package: <n> file(s), read with git | none
 - 🔴 CRITICAL [DS102] db/migrate/003.sql:12 — DROP TABLE in migration (blocks)
 - 🟠 HIGH [SEC101] api/auth.ts:1 — auth middleware removed (blocks)
 - 🟡 WARNING [CFG102] config/app.yml:4 — debug mode enabled
-- ✅ ALLOWED [DS104] db/migrate/004.sql:7 — DROP COLUMN — override: "documented in spec"
+- ✅ ALLOWED [DS104] db/migrate/004.sql:7 — DROP COLUMN — override: vibeflow:allow DS104: <reason>
 (or "Clean — no destructive operations detected.", or "No diff scanned — <why>." when step 1 ran over the code)
 
 ### Findings
@@ -536,6 +536,12 @@ to list say so in one line.
   like a failing test; an unresolved WARNING caps the verdict at PARTIAL.
   Resolved means a valid `vibeflow:allow` override — CRITICAL/HIGH need a
   written justification.
+  In the report, an `ALLOWED` line writes its override in the form step 4c
+  reads, `vibeflow:allow <RULE_ID>: <reason>`, with the rule ID of its
+  brackets. The reason is the marker's own; for a finding the spec documents
+  as intentional, it says that the spec documents it and why. The PR body
+  copies the line, so an audit of the PR run without the author's spec still
+  finds the marker.
 - A DoD check or pattern you cannot verify from available context is FAIL
   with reason "insufficient context to verify" — compliance is never
   assumed.
