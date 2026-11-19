@@ -412,6 +412,207 @@ test('the reported ways of hiding that one pass decides, by name', () => {
   assert.deepEqual(hiddenReasons(layoutHeld, VIEWPORT), [], 'known limit: contain: layout does not hold a fixed box here');
 });
 
+// ---------- the point model: an oracle with no rectangle and no span ----------
+
+// A second oracle, written apart from the measure and from the reference model above: it never
+// keeps a rectangle or a span of the text. The text is a cloud of points, sampled every STEP px over
+// each of its boxes, edges included, each point knowing the box it came from. The rule of who holds
+// whom is the one of the reference model. Walking up the chain, a box that holds the text acts on
+// each point by where it stands against the box. A box that cuts on an axis (overflow hidden or
+// clip, paint containment) shows a box of the text only when some point of it lies strictly inside,
+// and then keeps its points inside, edges included; a box of the text it shows nothing of is gone.
+// A box that scrolls on an axis never reaches a point at or before its origin; when it already
+// shows some reachable point it acts as a cut, and when it shows none, scrolling can bring any
+// reachable point to any spot of it. A box with no spot strictly inside it on an axis shows nothing
+// it holds there. clip: rect() on an absolute or fixed box and a clip-path inset() keep the points
+// of their region, edge included, on every box of the chain, held or not. The text is lost when no
+// point is left. At the end it is in view when a point is on the screen: right of the left edge,
+// left of the right edge, below the top and, when the screen holds it through a fixed box, above
+// the bottom. When none is, each box that has points left says why: all its points left of the
+// page, right of the viewport, above the page or, held by the screen, below it.
+const STEP = 2;
+const spots = (from, length) => {
+  const out = [];
+  for (let v = from; v < from + length; v += STEP) out.push(v);
+  out.push(from + length);
+  return out;
+};
+const AXIS_OF = { x: ['x', 'width', 'y', 'left of'], y: ['y', 'height', 'x', 'above'] };
+const SCREEN_ORDER = ['off screen to the left', 'off screen to the right', 'off screen above', 'off screen below'];
+function pointModel(t, viewport) {
+  let points = t.boxes.flatMap((b, k) => spots(b.x, b.width).flatMap((x) => spots(b.y, b.height).map((y) => ({ x, y, k }))));
+  let last = t.chain[0].position;
+  for (const [i, s] of t.chain.entries()) {
+    const contained = /\b(paint|strict|content)\b/.test(String(s.contain ?? 'none'));
+    const holds = i === 0 || last === 'static' || last === 'relative'
+      || (last === 'absolute' && (s.position !== 'static' || contained))
+      || (last === 'fixed' && contained);
+    if (holds && i > 0) last = s.position;
+    if (holds && s.element !== 'html' && s.element !== 'body') {
+      for (const axis of ['x', 'y']) {
+        const [a, size, o, before] = AXIS_OF[axis];
+        const origin = s.box[a];
+        const end = origin + s.box[size];
+        const strictly = (p) => p[a] > origin && p[a] < end;
+        // the boxes of the text the box shows something of, with their points inside it
+        const cut = (from) => {
+          const shown = new Set(from.filter(strictly).map((p) => p.k));
+          return points.filter((p) => shown.has(p.k) && p[a] >= origin && p[a] <= end);
+        };
+        const overflow = axis === 'x' ? s.overflowX : s.overflowY;
+        if (overflow === 'auto' || overflow === 'scroll') {
+          const view = spots(origin, s.box[size]);
+          if (!view.some((v) => v > origin && v < end)) return [`clipped away by ${s.element}`];
+          const reach = points.filter((p) => p[a] > origin);
+          if (!reach.length) return [`out of reach, ${before} the scroll origin of ${s.element}`];
+          if (reach.some(strictly)) points = cut(reach);
+          else {
+            const across = new Map();
+            for (const p of reach) across.set(`${p.k}:${p[o]}`, p);
+            points = [...across.values()].flatMap((p) => view.map((v) => ({ ...p, [a]: v })));
+          }
+        } else if (overflow === 'hidden' || overflow === 'clip' || contained) {
+          points = cut(points);
+          if (!points.length) return [`clipped away by ${s.element}`];
+        }
+      }
+    }
+    // A region lets through the points inside it, edge included, and nothing when no spot of it
+    // lies strictly inside, as a region of no area.
+    const keep = (x0, x1, y0, y1) => {
+      const opens = (from, to) => spots(from, to - from).some((v) => v > from && v < to);
+      points = opens(x0, x1) && opens(y0, y1) ? points.filter((p) => p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1) : [];
+      return points.length > 0;
+    };
+    if ((s.position === 'absolute' || s.position === 'fixed') && String(s.clip).startsWith('rect(')) {
+      const [top, right, bottom, left] = pxList(s.clip.slice(5, -1));
+      const { x, y } = s.box;
+      if (!keep(x + left, x + right, y + top, y + bottom)) return [`clipped away by ${s.element}`];
+    }
+    if (String(s.clipPath).startsWith('inset(')) {
+      const [top, right = top, bottom = top, left = right] = pxList(s.clipPath.slice(6, -1));
+      const { x, y, width, height } = s.box;
+      if (!keep(x + left, x + width - right, y + top, y + height - bottom)) return [`clipped away by ${s.element}`];
+    }
+  }
+  const fixed = last === 'fixed';
+  if (points.some((p) => p.x > 0 && p.x < viewport.width && p.y > 0 && (!fixed || p.y < viewport.height))) return [];
+  const found = new Set();
+  for (const k of new Set(points.map((p) => p.k))) {
+    const own = points.filter((p) => p.k === k);
+    if (own.every((p) => p.x <= 0)) found.add('off screen to the left');
+    else if (own.every((p) => p.x >= viewport.width)) found.add('off screen to the right');
+    if (own.every((p) => p.y <= 0)) found.add('off screen above');
+    else if (fixed && own.every((p) => p.y >= viewport.height)) found.add('off screen below');
+  }
+  return SCREEN_ORDER.filter((r) => found.has(r));
+}
+
+// Texts of one, two or three boxes along the axis, 20 px each with a gap of 30 px between them, and
+// 20 px across. Besides the places of the matrix above, a level may stand over the gap alone, over
+// the end of the last box alone, or have no size on the axis: inside a box, in a gap, wholly after
+// the text (the text before its origin) or wholly before it (the text after its end).
+const POINT_PLACES = {
+  ...PLACES,
+  'gap only': { from: 2, at: (lo) => [lo + 25, lo + 45] },
+  'end of the last box': { from: 1, at: (lo, hi) => [hi - 10, hi + 60] },
+  'no size, inside a box': { from: 1, at: (lo) => [lo + 10, lo + 10] },
+  'no size, in a gap': { from: 2, at: (lo) => [lo + 35, lo + 35] },
+  'no size, text before': { from: 1, at: (lo, hi) => [hi + 50, hi + 50] },
+  'no size, text after': { from: 1, at: (lo) => [lo - 50, lo - 50] },
+};
+const placeAt = (place) => (typeof POINT_PLACES[place] === 'function' ? POINT_PLACES[place] : POINT_PLACES[place].at);
+const placeFrom = (place) => (typeof POINT_PLACES[place] === 'function' ? 1 : POINT_PLACES[place].from);
+// Screens: far off on each side, and across an edge, one box on the screen and the next off it.
+const POINT_SHIFTS = {
+  x: { 'on screen': 0, left: -5000, right: 5000, 'across the left edge': -140, 'across the right edge': 250 },
+  y: { 'on screen': 0, above: -5000, below: 5000, 'across the top edge': -140, 'across the bottom edge': 700 },
+};
+
+function pointCase(axis, count, levels, position, shift) {
+  const [p, size, other, otherSize] = axis === 'x' ? ['x', 'width', 'y', 'height'] : ['y', 'height', 'x', 'width'];
+  const lo = 100 + shift;
+  const hi = lo + 50 * (count - 1) + 20;
+  const boxes = Array.from({ length: count }, (_, k) => ({ [p]: lo + 50 * k, [size]: 20, [other]: 120, [otherSize]: 20 }));
+  const chain = [style('p.t', { position, box: { [p]: lo, [size]: hi - lo, [other]: 120, [otherSize]: 20 } })];
+  levels.forEach(({ variant, place }, k) => {
+    const [a, b] = placeAt(place)(lo, hi);
+    const span = { [p]: a, [size]: b - a, [other]: 120 - 40 * (k + 1), [otherSize]: 20 + 80 * (k + 1) };
+    chain.push(style(`div.l${k + 1}`, { position: variant.position, ...variant.style(span) }));
+  });
+  chain.push(style('body'), style('html'));
+  return { kind: 'text', element: 'p.t', text: 'Spec first', boxes, chain };
+}
+
+test('one pass up the chain agrees with the point model on texts of one to three boxes, levels over the gaps and levels of no size', () => {
+  const diffs = [];
+  const seenReasons = new Set();
+  let cases = 0;
+  const compare = (t, label) => {
+    const want = pointModel(t, VIEWPORT);
+    const got = hiddenReasons(t, VIEWPORT);
+    cases += 1;
+    for (const r of want.length ? want : ['in view']) seenReasons.add(r.replace(/ (of )?the scroll origin of .*$| by .*$/, ''));
+    if (JSON.stringify(got) !== JSON.stringify(want)) diffs.push(`${label}: got ${JSON.stringify(got)}, model ${JSON.stringify(want)}`);
+  };
+  const where = (levels) => levels.map(({ variant, place }) => `${variant.kind} (${variant.position}), ${place}`).join(' in ');
+  // the cases of the matrix above, one box each
+  const level = Object.keys(PLACES).flatMap((place) => ANCESTOR_VARIANTS.map((variant) => ({ variant, place })));
+  const nestings = [...level.map((l) => [l]), ...level.flatMap((inner) => level.map((outer) => [inner, outer]))];
+  for (const axis of ['x', 'y']) {
+    for (const levels of nestings) {
+      for (const position of ['static', 'absolute', 'fixed']) {
+        for (const [screen, shift] of Object.entries(SHIFTS[axis])) compare(matrixCase(axis, levels, position, shift), `${axis} · ${where(levels)} · ${position} text · ${screen}`);
+      }
+    }
+  }
+  const before = cases;
+  // texts of one, two and three boxes: one level on every screen, two levels on the screen
+  for (const count of [1, 2, 3]) {
+    const levels = Object.keys(POINT_PLACES).filter((place) => placeFrom(place) <= count).flatMap((place) => ANCESTOR_VARIANTS.map((variant) => ({ variant, place })));
+    for (const axis of ['x', 'y']) {
+      for (const position of ['static', 'absolute', 'fixed']) {
+        for (const one of levels) {
+          for (const [screen, shift] of Object.entries(POINT_SHIFTS[axis])) compare(pointCase(axis, count, [one], position, shift), `${count} boxes · ${axis} · ${where([one])} · ${position} text · ${screen}`);
+        }
+        for (const inner of levels) {
+          for (const outer of levels) compare(pointCase(axis, count, [inner, outer], position, 0), `${count} boxes · ${axis} · ${where([inner, outer])} · ${position} text · on screen`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(diffs.slice(0, 40), [], `${diffs.length} differences in ${cases} cases`);
+  assert.ok(before > 30000 && cases - before > 100000, `${before} cases of the matrix above and ${cases - before} new ones`);
+  for (const reason of ['in view', 'clipped away', 'out of reach, left', 'out of reach, above', 'off screen to the left', 'off screen to the right', 'off screen above', 'off screen below']) {
+    assert.ok(seenReasons.has(reason), `the matrix never gives "${reason}" (${[...seenReasons].join(', ')})`);
+  }
+});
+
+test('a text of several boxes is judged box by box, and a box of no size on an axis shows nothing it holds there', () => {
+  const t = (chain, boxes) => ({ kind: 'text', element: chain[0].element, text: 'Spec first', boxes, chain: [...chain, style('body'), style('html')] });
+  const lines = [{ x: 20, y: 100, width: 200, height: 20 }, { x: 20, y: 140, width: 200, height: 20 }];
+  const clip = (y, height) => style('div.clip', { overflowX: 'clip', overflowY: 'clip', box: { x: 0, y, width: 390, height } });
+  // two lines with a gap between them, in an overflow clip that shows only the gap
+  assert.deepEqual(hiddenReasons(t([style('p'), clip(125, 10)], lines), VIEWPORT), ['clipped away by div.clip'], 'a clip that shows only the gap between two lines');
+  assert.deepEqual(hiddenReasons(t([style('p'), clip(115, 30)], lines), VIEWPORT), [], 'a clip that shows a part of each line');
+  // a box with paint containment that scrolls and has no height, with the text after its end
+  const flat = (height) => style('div.scroller', { contain: 'paint', overflowX: 'auto', overflowY: 'auto', box: { x: 0, y: 100, width: 390, height } });
+  const below = [{ x: 20, y: 140, width: 200, height: 20 }];
+  assert.deepEqual(hiddenReasons(t([style('p'), flat(0)], below), VIEWPORT), ['clipped away by div.scroller'], 'a scrolling box of no height');
+  assert.deepEqual(hiddenReasons(t([style('p'), flat(20)], below), VIEWPORT), [], 'the same box with a height scrolls to the text');
+  const narrow = style('div.scroller', { overflowX: 'auto', overflowY: 'hidden', box: { x: 100, y: 90, width: 0, height: 100 } });
+  assert.deepEqual(hiddenReasons(t([style('p'), narrow], [{ x: 200, y: 100, width: 40, height: 20 }]), VIEWPORT), ['clipped away by div.scroller'], 'a scrolling box of no width');
+  // two lines wholly after the end of a box that scrolls across, in a frame that shows only their gap
+  const code = style('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: 0, y: 90, width: 300, height: 80 } });
+  const frame = (y, height) => style('div.frame', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y, width: 390, height } });
+  const far = lines.map((b) => ({ ...b, x: 500 }));
+  assert.deepEqual(hiddenReasons(t([style('p'), code, frame(125, 10)], far), VIEWPORT), ['clipped away by div.frame'], 'scrolled lines keep their own rows');
+  assert.deepEqual(hiddenReasons(t([style('p'), code, frame(115, 30)], far), VIEWPORT), [], 'scrolled lines in a frame over both rows');
+  // one line off the page to the left and the other above it: nothing is on the screen
+  const apart = [{ x: -300, y: 100, width: 200, height: 20 }, { x: 20, y: -100, width: 200, height: 20 }];
+  assert.deepEqual(hiddenReasons(t([style('p')], apart), VIEWPORT), ['off screen to the left', 'off screen above'], 'each line off the screen on its own side');
+});
+
 // ---------- the colour that paints the text ----------
 
 test('the colour that paints the text is its computed fill, and a fill the background paints through is not transparent', () => {
@@ -554,6 +755,40 @@ test('a Chrome that never answers and ignores the signal to terminate is killed,
     assert.deepEqual(readdirSync(tmp), [], 'a folder was left');
     assert.ok(existsSync(pidFile), 'the stand-in ran');
     assert.ok(!alive(Number(readFileSync(pidFile, 'utf8'))), 'the stand-in is still alive');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// The timers, child processes, pipes, sockets and servers alive in this process, by kind, once the
+// event loop has gone round and run the close callbacks of the handles already closed.
+const resources = async () => {
+  for (let turn = 0; turn < 2; turn += 1) await new Promise((done) => setImmediate(done));
+  const out = {};
+  for (const kind of process.getActiveResourcesInfo()) out[kind] = (out[kind] ?? 0) + 1;
+  return out;
+};
+
+test('a CHROME_PATH that exists and does not run ends the measure with 2 and one line, and leaves no timer, process or folder behind', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'site-measure-noexec-'));
+  try {
+    const dist = fakeDist(root);
+    const tmp = join(root, 'tmp');
+    mkdirSync(tmp);
+    const chrome = join(root, 'chrome');
+    writeFileSync(chrome, 'not a program\n');
+    chmodSync(chrome, 0o644);
+    const lines = [];
+    const before = await resources();
+    const code = await measure.main([dist], { env: { CHROME_PATH: chrome }, tmp, say: (l) => lines.push(l), fail: (l) => lines.push(l) });
+    const after = await resources();
+    assert.equal(code, 2);
+    assert.equal(lines.length, 1, lines.join('\n'));
+    assert.doesNotMatch(lines[0], /\n/);
+    assert.match(lines[0], /^measure: Chrome did not start/);
+    const left = Object.entries(after).filter(([kind, n]) => n > (before[kind] ?? 0)).map(([kind, n]) => `${kind}: ${before[kind] ?? 0} before, ${n} after`);
+    assert.deepEqual(left, [], 'the measure left something alive');
+    assert.deepEqual(readdirSync(tmp), [], 'a folder was left');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
