@@ -10,7 +10,8 @@
 // * the order: the home pages run hero, pipeline, demo, loop, use cases, commands, editions,
 //   closing, contact; the loop on the home page keeps its head, its five steps and its links, and
 //   its four operation lists live in the `implement` entry of the commands page, after the loop
-//   mode block, under an id of their own that the home loop links to with the four titles.
+//   mode block, under an id of their own that the home loop links to with a sentence of its own
+//   (loopSetupLink).
 //
 // What only the built HTML can show (the lists once on the commands page with every item, none of
 // them on the home page, the link landing) lives in site/scripts/check-pipeline.mjs and
@@ -102,6 +103,7 @@ const RUNNING = {
     '.ed-desc': [BODY, 'the description of each edition, a sentence'],
     '.ed-steps li': [BODY, 'the install steps in Claude Code Desktop, each one a sentence'],
     '.ed-tag': [BODY, 'the closing line of the editions, two short sentences'],
+    '.ed-answers dd': [BODY, 'the body of each of the three answers above the editions, sentences'],
     '.ed-note': [UI, 'the notes under the editions, 60 to 80 words each (spec 1b)'],
   },
   ContactForm: {
@@ -150,6 +152,7 @@ const OTHER = {
     '.ed-name h3': [D3, 'an edition name'],
     '.ed-cmd-text': [META, 'an install command, mono'],
     '.ed-steps li::before': [META, 'a step number'],
+    '.ed-answers dt': [BODY, 'the title of each of the three answers, a short heading set off by weight'],
   },
   ContactForm: {
     '.contact-success': [LEDE, 'the success message, at the lede size'],
@@ -292,16 +295,17 @@ test('the home loop keeps its head, steps and links, and none of the four operat
   }
 });
 
-test('the home loop links to the lists on the commands page, with the four titles as its text', () => {
+test('the home loop links to the lists on the commands page, with loopSetupLink as its text', () => {
   const loop = component('Loop');
   const commands = component('CommandsDocs');
   const id = idOf(loop);
   assert.ok(id, 'Loop.astro names the id of the lists');
   assert.equal(idOf(commands), id, 'the commands page uses the same id');
-  const titles = LIST_KEYS.map(([title]) => `t.${title}`).join(', ');
-  assert.match(frontmatter(loop), new RegExp(`\\[${titles.replace(/\./g, '\\.')}\\]\\.join\\(' · '\\)`), 'the link text is the four titles, in order, joined by a middle dot');
+  // The four list titles title the lists on the commands page; the home loop reads none of them.
+  for (const [title] of LIST_KEYS) assert.ok(!new RegExp(`\\bt\\.${title}\\b`).test(loop), `Loop.astro no longer reads t.${title}`);
   const markup = template(loop);
-  assert.match(markup, /<a href=\{`\/\$\{lang\}\/commands#\$\{LOOP_SETUP_ID\}`\} class="gx-link">\{setupLink\}<\/a>/, 'the link to the lists');
+  assert.match(markup, /<a href=\{`\/\$\{lang\}\/commands#\$\{LOOP_SETUP_ID\}`\} class="gx-link">\{t\.loopSetupLink\}<\/a>/, 'the link to the lists, with loopSetupLink as its text');
+  assert.equal(loop.split('t.loopSetupLink').length, 2, 't.loopSetupLink once');
   assert.match(markup, /href=\{t\.loopMoreHref\}/, 'the link to the README stays');
 });
 

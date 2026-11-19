@@ -22,9 +22,9 @@ const steps = [
 ];
 
 // The four operation lists (turning it on, the hosts, company mode, the requirements) live in the
-// implement entry of the commands page, under this id; the loop links there with their titles.
+// implement entry of the commands page, under this id; the loop links there with a sentence of its
+// own, and the list titles stay with the lists.
 const LOOP_SETUP_ID = 'loop-setup';
-const setupLink = [t.loopOnTitle, t.loopHostsTitle, t.loopCompanyTitle, t.loopReqTitle].join(' · ');
 ---
 
 <section class="gx-escuro loop" id="loop" data-loop>
@@ -50,7 +50,7 @@ const setupLink = [t.loopOnTitle, t.loopHostsTitle, t.loopCompanyTitle, t.loopRe
     </ol>
 
     <div class="loop-more">
-      <p><a href={`/${lang}/commands#${LOOP_SETUP_ID}`} class="gx-link">{setupLink}</a></p>
+      <p><a href={`/${lang}/commands#${LOOP_SETUP_ID}`} class="gx-link">{t.loopSetupLink}</a></p>
       <p><a href={t.loopMoreHref} target="_blank" rel="noopener" class="gx-link">{t.loopMore}</a></p>
     </div>
   </div>
