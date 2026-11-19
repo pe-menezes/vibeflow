@@ -1,6 +1,7 @@
 ---
 import type { Locale } from '../i18n/utils';
 import { useTranslations } from '../i18n/utils';
+import InlineCode from './InlineCode.astro';
 
 interface Props {
   lang: Locale;
@@ -8,6 +9,9 @@ interface Props {
 
 const { lang } = Astro.props;
 const t = useTranslations(lang);
+
+// The anchor of the operation lists of the loop, in the implement entry; the home loop links to it.
+const LOOP_SETUP_ID = 'loop-setup';
 
 const commands = [
   {
@@ -87,6 +91,12 @@ const commands = [
         { label: t.cmdImplementLoopStopLabel, desc: t.cmdImplementLoopStop },
       ],
       link: t.cmdImplementLoopLink,
+      setup: [
+        { title: t.loopOnTitle, items: t.loopOnItems },
+        { title: t.loopHostsTitle, items: t.loopHostsItems },
+        { title: t.loopCompanyTitle, items: t.loopCompanyItems },
+        { title: t.loopReqTitle, items: t.loopReqItems },
+      ],
     },
     output: t.cmdImplementOutput,
     note: t.cmdImplementNote,
@@ -243,6 +253,21 @@ const commands = [
                   ))}
                 </dl>
                 <p class="entry-more"><a href={`/${lang}/#loop`} class="gx-link">{cmd.loop.link}</a></p>
+              </div>
+            )}
+
+            {cmd.loop && (
+              <div class="entry-block entry-setup" id={LOOP_SETUP_ID}>
+                {cmd.loop.setup.map((list) => (
+                  <div class="entry-group">
+                    <h3 class="gx-rotulo entry-label">{list.title}</h3>
+                    <ul class="entry-list">
+                      {list.items.map((item: string) => (
+                        <li><InlineCode text={item} /></li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -558,6 +583,28 @@ const commands = [
   .entry-more {
     margin-top: var(--s-4);
     font-size: var(--fs-ui);
+  }
+
+  /* The loop's operation lists: one label and one plain list each, in the reading column. The
+     home loop links here, so a jump lands it where an index jump lands an entry. */
+  .entry-setup {
+    display: grid;
+    gap: var(--s-6);
+    scroll-margin-top: var(--s-5);
+  }
+  .entry-group h3 {
+    font-weight: 400;
+  }
+  .entry-list {
+    display: grid;
+    gap: var(--s-2);
+    max-width: var(--doc-measure);
+    padding-left: 1.1rem;
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .entry-list li::marker {
+    color: var(--accent-text);
   }
 
   .entry-output {

@@ -1,13 +1,23 @@
-// Checks on the built commands and anatomy pages, in both languages. Run it after `npm run build`
-// (`node scripts/check-pages.mjs` in site/); it exits with 1 and lists every problem it finds.
+// Checks on the built commands and anatomy pages, in both languages. A program: run it after
+// `npm run build` (`node scripts/check-pages.mjs` in site/); it always runs the checks, exits with 1
+// and lists every problem it finds. Do not import it; what a test needs is in loop-setup.mjs.
 //
 // * every anchor these pages had before the redesign still exists;
 // * every in-page link lands on an id of the same page, and the index links to every entry;
-// * every i18n text the component uses is on the page, in that page's language;
+// * every i18n text the component uses is on the page, in that page's language, every item of a
+//   list included;
+// * on the commands page, the four operation lists of the loop sit once in the implement entry,
+//   after the loop mode block, under their own id, with the i18n items character for character,
+//   and none of their items is anywhere else (the rule and its limits are in loop-setup.mjs);
 // * no element of the page content carries the hidden attribute.
+//
+// What it does not decide: it reads the HTML as text with regular expressions (no DOM, no CSS), so
+// it does not see what a browser would hide or move. The check of every text of the two pages
+// other than the loop's list items compares with all spaces removed.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { decode, loopSetupProblems, plain, shown, tight } from './loop-setup.mjs';
 
 const siteDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outputs = [join(siteDir, 'dist'), join(siteDir, '.vercel', 'output', 'static')].filter((d) => existsSync(d));
@@ -19,7 +29,8 @@ const HEADER_IDS = ['header', 'hamburger', 'mobile-menu'];
 const PAGES = {
   commands: {
     component: 'CommandsDocs.astro',
-    ids: [...HEADER_IDS, 'analyze', 'discover', 'gen-spec', 'implement', 'prompt-pack', 'audit', 'quick', 'hotfix', 'teach', 'stats'],
+    // ...and the id of the loop's operation lists, which the home loop links to.
+    ids: [...HEADER_IDS, 'analyze', 'discover', 'gen-spec', 'implement', 'prompt-pack', 'audit', 'quick', 'hotfix', 'teach', 'stats', 'loop-setup'],
   },
   anatomy: {
     component: 'VibeflowAnatomy.astro',
@@ -27,22 +38,28 @@ const PAGES = {
   },
 };
 
+const i18nText = (lang) => readFileSync(join(siteDir, 'src', 'i18n', `${lang}.ts`), 'utf8');
+const unescape = (s) => s.replace(/\\(.)/g, '$1');
 // The value of a string key in an i18n file, single-quoted as the files write them.
 function i18nValue(lang, key) {
-  const text = readFileSync(join(siteDir, 'src', 'i18n', `${lang}.ts`), 'utf8');
-  const m = new RegExp(`\\n\\s*${key}:\\s*'((?:[^'\\\\]|\\\\.)*)'`).exec(text);
-  return m ? m[1].replace(/\\(.)/g, '$1') : undefined;
+  const m = new RegExp(`\\n\\s*${key}:\\s*'((?:[^'\\\\]|\\\\.)*)'`).exec(i18nText(lang));
+  return m ? unescape(m[1]) : undefined;
 }
-const decode = (s) =>
-  s.replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
-    .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-const squash = (s) => s.replace(/\s+/g, ' ').trim();
-const plain = (html) => squash(decode(html.replace(/<(script|style)\b[\s\S]*?<\/\1>/g, ' ').replace(/<[^>]*>/g, ' ')));
-// What a value reads like on the page: backticks become code (InlineCode), <br> a line break.
-const shown = (value) => squash(value.replace(/`/g, ' ').replace(/<br\s*\/?>/g, ' '));
-// Spaces around code and line breaks differ between the source and the page; compare without them.
-const tight = (s) => s.replace(/\s+/g, '');
+// The items of an array key of single-quoted strings.
+function i18nArray(lang, key) {
+  const m = new RegExp(`\\n\\s*${key}:\\s*\\[([\\s\\S]*?)\\n\\s*\\]`).exec(i18nText(lang));
+  return m ? [...m[1].matchAll(/'((?:[^'\\]|\\.)*)'/g)].map((x) => unescape(x[1])) : undefined;
+}
+
+// The loop's four operation lists, moved from the home page to the implement entry.
+const LOOP_LISTS = ['loopOn', 'loopHosts', 'loopCompany', 'loopReq'];
+// What the loop's lists should be on a page, read from the i18n file of its language.
+function loopSetupExpected(lang) {
+  return {
+    mode: i18nValue(lang, 'cmdLoopMode'),
+    lists: LOOP_LISTS.map((b) => ({ key: `${b}Items`, title: i18nValue(lang, `${b}Title`), items: i18nArray(lang, `${b}Items`) ?? [] })),
+  };
+}
 
 if (!outputs.length) fail('no build output found (dist/ or .vercel/output/static/)');
 
@@ -80,6 +97,12 @@ for (const out of outputs) {
       const text = tight(plain(main));
       const hrefs = new Set([...main.matchAll(/\shref="([^"]+)"/g)].map((m) => decode(m[1])));
       for (const key of keys) {
+        const items = i18nArray(lang, key);
+        if (items) {
+          if (!items.length) fail(`${where}: ${key} has no ${lang} items`);
+          for (const item of items) if (!text.includes(tight(shown(item)))) fail(`${where}: an item of ${key} is not on the page`);
+          continue;
+        }
         const value = i18nValue(lang, key);
         if (value === undefined) {
           fail(`${where}: ${key} has no ${lang} value`);
@@ -91,6 +114,7 @@ for (const out of outputs) {
           fail(`${where}: ${key} is not on the page`);
         }
       }
+      if (page === 'commands') for (const p of loopSetupProblems(main, loopSetupExpected(lang))) fail(`${where}: ${p}`);
     }
   }
 }

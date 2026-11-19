@@ -170,7 +170,7 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
     transition: background-size var(--d-4) var(--ease-swap);
   }
   .pipe-step__desc {
-    font-size: var(--fs-ui);
+    font-size: var(--fs-body);
     line-height: 1.5;
   }
   .pipe-step__out {
@@ -229,6 +229,11 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
       grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
       align-items: end;
       column-gap: var(--s-8);
+    }
+    /* The size of the step descriptions where the scene can pin: one declaration, the same pinned
+       or loose, so the stage keeps fitting the screens it pins on. */
+    :global(html.motion-ok) .pipe-step__desc {
+      font-size: var(--fs-ui);
     }
     /* Pinned: the stage is the screen, the band takes what the head and the steps leave, from
        BAND_MIN to BAND_MAX (src/lib/pipeline-scene.js), and what is left past that is shared
