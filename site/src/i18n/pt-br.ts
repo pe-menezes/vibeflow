@@ -44,9 +44,9 @@ export default {
   step3Title: 'implement',
   step4Title: 'audit',
   pipelineStep1Desc: 'Varre seu codebase. Aprende padrões, convenções, arquitetura. Constrói uma base de conhecimento local.',
-  pipelineStep2Desc: 'Gera a spec, com os critérios de pronto de resposta sim ou não (DoD), o escopo, o anti-escopo e o limite de arquivos.',
+  pipelineStep2Desc: 'Gera a spec, com o DoD (os critérios de pronto, de resposta sim ou não), o escopo, o anti-escopo e o budget (o limite de arquivos).',
   pipelineStep3Desc: 'Implementa a partir da spec. Segue seus padrões, respeita budget, roda testes, auto-verifica. Com --loop, um executor e uma auditoria independente trabalham em sessões novas.',
-  pipelineStep4Desc: 'Confere cada critério de pronto com evidência, a partir do diff. Confere os padrões. Veredito: PASS, PARTIAL ou FAIL.',
+  pipelineStep4Desc: 'Confere cada item do DoD com evidência, a partir do diff. Confere os padrões. Veredito: PASS, PARTIAL ou FAIL.',
   pipelineExtra: 'Os outros seis:',
   pipelineExtraList: 'discover · prompt-pack · quick · hotfix · teach · stats',
   pipelineFlowLabel: 'O trabalho passa por quatro portas, analyze, gen-spec, implement e audit, e fica mais ordenado a cada uma.',
@@ -157,7 +157,7 @@ export default {
   demoR7dod4: '✓ Login rate-limited a 5 tentativas/min por IP',
   demoR7patterns: '✓ Padrões seguidos: a estrutura controller/service do projeto',
   demoR7verdict: 'PASS',
-  demoR7verdictDesc: 'Os 4 critérios de pronto conferidos com evidência. Pode subir.',
+  demoR7verdictDesc: 'Os 4 itens do DoD conferidos com evidência. Pode subir.',
 
   // Use cases
   useCasesLabel: 'Casos de uso',
