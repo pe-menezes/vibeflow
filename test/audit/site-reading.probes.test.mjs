@@ -128,3 +128,38 @@ test('the loop lists check finds a problem when the implement entry has no loop 
   const html = commandsMain(`${PHASES}<div class="entry-block">${LOOP_FLAGS}</div>${loopSetup()}${OUTPUT}`, '<div><p class="gx-rotulo entry-label">Loop mode</p></div>');
   assert.ok(loopSetupProblems(html, LOOP_EXPECTED).length > 0);
 });
+
+// Contract: D1 of fix round 2, an item on the page is the i18n item character for character, no
+// space collapsed: two spaces, or a line break, where i18n has one space is a different item.
+// Regression: the item read with its spaces collapsed again (`\s+` to one space in markedLi), the
+// normalization the fix took out. Why the executor's test misses it: each of its space forms takes a
+// space away or puts one where there was none, never two in a row, so the collapsing mutant passes
+// all 2,880 cases.
+test('the loop lists check tells two spaces or a line break inside an item from the one space of i18n', () => {
+  const right = commandsMain(`${PHASES}${loopModeBlock()}${loopSetup()}${OUTPUT}`);
+  assert.deepEqual(loopSetupProblems(right, LOOP_EXPECTED), [], 'the item as i18n has it: right');
+  for (const [name, from, to] of [
+    ['two spaces between words', 'Off by default.', 'Off  by default.'],
+    ['a line break between words', 'Off by default.', 'Off\nby default.'],
+    ['a line break and indent before a code span', 'Without <code', 'Without\n  <code'],
+  ]) {
+    const html = right.replace(from, to);
+    assert.notEqual(html, right, name);
+    assert.ok(loopSetupProblems(html, LOOP_EXPECTED).length > 0, `${name}: a problem`);
+  }
+});
+
+// Contract: C7 of fix round 1, one element in <main> carries the id of the lists, wherever a second
+// one sits. Regression: the count loosened to "at least one" (or the first match taken as the block),
+// so a second element with the id after the lists passes. Why the executor's test misses it: its
+// second element always sits in the entry before implement, where the first match lands outside the
+// entry and the placement check flags it anyway (the `opens.length < 1` mutant passes all 2,880).
+test('the loop lists check finds a second element with their id after the lists', () => {
+  const lists = `${PHASES}${loopModeBlock()}${loopSetup()}`;
+  for (const [name, html] of [
+    ['a div with the id later in the entry', commandsMain(`${lists}<div id="loop-setup"></div>${OUTPUT}`)],
+    ['a section with the id in the next entry', `${commandsMain(`${lists}${OUTPUT}`)}<article id="prompt-pack" class="doc-entry"><section id="loop-setup"></section></article>`],
+  ]) {
+    assert.ok(loopSetupProblems(html, LOOP_EXPECTED).length > 0, `${name}: a problem`);
+  }
+});
