@@ -5,7 +5,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,32 +60,44 @@ test('an absolute text is clipped by a positioned ancestor that misses it and es
 });
 
 // The four exceptions the measure ships with, each seen at both widths and in both themes.
-const hiddenIn = (scope) => text([box('p', { display: 'none' }), scope, ...ROOTS()], []);
+const hiddenIn = (scope, owner = 'p') => text([box(owner, { display: 'none' }), scope, ...ROOTS()], []);
 const seen = (target, width, theme) => ({ page: '/en/', width, theme, viewport: { width, height: 844 }, targets: [target] });
 
 // Contract: each exception the measure ships with excuses hidden text only at the width its reason
-// names: .desktop-only and .flow-verdict at 390, #mobile-menu at 1280; #form-success everywhere
-// (measure-rendered.mjs, EXCEPTIONS, each restricted to one width by its reason).
+// names: .desktop-only at 390, #mobile-menu at 1280, and in .flow-verdict only the note (small) at
+// 390, never another text of that block such as the PASS chip; #form-success everywhere
+// (measure-rendered.mjs, EXCEPTIONS, each restricted to one width by its reason, the verdict one to
+// its element).
 // Breaks when: an exception loses its width, so the wide navigation, the phone menu or the verdict
-// note could vanish at the width where the reader needs it and the measure would still say ok; or
-// the width is moved to the other screen.
-// Not covered by: test/site-measure.test.mjs scopes a made-up exception (#how) and only checks that
-// each shipped entry has a reason, so dropping `width: 390` from .flow-verdict survives it (audit
-// report, mutants l01, l02, l03, l05).
+// note could vanish at the width where the reader needs it and the measure would still say ok; the
+// width is moved to the other screen; or the verdict exception covers its whole block again, so the
+// PASS chip of the hero flow band could vanish on a phone (audit report, B1, e01).
+// Not covered by: test/site-measure.test.mjs scopes a made-up exception (#how) and checks the
+// shipped verdict entry in the light theme only, so dropping the width of .desktop-only or
+// #mobile-menu survives it (audit report, mutants l01, l02, l03, l05).
+// Rewritten in the reaudit 1 (authorised in its brief): the verdict case used a bare `p` inside the
+// block and expected it excused at 390; the fix narrowed that exception to the note, so the excused
+// case is now the note and the chip is the case that must be reported.
 test('each shipped exception excuses hidden text only at its own width, in both themes', () => {
   const cases = [
-    ['nav.nav.desktop-only', 390],
-    ['div.flow-verdict', 390],
-    ['nav#mobile-menu.mobile-menu', 1280],
+    ['nav.nav.desktop-only', 'p', 390],
+    ['div.flow-verdict', 'small', 390],
+    ['nav#mobile-menu.mobile-menu', 'p', 1280],
   ];
   const failures = [];
-  for (const [scope, width] of cases) {
+  for (const [scope, owner, width] of cases) {
     for (const theme of ['light', 'dark']) {
       for (const w of [390, 1280]) {
-        const found = findHidden([seen(hiddenIn(box(scope)), w, theme)]).length;
+        const found = findHidden([seen(hiddenIn(box(scope), owner), w, theme)]).length;
         const want = w === width ? 0 : 1;
-        if (found !== want) failures.push(`${scope} at ${w}, ${theme}: ${found} found, ${want} expected`);
+        if (found !== want) failures.push(`${owner} in ${scope} at ${w}, ${theme}: ${found} found, ${want} expected`);
       }
+    }
+  }
+  for (const theme of ['light', 'dark']) {
+    for (const w of [390, 1280]) {
+      const chip = findHidden([seen(hiddenIn(box('div.flow-verdict'), 'span.gx-chip.gx-chip--marcado'), w, theme)]).length;
+      if (chip !== 1) failures.push(`the chip in div.flow-verdict at ${w}, ${theme}: ${chip} found, 1 expected`);
     }
   }
   for (const w of [390, 1280]) {
@@ -124,6 +137,87 @@ test('text before the scroll origin of a scrolling ancestor is out of view', () 
 test('a clip-path polygon of no area clips the text away', () => {
   const t = text([box('h2.title', { clipPath: 'polygon(0px 0px, 0px 0px, 0px 0px)', box: { x: 20, y: 100, width: 350, height: 40 } }), ...ROOTS()], [{ x: 20, y: 100, width: 200, height: 30 }]);
   assert.notDeepEqual(hiddenReasons(t, VIEWPORT), []);
+});
+
+// Probes of the reaudit 1 (fix round 1 of D1 and D2).
+
+// Contract: the reach of a scrolling box is decided by its own edges, apart from the edges of the
+// page: text wholly before its origin is out of reach even when it sits on the page, text wholly
+// after its end is in reach only as far as the box itself is, and a text touching an edge counts
+// as wholly on that side; a box that does not hold the text (a static box under an absolute text)
+// changes nothing (measure-rendered.mjs, hiddenReasons, "Reach"; spec 1a, wholly off screen).
+// Breaks when: the before-origin branch is dropped on y (text pulled up above the top of an
+// `overflow-x: hidden` section, still on the page, passes), the after-end branch is dropped on y,
+// the final left or above test reads the text boxes instead of the reach, an edge comparison loses
+// its `=`, or the reach climbs ancestors that do not hold the text (an absolute tooltip beside a
+// static scrolling box is reported). Mutants d1c, d1f, d1g, d1h, d1i, d1j and d1k of the reaudit.
+// Not covered by: the executor's product puts the box inside the page at 50 px, so every text
+// before its origin is also off the page and the page test alone reports it; its boxes off screen
+// get texts after their end that are off screen too; it has no edge case and no positioned text.
+test('the reach of a scrolling box follows its own edges, apart from the page edges', () => {
+  const scroller = (extra) => box('div.band', { overflowX: 'hidden', overflowY: 'auto', ...extra });
+  const reasons = (chain, at) => hiddenReasons(text([...chain, ...ROOTS()], [at]), VIEWPORT);
+  const on = { x: 20, width: 200 };
+  // before the origin on y, and still on the page
+  assert.notDeepEqual(reasons([box('p'), scroller({ box: { x: 0, y: 500, width: 390, height: 200 } })], { ...on, y: 200, height: 20 }), [], 'above the origin, on the page');
+  // after the end of a box wholly above the page, the text itself on the page
+  assert.notDeepEqual(reasons([box('p'), scroller({ box: { x: 0, y: -1000, width: 390, height: 200 } })], { ...on, y: 500, height: 20 }), [], 'after the end of a box above the page');
+  // after the end of a box wholly left of the page, the text itself on screen
+  const leftBox = box('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: -1000, y: 100, width: 200, height: 200 } });
+  assert.notDeepEqual(reasons([box('p'), leftBox], { x: 50, y: 120, width: 100, height: 20 }), [], 'after the end of a box left of the page');
+  // edges: ending at the origin is before it; starting at the end is after it
+  const code = box('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: 100, y: 100, width: 290, height: 200 } });
+  assert.notDeepEqual(reasons([box('p'), code], { x: 60, y: 120, width: 40, height: 20 }), [], 'ending at the origin');
+  const wide = box('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: 0, y: 100, width: 390, height: 200 } });
+  assert.deepEqual(reasons([box('p'), wide], { x: 390, y: 120, width: 40, height: 20 }), [], 'starting at the end');
+  // an absolute text is not held by a static scrolling box, so its origin does not bound it
+  const tip = box('span.tip', { position: 'absolute', box: { x: 20, y: 120, width: 40, height: 20 } });
+  const staticCode = box('div.code', { overflowX: 'auto', overflowY: 'hidden', box: { x: 100, y: 100, width: 290, height: 200 } });
+  assert.deepEqual(reasons([tip, staticCode, box('section')], { x: 20, y: 120, width: 40, height: 20 }), [], 'absolute text beside a static scroller');
+});
+
+// Contract: paint containment cuts what leaves the box on each axis on its own, and a static
+// contained box that holds an absolute text is itself held by its ancestors, so their overflow
+// cuts it (measure-rendered.mjs, paintContained; spec 1a, a clip that cuts the text away).
+// Breaks when: the containment cut is dropped on x (a text pushed to the right out of a
+// `contain: paint` box passes while its row is inside the box), or the mode is not reset after a
+// contained box (an absolute text inside a contained card inside a zero-height `overflow: hidden`
+// wrapper passes). Mutants d2m and d2p of the reaudit.
+// Not covered by: the executor's containment cases give the box a height of 0 whenever the text is
+// outside it, so the cut on y alone reports every one; no case nests a contained box in another
+// box that cuts.
+test('paint containment cuts on each axis alone and hands an absolute text on to its ancestors', () => {
+  const contained = box('div.c', { contain: 'paint', box: { x: 20, y: 100, width: 200, height: 200 } });
+  const right = hiddenReasons(text([box('p'), contained, ...ROOTS()], [{ x: 300, y: 120, width: 40, height: 20 }]), VIEWPORT);
+  assert.ok(right.some((r) => r.startsWith('clipped away')), `outside on x only: ${JSON.stringify(right)}`);
+  const wrap = box('div.wrap', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 100, width: 390, height: 0 } });
+  const card = box('div.card', { contain: 'paint', box: { x: 0, y: 100, width: 390, height: 200 } });
+  const tip = box('span.tip', { position: 'absolute', box: { x: 20, y: 150, width: 40, height: 20 } });
+  const nested = hiddenReasons(text([tip, card, wrap, ...ROOTS()], [{ x: 20, y: 150, width: 40, height: 20 }]), VIEWPORT);
+  assert.ok(nested.includes('clipped away by div.wrap'), `contained card in a closed wrapper: ${JSON.stringify(nested)}`);
+});
+
+// Contract: a fixed or absolute box escapes the overflow and the scroll of the ancestors that do
+// not hold it, whatever containment it has itself; its own paint containment holds only what is
+// inside it (measure-rendered.mjs, "overflow cuts what its box holds, except what escapes it by
+// absolute or fixed position"; CSS Containment, paint containment makes the box the containing
+// block of its descendants, not of itself).
+// Breaks when: today's code, which sets the mode back to `in` after any box with paint containment,
+// even one that is itself fixed or absolute: a fixed bar with `contain: paint` inside an
+// `overflow-x: hidden` section lower on the page is reported "out of reach, above the scroll
+// origin", and inside a static zero-height `overflow: hidden` wrapper "clipped away" (reaudit 1,
+// Chrome run B, /en/anatomy/). The case turns green when the gap closes.
+// Not covered by: the executor's containment cases put `contain` on a static ancestor only.
+test('a fixed or absolute box with paint containment still escapes its ancestors', { todo: 'open gap: paint containment on a fixed or absolute box resets the mode to in' }, () => {
+  const at = [{ x: 20, y: 20, width: 100, height: 20 }];
+  const bar = box('header.bar', { position: 'fixed', contain: 'paint', box: { x: 0, y: 0, width: 390, height: 60 } });
+  const section = box('section.s', { overflowX: 'hidden', overflowY: 'auto', box: { x: 0, y: 600, width: 390, height: 900 } });
+  assert.deepEqual(hiddenReasons(text([box('p'), bar, section, ...ROOTS()], at), VIEWPORT), [], 'fixed bar in a scrolling section');
+  const wrap = box('div.wrap', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 500, width: 390, height: 0 } });
+  assert.deepEqual(hiddenReasons(text([box('p'), { ...bar, contain: 'content' }, wrap, ...ROOTS()], at), VIEWPORT), [], 'fixed bar in a closed wrapper');
+  const tip = box('div.tip', { position: 'absolute', contain: 'strict', box: { x: 20, y: 700, width: 100, height: 30 } });
+  const card = box('div.card', { overflowX: 'hidden', overflowY: 'hidden', box: { x: 0, y: 100, width: 390, height: 50 } });
+  assert.deepEqual(hiddenReasons(text([box('span'), tip, card, box('section'), ...ROOTS()], [{ x: 25, y: 705, width: 50, height: 20 }]), VIEWPORT), [], 'absolute tip out of a static card');
 });
 
 // ---------- the selector reader of check-build ----------
@@ -253,5 +347,118 @@ test('a copy that fails part way leaves the destination as it was', () => {
     assert.deepEqual(snapshot(), before);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Probes of the reaudit 1 (fix round 1 of B5, the all-or-nothing copy).
+
+const ASSET_FILES = ['og-image.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png', 'favicon.ico'];
+// A folder for one run of the generator: public/ with the five old files and a file of someone
+// else, the manifest folder with a file of someone else and no manifest yet, an empty tmp/, and a
+// file beside them all.
+function assetYard() {
+  const root = mkdtempSync(join(tmpdir(), 'site-assets-yard-'));
+  const publicDir = join(root, 'public');
+  const manifestPath = join(root, 'scripts', 'assets', 'manifest.json');
+  const tmp = join(root, 'tmp');
+  mkdirSync(publicDir, { recursive: true });
+  mkdirSync(dirname(manifestPath), { recursive: true });
+  mkdirSync(tmp);
+  for (const f of ASSET_FILES) writeFileSync(join(publicDir, f), `old ${f}`);
+  writeFileSync(join(publicDir, 'robots.txt'), 'not the generator\'s');
+  writeFileSync(join(dirname(manifestPath), 'notes.json'), '{"not":"the generator\'s"}\n');
+  writeFileSync(join(root, 'beside.txt'), 'not the generator\'s');
+  return { root, publicDir, manifestPath, tmp };
+}
+// Every file and folder under a root, with the sha256 of each file.
+function tree(root) {
+  const out = {};
+  const walk = (dir) => {
+    for (const name of readdirSync(dir).sort()) {
+      const path = join(dir, name);
+      const rel = path.slice(root.length + 1);
+      if (statSync(path).isDirectory()) { out[`${rel}/`] = 'dir'; walk(path); } else out[rel] = createHash('sha256').update(readFileSync(path)).digest('hex');
+    }
+  };
+  walk(root);
+  return out;
+}
+const generate = (yard, copy) => generateAssets({
+  sources: collectSources(SITE_DIR),
+  shoot: () => readFileSync(join(SITE_DIR, 'public', 'favicon-32.png')),
+  chromeVersion: 'Probe Chrome 1.0', publicDir: yard.publicDir, manifestPath: yard.manifestPath, tmp: yard.tmp, copy,
+});
+
+// Contract: a copy that fails on any of the six destinations writes and removes nothing but those
+// destinations and the generator's own folder under tmp: every other file and folder, beside the
+// destinations or not, is as it was, and a destination that did not exist is gone again
+// (make-assets.mjs, copyAll, "gets back the bytes it had (or is removed when it did not exist)";
+// spec 1c, a failure leaves site/public/ and the manifest as they were).
+// Breaks when: the put-back of a destination that did not exist removes more than that file, as
+// `rmSync(dirname(to), { recursive: true })` does to the whole manifest folder; or any write of
+// the put-back lands beside the destination. Mutant r4 of the reaudit.
+// Not covered by: the executor's "did not exist" case checks only that the manifest is gone and
+// that favicon.ico is old; its six-destination case lists the folders but always has a manifest.
+test('a failed copy touches nothing but the six destinations and its own temp folder', () => {
+  const failures = [];
+  for (const failOn of [...ASSET_FILES, 'manifest.json']) {
+    const yard = assetYard();
+    try {
+      const before = tree(yard.root);
+      let message = '';
+      try {
+        generate(yard, (from, to) => {
+          if (to.endsWith(`/${failOn}`)) {
+            writeFileSync(to, readFileSync(from).subarray(0, 10));
+            throw new Error(`probe failure on ${failOn}`);
+          }
+          copyFileSync(from, to);
+        });
+      } catch (e) {
+        message = e.message;
+      }
+      if (!message.includes(`probe failure on ${failOn}`)) failures.push(`${failOn}: the failure did not surface (${message})`);
+      const after = tree(yard.root);
+      if (JSON.stringify(after) !== JSON.stringify(before)) failures.push(`${failOn}: ${JSON.stringify({ before, after })}`);
+    } finally {
+      rmSync(yard.root, { recursive: true, force: true });
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+// Contract: when putting a destination back fails too, the error says so and names the file, on
+// the same line as the copy failure (make-assets.mjs, copyAll, "could not put back"; the
+// generator's header, every failure is one line).
+// Breaks when: a failed put-back is swallowed by its own catch, or the message drops the list or
+// the names, so a half-replaced public/ looks like a clean failure that left everything as it was.
+// Mutants r5, r6 and r7 of the reaudit.
+// Not covered by: no test of the executor makes the put-back itself fail.
+test('a put-back that fails too is said in the one line of the error, with the file', () => {
+  const yard = assetYard();
+  try {
+    const og = join(yard.publicDir, 'og-image.png');
+    let message = null;
+    try {
+      generate(yard, (from, to) => {
+        if (to.endsWith('/favicon-32.png')) {
+          // og-image.png was already replaced; turn it into a folder so its old bytes cannot go back
+          rmSync(og);
+          mkdirSync(og);
+          throw new Error('probe failure on favicon-32.png');
+        }
+        copyFileSync(from, to);
+      });
+    } catch (e) {
+      message = e.message;
+    }
+    assert.ok(message, 'the failure surfaced');
+    assert.doesNotMatch(message, /\n/);
+    assert.match(message, /probe failure on favicon-32\.png/);
+    assert.match(message, /could not put back/);
+    assert.ok(message.includes(og), `names the file that stayed: ${message}`);
+    assert.equal(readFileSync(join(yard.publicDir, 'favicon-64.png'), 'utf8'), 'old favicon-64.png', 'a file never reached is untouched');
+  } finally {
+    rmSync(yard.root, { recursive: true, force: true });
   }
 });
