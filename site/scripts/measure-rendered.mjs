@@ -6,15 +6,26 @@
 //   node site/scripts/measure-rendered.mjs [dist-dir]
 //
 // It serves the build output on 127.0.0.1, at a free port, and opens the seven pages at 390 and
-// 1280 pixels wide, in the light and the dark theme. Every run of text in the body and every
-// pseudo-element that draws text must have a box, no display: none, visibility visible, an
-// effective opacity above zero (its own times its ancestors'), a font size above zero, a colour
-// that is not transparent, no clip that cuts it away, and some part on screen (not wholly to the
-// left, to the right or above). EXCEPTIONS lists what may be hidden, each with its reason.
+// 1280 pixels wide, in the light and the dark theme. It measures each page at rest: once the fonts
+// are in, every animation and transition with an end is taken to its end, and one with no end is
+// paused at the start of its first cycle. Every run of text in the body and every pseudo-element
+// that draws text must have a box (a text with boxes of its own has one, even when its element has
+// display: contents), no display: none, visibility visible, an effective opacity above zero (its
+// own times its ancestors'), a font size above zero, a colour that is not transparent, no clip
+// that cuts it away (clip: rect(), a basic clip-path shape of no area, overflow or paint
+// containment that leaves it wholly outside the box) and some part within reach on screen. A box
+// that scrolls brings into reach what lies after its end, never what lies before its origin; the
+// reach must not be wholly to the left, to the right or above. A page with no text at all is a
+// finding too. EXCEPTIONS lists what may be hidden, each with its reason.
+//
+// What it does not see, and so passes: filter: opacity(0), a transparent mask, an opaque box drawn
+// over the text, transform: scale(0), a font too small to read, a colour equal to the background,
+// and a clip-path given by path() or url(), whose area it does not work out.
 //
 // Exit 0 when nothing is hidden; 1 when something is, with one line per finding naming the page,
-// the width, the theme, the element and the reason; 2 when it cannot measure (no Chrome, no build).
-// It needs Chrome, so it runs by hand and stays out of `npm run build`.
+// the width, the theme, the element and the reason; 2 when it cannot measure (no Chrome, no build,
+// a file of the build it cannot read), with one line. It needs Chrome, so it runs by hand and
+// stays out of `npm run build`.
 //
 // hiddenReasons and findHidden decide "hidden, and why" from what Chrome measured, with no browser,
 // so the suite tests them (test/site-measure.test.mjs). Everything that talks to Chrome sits below
@@ -32,7 +43,8 @@ export const WIDTHS = [390, 1280];
 export const THEMES = ['light', 'dark'];
 const HEIGHTS = { 390: 844, 1280: 900 };
 
-// What may be hidden at rest: an element by id (#x) or class (.x), and everything inside it,
+// What may be hidden at rest: an element by id (#x) or class (.x), and everything inside it, or,
+// when `element` names one (#x, .x or a tag name), only that element inside it and what it holds;
 // optionally only at one width or in one theme, with the reason.
 export const EXCEPTIONS = [
   { match: '#form-success', reason: 'the contact form success message, which a script shows after the form is sent' },
@@ -40,7 +52,7 @@ export const EXCEPTIONS = [
   // width where the other one shows.
   { match: '.desktop-only', width: 390, reason: 'the wide header navigation and its GitHub button; on a narrow screen the phone menu shows the same links' },
   { match: '#mobile-menu', width: 1280, reason: 'the phone menu; on a wide screen the header navigation shows the same links' },
-  { match: '.flow-verdict', width: 390, reason: 'the note beside the verdict in the hero flow band, a decorative image hidden from screen readers, left out on a narrow screen for room' },
+  { match: '.flow-verdict', element: 'small', width: 390, reason: 'the note beside the verdict in the hero flow band, a decorative image hidden from screen readers, left out on a narrow screen for room' },
 ];
 
 // ---------- Deciding, from what was measured ----------
@@ -50,7 +62,7 @@ export const EXCEPTIONS = [
 // `boxes` are its text boxes in page coordinates (none when it has no box), and `chain` the computed
 // style of the box that owns it (the text's element, or the pseudo-element itself) followed by each
 // ancestor up to html: { element, id, classes, display, visibility, opacity, fontSize, color,
-// textFillColor, clip, clipPath, overflowX, overflowY, position, box }.
+// textFillColor, clip, clipPath, overflowX, overflowY, position, contain, box }.
 
 const ROOTS = new Set(['html', 'body']);
 const isRoot = (s) => ROOTS.has(s.element);
@@ -68,6 +80,48 @@ const px = (v, of) => {
   return m[2] === '%' ? (Number(m[1]) / 100) * of : Number(m[1]);
 };
 
+// Whether a basic shape of clip-path, measured against the box (px, or percent of the box), has no
+// area. A shape it cannot measure (path(), url(), a length it cannot read) counts as having area.
+function shapeHasNoArea(path, w, h) {
+  const shape = /^(inset|circle|ellipse|polygon|rect|xywh)\((.*)\)$/.exec(path.replace(/^[a-z-]+-box\s+|\s+[a-z-]+-box$/g, '').trim());
+  if (!shape) return false;
+  const [, name, args] = shape;
+  const body = args.split(/\s+round\s/)[0].trim();
+  const len = (v, of) => (v === undefined ? null : px(v === '0' ? '0px' : v, of));
+  if (name === 'inset') {
+    const [t, r = t, b = t, l = r] = body.split(/\s+/);
+    const sum = (a, c, of) => (len(a, of) ?? 0) + (len(c, of) ?? 0);
+    return sum(t, b, h) >= h || sum(l, r, w) >= w;
+  }
+  if (name === 'circle' || name === 'ellipse') {
+    const radii = body.split(/\s+at\s/)[0].trim().split(/\s+/).filter(Boolean);
+    if (name === 'circle') return len(radii[0], Math.hypot(w, h) / Math.SQRT2) === 0;
+    return len(radii[0], w) === 0 || len(radii[1], h) === 0;
+  }
+  if (name === 'polygon') {
+    // No area when every vertex lies on one line; a crossed polygon whose signed area cancels out
+    // still covers ground, so the test is collinearity, not the shoelace sum.
+    const points = body.split(/\s*,\s*/).filter((p) => !/^(nonzero|evenodd)$/.test(p)).map((p) => {
+      const [x, y] = p.split(/\s+/);
+      return [len(x, w), len(y, h)];
+    });
+    if (points.some(([x, y]) => x === null || y === null)) return false;
+    const [a] = points;
+    const b = points.find(([x, y]) => x !== a[0] || y !== a[1]);
+    if (!b) return true;
+    return points.every(([x, y]) => (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]) === 0);
+  }
+  if (name === 'rect') {
+    const [t, r, b, l] = body.split(/\s+/);
+    const edge = (v, auto, of) => (v === 'auto' ? auto : len(v, of));
+    const [top, right, bottom, left] = [edge(t, 0, h), edge(r, w, w), edge(b, h, h), edge(l, 0, w)];
+    if ([top, right, bottom, left].some((v) => v === null)) return false;
+    return bottom <= top || right <= left;
+  }
+  const [, , cw, ch] = body.split(/\s+/);
+  return len(cw, w) === 0 || len(ch, h) === 0;
+}
+
 // A clip: rect() of no area on a positioned box, or a clip-path that closes to nothing.
 function clipsAway(s) {
   if (/^(absolute|fixed)$/.test(s.position)) {
@@ -77,19 +131,12 @@ function clipsAway(s) {
       if ((top !== null && bottom !== null && bottom <= top) || (left !== null && right !== null && right <= left)) return true;
     }
   }
-  const path = String(s.clipPath ?? 'none').trim();
-  const inset = /^inset\(([^)]*?)(?:\s+round\s[^)]*)?\)/.exec(path);
-  if (inset) {
-    const v = inset[1].trim().split(/\s+/);
-    const [t, r = t, b = t, l = r] = v;
-    const w = s.box?.width ?? 0;
-    const h = s.box?.height ?? 0;
-    const sum = (a, c, of) => (px(a, of) ?? 0) + (px(c, of) ?? 0);
-    if (sum(t, b, h) >= h || sum(l, r, w) >= w) return true;
-  }
-  if (/^(circle|ellipse)\(\s*0(px|%)?(\s+0(px|%)?)?(\s|\))/.test(path)) return true;
-  return false;
+  return shapeHasNoArea(String(s.clipPath ?? 'none').trim(), s.box?.width ?? 0, s.box?.height ?? 0);
 }
+
+// Paint containment (contain: paint, strict or content) cuts what leaves the box on both axes, as
+// overflow: clip does, and holds absolute and fixed descendants.
+const paintContained = (s) => /\b(paint|strict|content)\b/.test(String(s.contain ?? 'none'));
 
 // Whether every text box lies wholly outside a box on one axis.
 const outside = (boxes, box, axis) => {
@@ -117,48 +164,79 @@ export function hiddenReasons(target, viewport) {
   if (zeroAlpha(owner.color) || zeroAlpha(owner.textFillColor)) reasons.push('transparent colour');
 
   // Clipping: clip and clip-path cut a box and all it holds; overflow cuts what its box holds,
-  // except what escapes it by absolute or fixed position. html and body hand their overflow to the
-  // viewport, which the off-screen test below stands for.
+  // except what escapes it by absolute or fixed position; paint containment cuts like overflow:
+  // clip and holds everything inside it. html and body hand their overflow to the viewport, which
+  // the off-screen test below stands for.
+  //
+  // Reach: the span the text can be brought to, on each axis, starts as the span of its boxes. A
+  // box that holds it and scrolls on an axis cannot reach what lies wholly before its origin, which
+  // is out of reach; it brings what lies wholly after its end into its own span, which becomes the
+  // reach; what crosses it stays as it is.
   const sized = boxes.filter((b) => b.width > 0 && b.height > 0);
+  const span = (p, size) => ({ lo: Math.min(...boxes.map((b) => b[p])), hi: Math.max(...boxes.map((b) => b[p] + b[size])) });
+  const reach = { x: span('x', 'width'), y: span('y', 'height') };
+  const unreachable = { x: null, y: null };
   let mode = 'in';
   let clipped = null;
   for (const s of chain) {
     if (!clipped && clipsAway(s)) clipped = s;
-    const holds = mode === 'in' || (mode === 'abs' && s.position !== 'static');
+    const holds = mode === 'in' || (mode === 'abs' && s.position !== 'static') || paintContained(s);
     if (!clipped && holds && !isRoot(s) && sized.length && s.box) {
-      if ((cuts(s.overflowX) && outside(sized, s.box, 'x')) || (cuts(s.overflowY) && outside(sized, s.box, 'y'))) clipped = s;
+      const cutX = cuts(s.overflowX) || paintContained(s);
+      const cutY = cuts(s.overflowY) || paintContained(s);
+      if ((cutX && outside(sized, s.box, 'x')) || (cutY && outside(sized, s.box, 'y'))) clipped = s;
+    }
+    if (holds && !isRoot(s) && s.box) {
+      for (const [axis, p, size, overflow] of [['x', 'x', 'width', s.overflowX], ['y', 'y', 'height', s.overflowY]]) {
+        if (unreachable[axis] || !scrolls(overflow)) continue;
+        const lo = s.box[p];
+        const hi = lo + s.box[size];
+        if (reach[axis].hi <= lo) unreachable[axis] = s;
+        else if (reach[axis].lo >= hi) reach[axis] = { lo, hi };
+      }
     }
     if (mode === 'abs' && s.position !== 'static') mode = 'in';
     if (s.position === 'absolute' && mode !== 'fixed') mode = 'abs';
     if (s.position === 'fixed') mode = 'fixed';
+    if (paintContained(s)) mode = 'in';
   }
   if (clipped) reasons.push(`clipped away by ${clipped.element}`);
 
-  // Off screen: wholly left of the page, right of the viewport or above the page, unless a box
-  // between them scrolls on that axis, which brings the text into reach.
-  const scrollX = chain.some((s) => !isRoot(s) && scrolls(s.overflowX));
-  const scrollY = chain.some((s) => !isRoot(s) && scrolls(s.overflowY));
-  if (!scrollX && boxes.every((b) => b.x + b.width <= 0)) reasons.push('off screen to the left');
-  if (!scrollX && boxes.every((b) => b.x >= viewport.width)) reasons.push('off screen to the right');
-  if (!scrollY && boxes.every((b) => b.y + b.height <= 0)) reasons.push('off screen above');
+  // Off screen: the reach wholly left of the page, right of the viewport or above the page.
+  if (unreachable.x) reasons.push(`out of reach, left of the scroll origin of ${unreachable.x.element}`);
+  else if (reach.x.hi <= 0) reasons.push('off screen to the left');
+  else if (reach.x.lo >= viewport.width) reasons.push('off screen to the right');
+  if (unreachable.y) reasons.push(`out of reach, above the scroll origin of ${unreachable.y.element}`);
+  else if (reach.y.hi <= 0) reasons.push('off screen above');
   return reasons;
 }
 
-// Whether an exception covers a target seen at a width and in a theme.
+// Whether a box of the chain is the one a name points at: #id, .class or a tag name.
+const named = (s, name) => {
+  if (name[0] === '#') return s.id === name.slice(1);
+  if (name[0] === '.') return (s.classes ?? []).includes(name.slice(1));
+  return /^[\w-]+/.exec(s.element)?.[0] === name && !s.element.includes('::');
+};
+
+// Whether an exception covers a target seen at a width and in a theme: the block it matches and all
+// it holds or, when it names an element, only that element inside the block and all it holds.
 function excepted(target, width, theme, exceptions) {
   return exceptions.some((e) => {
     if (e.width !== undefined && e.width !== width) return false;
     if (e.theme !== undefined && e.theme !== theme) return false;
-    const name = e.match.slice(1);
-    return target.chain.some((s) => (e.match[0] === '#' ? s.id === name : (s.classes ?? []).includes(name)));
+    const block = target.chain.findIndex((s) => named(s, e.match));
+    if (block < 0) return false;
+    return e.element === undefined || target.chain.slice(0, block).some((s) => named(s, e.element));
   });
 }
 
 // Every target out of sight in a list of measurements { page, width, theme, viewport, targets },
-// leaving out what the exceptions cover.
+// leaving out what the exceptions cover. A page measured with no text at all is a finding too:
+// nothing measured is nothing proved.
 export function findHidden(measurements, exceptions = EXCEPTIONS) {
   const found = [];
   for (const { page, width, theme, viewport, targets } of measurements) {
+    if (!targets.length) found.push({ page, width, theme, element: null, text: '', reasons: ['no text measured on the page'], chain: [] });
     for (const target of targets) {
       const reasons = hiddenReasons(target, viewport);
       if (reasons.length && !excepted(target, width, theme, exceptions)) {
@@ -173,14 +251,16 @@ const short = (text) => {
   const t = text.replace(/\s+/g, ' ').trim();
   return t.length > 48 ? `${t.slice(0, 47)}…` : t;
 };
-export const describeFinding = (f) => `${f.page} · ${f.width}px · ${f.theme} · ${f.element} "${short(f.text)}": ${f.reasons.join('; ')}`;
+export const describeFinding = (f) => (f.element === null
+  ? `${f.page} · ${f.width}px · ${f.theme} · ${f.reasons.join('; ')}`
+  : `${f.page} · ${f.width}px · ${f.theme} · ${f.element} "${short(f.text)}": ${f.reasons.join('; ')}`);
 
 // ---------- Talking to Chrome ----------
 
 const STYLE_PROPS = [
   ['display', 'display'], ['visibility', 'visibility'], ['opacity', 'opacity'], ['font-size', 'fontSize'],
   ['color', 'color'], ['-webkit-text-fill-color', 'textFillColor'], ['clip', 'clip'], ['clip-path', 'clipPath'],
-  ['overflow-x', 'overflowX'], ['overflow-y', 'overflowY'], ['position', 'position'],
+  ['overflow-x', 'overflowX'], ['overflow-y', 'overflowY'], ['position', 'position'], ['contain', 'contain'],
 ];
 // Elements whose text is never drawn by design: scripts, styles, templates, and the SVG title and
 // description, which are read by assistive technology.
@@ -276,13 +356,32 @@ const UNLAID = `(() => {
   // content-visibility: hidden (checkVisibility() covers the ancestors, not the element's own
   // content-visibility, which skips its children).
   const holdsDrawn = (el) => el.checkVisibility() && getComputedStyle(el).contentVisibility !== 'hidden';
+  // An element with display: contents has no box of its own, so checkVisibility() says no; its
+  // text is laid out in the box of the nearest ancestor that has one.
+  const contents = (el) => getComputedStyle(el).display === 'contents';
+  const boxedAncestor = (el) => { let e = el; while (e && contents(e)) e = e.parentElement; return e; };
+  // The styles of a box-less element that do not reach its text are left out of its chain: opacity,
+  // clipping, overflow and containment act on a box.
+  const boxless = (s) => Object.assign(s, { opacity: '1', clip: 'auto', clipPath: 'none', overflowX: 'visible', overflowY: 'visible', contain: 'none' });
   const targets = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   const range = document.createRange();
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     if (!node.data.trim() || undrawn(node.parentElement)) continue;
     range.selectNodeContents(node);
-    if (range.getClientRects().length && holdsDrawn(node.parentElement)) continue;
+    const rects = [...range.getClientRects()];
+    if (rects.length && contents(node.parentElement)) {
+      const boxed = boxedAncestor(node.parentElement);
+      if (boxed && holdsDrawn(boxed)) {
+        // A text with boxes of its own is measured with them, whatever box its element lacks; the
+        // snapshot leaves it out, because its element has no layout.
+        const chain = chainFrom(node.parentElement).map((s) => (s.display === 'contents' ? boxless(s) : s));
+        const boxes = rects.map((r) => ({ x: r.x + scrollX, y: r.y + scrollY, width: r.width, height: r.height }));
+        targets.push({ kind: 'text', element: describe(node.parentElement), text: node.data, boxes, chain });
+        continue;
+      }
+    }
+    if (rects.length && holdsDrawn(node.parentElement)) continue;
     targets.push({ kind: 'text', element: describe(node.parentElement), text: node.data, boxes: [], chain: chainFrom(node.parentElement) });
   }
   for (const el of [document.body, ...document.body.querySelectorAll('*')]) {
@@ -297,6 +396,23 @@ const UNLAID = `(() => {
     }
   }
   return targets;
+})()`;
+
+// Runs in the page before it is measured, so it is measured at rest: every animation and
+// transition with an end is taken to its end, and one with no end is paused at the start of its
+// first cycle. Finishing one can start another (a later animation of the same element), so it
+// goes round until none is left running, a few times at most.
+const SETTLE = `(() => {
+  for (let round = 0; round < 10; round += 1) {
+    const running = document.getAnimations().filter((a) => a.playState !== 'finished' && !(a.playState === 'paused' && a.__settled));
+    if (!running.length) return round;
+    for (const a of running) {
+      const timing = a.effect ? a.effect.getComputedTiming() : null;
+      if (timing && Number.isFinite(timing.endTime)) a.finish();
+      else { a.pause(); a.currentTime = timing ? timing.delay : 0; a.__settled = true; }
+    }
+  }
+  return 10;
 })()`;
 
 // A DevTools protocol connection over the pipe Chrome opens with --remote-debugging-pipe.
@@ -355,22 +471,39 @@ const TYPES = {
   '.woff2': 'font/woff2', '.xml': 'application/xml', '.txt': 'text/plain', '.webmanifest': 'application/manifest+json',
 };
 
-// Serves a build output on 127.0.0.1 at a free port; a folder answers with its index.html.
+// Serves a build output on 127.0.0.1 at a free port; a folder answers with its index.html. A file
+// it cannot read answers 500 and is kept in `server.failures`, which the measure turns into an
+// error of one line; the server itself never throws.
 function serve(dist) {
+  const failures = [];
   const server = createServer((req, res) => {
-    const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-    let file = normalize(join(dist, path));
-    if (file !== dist && !file.startsWith(dist + sep)) { res.writeHead(403).end(); return; }
-    if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
-    if (!existsSync(file)) { res.writeHead(404).end(); return; }
-    res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' }).end(readFileSync(file));
+    let path;
+    try {
+      path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
+    } catch {
+      res.writeHead(400).end();
+      return;
+    }
+    try {
+      let file = normalize(join(dist, path));
+      if (file !== dist && !file.startsWith(dist + sep)) { res.writeHead(403).end(); return; }
+      if (existsSync(file) && statSync(file).isDirectory()) file = join(file, 'index.html');
+      if (!existsSync(file)) { res.writeHead(404).end(); return; }
+      const body = readFileSync(file);
+      res.writeHead(200, { 'content-type': TYPES[extname(file)] ?? 'application/octet-stream' }).end(body);
+    } catch (e) {
+      failures.push(`the server could not read ${path} (${e.code ?? e.message})`);
+      if (!res.headersSent) res.writeHead(500);
+      res.end();
+    }
   });
+  server.failures = failures;
   return new Promise((done) => server.listen(0, '127.0.0.1', () => done(server)));
 }
 
 // Opens one page at one width and theme, with scripts off and any later navigation of the page
 // (the root page's refresh to /en/) refused, and returns what it measured.
-async function measurePage(cdp, sessionId, origin, page, width, theme) {
+async function measurePage(cdp, sessionId, origin, page, width, theme, failures = []) {
   const viewport = { width, height: HEIGHTS[width] };
   await cdp.send('Emulation.setDeviceMetricsOverride', { ...viewport, deviceScaleFactor: 1, mobile: false }, sessionId);
   await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, sessionId);
@@ -386,8 +519,10 @@ async function measurePage(cdp, sessionId, origin, page, width, theme) {
     const loaded = cdp.until((m) => m.method === 'Page.loadEventFired' && m.sessionId === sessionId, 30000, `${page} to load`);
     await cdp.send('Page.navigate', { url: `${origin}${page}` }, sessionId);
     await loaded;
+    if (failures.length) throw new Error(`${page}: ${failures[0]}`);
     await cdp.send('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true }, sessionId);
-    await new Promise((done) => setTimeout(done, 300));
+    const settled = await cdp.send('Runtime.evaluate', { expression: SETTLE, returnByValue: true }, sessionId);
+    if (settled.exceptionDetails) throw new Error(`${page}: ${settled.exceptionDetails.text}`);
     const snapshot = await cdp.send('DOMSnapshot.captureSnapshot', { computedStyles: STYLE_PROPS.map(([prop]) => prop) }, sessionId);
     const unlaid = await cdp.send('Runtime.evaluate', { expression: UNLAID, returnByValue: true }, sessionId);
     if (unlaid.exceptionDetails) throw new Error(`${page}: ${unlaid.exceptionDetails.text}`);
@@ -420,7 +555,10 @@ export async function measureSite(chrome, dist) {
     const measurements = [];
     for (const page of PAGES) {
       for (const width of WIDTHS) {
-        for (const theme of THEMES) measurements.push(await measurePage(cdp, sessionId, origin, page, width, theme));
+        for (const theme of THEMES) {
+          measurements.push(await measurePage(cdp, sessionId, origin, page, width, theme, server.failures));
+          if (server.failures.length) throw new Error(`${page}: ${server.failures[0]}`);
+        }
       }
     }
     await cdp.send('Browser.close').catch(() => {});

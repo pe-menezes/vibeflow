@@ -103,7 +103,7 @@ test('each shipped exception excuses hidden text only at its own width, in both 
 // case turns green when the gap closes.
 // Not covered by: the executor's scroll case puts the text to the right of the box, the one side a
 // scroll does reach.
-test('text before the scroll origin of a scrolling ancestor is out of view', { todo: 'open gap: a scrolling ancestor excuses text that lies above or left of its origin' }, () => {
+test('text before the scroll origin of a scrolling ancestor is out of view', () => {
   const above = text(
     [box('p'), box('div.band', { overflowX: 'hidden', overflowY: 'auto', box: { x: 0, y: 100, width: 390, height: 200 } }), ...ROOTS()],
     [{ x: 20, y: -99000, width: 200, height: 20 }],
@@ -121,7 +121,7 @@ test('text before the scroll origin of a scrolling ancestor is out of view', { t
 // polygon of no area; `clip-path: polygon(0 0, 0 0, 0 0)` on a section title passes
 // `npm run measure` on a broken copy (audit report, f15). The case turns green when the gap closes.
 // Not covered by: test/site-measure.test.mjs hides by clip with rect() and inset(50%) only.
-test('a clip-path polygon of no area clips the text away', { todo: 'open gap: clipsAway reads no polygon()' }, () => {
+test('a clip-path polygon of no area clips the text away', () => {
   const t = text([box('h2.title', { clipPath: 'polygon(0px 0px, 0px 0px, 0px 0px)', box: { x: 20, y: 100, width: 350, height: 40 } }), ...ROOTS()], [{ x: 20, y: 100, width: 200, height: 30 }]);
   assert.notDeepEqual(hiddenReasons(t, VIEWPORT), []);
 });
@@ -223,7 +223,7 @@ test('a link to the site host on another port or scheme is another origin', () =
 // gap closes.
 // Not covered by: the executor injects the failure only while the files are made in the stage
 // folder, before any copy starts.
-test('a copy that fails part way leaves the destination as it was', { todo: 'open gap: the final copy is not all or nothing' }, () => {
+test('a copy that fails part way leaves the destination as it was', () => {
   const root = mkdtempSync(join(tmpdir(), 'site-assets-probe-'));
   const files = ['og-image.png', 'favicon-32.png', 'favicon-64.png', 'apple-touch-icon.png', 'favicon.ico'];
   try {

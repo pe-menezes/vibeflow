@@ -612,12 +612,17 @@ for (const f of HOST_FORMS) {
   }
 }
 
-test('check-build says in its header that it is an alarm, that the proof is npm run measure, and the two limits left', () => {
+test('check-build says in its header that it is an alarm, that the proof is npm run measure, and the limits left', () => {
   const header = read('site/scripts/check-build.mjs').split('\nimport ')[0];
   assert.match(header, /alarm/i);
   assert.match(header, /npm run measure/);
   assert.match(header, /same element/i, 'two selectors that fall on the same element');
   assert.match(header, /never (apply|hold|match) together/i, 'two selectors that never apply together');
+  assert.match(header, /nested/i, 'nested CSS is not read in full');
+  assert.match(header, /before a nested rule/i, 'a declaration written before a nested rule is lost');
+  for (const spelling of [/trailing dot/i, /percent/i, /without (the )?slashes/i, /protocol-relative/i]) {
+    assert.match(header, spelling, `the rare spelling of the site address: ${spelling}`);
+  }
 });
 
 // ---------- second review: translated ids read only on the Portuguese page ----------

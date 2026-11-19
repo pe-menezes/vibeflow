@@ -5,8 +5,9 @@
 // Writes og-image.png (1600 x 900), favicon-32.png, favicon-64.png, apple-touch-icon.png and
 // favicon.ico into site/public/, and site/scripts/assets/manifest.json with the sha256 of each
 // output, the inputs it was made from and, as information, the Chrome that took the screenshots.
-// Everything is made in a temporary folder first and copied over only when all of it is made, so a
-// failure on the way leaves site/public/ and the manifest as they were.
+// Everything is made in a temporary folder first and copied over only when all of it is made, all
+// or nothing, so a failure on the way, in the making or in the copying, leaves site/public/ and the
+// manifest as they were.
 // test/site-assets.test.mjs checks the files against the manifest and the manifest against today's
 // sources, so a change to the hero copy, the mark or a colour token fails the suite until the
 // assets are generated again.
@@ -17,14 +18,14 @@
 // frame the hero draws with reduced motion (seed 7, time zero).
 //
 // Chrome is needed only to take the screenshots. It is found through CHROME_PATH, which must exist
-// when set, or the usual macOS and Linux locations; a Chrome missing, failing or writing no
-// screenshot ends the run with one line. This script is not part of the build or CI: the PNGs are
+// when set, or the usual macOS and Linux locations; a Chrome missing, failing, not finishing in
+// time or writing no screenshot ends the run with one line. This script is not part of the build or CI: the PNGs are
 // committed.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createLines, heroGeometry, lineCount, lineY, seededRandom, shapeAt } from '../src/lib/flow.js';
 
@@ -344,9 +345,9 @@ function chromeVersion(chrome) {
   }
 }
 
-// One screenshot, taken in the work folder. A Chrome that fails or writes no PNG of the right size
-// is an error of one line.
-function screenshot(chrome, work, html, name, { width, height, transparent }) {
+// One screenshot, taken in the work folder. A Chrome that fails, does not finish within `timeout`
+// milliseconds (it is then killed) or writes no PNG of the right size is an error of one line.
+export function screenshot(chrome, work, html, name, { width, height, transparent }, { timeout = 120000 } = {}) {
   const page = join(work, `${name}.html`);
   const out = join(work, `${name}.png`);
   writeFileSync(page, html);
@@ -356,8 +357,9 @@ function screenshot(chrome, work, html, name, { width, height, transparent }) {
       `--user-data-dir=${join(work, 'profile')}`, '--force-device-scale-factor=1',
       `--window-size=${width},${height}`, ...(transparent ? ['--default-background-color=00000000'] : []),
       '--virtual-time-budget=4000', `--screenshot=${out}`, pathToFileURL(page).href,
-    ], { stdio: 'ignore' });
+    ], { stdio: 'ignore', timeout, killSignal: 'SIGKILL' });
   } catch (e) {
+    if (e.code === 'ETIMEDOUT') throw new Error(`${name}: Chrome did not finish within ${timeout / 1000} s and was stopped.`);
     throw new Error(`${name}: Chrome failed (${e.status ?? e.signal ?? e.code}) before writing the screenshot.`);
   }
   if (!existsSync(out)) throw new Error(`${name}: Chrome ran but wrote no screenshot.`);
@@ -379,11 +381,37 @@ const sha256 = (data) => createHash('sha256').update(data).digest('hex');
 // What the generator writes into public/, in order.
 export const OUTPUT_FILES = [...ASSETS.map((asset) => asset.file), 'favicon.ico'];
 
+// Copies each [from, to] pair, all or nothing: when one copy fails, every destination already
+// written, the failed one included, gets back the bytes it had (or is removed when it did not
+// exist), and the failure is thrown. The old bytes are kept in memory, so nothing is left beside
+// the destinations.
+function copyAll(pairs, copy) {
+  const old = pairs.map(([, to]) => (existsSync(to) ? readFileSync(to) : null));
+  let i = 0;
+  try {
+    for (; i < pairs.length; i += 1) copy(...pairs[i]);
+  } catch (e) {
+    const stuck = [];
+    for (let k = 0; k <= i && k < pairs.length; k += 1) {
+      const to = pairs[k][1];
+      try {
+        if (old[k] === null) rmSync(to, { force: true });
+        else if (!existsSync(to) || !readFileSync(to).equals(old[k])) writeFileSync(to, old[k]);
+      } catch {
+        stuck.push(to);
+      }
+    }
+    if (stuck.length) e.message += `; could not put back ${stuck.join(', ')}`;
+    throw e;
+  }
+}
+
 // Makes every output and the manifest in a folder of its own under `tmp`, and only when all of them
-// are made copies them to `publicDir` and `manifestPath`; a failure on the way leaves both as they
-// were. The folder is removed either way. `shoot(html, asset, work)` returns the PNG of an asset;
-// `staged(file)` is told of each output once it is made.
-export function generateAssets({ sources, shoot, chromeVersion: chrome = null, publicDir, manifestPath, tmp = tmpdir(), staged = () => {} }) {
+// are made copies them to `publicDir` and `manifestPath`, all or nothing: a failure on the way, in
+// the making or in the copying, leaves both as they were. The folder is removed either way.
+// `shoot(html, asset, work)` returns the PNG of an asset; `staged(file)` is told of each output
+// once it is made; `copy(from, to)` copies one file.
+export function generateAssets({ sources, shoot, chromeVersion: chrome = null, publicDir, manifestPath, tmp = tmpdir(), staged = () => {}, copy = copyFileSync }) {
   const stage = mkdtempSync(join(tmp, 'vibeflow-assets-'));
   try {
     const work = join(stage, 'work');
@@ -404,9 +432,8 @@ export function generateAssets({ sources, shoot, chromeVersion: chrome = null, p
     manifest.outputs['favicon.ico'] = sha256(ico);
     staged('favicon.ico');
     writeFileSync(join(out, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-    for (const file of OUTPUT_FILES) copyFileSync(join(out, file), join(publicDir, file));
     mkdirSync(dirname(manifestPath), { recursive: true });
-    copyFileSync(join(out, 'manifest.json'), manifestPath);
+    copyAll([...OUTPUT_FILES.map((file) => [join(out, file), join(publicDir, file)]), [join(out, 'manifest.json'), manifestPath]], copy);
     return manifest;
   } finally {
     rmSync(stage, { recursive: true, force: true });
@@ -432,4 +459,12 @@ function main() {
   console.log('site/scripts/assets/manifest.json');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+// Run as a program, by its real path or through a symbolic link.
+function isMain() {
+  try {
+    return Boolean(process.argv[1]) && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+if (isMain()) main();

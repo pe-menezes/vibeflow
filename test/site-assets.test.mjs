@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,7 @@ import {
   readStrings,
   readTokens,
 } from '../site/scripts/make-assets.mjs';
+import * as makeAssets from '../site/scripts/make-assets.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SITE = join(ROOT, 'site');
@@ -268,6 +269,94 @@ test('a failure after any of the five files leaves the destination as it was and
     }
   }
   assert.deepEqual(failures, []);
+});
+
+test('a copy that fails on any of the six destinations puts back the ones already replaced and leaves nothing behind', () => {
+  const sources = collectSources(SITE);
+  const failures = [];
+  const destinations = [...OUTPUTS, 'manifest.json'];
+  for (const failOn of destinations) {
+    const p = playground();
+    try {
+      const paths = [...OUTPUTS.map((f) => join(p.publicDir, f)), p.manifestPath];
+      const before = paths.map((f) => sha256(readFileSync(f)));
+      const listing = () => [readdirSync(p.publicDir).sort(), readdirSync(dirname(p.manifestPath)).sort()];
+      const listed = JSON.stringify(listing());
+      let threw = false;
+      try {
+        generateAssets({
+          sources, shoot: fakeShoot, chromeVersion: 'Test Chrome 1.0', publicDir: p.publicDir, manifestPath: p.manifestPath, tmp: p.tmp,
+          // A copy that fails part way: it writes half the file, then gives up.
+          copy: (from, to) => {
+            if (to.endsWith(`/${failOn}`)) {
+              writeFileSync(to, readFileSync(from).subarray(0, 10));
+              throw new Error(`injected copy failure on ${failOn}`);
+            }
+            copyFileSync(from, to);
+          },
+        });
+      } catch (e) {
+        threw = /injected copy failure/.test(e.message);
+      }
+      if (!threw) failures.push(`${failOn}: the injected failure did not surface`);
+      const after = paths.map((f) => sha256(readFileSync(f)));
+      if (JSON.stringify(after) !== JSON.stringify(before)) failures.push(`${failOn}: the destination changed`);
+      if (JSON.stringify(listing()) !== listed) failures.push(`${failOn}: files left beside the destinations ${JSON.stringify(listing())}`);
+      if (readdirSync(p.tmp).length) failures.push(`${failOn}: left ${readdirSync(p.tmp)} in the temp folder`);
+    } finally {
+      rmSync(p.root, { recursive: true, force: true });
+    }
+  }
+  assert.deepEqual(failures, []);
+});
+
+test('a destination that did not exist before a failed copy does not exist after it', () => {
+  const p = playground();
+  try {
+    rmSync(p.manifestPath);
+    assert.throws(() => generateAssets({
+      sources: collectSources(SITE), shoot: fakeShoot, publicDir: p.publicDir, manifestPath: p.manifestPath, tmp: p.tmp,
+      copy: (from, to) => { copyFileSync(from, to); if (to === p.manifestPath) throw new Error('injected after the manifest'); },
+    }), /injected after the manifest/);
+    assert.ok(!existsSync(p.manifestPath), 'the new manifest was left');
+    assert.equal(readFileSync(join(p.publicDir, 'favicon.ico'), 'utf8'), 'old favicon.ico');
+  } finally {
+    rmSync(p.root, { recursive: true, force: true });
+  }
+});
+
+test('a screenshot that never finishes is an error of one line once the time limit passes', () => {
+  const work = mkdtempSync(join(tmpdir(), 'site-assets-hang-'));
+  try {
+    const hang = join(work, 'hang.sh');
+    writeFileSync(hang, '#!/bin/sh\nexec sleep 600\n');
+    chmodSync(hang, 0o755);
+    let message = null;
+    try {
+      makeAssets.screenshot(hang, work, '<p>x</p>', 'favicon-32', { width: 32, height: 32, transparent: true }, { timeout: 300 });
+    } catch (e) {
+      message = e.message;
+    }
+    assert.ok(message, 'the screenshot returned');
+    assert.doesNotMatch(message, /\n/);
+    assert.match(message, /^favicon-32: Chrome did not finish/);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
+test('make-assets run through a symbolic link runs', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'site-assets-link-')));
+  try {
+    for (const dir of ['scripts', 'src', 'public']) cpSync(join(SITE, dir), join(root, 'site', dir), { recursive: true });
+    const link = join(root, 'make-assets-link.mjs');
+    symlinkSync(join(root, 'site', 'scripts', 'make-assets.mjs'), link);
+    const run = spawnSync(process.execPath, [link], { encoding: 'utf8', env: { ...process.env, CHROME_PATH: '/nonexistent/chrome' } });
+    assert.equal(run.status, 1, 'the generator ran and stopped at the missing Chrome');
+    assert.match(run.stderr, /^make-assets: .*\/nonexistent\/chrome/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('a run that finishes writes the five files and a manifest that records the Chrome version and still checks out', () => {

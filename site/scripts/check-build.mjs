@@ -12,6 +12,13 @@
 // * whether two selectors never apply together: text that exists only under one theme
 //   (`html[data-theme="dark"] .x::after{content:"help"}`) fails here the empty hover decoration of
 //   the other theme.
+// Two more limits of this reader, also left to the measure:
+// * nested CSS is not read in full: a declaration written before a nested rule is lost, so
+//   `.x{opacity:0;html.motion-ok &{opacity:1}}` passes here;
+// * a link to the site in a rare spelling may be judged wrong: a host with a trailing dot
+//   (`www.vibeflow.run.`), a path with a percent escape (`/%65n/`) or a scheme without slashes
+//   (`https:www.vibeflow.run/...`) passes with its target missing, and a protocol-relative link
+//   (`//www.vibeflow.run/...`) with its target present fails as a difference between the languages.
 //
 // * the seven pages exist;
 // * no old domain and no Google Fonts request anywhere in the output;
