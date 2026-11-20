@@ -153,3 +153,57 @@ test('every link to an anchor of the home page lands on an id one of its five se
   const lost = links.filter((l) => !homeIds.has(l.id));
   assert.deepEqual(lost, [], 'links to a home anchor that is not on the home page');
 });
+
+// Contract: the install commands of the editions break only at their break points (reaudit 1, PG-1,
+// and the comment over cmdHtml): a "/" or an "@" with something before and after it in the word is
+// followed by <wbr>; a leading "/" or "@" (as in `/plugin` or `@scope/pkg`) and a trailing one are
+// not; nothing else breaks a word; the pieces read the command exactly, escaped for HTML.
+// Regression: the split pattern of cmdHtml is simplified or reordered (`(?<=\/|[^@]@)`,
+// `(?<=[^/]\/|@)`, `(?<=[/@])`) and a leading "/" or "@" ends a line alone, or the "@" break is lost
+// again. Why the executor's test misses it: it runs cmdHtml only on today's install commands and
+// checks only the "@"; none of them starts a word with "@", and the "/" rules are checked nowhere.
+// Oracle: for a word w, a break follows index i exactly when w[i] is "/" or "@", 0 < i < w.length - 1.
+// The words come from a seeded generator, so a failure names an input that reproduces.
+test('cmdHtml breaks a word after an inner "/" or "@" only, and its pieces read the command', () => {
+  const fm = /^---\n([\s\S]*?)\n---\n/.exec(component('Editions'))?.[1] ?? '';
+  const start = fm.indexOf('const escapeHtml');
+  assert.ok(start >= 0, 'Editions.astro defines escapeHtml before cmdHtml');
+  const cmdHtml = new Function(`${fm.slice(start).replace(/\((\w+): string\)/g, '($1)')}\nreturn cmdHtml;`)();
+  const unescape = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+  let seed = 20261120;
+  const rand = (n) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed % n;
+  };
+  const ATOMS = ['alpha', 'b', 'x-y', '--flag', 'v1.2.3', 'a&b', 'c<d>', 'q"r'];
+  const SEPS = ['/', '@'];
+  const word = () => {
+    let w = rand(3) === 0 ? SEPS[rand(2)] : '';
+    const n = 1 + rand(4);
+    for (let i = 0; i < n; i++) w += (i ? SEPS[rand(2)] : '') + ATOMS[rand(ATOMS.length)];
+    if (rand(6) === 0) w += SEPS[rand(2)];
+    return w;
+  };
+  const inputs = ['/plugin install a@b-c', '@scope/pkg@latest --x', 'npx a-b@latest', 'p/q/r/s', '@', '/', 'a@', 'a/'];
+  for (let i = 0; i < 400; i++) inputs.push(Array.from({ length: 1 + rand(4) }, word).join(' '));
+
+  for (const cmd of inputs) {
+    const html = cmdHtml(cmd);
+    assert.equal(html.replace(/<span class="ed-cmd-part">[^<]*<\/span>|<wbr>| /g, ''), '', `${JSON.stringify(cmd)}: only parts, breaks and spaces`);
+    assert.equal(unescape(html.replace(/<[^>]+>/g, '')), cmd, `${JSON.stringify(cmd)}: the parts read the command`);
+    const words = html.split(/ (?=<span\b)/);
+    const plainWords = cmd.split(' ');
+    assert.equal(words.length, plainWords.length, `${JSON.stringify(cmd)}: one display word per word`);
+    words.forEach((w, k) => {
+      const pieces = w.split('<wbr>').map((p) => unescape(/^<span class="ed-cmd-part">([^<]*)<\/span>$/.exec(p)?.[1] ?? '\u0000'));
+      assert.ok(!pieces.includes('\u0000'), `${JSON.stringify(cmd)}: each break sits between two whole parts`);
+      const got = [];
+      let at = -1;
+      for (const p of pieces.slice(0, -1)) got.push((at += p.length));
+      const text = plainWords[k];
+      const want = [...text].flatMap((ch, i) => ((ch === '/' || ch === '@') && i > 0 && i < text.length - 1 ? [i] : []));
+      assert.deepEqual(got, want, `${JSON.stringify(cmd)}: breaks of ${JSON.stringify(text)} after these indexes`);
+    });
+  }
+});
