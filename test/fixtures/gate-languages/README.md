@@ -19,16 +19,20 @@ Nothing here calls a model or the network.
   the step: the step taken from the given `SKILL.md` by structure, the lines of its
   `### Critical Gate` output section, and the diff.
 * `measure.mjs --manifest <json> --report <file> [--report <another>] [--language <id>] [--json]`:
-  reads every `### Critical Gate` section of each report (and says when there is more than one)
-  and prints what was detected, by quadrant, language and rule, the cases flagged only as
-  `ALLOWED`, the cases cited outside a finding line, the decoys flagged, the findings on another
-  rule and the findings outside the manifest, per report and summed. `--language`, repeatable,
+  reads every `### Critical Gate` section of each report (and says when there is more than one,
+  or when a code fence never closes) and prints what was detected, by quadrant, language and rule,
+  the cases flagged only as `ALLOWED`, the cases cited outside a finding line (planted cases and
+  decoys apart), the decoys flagged, the findings on another rule and the findings outside the
+  manifest, per report and summed. `--language`, repeatable,
   restricts the manifest to those languages. The matching rule is in its header. Exit 0 when it
   read everything, 64 on a wrong argument, a language the manifest does not have or an unreadable
   file: it is a measure, not a gate.
-* `samples/`: three real answers of the 1.20.0 step, one run each, on the diff of one folder
-  (`python/` and `csharp/` by Sonnet, `shell/` by Opus), kept as examples of the forms the
-  meter reads. The meter's tests read them; they are not the measure.
+* `samples/`: six real answers of the 1.20.0 step, one run each, on the diff of one folder: three
+  from the pilot (`python/` and `csharp/` by Sonnet, `shell/` by Opus) and three from the 1.20.0
+  measure, all by Opus (`javascript/`, with `(removed line)` between a path and its description;
+  `swift/`, out of the catalog's coverage; `go/`, with the decoys set aside in a note). They are
+  kept as examples of the forms the meter reads. The meter's tests read them; they are not the
+  measure.
 
 A run, with the scratch directory of your choice:
 
@@ -52,7 +56,10 @@ node test/fixtures/gate-languages/measure.mjs --manifest <scratch>/gl/manifest.j
 ```
 
 On `samples/python-sonnet.md` that prints 12 of the 13 Python cases detected; without
-`--language`, 12 of all the planted cases.
+`--language`, 12 of all the planted cases. Several reports passed together are each measured
+against every language given, and the sum adds them up: the Python and the C# samples read with
+`--language python --language csharp` give 12 of 20, 7 of 20 and 19 of 40, so a run per language
+is summed by passing its reports with that language alone.
 
 ## What it measures
 
@@ -74,8 +81,10 @@ On `samples/python-sonnet.md` that prints 12 of the 13 Python cases detected; wi
   detected, and is counted apart as allowed.
 * **Mentioned.** A case the model cites by `<path>:<line>` outside a finding line (in a note, or in
   an item that is not a finding), and does not flag, is counted apart as mentioned: it saw the
-  line and did not call it a finding. The shell sample is that: "Clean", and six items that cite
-  the six planted lines.
+  line and did not call it a finding. A case matched by a finding of another rule is not mentioned:
+  each case is in one count only. Mentioned planted cases (seen and not flagged) and mentioned
+  decoys (seen and set aside) are said apart, by language, with their total. The shell sample is
+  that: "Clean", and six items that cite the six planted lines.
 * **Coverage.** What the section said beyond findings (the `Left out of the package:` line, "Clean",
   "No diff scanned", any other line) is printed per report.
 

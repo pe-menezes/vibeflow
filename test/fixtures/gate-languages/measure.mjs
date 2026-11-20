@@ -8,10 +8,12 @@
 // next heading of level 1 to 3 or the end of the file; the findings of all of them are summed, and
 // the output says how many sections there were. A line inside a code fence (three or more backticks
 // or tildes) is neither a heading nor a finding nor a note, and the section goes on after the fence.
+// A fence that never closes is said, with the line of the report it opens on, and the lines after
+// it are read as if it were not there.
 // A finding is an item line (`-`, `*` or `+`) with an optional emoji, a severity (CRITICAL, HIGH,
 // WARNING, INFO or ALLOWED), a rule id in brackets and a path, with or without backticks,
-// optionally followed by `:<line>` or `:<first>-<last>`, then an em dash, a hyphen or a colon and
-// the description. `Left out of the package: ...`, the "Clean ..." line and the "No diff scanned
+// optionally followed by `:<line>` or `:<first>-<last>` and by a parenthesis (`(removed line)`, kept
+// in the raw line), then an em dash, a hyphen or a colon and the description. `Left out of the package: ...`, the "Clean ..." line and the "No diff scanned
 // ..." line are read as what they are; any other text line of the section is kept as a note (what
 // it said about coverage), and an item line that is not a finding is kept as unparsed.
 //
@@ -28,8 +30,10 @@
 //
 // Mentioned. A line of the section that is not a finding (a note, an unparsed item, the Clean line)
 // and cites `<path>:<line>` within 2 lines of a case, planted or decoy, that no finding detected,
-// allowed or flagged, makes that case mentioned: the model saw it and did not flag it. The line
-// stays listed where it already is.
+// allowed, flagged or matched as another rule, makes that case mentioned: the model saw it and did
+// not flag it. Each case is in one count only. The mentioned cases are said apart as planted (a case
+// the model saw and did not flag) and decoys (one it saw and set aside), by language, with their
+// total. The line stays listed where it already is.
 //
 // --language <id>, repeatable, restricts the manifest to those languages, for a report on the diff
 // of one folder; a finding in a file of another language is then outside the manifest.
@@ -59,27 +63,43 @@ const HEADING = /^#{1,3}\s/;
 const GATE_HEADING = /^###\s+Critical Gate\s*$/;
 const FENCE = /^\s*(`{3,}|~{3,})/;
 
-// Every line of the text with whether it sits inside a code fence (the fence lines included). A
-// fence closes on a line of the same character, at least as long, with nothing after it.
+// Every line of the text with whether it sits inside a code fence (the fence lines included), and
+// the line numbers (from 1) of the fences that never close. A fence closes on a line of the same
+// character, at least as long, with nothing after it. A fence that never closes is only its own
+// line: the lines after it are read as if it were not there, so a fence the model forgot to close
+// does not hide the rest of the report.
 function fenced(lines) {
   const out = [];
-  let open = null;
-  for (const line of lines) {
+  const unclosed = [];
+  const closes = (line, open) => {
     const mark = line.match(FENCE);
-    if (open) {
-      out.push({ line, fenced: true });
-      if (mark && mark[1][0] === open[0] && mark[1].length >= open.length && line.trim() === mark[1]) open = null;
-    } else if (mark) {
-      open = mark[1];
-      out.push({ line, fenced: true });
-    } else out.push({ line, fenced: false });
+    return Boolean(mark) && mark[1][0] === open[0] && mark[1].length >= open.length && line.trim() === mark[1];
+  };
+  let i = 0;
+  while (i < lines.length) {
+    const mark = lines[i].match(FENCE);
+    if (!mark) {
+      out.push({ line: lines[i], fenced: false });
+      i += 1;
+      continue;
+    }
+    let end = i + 1;
+    while (end < lines.length && !closes(lines[end], mark[1])) end += 1;
+    if (end === lines.length) {
+      unclosed.push(i + 1);
+      out.push({ line: lines[i], fenced: true });
+      i += 1;
+      continue;
+    }
+    for (let k = i; k <= end; k += 1) out.push({ line: lines[k], fenced: true });
+    i = end + 1;
   }
-  return out;
+  return { lines: out, unclosed };
 }
 
-// The sections, each as a list of { line, fenced }.
-export function criticalGateSections(text) {
-  const lines = fenced(text.split(/\r?\n/));
+// The sections, each as a list of { line, fenced }, and the fences that never close.
+function readSections(text) {
+  const { lines, unclosed } = fenced(text.split(/\r?\n/));
   const sections = [];
   let current = null;
   for (const entry of lines) {
@@ -89,7 +109,12 @@ export function criticalGateSections(text) {
     } else if (!entry.fenced && HEADING.test(entry.line)) current = null;
     else if (current) current.push(entry);
   }
-  return sections;
+  return { sections, unclosed };
+}
+
+// The sections, each as a list of { line, fenced }.
+export function criticalGateSections(text) {
+  return readSections(text).sections;
 }
 
 // The lines of every section, one after the other; null when the report has none.
@@ -105,6 +130,7 @@ const FINDING = new RegExp([
   '\\[([A-Z]+[0-9]+)\\]\\s+',
   '`?(?:\\./)?([^\\s`:]+)`?',
   '(?::(\\d+)(?:-(\\d+))?)?`?',
+  '(?:\\s+\\([^)]*\\))?',
   '(\\s+[—–-]\\s+.*|:\\s+.*|\\s*)$',
 ].join(''));
 
@@ -134,8 +160,8 @@ export function citations(line) {
 }
 
 export function parseReport(text) {
-  const sections = criticalGateSections(text);
-  const report = { present: sections.length > 0, sections: sections.length, leftOut: null, clean: false, noDiff: false, findings: [], notes: [], unparsed: [], cited: [] };
+  const { sections, unclosed } = readSections(text);
+  const report = { present: sections.length > 0, sections: sections.length, unclosedFences: unclosed, leftOut: null, clean: false, noDiff: false, findings: [], notes: [], unparsed: [], cited: [] };
   for (const { line: raw, fenced: inFence } of sections.flat()) {
     const line = raw.trim();
     if (!line || inFence) continue;
@@ -246,23 +272,26 @@ function measureOne(manifest, { path, text }) {
     else outside.push(finding);
   }
   for (const id of detected) allowedOnly.delete(id);
-  const seen = new Set([...detected, ...allowedOnly, ...flagged]);
+  const seen = new Set([...detected, ...allowedOnly, ...flagged, ...otherRule.map((f) => f.caseId)]);
   const mentioned = new Set();
   for (const cite of section.cited) {
     const c = nearest(manifest.filter((m) => m.path === cite.path), cite);
     if (c && !seen.has(c.id)) mentioned.add(c.id);
   }
+  const ofKind = (kind) => new Set(manifest.filter((c) => c.kind === kind && mentioned.has(c.id)).map((c) => c.id));
   const decoys = Object.fromEntries(DECOY_KINDS.map((kind) => {
     const ofKind = manifest.filter((c) => c.kind === 'decoy' && c.decoyKind === kind);
     return [kind, { flagged: ofKind.filter((c) => flagged.has(c.id)).length, total: ofKind.length }];
   }));
   return {
     report: path,
-    section: { present: section.present, sections: section.sections, leftOut: section.leftOut, clean: section.clean, noDiff: section.noDiff, notes: section.notes, unparsed: section.unparsed },
+    section: { present: section.present, sections: section.sections, unclosedFences: section.unclosedFences, leftOut: section.leftOut, clean: section.clean, noDiff: section.noDiff, notes: section.notes, unparsed: section.unparsed },
     ...tally(manifest, detected),
     detectedIds: manifest.filter((c) => detected.has(c.id)).map((c) => c.id),
     allowed: countApart(manifest, allowedOnly),
     mentioned: countApart(manifest, mentioned),
+    mentionedPlanted: countApart(manifest, ofKind('planted')),
+    mentionedDecoys: countApart(manifest, ofKind('decoy')),
     decoys,
     otherRule,
     outside,
@@ -284,7 +313,7 @@ export function measure(manifest, reports) {
   const measured = reports.map((report) => measureOne(manifest, report));
   const sum = {};
   for (const m of measured) {
-    add(sum, { planted: m.planted, byQuadrant: m.byQuadrant, byLanguage: m.byLanguage, byRule: m.byRule, allowed: withoutIds(m.allowed), mentioned: withoutIds(m.mentioned), decoys: m.decoys });
+    add(sum, { planted: m.planted, byQuadrant: m.byQuadrant, byLanguage: m.byLanguage, byRule: m.byRule, allowed: withoutIds(m.allowed), mentioned: withoutIds(m.mentioned), mentionedPlanted: withoutIds(m.mentionedPlanted), mentionedDecoys: withoutIds(m.mentionedDecoys), decoys: m.decoys });
     sum.otherRule = (sum.otherRule ?? 0) + m.otherRule.length;
     sum.outside = (sum.outside ?? 0) + m.outside.length;
   }
@@ -348,6 +377,7 @@ function human(block, label) {
     if (!s.present) out.push('### Critical Gate: missing');
     else if (s.sections === 1) out.push('### Critical Gate: present');
     else out.push(`### Critical Gate: present, ${s.sections} sections (warning: the findings of all of them are counted)`);
+    for (const line of s.unclosedFences) out.push(`Unclosed code fence at line ${line} of the report (warning: the lines after it are read as if it were not there)`);
     if (s.leftOut !== null) out.push(`Left out of the package: ${s.leftOut}`);
     if (s.clean) out.push('Said: Clean');
     if (s.noDiff) out.push('Said: No diff scanned');
@@ -358,7 +388,10 @@ function human(block, label) {
   out.push(`Allowed only, not counted as detected: ${perLanguage(block.allowed)}`);
   for (const id of block.allowed.ids ?? []) out.push(`  ${id}`);
   out.push(`Mentioned without a finding: ${perLanguage(block.mentioned)}`);
-  for (const id of block.mentioned.ids ?? []) out.push(`  ${id}`);
+  for (const [label, part] of [['planted', block.mentionedPlanted], ['decoys', block.mentionedDecoys]]) {
+    out.push(`  ${label}: ${perLanguage(part)}`);
+    for (const id of part.ids ?? []) out.push(`    ${id}`);
+  }
   out.push('');
   out.push(table('Quadrant', Object.entries(block.byQuadrant).map(([k, v]) => [k, pct(v)])), '');
   out.push(table('Language', Object.entries(block.byLanguage).map(([k, v]) => [k, pct(v)])), '');

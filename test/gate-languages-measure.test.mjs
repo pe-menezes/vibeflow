@@ -399,6 +399,131 @@ test('more than one `### Critical Gate` section is said in the text', () => {
   assert.match(out, /^Planted cases detected: 1\/4$/m);
 });
 
+// --- second fix round: what the 84 reports of the 1.20.0 measure showed ---------------------------
+// Three of those reports, copied byte for byte into samples/ (one run each, Opus, on the diff of one
+// folder): JavaScript run 2, Swift run 1 and Go run 2.
+
+test('a finding line with a parenthesis between the path with its line and the separator is read, the parenthesis kept in raw', () => {
+  const removed = '- 🔴 CRITICAL [SEC101] javascript/adminRoutes.js:2 (removed line) — `router.use(requireAuth)` removed (blocks)';
+  const parsed = parseFindingLine(removed);
+  assert.ok(parsed, `not read: ${removed}`);
+  assert.deepEqual([parsed.severity, parsed.rule, parsed.path, parsed.line, parsed.lineEnd], ['CRITICAL', 'SEC101', 'javascript/adminRoutes.js', 2, null]);
+  assert.equal(parsed.raw, removed);
+  for (const text of [
+    '- 🔴 CRITICAL [SEC101] typescript/adminRoutes.ts:2 (removed) — guard removed',
+    '- HIGH [SEC101] `typescript/adminRoutes.ts:2` (removed): guard removed',
+    '- HIGH [SEC101] `typescript/adminRoutes.ts`:2-3 (base) - guard removed',
+  ]) {
+    const p = parseFindingLine(text);
+    assert.ok(p, `not read: ${text}`);
+    assert.deepEqual([p.path, p.line], ['typescript/adminRoutes.ts', 2], text);
+    assert.match(p.raw, /\((removed|base)\)/);
+  }
+});
+
+test('the JavaScript report of the 1.20.0 measure: 13 findings, 13 of the 13 JavaScript cases detected', () => {
+  const r = measure(restrictManifest(cases, ['javascript']), [sample('javascript-opus.md')]).reports[0];
+  assert.equal(r.findings.length, 13);
+  assert.deepEqual(r.section.unparsed, []);
+  assert.deepEqual(r.planted, { detected: 13, total: 13 });
+  assert.equal(r.outside.length + r.otherRule.length, 0);
+  assert.deepEqual(r.mentionedPlanted, { total: 0, byLanguage: {}, ids: [] });
+  assert.deepEqual(r.mentionedDecoys.total, 3);
+});
+
+test('the Swift report of the 1.20.0 measure: no Clean, 0 of 7 detected, the 7 planted cases and 3 decoys cited apart', () => {
+  const r = measure(restrictManifest(cases, ['swift']), [sample('swift-opus.md')]).reports[0];
+  assert.equal(r.section.clean, false);
+  assert.deepEqual(r.findings, []);
+  assert.equal(r.section.unparsed.length, 7, 'the OUT OF COVERAGE lines are not findings');
+  assert.deepEqual(r.planted, { detected: 0, total: 7 });
+  const swift = (kind) => cases.filter((c) => c.language === 'swift' && c.kind === kind).map((c) => c.id);
+  assert.deepEqual(r.mentionedPlanted, { total: 7, byLanguage: { swift: 7 }, ids: swift('planted') });
+  assert.deepEqual(r.mentionedDecoys, { total: 3, byLanguage: { swift: 3 }, ids: swift('decoy') });
+  assert.deepEqual(r.mentioned, { total: 10, byLanguage: { swift: 10 }, ids: [...swift('planted'), ...swift('decoy')].sort((a, b) => cases.findIndex((c) => c.id === a) - cases.findIndex((c) => c.id === b)) });
+});
+
+test('the Go report of the 1.20.0 measure: 11 of 12 detected, the one missed is cited as planted, the 3 decoys as decoys', () => {
+  const r = measure(restrictManifest(cases, ['go']), [sample('go-opus.md')]).reports[0];
+  assert.equal(r.findings.length, 11);
+  assert.deepEqual(r.planted, { detected: 11, total: 12 });
+  assert.deepEqual(r.mentionedPlanted, { total: 1, byLanguage: { go: 1 }, ids: ['go-DAT102-other'] });
+  assert.equal(cases.find((c) => c.id === 'go-DAT102-other').path, 'go/customers.go');
+  assert.deepEqual(r.mentionedDecoys, { total: 3, byLanguage: { go: 3 }, ids: cases.filter((c) => c.language === 'go' && c.kind === 'decoy').map((c) => c.id) });
+  assert.equal(r.mentioned.total, 4);
+});
+
+test('mentioned planted cases and decoys are said apart, by language, in the text and the JSON, per report and summed', () => {
+  const dir = tempDir('mentioned');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(cases));
+  const go = join(SAMPLES, 'go-opus.md');
+  const swift = join(SAMPLES, 'swift-opus.md');
+  const human = run(MEASURE, ['--manifest', manifestPath, '--language', 'go', '--language', 'swift', '--report', go, '--report', swift]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /^Mentioned without a finding: 4 \(go 4\)\n {2}planted: 1 \(go 1\)\n {4}go-DAT102-other\n {2}decoys: 3 \(go 3\)\n {4}go-SEC104-decoy-comment$/m);
+  assert.match(human.stdout, /^Mentioned without a finding: 10 \(swift 10\)\n {2}planted: 7 \(swift 7\)\n/m);
+  assert.match(human.stdout, /^Mentioned without a finding: 14 \(go 4, swift 10\)\n {2}planted: 8 \(go 1, swift 7\)\n {2}decoys: 6 \(go 3, swift 3\)$/m);
+  const json = JSON.parse(run(MEASURE, ['--manifest', manifestPath, '--language', 'go', '--language', 'swift', '--report', go, '--report', swift, '--json']).stdout);
+  assert.deepEqual(json.reports[0].mentionedPlanted.ids, ['go-DAT102-other']);
+  assert.deepEqual(json.sum.mentioned, { total: 14, byLanguage: { go: 4, swift: 10 } });
+  assert.deepEqual(json.sum.mentionedPlanted, { total: 8, byLanguage: { go: 1, swift: 7 } });
+  assert.deepEqual(json.sum.mentionedDecoys, { total: 6, byLanguage: { go: 3, swift: 3 } });
+});
+
+test('a case with a finding of another rule on its line is in one count only: other rule, not mentioned', () => {
+  const text = [
+    '### Critical Gate',
+    '- 🔴 CRITICAL [SEC104] python/jobs.py:20 — not this rule',
+    'Worth a look: python/jobs.py:20 and python/jobs.py:10.',
+  ].join('\n');
+  const r = measure(MANIFEST, [{ path: 'r.md', text }]).reports[0];
+  assert.deepEqual(r.otherRule.map((f) => f.caseId), ['p2']);
+  assert.deepEqual(r.mentioned, { total: 1, byLanguage: { python: 1 }, ids: ['p1'] });
+  assert.deepEqual(r.mentionedPlanted.ids, ['p1']);
+});
+
+test('a code fence that never closes is said, with the line it opens on, and the lines after it are read', () => {
+  const text = [
+    '# Audit',
+    '### Critical Gate',
+    'An example:',
+    '```python',
+    'subprocess.call(cmd, shell=True)',
+    '- 🟡 WARNING [SEC108] python/jobs.py:10 — dynamic exec',
+    '### Findings',
+    '### Critical Gate',
+    '- 🟡 WARNING [SEC108] python/jobs.py:20 — dynamic exec',
+  ].join('\n');
+  const report = parseReport(text);
+  assert.deepEqual(report.unclosedFences, [4]);
+  assert.equal(report.sections, 2);
+  assert.deepEqual(report.findings.map((f) => f.line), [10, 20]);
+  const closed = parseReport('### Critical Gate\n```\n- WARNING [SEC108] python/jobs.py:10 — quoted\n```\n');
+  assert.deepEqual(closed.unclosedFences, []);
+  assert.deepEqual(closed.findings, []);
+  // Two fences after the one that never closes still pair up.
+  const later = parseReport('### Critical Gate\n~~~\n```\n- WARNING [SEC108] python/jobs.py:10 — quoted\n```\n');
+  assert.deepEqual(later.unclosedFences, [2]);
+  assert.deepEqual(later.findings, []);
+
+  const r = measure(MANIFEST, [{ path: 'r.md', text }]).reports[0];
+  assert.deepEqual(r.section.unclosedFences, [4]);
+  assert.deepEqual(r.detectedIds, ['p1', 'p2']);
+  const dir = tempDir('fence');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(MANIFEST));
+  const path = join(dir, 'r.md');
+  writeFileSync(path, text);
+  const human = run(MEASURE, ['--manifest', manifestPath, '--report', path]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /^Unclosed code fence at line 4 of the report \(warning: the lines after it are read as if it were not there\)$/m);
+  assert.deepEqual(JSON.parse(run(MEASURE, ['--manifest', manifestPath, '--report', path, '--json']).stdout).reports[0].section.unclosedFences, [4]);
+  // A report whose fences all close says nothing about them.
+  writeFileSync(path, '### Critical Gate\nClean.\n');
+  assert.doesNotMatch(run(MEASURE, ['--manifest', manifestPath, '--report', path]).stdout, /Unclosed/);
+});
+
 // --- the command line ----------------------------------------------------------------------------
 
 test('measure.mjs reads a report of the real fixture and prints the measure, in text and in JSON', () => {
