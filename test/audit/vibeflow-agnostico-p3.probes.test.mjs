@@ -340,3 +340,56 @@ test('check-probes: a document read compared with a one-letter string is still a
     assert.deepEqual(familiesOf(box, lines), ['doc text', 'doc text']);
   });
 });
+
+// ------------------------------------------------ reaudit 3 of part 3 (fix 3, commit 01333b1)
+
+// Contract: fix 3 of part 3, F14: a hash is a comment unless a letter, a digit, `_` or `[` follows
+// it, so a shebang and a hash followed by punctuation (`#!`, `#{`, `#-`, `#=`, `##`, `#:`, `#%%`)
+// are still comments, and a comment runs nothing.
+// Breaks when: the hash counts as a comment only when a space or the end of the line follows it,
+// or never, so these comment lines read as code again.
+// Not covered by: the implementer's comment cases write every marker followed by a space (in the
+// reaudit's mutation run over a copy of 01333b1, the space-only form left the two test files of
+// the part green).
+test('check-probes: a hash followed by punctuation starts a comment, and the comment is not read', () => {
+  withSandbox((box) => {
+    const lines = ['#!', '#{', '#-', '#=', '##', '#:', '#%%'].map((marker) => j(marker, ' the swap is still pen', 'ding'));
+    assert.deepEqual(familiesOf(box, lines), lines.map(() => null));
+  });
+});
+
+// Contract: fix 3 of part 3, F15: the write mode counts only as an argument of an opening call, so
+// a document opened to read, and then compared with a one-letter string after the call has closed,
+// is still a document read, as at e04b531.
+// Breaks when: the write mode is looked for anywhere after an opening call (for example `.*` in
+// place of `[^)]*`), so the one-letter string after the read drops the line.
+// Not covered by: the implementer's case and the reaudit 2 probe read through readFileSync, a line
+// with no opening call, so that mutation left the two test files of the part green.
+test('check-probes: a document opened to read and then compared with a one-letter string is still a document read', () => {
+  withSandbox((box) => {
+    const lines = [
+      j('assert open("README.m', 'd").read().split()[0] in ("x", "a")'),
+      j('assert open(os.path.join(ROOT, "README.m', 'd")).read().count(",") == 1, "a"'),
+    ];
+    assert.deepEqual(familiesOf(box, lines), ['doc text', 'doc text']);
+  });
+});
+
+// Contract: fix 3 of part 3, F15 ("the write mode counts only as an argument of an opening call"),
+// and the script's own header: document text is not read "when the line opens the file to write
+// it". A fixture opened to write whose path is built by a call opens the file to write.
+// Breaks when: the arguments of the opening call are matched as text with no closing parenthesis
+// in it (the form at 01333b1), so the parenthesis of the inner call ends the search before the
+// mode, and the write reads as a document read. 5423425 did not read these three lines; e04b531
+// read the first two and not the third.
+// Not covered by: the implementer's write cases pass the path as a name or a plain literal.
+test('check-probes: a fixture opened to write through a path built by a call is not a document read', { todo: 'open finding F19 of reaudit 3: the write mode is not seen after an inner call in the path' }, () => {
+  withSandbox((box) => {
+    const lines = [
+      j('with open(os.path.join(tmp, "README.m', 'd"), "w") as f:'),
+      j('File.open(File.join(dir, "README.m', 'd"), "w") { |f| f.write(body) }'),
+      j('with open(Path(d) / "a.m', 'd", "a") as f:'),
+    ];
+    assert.deepEqual(familiesOf(box, lines), [null, null, null]);
+  });
+});
