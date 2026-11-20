@@ -308,16 +308,16 @@ test('--help documents the base-URL override', async () => {
   }
 });
 
-test('cli/package.json is 0.18.0 with no new dependency, and the lockfile agrees', () => {
+test('cli/package.json is 0.18.1 with no new dependency, and the lockfile agrees', () => {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'cli/package.json'), 'utf8'));
-  assert.equal(pkg.version, '0.18.0');
+  assert.equal(pkg.version, '0.18.1');
   assert.deepEqual(pkg.dependencies, { picocolors: '^1.1.0' });
   assert.equal(pkg.devDependencies, undefined);
   assert.equal(pkg.optionalDependencies, undefined);
   assert.equal(pkg.peerDependencies, undefined);
   const lock = JSON.parse(readFileSync(join(ROOT, 'cli/package-lock.json'), 'utf8'));
-  assert.equal(lock.version, '0.18.0');
-  assert.equal(lock.packages[''].version, '0.18.0');
+  assert.equal(lock.version, '0.18.1');
+  assert.equal(lock.packages[''].version, '0.18.1');
   assert.deepEqual(lock.packages[''].dependencies, { picocolors: '^1.1.0' });
 });
 
