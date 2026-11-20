@@ -308,7 +308,7 @@ export default {
 
   // ─── Página de comandos ─────────────────────────────────────
   cmdPageTitle: 'Todos os comandos',
-  cmdPageSubtitle: 'Referência completa de cada comando do Vibeflow: flags, modos e outputs.',
+  cmdPageSubtitle: 'Referência completa de cada comando do Vibeflow: flags, modos e outputs. As linhas de uso estão na forma do Claude Code; no Cursor, no Copilot e no OpenCode o comando é /vibeflow-<nome>, e no Codex e no Hermes você pede com as suas palavras.',
   cmdBackToHome: '← Voltar ao início',
   cmdUsage: 'Uso',
   cmdFlags: 'Flags e modos',
@@ -442,7 +442,7 @@ export default {
   anatomyTitle: 'Anatomia da pasta<br>.vibeflow/',
   anatomySubtitle: 'O que é cada arquivo, por que ele existe, e como o agente usa. Pra você saber o que pode mexer, e o que é melhor deixar quieto.',
   anatomyTocLabel: 'Nesta página',
-  anatomyIntro: 'Quando você roda /analyze, o Vibeflow cria uma pasta .vibeflow/ na raiz do projeto. É a base de conhecimento que o agente lê antes de cada spec, implementação e audit. Quatro artefatos formam essa base; os outros comandos põem as próprias pastas ao lado deles (PRDs, specs, audits e, com o implement --loop, os arquivos do loop).',
+  anatomyIntro: 'Quando você roda o analyze, o Vibeflow cria uma pasta .vibeflow/ na raiz do projeto. É a base de conhecimento que o agente lê antes de cada spec, implementação e audit. Quatro artefatos formam essa base; os outros comandos põem as próprias pastas ao lado deles (PRDs, specs, audits e, com o implement --loop, os arquivos do loop).',
 
   // Anatomy — section labels (reused per artifact)
   anatomyWhatLabel: 'O que é',

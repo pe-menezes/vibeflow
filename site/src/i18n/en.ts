@@ -308,7 +308,7 @@ export default {
 
   // ─── Commands page ───────────────────────────────────────────
   cmdPageTitle: 'All commands',
-  cmdPageSubtitle: 'Complete reference for every Vibeflow command: flags, modes, and outputs.',
+  cmdPageSubtitle: 'Complete reference for every Vibeflow command: flags, modes, and outputs. The usage lines are in Claude Code\'s form; in Cursor, Copilot and OpenCode the command is /vibeflow-<name>, and in Codex and Hermes you ask in your own words.',
   cmdBackToHome: '← Back to home',
   cmdUsage: 'Usage',
   cmdFlags: 'Flags & modes',
@@ -442,7 +442,7 @@ export default {
   anatomyTitle: 'Anatomy of the<br>.vibeflow/ folder',
   anatomySubtitle: 'What each file is, why it exists, and how the agent uses it. So you know what you can change, and what you should leave alone.',
   anatomyTocLabel: 'On this page',
-  anatomyIntro: 'When you run /analyze, Vibeflow creates a .vibeflow/ folder at the root of your project. It is the project knowledge base the agent reads before every spec, implementation, and audit. Four artifacts make up that knowledge base; the other commands add their own folders next to them (PRDs, specs, audits and, with implement --loop, the loop\'s files).',
+  anatomyIntro: 'When you run analyze, Vibeflow creates a .vibeflow/ folder at the root of your project. It is the project knowledge base the agent reads before every spec, implementation, and audit. Four artifacts make up that knowledge base; the other commands add their own folders next to them (PRDs, specs, audits and, with implement --loop, the loop\'s files).',
 
   // Anatomy — section labels (reused per artifact)
   anatomyWhatLabel: 'What it is',
