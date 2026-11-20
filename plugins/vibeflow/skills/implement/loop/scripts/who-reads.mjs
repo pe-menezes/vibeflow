@@ -41,14 +41,17 @@ function cleanEnv() {
 function git(dir, args, okStatuses = [0]) {
   const result = spawnSync('git', args, { cwd: dir, env: cleanEnv(), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   if (result.error) fail(`git could not run: ${result.error.message}`);
-  if (!okStatuses.includes(result.status)) fail(`git ${args[0]} failed: ${result.stderr.trim().slice(0, 200)}`);
+  const command = args.find((arg) => !arg.startsWith('-') && !arg.includes('='));
+  if (!okStatuses.includes(result.status)) fail(`git ${command} failed: ${result.stderr.trim().slice(0, 200)}`);
   return result.stdout;
 }
 
+// Paths come out as git stores them, not quoted: a quoted path outside ASCII would hide a
+// document's extension behind the closing quote.
 function references(top, target) {
   const name = basename(target);
   const patterns = [target, ...(name !== target && name.length > 6 ? [name] : [])];
-  const args = ['grep', '-n', '-I', '-F', '--untracked'];
+  const args = ['-c', 'core.quotePath=false', 'grep', '-n', '-I', '-F', '--untracked'];
   for (const pattern of patterns) args.push('-e', pattern);
   args.push('--', '.', `:(exclude)${target}`, ':(exclude)package-lock.json', ':(exclude)*.lock');
   return git(top, args, [0, 1]).split('\n').filter((line) => line.trim());

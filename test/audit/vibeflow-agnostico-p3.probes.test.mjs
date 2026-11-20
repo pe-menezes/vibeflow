@@ -37,7 +37,7 @@ function familiesOf(box, lines) {
 // (the form at e6a5b11).
 // Not covered by: the family table's JavaScript row passes the program name as its own argument
 // and names the default remote branch, two forms the new family still matches.
-test('check-probes: a JavaScript exec of git with any subcommand reads git, as at e04b531', { todo: 'open finding F1: the git family dropped the exec string that starts with the program name' }, () => {
+test('check-probes: a JavaScript exec of git with any subcommand reads git, as at e04b531', () => {
   withSandbox((box) => {
     const lines = [
       `const tag = execSync('${G} describe --tags').toString()`,
@@ -55,7 +55,7 @@ test('check-probes: a JavaScript exec of git with any subcommand reads git, as a
 // a byte outside ASCII (an octal escape inside double quotes), so the closing quote hides the
 // extension and the document reads as a reader (the form at e6a5b11).
 // Not covered by: every document path in the implementer's tests is plain ASCII.
-test('who-reads: a document whose name has an accent is a mention, and alone it exits 0', { todo: 'open finding F2: a quoted path from git grep is never a document' }, () => {
+test('who-reads: a document whose name has an accent is a mention, and alone it exits 0', () => {
   withSandbox((box) => {
     box.write('src/alone.ts', 'export {}\n');
     box.write(['docs/decisões', 'md'].join('.'), 'We split src/alone.ts.\n');
@@ -93,7 +93,7 @@ test('who-reads: an HTML page that loads the file reads it, and a document with 
 // method on a parsed datetime, a plain behavior check, reads as the real clock (the form at
 // e6a5b11).
 // Not covered by: the family table's control lines never call a method named date.
-test('check-probes: the date method of a parsed Python datetime is not the real clock', { todo: 'open finding F3: the Date constructor read without letter case also matches the date method' }, () => {
+test('check-probes: the date method of a parsed Python datetime is not the real clock', () => {
   withSandbox((box) => {
     const call = ['parse("2026-01-01T10:00").da', 'te()'].join('');
     assert.deepEqual(familiesOf(box, [`self.assertEqual(${call}, expected)`]), [null]);

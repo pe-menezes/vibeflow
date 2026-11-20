@@ -17,8 +17,9 @@ if (Number(process.versions.node.split('.')[0]) < 18) {
 const USAGE = `usage: check-probes.mjs <repo> [--base <ref>] [--dir <probe folder>]
 
 Without --dir, the probes are the files that carry the marker "vibeflow-probe: <name>" (in
-any folder, with any extension), and the files under an "audit/" folder inside a test folder
-(test/, tests/, __tests__/ or spec/, at any depth), where probes went before the marker.
+any folder but .vibeflow/, with any extension), and the files under an "audit/" folder inside
+a test folder (test/, tests/, __tests__/ or spec/, at any depth), where probes went before the
+marker.
 With --base, only the probe files changed since <ref> (committed, modified or untracked) are
 read; without it, every probe file is (periodic pruning).
 A --dir folder is relative to the repository's top level, or absolute; either way it must be a
@@ -27,25 +28,38 @@ folder inside the repository, and every file in it is read.
 exit 0 clean · 1 suspects · 64 bad arguments, git failure, or a --dir that does not exist,
 is not a folder or is outside the repository`;
 
-// Each family matches the form that does not depend on the project's language: a `git` string
-// literal (the program a process call runs) or a git command line; a version name, key or
-// literal; a sentence of state; `<name>.<extension>:<number>`; a `now`, `today` or `utcnow`
-// member of any receiver; a string literal that ends in a document file.
+// Each family matches the form that does not depend on the project's language:
+// * git: the program as a string literal right after `(` or `[` (the first argument of a call or
+//   the first item of a list), or a string literal that starts with `git ` and a word (the whole
+//   command line in one string); a read subcommand, the default remote branch, `HEAD~N`.
+// * version: a version name, key, member or literal, the changelog, and the manifests that carry
+//   the version in several ecosystems.
+// * line number: `<name>.<extension>:<number>`, the extension 1 to 5 lowercase characters starting
+//   with a letter and no dot before the name (a host name with several dots is not one).
+// * clock: a `now`, `today` or `utcnow` member through `.` or `::`, in any letter case, unless
+//   the receiver's name says it is a test clock; `Date()` and `time.time()` in their exact case.
+// * doc text: a string literal ending in a document file, with a word that reads (`read`, `open`,
+//   `load`, `contents` within a name) on the same line outside the literals; writing a fixture,
+//   naming a route or keeping a path in a constant is not reading it.
+const STRING_LITERAL = /(['"`])(?:\\.|(?!\1).)*\1/g;
+const outsideStrings = (line) => line.replace(STRING_LITERAL, '""');
 const FAMILIES = [
-  ['reads git', /['"`]git['"`]|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/],
-  ['current version', /\bVERSION\b|['"]version['"]|\.version\b|CHANGELOG|['"]v?\d+\.\d+\.\d+['"]/],
+  ['reads git', /[([]\s*['"`]git['"`]|['"`]git\s+[a-z][\w-]*|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/],
+  ['current version', /\bVERSION\b|['"]version['"]|\.version\b|__version__|CHANGELOG|package\.json|Cargo\.toml|pyproject\.toml|\.csproj\b|\.gemspec\b|build\.gradle|['"]v?\d+\.\d+\.\d+['"]/],
   ['state that changes by itself', /\b(still|remains|is)\s+(pending|open|unfixed|todo)\b|\bnot yet (done|fixed|implemented|shipped)\b/i],
-  ['line number', /[\w-]+\.[A-Za-z][A-Za-z0-9]*:\d+\b/],
-  ['real clock', /(\.|::)(now|today|utcnow)\b|\bDate\(\s*\)|\btime\.time\(\)/i],
-  ['doc text', /['"`][^'"`\n]*\.(md|html|txt|rst|adoc)['"`]/],
+  ['line number', /(?<![\w.$}{-])[\w$}{-]+\.[a-z][a-z0-9]{0,4}:\d+\b/],
+  ['real clock', { test: (line) => /(?<!(clock|fake|mock|stub|frozen)\w*)(\.|::)(now|today|utcnow)\b/i.test(line) || /\bDate\(\s*\)|\btime\.time\(\)/.test(line) }],
+  ['doc text', { test: (line) => /['"`][^'"`\n]*\.(md|html|txt|rst|adoc)['"`]/i.test(line) && /\w*(read|open|load|contents)\w*/i.test(outsideStrings(line)) }],
 ];
 
 const DEFAULT_PROBE_PATH = /(^|\/)(test|tests|__tests__|spec)\/(.*\/)?audit\//;
+// The knowledge base and briefings of the loop: a filled briefing quotes a probe's marker.
+const KIT_FOLDER = /(^|\/)\.vibeflow\//;
 // The marker the audit writes in a probe's comment, followed by its name. Assembled, so this
 // script is not a probe where the kit is installed; a text that quotes the marker's template
-// (`<feature>-<part>`, in angle brackets) is not one either.
+// (`<feature>-<part>` in angle brackets, or `{feature}` in braces) is not one either.
 const MARKER = ['vibeflow', 'probe:'].join('-');
-const MARKED = `${MARKER}[[:space:]]*[^[:space:]<]`;
+const MARKED = `${MARKER}[[:space:]]*[^[:space:]<{]`;
 const NOT_READ = 'not read: state that reaches a probe through another file (a helper, a fixture loader) or through the environment; the auditor reads that';
 
 function fail(message) {
@@ -108,7 +122,7 @@ function probeFiles(top, { base, dir }) {
   let inScope;
   if (folder === null) {
     const marked = markedFiles(top);
-    inScope = (path) => marked.has(path) || DEFAULT_PROBE_PATH.test(path);
+    inScope = (path) => !KIT_FOLDER.test(path) && (marked.has(path) || DEFAULT_PROBE_PATH.test(path));
   } else {
     inScope = (path) => folder === '' || path.startsWith(`${folder}/`);
   }

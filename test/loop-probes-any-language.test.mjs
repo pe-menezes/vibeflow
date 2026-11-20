@@ -24,21 +24,34 @@ const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // ------------------------------------------------------------- step 7, by property
 
-// What step 7 has to be, as a list of the properties it breaks: the probe goes where the
-// project's own tests go (their folder, the name their runner picks up, their framework), a
-// comment carries the marker, the call to check-probes has no --dir and says it finds the probe
-// by the marker, and neither the step nor the report's example fixes a folder or a suffix.
+// The measured paragraph of step 7 (the sentences that ask for the folder, the name the runner
+// picks up and the framework of the project's own tests, and for the marker), held by inclusion:
+// a word added inside either sentence breaks it.
+const MEASURED_LOCATION = 'Behavior probes go in one new test file for `<feature>-<part>` (a standalone audit uses its feature slug), written the way the project\'s own tests are: in the folder where they live, with the file name its test runner picks up and the same test framework, so the project\'s usual test command runs it; in a project with no test yet, the layout its language\'s default test runner expects.';
+const MEASURED_MARKER = `A comment on the file's first lines carries the marker \`${MARK} <feature>-<part>\`, by which the kit finds its probes.`;
+const OTHER_FRAMEWORK = /\b(any|another|other|different|whichever)\b[^.;]{0,40}\bframeworks?\b|\bframeworks?\b[^.;]{0,30}\b(any|another|other|different|whichever)\b/i;
+// A folder: a name in code that ends in a slash or is a path with no space in it.
+const isFolder = (span) => /\/$/.test(span) || (/\//.test(span) && !/\s/.test(span));
+// A suffix: a name in code that starts with `_`, `.` or `-`, or the probe's name with an ending.
+const isSuffix = (span) => /^[_.-]\w/.test(span) || /<feature>-<part>[._]/.test(span);
+
+// What step 7 has to be, as a list of the properties it breaks: the measured paragraph is in it
+// word for word (the folder, name and framework of the project's own tests; the marker in a
+// comment), nothing else in the step fixes a folder, a suffix or another framework, the call to
+// check-probes has no --dir and says it finds the probe by the marker, and the report's example
+// fixes no folder either.
 function step7Problems(text) {
   const body = flat(text);
   const step = /7\. \*\*Probes\*\*.*? 8\. When/.exec(body)?.[0];
   if (!step) return ['no step 7'];
   const problems = [];
-  if (!/the project's own tests/.test(step) || !/in the folder where they live/.test(step)) problems.push('folder of the project\'s tests');
-  if (!/file name its test runner picks up/.test(step)) problems.push('name the runner picks up');
-  if (!/same test framework/.test(step)) problems.push('framework of the project\'s tests');
-  if (!new RegExp(`comment[^.]*\`${escape(MARK)} <feature>-<part>\``).test(step)) problems.push('marker in a comment');
-  if (/\/audit\//.test(step) || /<test dir>/.test(step)) problems.push('fixed folder');
-  if (/<feature>-<part>\.[a-z<]/.test(step) || /\.test\.</.test(step)) problems.push('fixed suffix');
+  if (!step.includes(MEASURED_LOCATION)) problems.push('measured paragraph');
+  if (!step.includes(MEASURED_MARKER)) problems.push('marker in a comment');
+  const spans = [...step.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+  const prose = step.replace(/`[^`]+`/g, '``');
+  if (/\/audit\//.test(step) || /<test dir>/.test(step) || spans.some(isFolder) || /(^|\s)[\w.-]+\/(?=[\s,.;:)]|$)/.test(prose)) problems.push('fixed folder');
+  if (/<feature>-<part>\.[a-z<]/.test(step) || /\.test\.</.test(step) || spans.some(isSuffix) || /(^|\s)[_.][a-z]\w*(?=[\s,.;:)]|$)/i.test(prose)) problems.push('fixed suffix');
+  if (OTHER_FRAMEWORK.test(prose)) problems.push('other framework');
   if (!/`node \S+scripts\/check-probes\.mjs <project root> --base <base>`/.test(step) || /--dir\b/.test(step)) problems.push('check-probes call without --dir');
   if (!/finds the probe file by its marker/.test(step)) problems.push('found by the marker');
   const template = /## Output format ```.*?```/.exec(body)?.[0] ?? '';
@@ -62,15 +75,25 @@ const MUTATIONS = [
   ['the marker removed', (text) => text.replace(`\`${MARK} <feature>-<part>\``, '`<feature>-<part>`'), 'marker in a comment'],
   ['the --dir back', (text) => text.replace('--base <base>`', '--base <base> --dir <probe dir>`'), 'check-probes call without --dir'],
   ['an audit/ folder back in the example', (text) => text.replace('probe: tests/', 'probe: tests/audit/'), 'fixed folder in the example'],
+  // The audit's three, each inside the measured sentence, then the same three as a sentence of
+  // their own after the paragraph, where the inclusion alone does not see them.
+  ['a fixed probes/ folder in the sentence', (text) => text.replace('in the folder where they live,', 'in the folder where they live, under a `probes/` subfolder,'), ['measured paragraph', 'fixed folder']],
+  ['a fixed _probe suffix in the sentence', (text) => text.replace('with the file name its test runner picks up', 'with the file name its test runner picks up, ending in `_probe`'), ['measured paragraph', 'fixed suffix']],
+  ['another framework allowed in the sentence', (text) => text.replace('and the same test framework', 'and the same test framework or any other one'), ['measured paragraph', 'other framework']],
+  ['a fixed probes/ folder after the paragraph', (text) => text.replace('by which the kit finds its probes.', 'by which the kit finds its probes. Put it under `probes/`.'), 'fixed folder'],
+  ['a fixed probes/ folder in plain words after the paragraph', (text) => text.replace('by which the kit finds its probes.', 'by which the kit finds its probes. Put it under probes/ in that folder.'), 'fixed folder'],
+  ['a fixed _probe suffix after the paragraph', (text) => text.replace('by which the kit finds its probes.', 'by which the kit finds its probes. Its name ends in `_probe`.'), 'fixed suffix'],
+  ['a fixed .probe suffix in plain words after the paragraph', (text) => text.replace('by which the kit finds its probes.', 'by which the kit finds its probes. Its name ends in .probe before the extension.'), 'fixed suffix'],
+  ['another framework allowed after the paragraph', (text) => text.replace('by which the kit finds its probes.', 'by which the kit finds its probes. Any other test framework works too.'), 'other framework'],
 ];
 
-for (const [name, mutate, problem] of MUTATIONS) {
+for (const [name, mutate, expected] of MUTATIONS) {
   test(`step 7 property: ${name} is caught in every edition`, () => {
     for (const [edition, path] of Object.entries(EDITIONS)) {
       const text = flat(readFileSync(join(ROOT, path), 'utf8'));
       const mutated = mutate(text);
       assert.notEqual(mutated, text, `${edition}: the mutation applies`);
-      assert.ok(step7Problems(mutated).includes(problem), `${edition}: ${step7Problems(mutated).join(', ')}`);
+      for (const problem of [expected].flat()) assert.ok(step7Problems(mutated).includes(problem), `${edition}: ${problem}? ${step7Problems(mutated).join(', ')}`);
     }
   });
 }
@@ -151,6 +174,28 @@ test('check-probes with --dir reads the folder as before, unmarked files include
     assert.ok(named(result.stdout, LANGUAGE_PROBES[0][1]), result.out);
     assert.ok(!named(result.stdout, LANGUAGE_PROBES[1][1]), result.out);
     assert.equal(readCount(result.stdout), 2, result.out);
+  });
+});
+
+test('check-probes without --dir reads no file under .vibeflow/ and no marker followed by a template in braces', () => {
+  withSandbox((box) => {
+    box.write('tests/test_billing_p1_probes.py', `# ${MARK} billing-p1\n# ${CANARY}\n`);
+    // A filled auditor briefing in a tracked .vibeflow/, at the top and in a nested project.
+    const briefing = `* the probe file carries \`${MARK} billing-p1\` in a comment\n* ${CANARY}\n`;
+    box.write('.vibeflow/briefings/billing-p1-auditor.md', briefing);
+    box.write('packages/api/.vibeflow/briefings/billing-p1-auditor.md', briefing);
+    // A code comment that quotes the marker's template in braces.
+    box.write('src/notes.ts', `// the audit writes ${MARK} {feature}-{part} in each probe\n// ${CANARY}\n`);
+    box.write('src/notes.py', `# the audit writes ${MARK}{feature}-{part} in each probe\n# ${CANARY}\n`);
+    box.git('add', '-A');
+    for (const args of [[box.repo], [box.repo, '--base', box.base]]) {
+      const result = runScript('check-probes.mjs', args, box.env());
+      assert.ok(named(result.stdout, 'tests/test_billing_p1_probes.py'), result.out);
+      for (const path of ['.vibeflow/briefings/billing-p1-auditor.md', 'packages/api/.vibeflow/briefings/billing-p1-auditor.md', 'src/notes.ts', 'src/notes.py']) {
+        assert.ok(!named(result.stdout, path), `${path} is not a probe: ${result.out}`);
+      }
+      assert.equal(readCount(result.stdout), 1, result.out);
+    }
   });
 });
 
@@ -252,6 +297,120 @@ test('check-probes flags each family\'s state line in every language, passes the
   }
 });
 
+// The audit's table of part 3: lines in nine languages, each a state line (S) or a behavior line
+// (B), with the family check-probes names on it, or null when it names none. Every state line the
+// families read at e04b531 is read, except `notes.txt.bak`; the state lines that neither version
+// read stay unread, by name; of the behavior lines, only the three declared alarms are read.
+const STATE_UNREAD = {
+  'the doc file with a second extension': "const t = readFileSync(join(ROOT, 'notes.txt.bak'))",
+  'the clock in milliseconds': 'val start = System.currentTimeMillis()',
+  'the clock in nanoseconds': 'long t = System.nanoTime();',
+  'the monotonic clock': 't = time.monotonic()',
+  'the time elapsed since': 'elapsed := time.Since(start)',
+  'the long markdown extension': "const t = readFileSync(join(ROOT, 'docs/guide.markdown'), 'utf8')",
+};
+const DECLARED_ALARMS = {
+  'the git name as an expected value, first argument of an assertion': 'Assert.Equal("git", Detect(dir));',
+  'a slice whose start is a field': 'chunk := buf[r.off:8]',
+  'a today member that is a field of the code under test': 'expect(schedule.today).to eq(Date.new(2024, 1, 1))',
+};
+const AUDIT_ROWS = [
+  ['S', 'reads git', 'JavaScript', "const tag = execSync('git describe --tags').toString()"],
+  ['S', 'reads git', 'JavaScript', "const branch = execSync('git branch --show-current', { encoding: 'utf8' })"],
+  ['S', 'reads git', 'JavaScript', 'const n = execSync(`git rev-list --count HEAD`)'],
+  ['S', 'reads git', 'JavaScript', "const tags = execSync('git tag --list')"],
+  ['S', 'reads git', 'JavaScript', "const blame = execFileSync('git blame src/a.ts')"],
+  ['S', 'reads git', 'Python', "out = subprocess.check_output('git describe --tags', shell=True)"],
+  ['S', 'reads git', 'Ruby', 'tag = `git describe --tags`'],
+  ['S', 'reads git', 'Go', 'out, _ := exec.Command("sh", "-c", "git describe --tags").Output()'],
+  ['S', 'reads git', 'JavaScript', "spawnSync('git', ['diff', base])"],
+  ['B', null, 'JavaScript', "assert.equal(detectVcs(dir), 'git')"],
+  ['B', null, 'Python', 'self.assertEqual(repo.kind, "git")'],
+  ['B', null, 'Go', 'if got := DetectVCS(dir); got != "git" {'],
+  ['B', 'reads git', 'C#', DECLARED_ALARMS['the git name as an expected value, first argument of an assertion']],
+  ['S', 'current version', 'JavaScript', "const pkg = JSON.parse(readFileSync('package.json', 'utf8'))"],
+  ['S', 'current version', 'Python', 'from billing import __version__'],
+  ['S', 'current version', 'Python', 'assert billing.__version__ == billing.get_version()'],
+  ['S', 'current version', 'Rust', 'assert_eq!(env!("CARGO_PKG_VERSION"), "0.3.1");'],
+  ['S', 'line number', 'JavaScript', "expect(out).toContain('src/cart.ts:42')"],
+  ['S', 'line number', 'JavaScript', 'expect(out).toContain(`${file}.ts:42`)'],
+  ['S', 'line number', 'C', 'assert(strstr(msg, "parser.c:120"));'],
+  ['B', null, 'Python', 'header = data[self.offset:4]'],
+  ['B', 'line number', 'Go', DECLARED_ALARMS['a slice whose start is a field']],
+  ['B', null, 'C#', 'var n = list.Any() ? list.Count:0;'],
+  ['B', null, 'JavaScript', "await fetch('http://api.example.com:8080/health')"],
+  ['B', null, 'Python', 'conn = connect("db.internal:5432")'],
+  ['S', null, 'Kotlin', STATE_UNREAD['the clock in milliseconds']],
+  ['S', null, 'Java', STATE_UNREAD['the clock in nanoseconds']],
+  ['S', null, 'Python', STATE_UNREAD['the monotonic clock']],
+  ['S', null, 'Go', STATE_UNREAD['the time elapsed since']],
+  ['S', 'real clock', 'Rust', 'let now = SystemTime::now();'],
+  ['S', 'real clock', 'JavaScript', 'const t = performance.now()'],
+  ['B', null, 'Python', 'self.assertEqual(parse("2026-01-01T10:00").date(), date(2026, 1, 1))'],
+  ['B', null, 'Go', 'clock := fakeClock{}; if got := Stamp(clock.Now()); got != want {'],
+  ['B', null, 'Python', 'clock.now = lambda: FIXED'],
+  ['B', null, 'JavaScript', "const t = mock.timers; t.enable({ apis: ['Date'], now: 0 }); expect(stamp(clock.now())).toBe(0)"],
+  ['B', 'real clock', 'Ruby', DECLARED_ALARMS['a today member that is a field of the code under test']],
+  ['S', 'doc text', 'JavaScript', "const t = readFileSync(join(ROOT, 'docs', 'guide.md'), 'utf8')"],
+  ['S', null, 'JavaScript', STATE_UNREAD['the doc file with a second extension']],
+  ['S', 'doc text', 'Python', 'text = (ROOT / "docs" / "guide.md").read_text()'],
+  ['S', null, 'JavaScript', STATE_UNREAD['the long markdown extension']],
+  ['B', null, 'JavaScript', "writeFileSync(join(tmp, 'input.txt'), 'a,b')"],
+  ['B', null, 'Python', '(tmp_path / "input.txt").write_text("a,b")'],
+  ['B', null, 'Go', 'os.WriteFile(filepath.Join(dir, "input.txt"), data, 0o644)'],
+  ['B', null, 'JavaScript', "const res = await request(app).get('/index.html')"],
+  ['B', null, 'JavaScript', "box.write('.vibeflow/specs/cart.md', '# Cart')"],
+];
+const AUDIT_EXTENSIONS = { ...EXTENSIONS, Rust: 'rs', C: 'c', Java: 'java' };
+
+test('the audit\'s table has its 45 lines, names the unread state lines and declares three behavior alarms', () => {
+  assert.equal(AUDIT_ROWS.length, 45);
+  const alarms = AUDIT_ROWS.filter(([kind, family]) => kind === 'B' && family !== null).map(([, , , line]) => line);
+  assert.deepEqual(alarms.sort(), Object.values(DECLARED_ALARMS).sort());
+  const unread = AUDIT_ROWS.filter(([kind, family]) => kind === 'S' && family === null).map(([, , , line]) => line);
+  assert.deepEqual(unread.sort(), Object.values(STATE_UNREAD).sort());
+});
+
+test('check-probes names the family of each line of the audit\'s table, and no family on the others', async (t) => {
+  const box = makeSandbox();
+  try {
+    const rows = AUDIT_ROWS.map(([kind, family, language, line], index) => ({ kind, family, language, line, path: `rows/${index}.${AUDIT_EXTENSIONS[language]}` }));
+    for (const row of rows) box.write(row.path, `${row.line}\n`);
+    const result = runScript('check-probes.mjs', [box.repo, '--dir', 'rows'], box.env());
+    for (const row of rows) {
+      const alarm = Object.entries(DECLARED_ALARMS).find(([, line]) => line === row.line)?.[0];
+      const unread = Object.entries(STATE_UNREAD).find(([, line]) => line === row.line)?.[0];
+      const label = alarm ? `declared alarm: ${alarm}` : unread ? `state not read: ${unread}` : row.kind === 'S' ? 'state' : 'behavior';
+      await t.test(`${row.language} · ${label} · ${row.line}`, () => {
+        const found = new RegExp(`^${escape(row.path)}:1 \\[([^\\]]+)\\]`, 'm').exec(result.stdout)?.[1] ?? null;
+        assert.equal(found, row.family, `${row.line}\n${result.out}`);
+      });
+    }
+    const flagged = AUDIT_ROWS.filter(([, family]) => family !== null).length;
+    assert.match(result.stdout, new RegExp(`^${AUDIT_ROWS.length} probe file\\(s\\) read; ${flagged} suspect line\\(s\\)$`, 'm'));
+  } finally {
+    box.cleanup();
+  }
+});
+
+// Criterion 3 of the fix: a probe that writes its fixtures and keeps document paths in constants
+// pins no document; a line that reads a document does.
+test('check-probes: writing ten .txt fixtures and keeping three document paths in constants is no doc text; reading a .md is', () => {
+  withSandbox((box) => {
+    const writes = Array.from({ length: 10 }, (_, index) => `writeFileSync(join(tmp, 'case-${index}.txt'), 'a,b\\n')`);
+    const constants = ["const GUIDE = 'docs/guide.md'", "const PAGE = 'site/index.html'", "const NOTES = `${ROOT}/notes.rst`"];
+    box.write('tests/fixtures.test.js', `// ${MARK} fixtures-p1\n${[...writes, ...constants].join('\n')}\n`);
+    const quiet = runScript('check-probes.mjs', [box.repo], box.env());
+    assert.equal(quiet.status, 0, quiet.out);
+    assert.match(quiet.stdout, /^1 probe file\(s\) read; 0 suspect line\(s\)$/m, quiet.out);
+    box.write('tests/fixtures.test.js', `// ${MARK} fixtures-p1\n${[...writes, ...constants, 'const text = readFileSync(GUIDE_DIR + \'/guide.md\', \'utf8\')'].join('\n')}\n`);
+    const read = runScript('check-probes.mjs', [box.repo], box.env());
+    assert.equal(read.status, 1, read.out);
+    assert.equal((read.stdout.match(/ \[doc text\] /g) ?? []).length, 1, read.out);
+    assert.match(read.stdout, /^1 probe file\(s\) read; 1 suspect line\(s\)$/m, read.out);
+  });
+});
+
 // -------------------------------------------------------- who-reads: readers outside prose
 
 const NON_DOCUMENT_REFERENCES = {
@@ -274,6 +433,23 @@ test('who-reads marks a reference from any file that is not a document as a read
     assert.equal(result.status, 1, result.out);
     for (const path of Object.keys(NON_DOCUMENT_REFERENCES)) assert.match(result.stdout, new RegExp(`^ {2}reads ${escape(path)}:`, 'mi'), `${path}\n${result.out}`);
     for (const path of DOCUMENTS) assert.match(result.stdout, new RegExp(`^ {8}${escape(path)}:`, 'mi'), `${path}\n${result.out}`);
+  });
+});
+
+// git grep quotes a path with a byte outside ASCII unless core.quotePath is off; the quote must not
+// hide a document's extension, nor turn the path of a reader into another one.
+test('who-reads reads a path with an accent as git stores it: a document mentions, a script reads', () => {
+  withSandbox((box) => {
+    box.write('src/alone.ts', 'export {}\n');
+    box.write('docs/decisões.md', 'We split src/alone.ts.\n');
+    const mention = runScript('who-reads.mjs', [box.repo, 'src/alone.ts'], box.env());
+    assert.equal(mention.status, 0, mention.out);
+    assert.match(mention.stdout.normalize('NFC'), /^ {8}docs\/decisões\.md:1:/m, mention.out);
+    box.write('tools/publicação.sh', 'cp src/alone.ts dist/\n');
+    const reader = runScript('who-reads.mjs', [box.repo, 'src/alone.ts'], box.env());
+    assert.equal(reader.status, 1, reader.out);
+    assert.match(reader.stdout.normalize('NFC'), /^ {2}reads tools\/publicação\.sh:1:/m, reader.out);
+    assert.match(reader.stdout.normalize('NFC'), /^ {8}docs\/decisões\.md:1:/m, reader.out);
   });
 });
 

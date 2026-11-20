@@ -1038,10 +1038,17 @@ function testFilesUnder(dir) {
   return out;
 }
 
-const callsItselfProbes = (path) => /\bprobes\b/i.test(readFileSync(join(ROOT, path), 'utf8').split('\n')[0]);
+// A file calls itself a probe by the word "probes" on its first line, or by the audit's marker
+// followed by a name (not a template in angle brackets or braces) on one of its first lines. The
+// marker is assembled, so this file does not carry it.
+const PROBE_MARKER = new RegExp(`${['vibeflow', 'probe:'].join('-')}\\s*[^\\s<{]`);
+const callsItselfProbes = (path) => {
+  const lines = readFileSync(join(ROOT, path), 'utf8').split('\n');
+  return /\bprobes\b/i.test(lines[0]) || lines.slice(0, 5).some((line) => PROBE_MARKER.test(line));
+};
 
 // Contract: probe pruning reads every probe file the repository has, where it lives.
-// Breaks when: a probe file is placed outside a "<test folder>/audit/" folder, or the script's default probe path changes.
+// Breaks when: a probe file is placed outside a "<test folder>/audit/" folder, the script's default probe path changes, or a probe that calls itself one only by the marker comment on its first lines is not counted.
 // Not covered by: the implementer's check-probes tests use invented folders, not this repository's layout.
 test('check-probes: by default it reads exactly the test files that call themselves audit probes, and more than zero', () => {
   const box = mkdtempSync(join(tmpdir(), 'vibeflow-probes-layout-'));
