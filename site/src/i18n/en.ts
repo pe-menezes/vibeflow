@@ -464,7 +464,7 @@ export default {
   anatomyPatternsWhat: 'A folder with one markdown file per pattern. Each file documents a solution shape that repeats across the project: what it is, where it lives, the rules, and real code examples lifted from the codebase.',
   anatomyPatternsWhy: 'Patterns carry nuance: the what, the why, and the how. They are how the agent writes code that looks like your code, not generic code. Without them, every implementation reinvents structure.',
   anatomyPatternsAgent: 'gen-spec picks the relevant patterns via the Registry, plus the imported ones that apply via their source\'s registry.md, and lists them in the spec. implement reads only those and replicates their structure. audit verifies the implementation followed them. gen-spec, implement, prompt-pack and audit read conventions.md and each pattern doc the spec lists whole, one file per read, and declare what they read in a Read in full receipt. teach can add new ones, including imported from external repos via --from.',
-  anatomyPatternsEdit: 'Yes, but carefully. Content inside <!-- vibeflow:auto:start/end --> is auto-generated; edit outside the markers to add notes that survive re-analysis. Use /teach to add a new pattern instead of dropping a file by hand.',
+  anatomyPatternsEdit: 'Yes, but carefully. Content inside <!-- vibeflow:auto:start/end --> is auto-generated; edit outside the markers to add notes that survive re-analysis. Use teach to add a new pattern instead of dropping a file by hand.',
 
   // Anatomy — conventions.md
   anatomyConventionsName: 'conventions.md',
@@ -472,7 +472,7 @@ export default {
   anatomyConventionsWhat: 'A single file with the small, atomic rules of the project: naming, file layout, language/runtime, error handling, delimiters, documentation expectations. Short bullets, no narrative.',
   anatomyConventionsWhy: 'Rules without nuance ("do it this way") belong in one flat list, not scattered across pattern docs. This file is what the agent applies on every line of code it writes, regardless of which pattern is in play.',
   anatomyConventionsAgent: 'Loaded by gen-spec, implement, and audit on every run. Implement applies it line-by-line; audit treats violations as quality failures (the craftsmanship gate).',
-  anatomyConventionsEdit: 'Yes. Use /teach to add or correct a convention in natural language ("we always use named exports"). Direct edits outside <!-- vibeflow:auto:start/end --> are preserved.',
+  anatomyConventionsEdit: 'Yes. Use teach to add or correct a convention in natural language ("we always use named exports"). Direct edits outside <!-- vibeflow:auto:start/end --> are preserved.',
 
   // Anatomy — decisions.md
   anatomyDecisionsName: 'decisions.md',
@@ -480,7 +480,7 @@ export default {
   anatomyDecisionsWhat: 'A reverse-chronological log of architectural decisions: context, options considered, what was chosen, and why. Newest first. Written by the architect during specs and audits, never auto-generated.',
   anatomyDecisionsWhy: 'Six months later, no one remembers why you picked option B over option A. This file is the trail. It also prevents the agent from re-litigating settled questions on every new spec.',
   anatomyDecisionsAgent: 'Read by gen-spec and audit when a decision is relevant to the current scope. The architect appends new entries when a non-trivial trade-off is resolved.',
-  anatomyDecisionsEdit: 'Yes. This one is the most "human". Add entries when you make an architectural call worth remembering. /teach can format it for you.',
+  anatomyDecisionsEdit: 'Yes. This one is the most "human". Add entries when you make an architectural call worth remembering. The teach command can format it for you.',
 
   // Anatomy: folders the loop creates
   anatomyLoopTitle: 'Folders the loop creates',
