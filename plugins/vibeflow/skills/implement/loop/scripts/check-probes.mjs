@@ -28,28 +28,49 @@ folder inside the repository, and every file in it is read.
 exit 0 clean · 1 suspects · 64 bad arguments, git failure, or a --dir that does not exist,
 is not a folder or is outside the repository`;
 
-// Each family matches the form that does not depend on the project's language:
-// * git: the program as a string literal right after `(` or `[` (the first argument of a call or
-//   the first item of a list), or a string literal that starts with `git ` and a word (the whole
-//   command line in one string); a read subcommand, the default remote branch, `HEAD~N`.
-// * version: a version name, key, member or literal, the changelog, and the manifests that carry
-//   the version in several ecosystems.
-// * line number: `<name>.<extension>:<number>`, the extension 1 to 5 lowercase characters starting
-//   with a letter and no dot before the name (a host name with several dots is not one).
-// * clock: a `now`, `today` or `utcnow` member through `.` or `::`, in any letter case, unless
-//   the receiver's name says it is a test clock; `Date()` and `time.time()` in their exact case.
-// * doc text: a string literal ending in a document file, with a word that reads (`read`, `open`,
-//   `load`, `contents` within a name) on the same line outside the literals; writing a fixture,
-//   naming a route or keeping a path in a constant is not reading it.
+// Each family is the form this script read before it learned other languages, kept whole, plus
+// narrow forms for the others: what it flagged in JavaScript and Python it still flags, and the
+// new forms only add. A line that is only a comment is not read, because a comment runs nothing.
+// * git: the form before; or the program as a string literal right after `(` or `[` (the first
+//   argument of a call or the first item of a list); or a string literal that starts with `git `
+//   and then a lowercase letter, `-` or `$` (a whole command line in one string).
+// * version: the form before (with `package.json` and `__version__`), or the manifest of another
+//   ecosystem.
+// * line number: the form before (its twelve extensions, any name before them), or
+//   `.<extension>:<number>` with the extension of a source or configuration file of another
+//   ecosystem; the list keeps a port or a slice such as `obj.attr:4` out.
+// * clock: the form before; or `now`, `today` or `utcnow` (any letter case) through `.` or `::` on
+//   a receiver whose name ends in a clock word, with nothing inside the parentheses and a receiver
+//   whose name does not say it is a test clock; or `Date()`.
+// * doc text: the form before, or a string literal ending in a document file with a reading call on
+//   the same line outside the literals; and in either case not when the line opens the file to
+//   write it.
+// The forms before are the families at e04b531.
+const BEFORE = {
+  git: /\b(execFileSync|execFile|spawnSync|spawn|execSync|exec)\(\s*['"`]git\b|subprocess\.\w+\(\s*\[\s*['"]git|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/,
+  version: /\bVERSION\b|['"]version['"]|\.version\b|package\.json|CHANGELOG|__version__|['"]v?\d+\.\d+\.\d+['"]/,
+  line: /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|md|sh):\d+\b/,
+  clock: /\bDate\.now\(\)|new Date\(\s*\)|datetime\.(now|today|utcnow)\(|date\.today\(|time\.time\(\)/,
+  doc: /\b(readFileSync|readFile|read_text|open)\([^)]*\.(md|html|txt)\b/,
+};
+const COMMENT = /^\s*(\/\/|#|--|;|\/\*|\*|<!--)/;
 const STRING_LITERAL = /(['"`])(?:\\.|(?!\1).)*\1/g;
 const outsideStrings = (line) => line.replace(STRING_LITERAL, '""');
+const GIT_LITERAL = /[([]\s*['"`]git['"`]|['"`]git\s+[-a-z$]/;
+const MANIFEST = /Cargo\.toml|pyproject\.toml|\.csproj\b|\.gemspec\b|build\.gradle/;
+const SOURCE_LINE = /\.(cs|fs|vb|kt|kts|java|scala|groovy|swift|m|mm|c|h|cc|cpp|hpp|cxx|php|pl|pm|r|jl|lua|dart|ex|exs|erl|hrl|hs|ml|mli|clj|cljs|zig|nim|vue|svelte|tf|yml|yaml|toml|json|sql):\d+\b/;
+const CLOCK_CALL = /(time|date|instant|clock|calendar|performance)\s*(\.|::)\s*(now|today|utcnow)\b(?!\s*\(\s*[^)\s])/i;
+const TEST_CLOCK = /(?:\b(?:fake|mock|stub|frozen|fixed|test)\w*|\bclock)\s*(\.|::)\s*(now|today|utcnow)\b/i;
+const DOC_LITERAL = /['"`][^'"`\n]*\.(md|html|txt|rst|adoc)['"`]/;
+const READ_CALL = /(?:\b(?:[Rr]ead\w*|[Ll]oad\w*|[Oo]pen)|\w+Read\w*|contentsOf\w*)\s*[(:]/;
+const WRITE_MODE = /,\s*['"][wax]\+?b?['"]/;
 const FAMILIES = [
-  ['reads git', /[([]\s*['"`]git['"`]|['"`]git\s+[a-z][\w-]*|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/],
-  ['current version', /\bVERSION\b|['"]version['"]|\.version\b|__version__|CHANGELOG|package\.json|Cargo\.toml|pyproject\.toml|\.csproj\b|\.gemspec\b|build\.gradle|['"]v?\d+\.\d+\.\d+['"]/],
+  ['reads git', { test: (line) => BEFORE.git.test(line) || GIT_LITERAL.test(line) }],
+  ['current version', { test: (line) => BEFORE.version.test(line) || MANIFEST.test(line) }],
   ['state that changes by itself', /\b(still|remains|is)\s+(pending|open|unfixed|todo)\b|\bnot yet (done|fixed|implemented|shipped)\b/i],
-  ['line number', /(?<![\w.$}{-])[\w$}{-]+\.[a-z][a-z0-9]{0,4}:\d+\b/],
-  ['real clock', { test: (line) => /(?<!(clock|fake|mock|stub|frozen)\w*)(\.|::)(now|today|utcnow)\b/i.test(line) || /\bDate\(\s*\)|\btime\.time\(\)/.test(line) }],
-  ['doc text', { test: (line) => /['"`][^'"`\n]*\.(md|html|txt|rst|adoc)['"`]/i.test(line) && /\w*(read|open|load|contents)\w*/i.test(outsideStrings(line)) }],
+  ['line number', { test: (line) => BEFORE.line.test(line) || SOURCE_LINE.test(line) }],
+  ['real clock', { test: (line) => BEFORE.clock.test(line) || (CLOCK_CALL.test(line) && !TEST_CLOCK.test(line)) || /\bDate\(\s*\)/.test(line) }],
+  ['doc text', { test: (line) => (BEFORE.doc.test(line) || (DOC_LITERAL.test(line) && READ_CALL.test(outsideStrings(line)))) && !WRITE_MODE.test(line) }],
 ];
 
 const DEFAULT_PROBE_PATH = /(^|\/)(test|tests|__tests__|spec)\/(.*\/)?audit\//;
@@ -152,6 +173,7 @@ function main(argv) {
       continue;
     }
     lines.forEach((line, index) => {
+      if (COMMENT.test(line)) return;
       const family = FAMILIES.find(([, pattern]) => pattern.test(line));
       if (!family) return;
       console.log(`${path}:${index + 1} [${family[0]}] ${line.trim().slice(0, 160)}`);

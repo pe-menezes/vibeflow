@@ -5,7 +5,7 @@
 // The marker is assembled below, so this file is never read as a probe of this repository.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -101,7 +101,8 @@ for (const [name, mutate, expected] of MUTATIONS) {
 // ------------------------------------------------- check-probes finds a probe by the marker
 
 // A probe per language, where that language's tests live, with the marker in its comment form.
-// Line 2 is a canary every family run reads as a line number, so the output names each file read.
+// Line 2 is a canary every family run reads as a line number, so the output names each file read;
+// it is a line of code, because a line that is only a comment is not read.
 const LANGUAGE_PROBES = [
   ['Go', 'billing/billing_p1_probe_test.go', '//'],
   ['Python', 'tests/test_billing_p1_probes.py', '#'],
@@ -109,7 +110,7 @@ const LANGUAGE_PROBES = [
   ['Kotlin', 'src/test/kotlin/billing/BillingP1ProbeTest.kt', '//'],
   ['Swift', 'Tests/AppTests/BillingP1Probes.swift', '//'],
 ];
-const CANARY = 'canary src/rules.ts:42';
+const CANARY = "canary('src/rules.ts:42')";
 const OLD_PROBE = 'tests/audit/old_probe.rb';
 const PRODUCTION = 'billing/billing.go';
 const SETTLED = 'tests/test_settled_probes.py';
@@ -120,13 +121,13 @@ const readCount = (stdout) => Number(/^(\d+) probe file\(s\) read/m.exec(stdout)
 
 function discoveryRepo(box) {
   // On the base: a marked probe that does not change afterwards.
-  box.write(SETTLED, `# ${MARK} settled-p1\n# ${CANARY}\n`);
+  box.write(SETTLED, `# ${MARK} settled-p1\n${CANARY}\n`);
   box.git('add', '-A');
   box.git('commit', '-q', '-m', 'settled probe');
   const base = box.git('rev-parse', 'HEAD').trim();
-  for (const [, path, comment] of LANGUAGE_PROBES) box.write(path, `${comment} ${MARK} billing-p1\n${comment} ${CANARY}\n`);
-  box.write(OLD_PROBE, `require 'billing'\n# ${CANARY}\n`);
-  box.write(PRODUCTION, `package billing\n// ${CANARY}\nfunc Stamp() time.Time { return time.Now() }\n`);
+  for (const [, path, comment] of LANGUAGE_PROBES) box.write(path, `${comment} ${MARK} billing-p1\n${CANARY}\n`);
+  box.write(OLD_PROBE, `require 'billing'\n${CANARY}\n`);
+  box.write(PRODUCTION, `package billing\n${CANARY}\nfunc Stamp() time.Time { return time.Now() }\n`);
   // Text that quotes the marker's template is not a probe, and neither is the installed kit.
   box.write('docs/audit-step.md', `A comment carries \`${MARK} <feature>-<part>\`.\n${CANARY}\n`);
   mkdirSync(join(box.repo, '.github/vibeflow/loop/scripts'), { recursive: true });
@@ -179,14 +180,14 @@ test('check-probes with --dir reads the folder as before, unmarked files include
 
 test('check-probes without --dir reads no file under .vibeflow/ and no marker followed by a template in braces', () => {
   withSandbox((box) => {
-    box.write('tests/test_billing_p1_probes.py', `# ${MARK} billing-p1\n# ${CANARY}\n`);
+    box.write('tests/test_billing_p1_probes.py', `# ${MARK} billing-p1\n${CANARY}\n`);
     // A filled auditor briefing in a tracked .vibeflow/, at the top and in a nested project.
-    const briefing = `* the probe file carries \`${MARK} billing-p1\` in a comment\n* ${CANARY}\n`;
+    const briefing = `* the probe file carries \`${MARK} billing-p1\` in a comment\n${CANARY}\n`;
     box.write('.vibeflow/briefings/billing-p1-auditor.md', briefing);
     box.write('packages/api/.vibeflow/briefings/billing-p1-auditor.md', briefing);
     // A code comment that quotes the marker's template in braces.
-    box.write('src/notes.ts', `// the audit writes ${MARK} {feature}-{part} in each probe\n// ${CANARY}\n`);
-    box.write('src/notes.py', `# the audit writes ${MARK}{feature}-{part} in each probe\n# ${CANARY}\n`);
+    box.write('src/notes.ts', `// the audit writes ${MARK} {feature}-{part} in each probe\n${CANARY}\n`);
+    box.write('src/notes.py', `# the audit writes ${MARK}{feature}-{part} in each probe\n${CANARY}\n`);
     box.git('add', '-A');
     for (const args of [[box.repo], [box.repo, '--base', box.base]]) {
       const result = runScript('check-probes.mjs', args, box.env());
@@ -299,10 +300,9 @@ test('check-probes flags each family\'s state line in every language, passes the
 
 // The audit's table of part 3: lines in nine languages, each a state line (S) or a behavior line
 // (B), with the family check-probes names on it, or null when it names none. Every state line the
-// families read at e04b531 is read, except `notes.txt.bak`; the state lines that neither version
-// read stay unread, by name; of the behavior lines, only the three declared alarms are read.
+// families read at e04b531 is read, `notes.txt.bak` included; the state lines that neither version
+// read stay unread, by name; of the behavior lines, only the one declared alarm is read.
 const STATE_UNREAD = {
-  'the doc file with a second extension': "const t = readFileSync(join(ROOT, 'notes.txt.bak'))",
   'the clock in milliseconds': 'val start = System.currentTimeMillis()',
   'the clock in nanoseconds': 'long t = System.nanoTime();',
   'the monotonic clock': 't = time.monotonic()',
@@ -311,8 +311,6 @@ const STATE_UNREAD = {
 };
 const DECLARED_ALARMS = {
   'the git name as an expected value, first argument of an assertion': 'Assert.Equal("git", Detect(dir));',
-  'a slice whose start is a field': 'chunk := buf[r.off:8]',
-  'a today member that is a field of the code under test': 'expect(schedule.today).to eq(Date.new(2024, 1, 1))',
 };
 const AUDIT_ROWS = [
   ['S', 'reads git', 'JavaScript', "const tag = execSync('git describe --tags').toString()"],
@@ -336,7 +334,7 @@ const AUDIT_ROWS = [
   ['S', 'line number', 'JavaScript', 'expect(out).toContain(`${file}.ts:42`)'],
   ['S', 'line number', 'C', 'assert(strstr(msg, "parser.c:120"));'],
   ['B', null, 'Python', 'header = data[self.offset:4]'],
-  ['B', 'line number', 'Go', DECLARED_ALARMS['a slice whose start is a field']],
+  ['B', null, 'Go', 'chunk := buf[r.off:8]'],
   ['B', null, 'C#', 'var n = list.Any() ? list.Count:0;'],
   ['B', null, 'JavaScript', "await fetch('http://api.example.com:8080/health')"],
   ['B', null, 'Python', 'conn = connect("db.internal:5432")'],
@@ -350,9 +348,9 @@ const AUDIT_ROWS = [
   ['B', null, 'Go', 'clock := fakeClock{}; if got := Stamp(clock.Now()); got != want {'],
   ['B', null, 'Python', 'clock.now = lambda: FIXED'],
   ['B', null, 'JavaScript', "const t = mock.timers; t.enable({ apis: ['Date'], now: 0 }); expect(stamp(clock.now())).toBe(0)"],
-  ['B', 'real clock', 'Ruby', DECLARED_ALARMS['a today member that is a field of the code under test']],
+  ['B', null, 'Ruby', 'expect(schedule.today).to eq(Date.new(2024, 1, 1))'],
   ['S', 'doc text', 'JavaScript', "const t = readFileSync(join(ROOT, 'docs', 'guide.md'), 'utf8')"],
-  ['S', null, 'JavaScript', STATE_UNREAD['the doc file with a second extension']],
+  ['S', 'doc text', 'JavaScript', "const t = readFileSync(join(ROOT, 'notes.txt.bak'))"],
   ['S', 'doc text', 'Python', 'text = (ROOT / "docs" / "guide.md").read_text()'],
   ['S', null, 'JavaScript', STATE_UNREAD['the long markdown extension']],
   ['B', null, 'JavaScript', "writeFileSync(join(tmp, 'input.txt'), 'a,b')"],
@@ -363,7 +361,7 @@ const AUDIT_ROWS = [
 ];
 const AUDIT_EXTENSIONS = { ...EXTENSIONS, Rust: 'rs', C: 'c', Java: 'java' };
 
-test('the audit\'s table has its 45 lines, names the unread state lines and declares three behavior alarms', () => {
+test('the audit\'s table has its 45 lines, names the unread state lines and declares one behavior alarm', () => {
   assert.equal(AUDIT_ROWS.length, 45);
   const alarms = AUDIT_ROWS.filter(([kind, family]) => kind === 'B' && family !== null).map(([, , , line]) => line);
   assert.deepEqual(alarms.sort(), Object.values(DECLARED_ALARMS).sort());
@@ -408,6 +406,184 @@ test('check-probes: writing ten .txt fixtures and keeping three document paths i
     assert.equal(read.status, 1, read.out);
     assert.equal((read.stdout.match(/ \[doc text\] /g) ?? []).length, 1, read.out);
     assert.match(read.stdout, /^1 probe file\(s\) read; 1 suspect line\(s\)$/m, read.out);
+  });
+});
+
+// ------------------------------------- fix 2: the families as the sum of what they read before
+
+// The families at e04b531, the last release before part 3, kept here frozen as the reference: copied
+// from `git show e04b531:plugins/vibeflow/skills/implement/loop/scripts/check-probes.mjs`, lines
+// 29 to 34. They do not change when the script changes.
+const E04B531_FAMILIES = [
+  ['reads git', /\b(execFileSync|execFile|spawnSync|spawn|execSync|exec)\(\s*['"`]git\b|subprocess\.\w+\(\s*\[\s*['"]git|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/],
+  ['current version', /\bVERSION\b|['"]version['"]|\.version\b|package\.json|CHANGELOG|__version__|['"]v?\d+\.\d+\.\d+['"]/],
+  ['state that changes by itself', /\b(still|remains|is)\s+(pending|open|unfixed|todo)\b|\bnot yet (done|fixed|implemented|shipped)\b/i],
+  ['line number', /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|md|sh):\d+\b/],
+  ['real clock', /\bDate\.now\(\)|new Date\(\s*\)|datetime\.(now|today|utcnow)\(|date\.today\(|time\.time\(\)/],
+  ['doc text', /\b(readFileSync|readFile|read_text|open)\([^)]*\.(md|html|txt)\b/],
+];
+const readAtE04b531 = (line) => E04B531_FAMILIES.some(([, pattern]) => pattern.test(line));
+// The two lines the families no longer read, by the spec of fix 2: a line that is only a comment
+// (it runs nothing), and a line that opens a file to write it (a mode after a comma).
+const IS_COMMENT = /^\s*(\/\/|#|--|;|\/\*|\*|<!--)/;
+const OPENS_TO_WRITE = /,\s*['"][wax]\+?b?['"]/;
+
+// The re-audit's table of part 3: 54 lines, 27 that pin state and 27 of common behavior, each with
+// the family check-probes names on it, or null. Of the state lines, the ones e04b531 read are read;
+// the ones no version reads stay unread, by name. Of the behavior lines, three are read, by name.
+const REAUDIT_STATE_UNREAD = {
+  'a document path kept in a constant': "const GUIDE = join(ROOT, 'docs/guide.md')",
+  'a document embedded at build time': 'const README: &str = include_str!("../README.md");',
+  'a document read through Files.lines': 'var lines = Files.lines(Path.of("README.md"))',
+  'the program name kept in a constant': "const GIT = 'git'",
+  'a process call through that constant': "spawnSync(GIT, ['describe', '--tags'])",
+};
+const REAUDIT_ALARMS = {
+  'a fixture read back that e04b531 read too': "assert.equal(readFileSync(join(tmp, 'out.txt'), 'utf8'), 'a,b')",
+  'a test title that starts with the program and a word': "test('git branch names are validated', () => {",
+  'a message that starts with the program and a word': "assert.match(result.stderr, /git is not installed/); expect(msg).toBe('git not found')",
+};
+const REAUDIT_ROWS = [
+  ['S', 'reads git', 'js', 'const out = execSync(`git ${args}`, { cwd: repo })'],
+  ['S', 'reads git', 'js', "const out = execSync('git -C ' + dir + ' describe --tags')"],
+  ['S', 'reads git', 'js', 'const out = execSync("git --no-pager log -1")'],
+  ['S', 'reads git', 'js', "const v = execSync('git --version')"],
+  ['S', 'reads git', 'js', "const r = spawnSync('git')"],
+  ['S', 'reads git', 'js', 'const out = execSync(`git log -1`)'],
+  ['S', 'reads git', 'py', 'out = subprocess.check_output(["git", "-C", repo, "log"])'],
+  ['S', 'line number', 'js', "expect(out).toContain('src/cart.test.ts:42')"],
+  ['S', 'line number', 'js', "expect(out).toContain('src/user.service.ts:12')"],
+  ['S', 'line number', 'js', 'assert.match(report, /index.d.ts:5/)'],
+  ['S', 'line number', 'py', 'assert "tests/test_cart.py:42" in out'],
+  ['S', 'line number', 'js', "expect(msg).toContain('README.md:3')"],
+  ['S', 'line number', 'js', "expect(msg).toContain('jquery.min.js:2')"],
+  ['S', 'line number', 'js', "expect(msg).toContain('Button.stories.tsx:9')"],
+  ['S', 'real clock', 'js', 'const t = Date.now()'],
+  ['S', 'real clock', 'py', 'now = datetime.datetime.now()'],
+  ['S', 'real clock', 'py', 'today = date.today()'],
+  ['S', 'doc text', 'js', "const t = readFileSync(join(ROOT, 'docs', 'guide.html'), 'utf8')"],
+  ['S', 'doc text', 'py', 'with open("README.md") as f:'],
+  ['S', 'doc text', 'js', "const t = readFileSync(`${ROOT}/notes.txt`, 'utf8')"],
+  ['S', 'real clock', 'cpp', 'auto t = std::chrono::system_clock::now();'],
+  ['S', 'real clock', 'cpp', 'auto t = std::chrono::steady_clock::now();'],
+  ['S', null, 'js', REAUDIT_STATE_UNREAD['a document path kept in a constant']],
+  ['S', null, 'rs', REAUDIT_STATE_UNREAD['a document embedded at build time']],
+  ['S', null, 'java', REAUDIT_STATE_UNREAD['a document read through Files.lines']],
+  ['S', null, 'js', REAUDIT_STATE_UNREAD['the program name kept in a constant']],
+  ['S', null, 'js', REAUDIT_STATE_UNREAD['a process call through that constant']],
+  ['B', null, 'py', 'with open(tmp_path / "input.txt", "w") as f: f.write("a,b")'],
+  ['B', null, 'rb', 'File.open("input.txt", "w") { |f| f.write("a,b") }'],
+  ['B', null, 'c', 'FILE *f = fopen("out.txt", "w");'],
+  ['B', null, 'js', "const payload = { file: 'report.txt' }"],
+  ['B', null, 'js', "await upload(page, 'fixtures/report.txt')"],
+  ['B', null, 'js', "const thread = createThread('notes.md')"],
+  ['B', null, 'js', "await server.ready; const res = await request(app).get('/index.html')"],
+  ['B', null, 'js', "await page.goto('/index.html'); await page.waitForLoadState()"],
+  ['B', null, 'js', "const spread = { ...base, name: 'a.md' }"],
+  ['B', 'doc text', 'js', REAUDIT_ALARMS['a fixture read back that e04b531 read too']],
+  ['B', null, 'js', "const downloaded = await download('export.txt')"],
+  ['B', null, 'java', 'var d = LocalDate.now(fixedClock);'],
+  ['B', null, 'java', 'var t = Instant.now(clock);'],
+  ['B', null, 'js', 'const t = scheduler.now()'],
+  ['B', null, 'js', 'jest.advanceTimersByTime(1000); expect(jest.now()).toBe(1000)'],
+  ['B', null, 'go', 'c := clockwork.NewFakeClock(); start := c.Now()'],
+  ['B', null, 'py', 'env = simpy.Environment(); assert env.now == 0'],
+  ['B', null, 'js', 'expect(timeline.today).toBe(day)'],
+  ['B', null, 'py', 'chunk = text[self.pos:10]'],
+  ['B', null, 'py', 'head = data[m.end:4]'],
+  ['B', null, 'java', '@TestPropertySource(properties = "server.port:0")'],
+  ['B', null, 'js', "const url = 'http://api.local:8080/health'"],
+  ['B', null, 'py', 'conn = connect("redis.svc:6379")'],
+  ['B', null, 'yml', 'image: redis.io:7'],
+  ['B', 'reads git', 'js', REAUDIT_ALARMS['a test title that starts with the program and a word']],
+  ['B', 'reads git', 'js', REAUDIT_ALARMS['a message that starts with the program and a word']],
+  ['B', null, 'py', 'assert detect_vcs(path) == "git"'],
+];
+
+test('the re-audit\'s table has its 54 lines, half state and half behavior, and names its unread state lines and its three behavior alarms', () => {
+  assert.equal(REAUDIT_ROWS.length, 54);
+  assert.equal(REAUDIT_ROWS.filter(([kind]) => kind === 'S').length, 27);
+  const alarms = REAUDIT_ROWS.filter(([kind, family]) => kind === 'B' && family !== null).map(([, , , line]) => line);
+  assert.deepEqual(alarms.sort(), Object.values(REAUDIT_ALARMS).sort());
+  const unread = REAUDIT_ROWS.filter(([kind, family]) => kind === 'S' && family === null).map(([, , , line]) => line);
+  assert.deepEqual(unread.sort(), Object.values(REAUDIT_STATE_UNREAD).sort());
+});
+
+test('check-probes names the family of each line of the re-audit\'s table, and no family on the others', async (t) => {
+  const box = makeSandbox();
+  try {
+    const rows = REAUDIT_ROWS.map(([kind, family, ext, line], index) => ({ kind, family, ext, line, path: `rows/${index}.${ext}` }));
+    for (const row of rows) box.write(row.path, `${row.line}\n`);
+    const result = runScript('check-probes.mjs', [box.repo, '--dir', 'rows'], box.env());
+    for (const row of rows) {
+      const alarm = Object.entries(REAUDIT_ALARMS).find(([, line]) => line === row.line)?.[0];
+      const unread = Object.entries(REAUDIT_STATE_UNREAD).find(([, line]) => line === row.line)?.[0];
+      const label = alarm ? `declared alarm: ${alarm}` : unread ? `state not read: ${unread}` : row.kind === 'S' ? 'state' : 'behavior';
+      await t.test(`${row.ext} · ${label} · ${row.line}`, () => {
+        const found = new RegExp(`^${escape(row.path)}:1 \\[([^\\]]+)\\]`, 'm').exec(result.stdout)?.[1] ?? null;
+        assert.equal(found, row.family, `${row.line}\n${result.out}`);
+      });
+    }
+  } finally {
+    box.cleanup();
+  }
+});
+
+// Every line of a text file under test/ in this repository, as it is on disk now.
+function testFolderLines() {
+  const lines = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (entry.isFile()) {
+        const text = readFileSync(path, 'utf8');
+        if (!text.includes('\0')) lines.push(...text.split('\n'));
+      }
+    }
+  };
+  walk(join(ROOT, 'test'));
+  return lines;
+}
+
+// Fix 2, criterion 1, as a property over a corpus that is not chosen by hand: every line of the files
+// under test/, the audit's 45 lines and the re-audit's 54. Each line of it that is not only a comment,
+// does not open a file to write, and that the families of e04b531 read, check-probes reads too.
+test('check-probes reads every line the families of e04b531 read, over the lines of test/ and both tables, except comments and writes', () => {
+  const corpus = [...testFolderLines(), ...AUDIT_ROWS.map(([, , , line]) => line), ...REAUDIT_ROWS.map(([, , , line]) => line)];
+  const read = [...new Set(corpus.filter((line) => !IS_COMMENT.test(line) && !OPENS_TO_WRITE.test(line) && readAtE04b531(line)))];
+  // The corpus is the real one: hundreds of lines, the tables' state lines among them.
+  assert.ok(read.length > 300, `${read.length} lines`);
+  for (const [kind, , , line] of REAUDIT_ROWS) if (kind === 'S' && readAtE04b531(line)) assert.ok(read.includes(line), line);
+  withSandbox((box) => {
+    box.write('corpus/lines.txt', `${read.join('\n')}\n`);
+    const result = runScript('check-probes.mjs', [box.repo, '--dir', 'corpus'], box.env());
+    const flagged = new Set([...result.stdout.matchAll(/^corpus\/lines\.txt:(\d+) \[/gm)].map((match) => Number(match[1]) - 1));
+    const missed = read.filter((_, index) => !flagged.has(index));
+    assert.deepEqual(missed, [], `${missed.length} of ${read.length} lines read at e04b531 are not read now`);
+  });
+});
+
+// Fix 2, criterion 4: a line that is only a comment runs nothing, so no family reads it, whatever
+// the comment marker; the same text as code is read.
+const COMMENT_MARKERS = ['//', '#', '--', ';', '/*', '*', '<!--'];
+const STATE_TEXTS = [
+  "execSync('git describe --tags')",
+  "expect(out).toContain('src/rules.ts:42')",
+  "readFileSync('docs/guide.md', 'utf8')",
+  'expect(stamp).toBeLessThan(Date.now())',
+  "expect(pkg.version).toBe('4.4.1')",
+];
+
+test('check-probes reads no line that is only a comment, in any comment marker, and reads the same text as code', () => {
+  withSandbox((box) => {
+    const comments = COMMENT_MARKERS.flatMap((marker) => STATE_TEXTS.map((text) => `  ${marker} ${text}`));
+    box.write('probes/comments.txt', `${comments.join('\n')}\n`);
+    box.write('probes/code.txt', `${STATE_TEXTS.join('\n')}\n`);
+    const result = runScript('check-probes.mjs', [box.repo, '--dir', 'probes'], box.env());
+    assert.ok(!/^probes\/comments\.txt:/m.test(result.stdout), result.out);
+    assert.equal((result.stdout.match(/^probes\/code\.txt:\d+ \[/gm) ?? []).length, STATE_TEXTS.length, result.out);
+    assert.match(result.stdout, new RegExp(`^2 probe file\\(s\\) read; ${STATE_TEXTS.length} suspect line\\(s\\)$`, 'm'), result.out);
   });
 });
 

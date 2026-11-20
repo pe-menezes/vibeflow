@@ -149,7 +149,7 @@ test('check-probes: each form the spec names reads as its family on a line of it
 // form at 724b8d0).
 // Not covered by: the audit's table of 45 lines and the F1 probe write every command line as the
 // program name, a space and a lowercase subcommand.
-test('check-probes: a git command line in a string reads git when an option or an interpolation follows the program name, as at e04b531', { todo: 'open finding F10 of reaudit 1: the command-line form needs a lowercase word after the program name' }, () => {
+test('check-probes: a git command line in a string reads git when an option or an interpolation follows the program name, as at e04b531', () => {
   withSandbox((box) => {
     const lines = [
       'const out = execSync(`' + G + ' ${args}`, { cwd: repo })',
@@ -168,7 +168,7 @@ test('check-probes: a git command line in a string reads git when an option or a
 // with several dots), so a file name with two dots, the usual shape of a test or a declaration
 // file in TypeScript, and a regex with the dot escaped pass as behavior (the form at 724b8d0).
 // Not covered by: the table's line numbers all follow a name with a single dot.
-test('check-probes: a line number after a file name with two dots, or after an escaped dot, reads as a line number, as at e04b531', { todo: 'open finding F11 of reaudit 1: the name before the extension may not follow a dot' }, () => {
+test('check-probes: a line number after a file name with two dots, or after an escaped dot, reads as a line number, as at e04b531', () => {
   withSandbox((box) => {
     const lines = [
       j("expect(out).toContain('src/cart.test.t", "s:42')"),
@@ -220,7 +220,7 @@ test('check-probes: each form fix 1 adds reads as its family on a line of its ow
 // Breaks when: the word that opens a file for writing counts as a read, so the usual way to write
 // a fixture in Python and Ruby reads as document text (the form at 724b8d0).
 // Not covered by: the implementer's case writes its ten fixtures with a JavaScript write call only.
-test('check-probes: opening a fixture to write it is not reading a document', { todo: 'open finding F12 of reaudit 1: open in write mode counts as a read' }, () => {
+test('check-probes: opening a fixture to write it is not reading a document', () => {
   withSandbox((box) => {
     const lines = [
       j('with open(tmp_path / "input.t', 'xt", "w") as f:'),
