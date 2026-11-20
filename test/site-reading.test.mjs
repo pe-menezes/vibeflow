@@ -1,17 +1,17 @@
 // Checks on how the home page reads, from the sources and with no build:
 //
-// * the type: every CSS rule of the home page components that sets a font size is classified here,
+// * the type: every CSS rule of the home page components, and of the blocks that left the home page
+//   for the end of the commands page, that sets a font size is classified here,
 //   either as running text (a sentence one reads: paragraph, list item with a sentence,
 //   description) or as something else (label, control, link, command name, mono output, sheet
 //   data, display heading). Running text takes the body size (--fs-body), the long notes the
 //   control size (--fs-ui); nothing uses a literal size but the display headings, and every size
 //   is a token of the design system scale. Inside the block where the pipeline scene pins, the
 //   step descriptions take one declaration of their own, at the control size (spec 1c, measured).
-// * the order: the home pages run hero, pipeline, demo, loop, use cases, commands, editions,
-//   closing, contact; the loop on the home page keeps its head, its five steps and its links, and
-//   its four operation lists live in the `implement` entry of the commands page, after the loop
-//   mode block, under an id of their own that the home loop links to with a sentence of its own
-//   (loopSetupLink).
+// * the order: the home pages run hero, pipeline, loop, editions, closing; the loop on the home
+//   page keeps its head, its five steps and one link, to the details, and its four operation lists
+//   live in the `implement` entry of the commands page, after the loop mode block, under an id of
+//   their own.
 //
 // What only the built HTML can show (the lists once on the commands page with every item, none of
 // them on the home page, the link landing) lives in site/scripts/check-pipeline.mjs and
@@ -81,6 +81,7 @@ const SCENE_STEP = { component: 'HowItWorks', media: SCENE_QUERY, selector: ':gl
 const BODY = 'var(--fs-body)';
 const UI = 'var(--fs-ui)';
 const RUNNING = {
+  Hero: {},
   HowItWorks: {
     '.pipe-step__desc': [BODY, 'the description of each pipeline step, a sentence'],
   },
@@ -100,11 +101,11 @@ const RUNNING = {
     '.cmd-desc': [BODY, 'the description of each command, a sentence'],
   },
   Editions: {
-    '.ed-desc': [BODY, 'the description of each edition, a sentence'],
     '.ed-steps li': [BODY, 'the install steps in Claude Code Desktop, each one a sentence'],
-    '.ed-tag': [BODY, 'the closing line of the editions, two short sentences'],
-    '.ed-answers dd': [BODY, 'the body of each of the three answers above the editions, sentences'],
-    '.ed-note': [UI, 'the notes under the editions, 60 to 80 words each (spec 1b)'],
+  },
+  EditionsAnswers: {
+    '.ed-answers dd': [BODY, 'the body of each of the three answers of the editions, sentences'],
+    '.ed-note': [UI, 'the notes of the editions, 60 to 80 words each (spec 1b)'],
   },
   ContactForm: {
     '.contact-error': [BODY, 'the error message of the form, a sentence'],
@@ -112,19 +113,26 @@ const RUNNING = {
 };
 
 // Everything else that sets a size on the home page: selector, the size it takes, and what it is.
-// A display heading may take a literal size; nothing else may. The sizes are the ones these
-// components had at 30e6ae6: this redesign changes running text only.
+// A display heading may take a literal size, and so may the hero call and the spec card list, at
+// the sizes of the approved mock-up of the contained home page; nothing else may. The other sizes
+// are the ones these components had at 30e6ae6. LiveDemo and Features are on no page since the
+// contained home page; they stay classified while their code stays.
 const LEDE = 'var(--fs-lede)';
 const LABEL = 'var(--fs-label)';
 const META = 'var(--fs-meta)';
 const D3 = 'var(--fs-d3)';
 const OTHER = {
+  Hero: {
+    '.hero-title': ['clamp(2.6rem, 6.6vw, 5.6rem)', 'the display heading of the page (literal size)'],
+    '.hero-lede': ['clamp(1.25rem, 2.1vw, 1.6rem)', 'the call, a lede at the size of the approved mock-up (literal size)'],
+    '.flow-note': [LABEL, 'a corner label of the flow band'],
+    '.flow-spec__list': ['clamp(.95rem, 1.3vw, 1.05rem)', 'the items of the spec card, data at the size of the approved mock-up (literal size)'],
+    '.flow-verdict small': [META, 'the status line under the verdict'],
+  },
   HowItWorks: {
-    '.pipe-sub': [LEDE, 'the lede of the section'],
     '.pipe-gate': [LABEL, 'a gate label of the band'],
     '.pipe-step__cmd': [D3, 'a command name'],
-    '.pipe-step__out': [META, 'the output of a step, mono'],
-    '.pipe-extra': [META, 'the line with the extra commands, a list of command names'],
+    '.pipe-extra': [META, 'the line with the link to the commands page'],
   },
   Loop: {
     '.loop-title': ['clamp(2.4rem, 6.4vw, 5.2rem)', 'the display heading of the thesis (literal size)'],
@@ -152,13 +160,15 @@ const OTHER = {
     '.ed-name h3': [D3, 'an edition name'],
     '.ed-cmd-text': [META, 'an install command, mono'],
     '.ed-steps li::before': [META, 'a step number'],
+  },
+  EditionsAnswers: {
     '.ed-answers dt': [BODY, 'the title of each of the three answers, a short heading set off by weight'],
   },
   ContactForm: {
     '.contact-success': [LEDE, 'the success message, at the lede size'],
   },
 };
-const LITERAL_OK = new Set(['.loop-title', '.demo-said']);
+const LITERAL_OK = new Set(['.loop-title', '.demo-said', '.hero-title', '.hero-lede', '.flow-spec__list']);
 const HOME_COMPONENTS = Object.keys(RUNNING);
 
 const SCALE = new Set([...read('site/src/styles/genius/genius-tudo.css').matchAll(/^\s*(--fs-[a-z0-9]+):/gm)].map((m) => m[1]));
@@ -260,7 +270,7 @@ test('where the scene pins, the step descriptions take one declaration of their 
 
 // ------------------------------------------------------------------ the order
 
-const HOME_ORDER = ['Hero', 'HowItWorks', 'LiveDemo', 'Loop', 'UseCases', 'Features', 'Editions', 'FinalCTA', 'ContactForm'];
+const HOME_ORDER = ['Hero', 'HowItWorks', 'Loop', 'Editions', 'FinalCTA'];
 const LIST_KEYS = [
   ['loopOnTitle', 'loopOnItems'],
   ['loopHostsTitle', 'loopHostsItems'],
@@ -268,7 +278,7 @@ const LIST_KEYS = [
   ['loopReqTitle', 'loopReqItems'],
 ];
 
-test('the home pages run hero, pipeline, demo, loop, use cases, commands, editions, closing, contact', () => {
+test('the home pages run hero, pipeline, loop, editions, closing', () => {
   for (const lang of ['en', 'pt-br']) {
     const main = /<main>([\s\S]*?)<\/main>/.exec(read(`site/src/pages/${lang}/index.astro`))?.[1] ?? '';
     const sections = [...main.matchAll(/<([A-Z]\w*)\s+lang="([^"]+)"\s*\/>/g)];
@@ -279,7 +289,7 @@ test('the home pages run hero, pipeline, demo, loop, use cases, commands, editio
 
 const idOf = (src) => /^const LOOP_SETUP_ID = '([a-z][a-z0-9-]*)';$/m.exec(frontmatter(src))?.[1];
 
-test('the home loop keeps its head, steps and links, and none of the four operation lists', () => {
+test('the home loop keeps its head, steps and link, and none of the four operation lists', () => {
   const loop = component('Loop');
   for (const [title, items] of LIST_KEYS) {
     assert.ok(!new RegExp(`\\bt\\.${title}\\b`).test(template(loop)), `the home loop no longer shows t.${title} as a list title`);
@@ -295,18 +305,19 @@ test('the home loop keeps its head, steps and links, and none of the four operat
   }
 });
 
-test('the home loop links to the lists on the commands page, with loopSetupLink as its text', () => {
+test('the home loop no longer links to the lists, which keep their id on the commands page', () => {
   const loop = component('Loop');
   const commands = component('CommandsDocs');
-  const id = idOf(loop);
-  assert.ok(id, 'Loop.astro names the id of the lists');
-  assert.equal(idOf(commands), id, 'the commands page uses the same id');
+  assert.equal(idOf(loop), undefined, 'Loop.astro no longer names the id of the lists');
+  assert.equal(idOf(commands), 'loop-setup', 'the commands page keeps the id of the lists');
   // The four list titles title the lists on the commands page; the home loop reads none of them.
   for (const [title] of LIST_KEYS) assert.ok(!new RegExp(`\\bt\\.${title}\\b`).test(loop), `Loop.astro no longer reads t.${title}`);
   const markup = template(loop);
-  assert.match(markup, /<a href=\{`\/\$\{lang\}\/commands#\$\{LOOP_SETUP_ID\}`\} class="gx-link">\{t\.loopSetupLink\}<\/a>/, 'the link to the lists, with loopSetupLink as its text');
-  assert.equal(loop.split('t.loopSetupLink').length, 2, 't.loopSetupLink once');
-  assert.match(markup, /href=\{t\.loopMoreHref\}/, 'the link to the README stays');
+  assert.ok(!/\bt\.loopSetupLink\b/.test(loop), 'no loopSetupLink');
+  assert.ok(!/commands#/.test(markup), 'no link to the commands page');
+  const links = [...markup.matchAll(/<a\b[^>]*>/g)].map((m) => m[0]);
+  assert.equal(links.length, 1, 'one link');
+  assert.match(links[0], /href=\{t\.loopMoreHref\}/, 'the link to the details stays');
 });
 
 test('the four lists sit in the implement entry of the commands page, after the loop mode block, under their id', () => {

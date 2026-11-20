@@ -14,8 +14,9 @@ const component = (name) => read(`site/src/components/${name}.astro`);
 const template = (src) =>
   src.replace(/^---[\s\S]*?\n---\n/, '').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
 
-// The components of the home page whose running text the reading work moved to the body size.
-const HOME = ['HowItWorks', 'Loop', 'LiveDemo', 'UseCases', 'Features', 'Editions', 'ContactForm'];
+// The components of the home page whose running text the reading work moved to the body size, and
+// the block the answers and notes of the editions moved to (EditionsAnswers, contained home page).
+const HOME = ['HowItWorks', 'Loop', 'LiveDemo', 'UseCases', 'Features', 'Editions', 'EditionsAnswers', 'ContactForm'];
 
 // Contract: spec 2c, the four lists come after the "loop mode" block of the implement entry, before
 // its output. Regression: the lists block moved above the loop mode block, or into it right under

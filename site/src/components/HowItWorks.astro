@@ -10,13 +10,13 @@ interface Props {
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
-// Each step: the command, what it does, and what it prints (the output lines of the old hero
-// terminal). The gates sit where pipelineGeometry() in src/lib/flow.js orders the lines.
+// Each step: the command and what it does. The gates sit where pipelineGeometry() in
+// src/lib/flow.js orders the lines.
 const steps = [
-  { title: t.step1Title, desc: t.pipelineStep1Desc, output: t.heroQuickStart1Desc },
-  { title: t.step2Title, desc: t.pipelineStep2Desc, output: t.heroQuickStart2Desc },
-  { title: t.step3Title, desc: t.pipelineStep3Desc, output: t.heroQuickStart3Desc },
-  { title: t.step4Title, desc: t.pipelineStep4Desc, output: t.heroQuickStart4Desc },
+  { title: t.step1Title, desc: t.pipelineStep1Desc },
+  { title: t.step2Title, desc: t.pipelineStep2Desc },
+  { title: t.step3Title, desc: t.pipelineStep3Desc },
+  { title: t.step4Title, desc: t.pipelineStep4Desc },
 ].map((step, i) => ({ ...step, gate: `${(PIPELINE_GATES[i] * 100).toFixed(0)}%` }));
 
 // The verdict past the last gate: the first sentence of the audit output ("PASS").
@@ -33,7 +33,6 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
           <p class="gx-rotulo">{t.pipelineLabel}</p>
           <h2 class="section-title pipe-title" set:html={t.howTitle} />
         </div>
-        <p class="pipe-sub">{t.howSubtitle}</p>
       </div>
 
       <div class="pipe-band" data-scene-band role="img" aria-label={t.pipelineFlowLabel}>
@@ -49,7 +48,6 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
           <li class="pipe-step" data-step data-active="true">
             <h3 class="pipe-step__cmd"><span>{step.title}</span></h3>
             <p class="pipe-step__desc">{step.desc}</p>
-            <p class="pipe-step__out">{step.output}</p>
           </li>
         ))}
       </ol>
@@ -58,7 +56,6 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
 
   <!-- Below the track and out of the pinned stage, so the stage only holds what the scene moves. -->
   <p class="container pipe-extra">
-    <strong>{t.pipelineExtra}</strong> {t.pipelineExtraList}
     <a href={`/${lang}/commands`} class="pipe-link">{t.featSeeAll}</a>
   </p>
 </section>
@@ -88,12 +85,6 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
   }
   .pipe-title {
     margin-bottom: 0;
-  }
-  .pipe-sub {
-    max-width: 52ch;
-    color: var(--ink-3);
-    font-size: var(--fs-lede);
-    line-height: 1.45;
   }
 
   /* The band: the canvas, the four gates on top of their wires and the verdict past the last one. */
@@ -173,12 +164,6 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
     font-size: var(--fs-body);
     line-height: 1.5;
   }
-  .pipe-step__out {
-    color: var(--accent-text);
-    font-family: var(--font-mono);
-    font-size: var(--fs-meta);
-    line-height: 1.45;
-  }
   .pipe-step[data-active="false"] {
     border-top-color: var(--rule-soft);
     color: var(--ink-4);
@@ -188,9 +173,6 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
   }
   .pipe-step[data-active="false"] .pipe-step__cmd span {
     background-size: 0% 0.46em;
-  }
-  .pipe-step[data-active="false"] .pipe-step__out {
-    color: var(--ink-4);
   }
   @media (min-width: 860px) {
     .pipe-steps {
@@ -202,10 +184,6 @@ const verdict = t.heroQuickStart4Desc.split('.')[0];
     margin-top: clamp(20px, 3.4vh, 40px);
     color: var(--ink-4);
     font-size: var(--fs-meta);
-  }
-  .pipe-extra strong {
-    color: var(--ink-3);
-    font-weight: 600;
   }
   .pipe-link {
     font-weight: 500;

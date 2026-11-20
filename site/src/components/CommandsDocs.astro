@@ -10,7 +10,8 @@ interface Props {
 const { lang } = Astro.props;
 const t = useTranslations(lang);
 
-// The anchor of the operation lists of the loop, in the implement entry; the home loop links to it.
+// The anchor of the operation lists of the loop, in the implement entry. The home loop does not
+// link here: its one link, loopMore, goes to the README or the MANUAL.
 const LOOP_SETUP_ID = 'loop-setup';
 
 const commands = [
@@ -585,8 +586,8 @@ const commands = [
     font-size: var(--fs-ui);
   }
 
-  /* The loop's operation lists: one label and one plain list each, in the reading column. The
-     home loop links here, so a jump lands it where an index jump lands an entry. */
+  /* The loop's operation lists: one label and one plain list each, in the reading column. A jump
+     to #loop-setup lands it where an index jump lands an entry. */
   .entry-setup {
     display: grid;
     gap: var(--s-6);

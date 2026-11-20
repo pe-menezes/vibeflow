@@ -1,25 +1,38 @@
-// Checks on the built home page, second half: the live demo, the use cases, the commands, the
-// closing stage and the contact form, in both languages. Run it after `astro build`:
+// Checks on the built pages for what the contained home page keeps and what it sent to the commands
+// page, in both languages. Run it after `astro build`:
 //
 //   node scripts/check-home.mjs
 //
 // It exits with 1 and lists every problem it finds.
 //
-// * the demo sheet ships ready: no live state in the HTML, the four checks, the files and the verdict;
-// * the four use cases and the ten commands, in the order of today, with the links of today;
-// * the closing stage is dark and links to the repository;
+// * the home page: the closing stage is dark and links to the repository; the demo, the use cases,
+//   the list of the ten commands and the contact form are not on it, and no element carries their
+//   ids (demo, use-cases, commands, contact);
+// * no value of a key that left the home page (LEFT_HOME_KEYS and every key of LEFT_HOME_COMPONENTS,
+//   in home-rules.mjs) is anywhere in the raw HTML of the home page, attributes and scripts included,
+//   but the ones that are part of a value of a key the components the home page imports read (the
+//   rule and its limits are in home-rules.mjs);
+// * the commands page ends with the use cases, the answers and notes of the editions, and the
+//   contact form, in that order, after the reference entries and with nothing after them;
+// * the four use cases, in the order of today;
+// * the three answers (each title in a dt, its body in the dd after it, inline code as code) and the
+//   three notes, in the order of today;
 // * the form keeps its destination, method, field names and ids, has an announced error region
 //   with the error of the page language, and a focusable success message.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LEFT_HOME_COMPONENTS, LEFT_HOME_KEYS, componentKeys, i18nEntries, importedComponents, leftHomeProblems, leftHomeValues } from './home-rules.mjs';
 
 const siteDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outputs = [join(siteDir, 'dist'), join(siteDir, '.vercel', 'output', 'static')].filter((d) => existsSync(d));
 const problems = [];
 const fail = (msg) => problems.push(msg);
 
-const COMMANDS = ['analyze', 'gen-spec', 'implement', 'audit', 'discover', 'prompt-pack', 'quick', 'hotfix', 'teach', 'stats'];
+const LEFT_HOME = ['demo', 'use-cases', 'commands', 'contact'];
+const COMMANDS_END = ['use-cases', 'edition-answers', 'contact'];
+const ANSWERS = ['editionsCost', 'editionsCode', 'editionsFirst'];
+const NOTES = ['editionsLoopKit', 'editionsHermesScan', 'editionsGitDisclaimer'];
 const FIELDS = [['c-name', 'name'], ['c-email', 'email'], ['c-msg', 'message']];
 
 // The value of a string key in an i18n file, single-quoted as the files write them.
@@ -33,6 +46,12 @@ const decode = (s) =>
     .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
     .replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 const plain = (html) => decode(html.replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+// Text compared with no whitespace and no backticks: inline code turns `x` into <code>x</code>.
+const squash = (s) => s.replace(/`/g, '').replace(/\s+/g, '');
+// The spans a value sets between backticks, which InlineCode shows as code, and the code shown.
+const codeSpans = (value) => value.split('`').filter((_, i) => i % 2 === 1);
+const shownCode = (html) => [...html.matchAll(/<code\b[^>]*>([\s\S]*?)<\/code>/g)].map((m) => plain(m[1]));
+const sameCode = (html, value) => JSON.stringify(shownCode(html)) === JSON.stringify(codeSpans(value).map((c) => c.replace(/\s+/g, ' ').trim()));
 
 // The HTML of the element with the given id, up to the end of its <section>.
 function section(html, id) {
@@ -44,36 +63,62 @@ function section(html, id) {
 
 if (!outputs.length) fail('no build output found (dist/ or .vercel/output/static/)');
 
+const componentSource = (name) => readFileSync(join(siteDir, 'src', 'components', `${name}.astro`), 'utf8');
+// The values of the keys that left the home page, minus the ones its components still show.
+function leftValues(lang) {
+  const entries = i18nEntries(readFileSync(join(siteDir, 'src', 'i18n', `${lang}.ts`), 'utf8'));
+  const leftKeys = [...LEFT_HOME_KEYS, ...LEFT_HOME_COMPONENTS.flatMap((n) => componentKeys(componentSource(n)))];
+  const home = importedComponents(readFileSync(join(siteDir, 'src', 'pages', lang, 'index.astro'), 'utf8'));
+  if (!home.length) fail(`/${lang}/: the home page source imports no component`);
+  const keptKeys = home.flatMap((n) => componentKeys(componentSource(n)));
+  const values = leftHomeValues(entries, leftKeys, keptKeys);
+  if (!values.length) fail(`/${lang}/: no value of a key that left the home page to look for`);
+  return values;
+}
+
 for (const out of outputs) {
   const label = relative(siteDir, out);
   for (const lang of ['en', 'pt-br']) {
-    const file = join(out, lang, 'index.html');
+    const key = (k) => i18nValue(lang, k) ?? `(missing ${k})`;
+
+    const homeFile = join(out, lang, 'index.html');
+    if (!existsSync(homeFile)) fail(`${label}: /${lang}/ is missing`);
+    else {
+      const html = readFileSync(homeFile, 'utf8');
+      const where = `${label}: /${lang}/`;
+      for (const id of LEFT_HOME) if (new RegExp(`\\sid="${id}"`).test(html)) fail(`${where} still has #${id}`);
+      if (/<form\b/.test(html)) fail(`${where} still has a form`);
+      for (const k of leftHomeProblems(html, leftValues(lang))) fail(`${where} still has the value of ${k}`);
+      const cta = /<section class="[^"]*\bgx-escuro\b[^"]*\bcta\b[\s\S]*?<\/section>/.exec(html)?.[0];
+      if (!cta) fail(`${where} without the dark closing stage`);
+      else if (!cta.includes('href="https://github.com/pe-menezes/vibeflow"')) fail(`${where} closing without the GitHub link`);
+    }
+
+    const file = join(out, lang, 'commands', 'index.html');
     if (!existsSync(file)) {
-      fail(`${label}: /${lang}/ is missing`);
+      fail(`${label}: /${lang}/commands/ is missing`);
       continue;
     }
     const html = readFileSync(file, 'utf8');
-    const where = `${label}: /${lang}/`;
-    const key = (k) => i18nValue(lang, k) ?? `(missing ${k})`;
+    const where = `${label}: /${lang}/commands/`;
+    const main = /<main\b[^>]*>([\s\S]*?)<\/main>/.exec(html)?.[1] ?? '';
 
-    const demo = section(html, 'demo');
-    if (!demo) fail(`${where} without the demo section`);
+    // The order: the reference, then the three blocks, and nothing after them.
+    const opens = [...main.matchAll(/<section\b[^>]*>/g)].map((m) => ({ at: m.index, id: /\sid="([^"]*)"/.exec(m[0])?.[1] }));
+    const tail = opens.filter((o) => COMMANDS_END.includes(o.id));
+    if (JSON.stringify(tail.map((o) => o.id)) !== JSON.stringify(COMMANDS_END)) fail(`${where} ends with ${JSON.stringify(tail.map((o) => o.id))}`);
     else {
-      if (/\sdata-(live|arrived|checked)\b/.test(demo)) fail(`${where} demo ships with live state`);
-      const sheet = /<div class="[^"]*\bdemo-sheet\b[^"]*"[^>]*data-demo-sheet[\s\S]*$/.exec(demo)?.[0] ?? '';
-      if (!sheet) fail(`${where} demo without the sheet`);
-      const checks = [...sheet.matchAll(/<li data-since="5"[^>]*>([\s\S]*?)<\/li>/g)].map((m) => plain(m[1]));
-      const planned = [1, 2, 3, 4].map((i) => key(`demoR5dod${i}`).replace(/^[☐✓]\s*/, ''));
-      if (JSON.stringify(checks) !== JSON.stringify(planned)) fail(`${where} sheet checks are ${JSON.stringify(checks)}`);
-      for (const i of [1, 2, 3]) if (!sheet.includes(key(`demoR6file${i}`))) fail(`${where} sheet without demoR6file${i}`);
-      if (!/demo-sheet__verdict[\s\S]*gx-chip--marcado/.test(sheet)) fail(`${where} sheet without the verdict chip`);
-      const talk = plain(demo);
-      for (const k of ['demoR1user', 'demoR2user', 'demoR3user', 'demoR7verdictDesc', 'demoR7dod1', 'demoR7dod4']) {
-        if (!talk.includes(decode(key(k)))) fail(`${where} demo without ${k}`);
-      }
+      const first = tail[0].at;
+      const lastEntry = [...main.matchAll(/<article\b[^>]*class="doc-entry/g)].at(-1)?.index ?? -1;
+      if (lastEntry < 0 || lastEntry > first) fail(`${where} the blocks do not follow the reference entries`);
+      const after = opens.filter((o) => o.at > first && !COMMANDS_END.includes(o.id));
+      if (after.length) fail(`${where} has another section among or after the blocks`);
+      const contactEnd = main.indexOf('</section>', tail[2].at);
+      const rest = main.slice(contactEnd + '</section>'.length).replace(/<script\b[\s\S]*?<\/script>/g, '').trim();
+      if (contactEnd < 0 || rest) fail(`${where} has content after the contact form`);
     }
 
-    const cases = section(html, 'use-cases');
+    const cases = section(main, 'use-cases');
     if (!cases) fail(`${where} without the use cases section`);
     else {
       const titles = [...cases.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => plain(m[1]));
@@ -81,28 +126,33 @@ for (const out of outputs) {
       if (JSON.stringify(titles) !== JSON.stringify(expected)) fail(`${where} use cases are ${JSON.stringify(titles)}`);
     }
 
-    const commands = section(html, 'commands');
-    if (!commands) fail(`${where} without the commands section`);
+    const answers = section(main, 'edition-answers');
+    if (!answers) fail(`${where} without the answers and notes of the editions`);
     else {
-      const titleLinks = [...commands.matchAll(/<h3[^>]*>\s*<a[^>]*href="([^"]+)"/g)].map((m) => m[1]);
-      const expected = COMMANDS.map((id) => `/${lang}/commands#${id}`);
-      if (JSON.stringify(titleLinks) !== JSON.stringify(expected)) fail(`${where} command links are ${JSON.stringify(titleLinks)}`);
-      const details = [...commands.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/g)]
-        .filter((m) => decode(m[2]).trim() === decode(key('cmdDetails')))
-        .map((m) => m[1]);
-      if (JSON.stringify(details) !== JSON.stringify(expected)) fail(`${where} details links are ${JSON.stringify(details)}`);
-      // The title link is the one read and reached; "Details" repeats it for the mouse only.
-      const detailTags = [...commands.matchAll(/<a\b[^>]*>([^<]*)<\/a>/g)].filter((m) => decode(m[1]).trim() === decode(key('cmdDetails')));
-      if (detailTags.some((m) => !/\saria-hidden="true"/.test(m[0]) || !/\stabindex="-1"/.test(m[0]))) fail(`${where} a details link is still read or reached`);
-      if (/<h3[^>]*>\s*<a[^>]*\s(aria-hidden|tabindex)=/.test(commands)) fail(`${where} a title link is out of reach`);
-      if (!new RegExp(`<a[^>]*href="/${lang}/commands"[^>]*>`).test(commands)) fail(`${where} without the full reference link`);
+      if (!plain(answers).startsWith(key('editionsLabel'))) fail(`${where} the answers do not open with editionsLabel`);
+      if (/<h[1-6]\b/.test(answers)) fail(`${where} the answers carry a heading`);
+      const dl = /<dl\b[^>]*>([\s\S]*?)<\/dl>/.exec(answers)?.[1] ?? '';
+      const pairs = [...dl.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/g)];
+      if (pairs.length !== ANSWERS.length) fail(`${where} ${pairs.length} answers instead of ${ANSWERS.length}`);
+      pairs.forEach((m, i) => {
+        const base = ANSWERS[i];
+        if (!base) return;
+        if (plain(m[1]) !== key(`${base}Title`)) fail(`${where} answer ${i + 1} title is not ${base}Title`);
+        if (squash(plain(m[2])) !== squash(key(`${base}Body`))) fail(`${where} answer ${i + 1} body is not ${base}Body`);
+        if (!sameCode(m[2], key(`${base}Body`))) fail(`${where} answer ${i + 1} shows ${JSON.stringify(shownCode(m[2]))} as code`);
+      });
+      const notes = [...answers.matchAll(/<p class="ed-note"[^>]*>([\s\S]*?)<\/p>/g)];
+      if (notes.length !== NOTES.length) fail(`${where} ${notes.length} notes instead of ${NOTES.length}`);
+      notes.forEach((m, i) => {
+        const k = NOTES[i];
+        if (!k) return;
+        if (squash(plain(m[1])) !== squash(key(k))) fail(`${where} note ${i + 1} is not ${k}`);
+        if (!sameCode(m[1], key(k))) fail(`${where} note ${i + 1} shows ${JSON.stringify(shownCode(m[1]))} as code`);
+      });
+      if (dl && notes.length && answers.indexOf('<dl') > answers.indexOf('class="ed-note"')) fail(`${where} the notes come before the answers`);
     }
 
-    const cta = /<section class="[^"]*\bgx-escuro\b[^"]*\bcta\b[\s\S]*?<\/section>/.exec(html)?.[0];
-    if (!cta) fail(`${where} without the dark closing stage`);
-    else if (!cta.includes('href="https://github.com/pe-menezes/vibeflow"')) fail(`${where} closing without the GitHub link`);
-
-    const contact = section(html, 'contact');
+    const contact = section(main, 'contact');
     if (!contact) fail(`${where} without the contact section`);
     else {
       const form = /<form\b[^>]*>/.exec(contact)?.[0] ?? '';

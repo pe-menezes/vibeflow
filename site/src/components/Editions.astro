@@ -1,7 +1,6 @@
 ---
 import type { Locale } from '../i18n/utils';
 import { useTranslations } from '../i18n/utils';
-import InlineCode from './InlineCode.astro';
 
 interface Props {
   lang: Locale;
@@ -11,9 +10,12 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 
 // Display markup for a command: pieces that never break inside (`pe-menezes`,
-// `setup-vibeflow@latest`, `--cursor`), joined by spaces or by "/" plus <wbr>, so the
-// line breaks only there (a leading "/", as in `/plugin`, gets no break after it).
-// The copy button keeps the exact command in data-copy.
+// `vibeflow-marketplace`, `--cursor`, `setup-vibeflow@latest`), joined by spaces, or by a "/" or an
+// "@" plus <wbr>, so the line breaks only there. A leading "/" or "@", as in `/plugin`, gets no
+// break after it. Without the break after "@", `vibeflow@vibeflow-marketplace` is wider than the
+// command box on a phone and runs under the copy button. An "@" followed by a version (`latest`,
+// `next`, or a number, up to the next "/", "@" or the end of the word) gets no break either, so a
+// package and its version stay on one line. The copy button keeps the exact command in data-copy.
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const cmdHtml = (cmd: string) =>
@@ -21,7 +23,7 @@ const cmdHtml = (cmd: string) =>
     .split(' ')
     .map((word) =>
       word
-        .split(/(?<=[^/]\/)/)
+        .split(/(?<=[^/]\/)|(?<=[^@]@)(?!(?:latest|next)(?![^/@])|[0-9])/)
         .map((piece) => `<span class="ed-cmd-part">${escapeHtml(piece)}</span>`)
         .join('<wbr>'),
     )
@@ -32,31 +34,13 @@ const cmdHtml = (cmd: string) =>
   <div class="container">
     <p class="gx-rotulo ed-label">{t.editionsLabel}</p>
     <h2 class="section-title">{t.editionsTitle2}</h2>
-    <p class="section-sub">{t.editionsSubtitle2}</p>
-
-    <!-- Three answers before the rows: cost, code, first command. Titles are dt, not h3: the h3 of
-         this section are the six agents. -->
-    <dl class="ed-answers">
-      <div class="ed-answer">
-        <dt>{t.editionsCostTitle}</dt>
-        <dd><InlineCode text={t.editionsCostBody} /></dd>
-      </div>
-      <div class="ed-answer">
-        <dt>{t.editionsCodeTitle}</dt>
-        <dd><InlineCode text={t.editionsCodeBody} /></dd>
-      </div>
-      <div class="ed-answer">
-        <dt>{t.editionsFirstTitle}</dt>
-        <dd><InlineCode text={t.editionsFirstBody} /></dd>
-      </div>
-    </dl>
+    <p class="section-sub">{t.editionsTagline}</p>
 
     <!-- One row per agent, in this order: Codex, Hermes, Claude Code, Cursor, Copilot, OpenCode. -->
     <ul class="gx-lista ed-list">
       <li class="gx-linha ed-row">
         <div class="ed-name">
           <h3>{t.codexTitle}</h3>
-          <p class="ed-desc">{t.codexDesc}</p>
         </div>
         <div class="ed-cmds">
           <div class="ed-cmd">
@@ -73,7 +57,6 @@ const cmdHtml = (cmd: string) =>
       <li class="gx-linha ed-row">
         <div class="ed-name">
           <h3>{t.hermesTitle}</h3>
-          <p class="ed-desc">{t.hermesDesc}</p>
         </div>
         <div class="ed-cmds">
           <div class="ed-cmd">
@@ -87,16 +70,16 @@ const cmdHtml = (cmd: string) =>
         </div>
       </li>
 
-      <!-- Claude Code: two tabs. Without the script both panels show; with it, one at a time. -->
+      <!-- Claude Code: two tabs, the terminal one selected. Without the script both panels show; with
+           it, one at a time. -->
       <li class="gx-linha ed-row">
         <div class="ed-name">
           <h3>{t.claudeTitle}</h3>
-          <p class="ed-desc">{t.claudeDesc}</p>
         </div>
         <div class="ed-cmds">
           <div class="gx-abas ed-tabs" role="tablist" aria-label={t.claudeTitle} data-gx-abas>
-            <button class="gx-aba" type="button" role="tab" id="ed-tab-desktop" aria-selected="true" aria-controls="ed-panel-desktop">{t.claudeDesktopLabel}</button>
-            <button class="gx-aba" type="button" role="tab" id="ed-tab-cli" aria-selected="false" aria-controls="ed-panel-cli">{t.claudeCliLabel}</button>
+            <button class="gx-aba" type="button" role="tab" id="ed-tab-desktop" aria-selected="false" aria-controls="ed-panel-desktop">{t.claudeDesktopLabel}</button>
+            <button class="gx-aba" type="button" role="tab" id="ed-tab-cli" aria-selected="true" aria-controls="ed-panel-cli">{t.claudeCliLabel}</button>
           </div>
           <!-- Nothing focusable inside, so the panel itself takes the focus (ARIA tabs pattern). -->
           <div class="ed-panel" id="ed-panel-desktop" role="tabpanel" aria-labelledby="ed-tab-desktop" tabindex="0" data-gx-painel>
@@ -124,7 +107,6 @@ const cmdHtml = (cmd: string) =>
       <li class="gx-linha ed-row">
         <div class="ed-name">
           <h3>{t.cursorTitle}</h3>
-          <p class="ed-desc">{t.cursorDesc}</p>
         </div>
         <div class="ed-cmds">
           <div class="ed-cmd">
@@ -137,7 +119,6 @@ const cmdHtml = (cmd: string) =>
       <li class="gx-linha ed-row">
         <div class="ed-name">
           <h3>{t.copilotTitle}</h3>
-          <p class="ed-desc">{t.copilotDesc}</p>
         </div>
         <div class="ed-cmds">
           <div class="ed-cmd">
@@ -150,7 +131,6 @@ const cmdHtml = (cmd: string) =>
       <li class="gx-linha ed-row">
         <div class="ed-name">
           <h3>{t.opencodeTitle}</h3>
-          <p class="ed-desc">{t.opencodeDesc}</p>
         </div>
         <div class="ed-cmds">
           <div class="ed-cmd">
@@ -160,13 +140,6 @@ const cmdHtml = (cmd: string) =>
         </div>
       </li>
     </ul>
-
-    <div class="ed-notes">
-      <p class="ed-note"><InlineCode text={t.editionsLoopKit} /></p>
-      <p class="ed-note"><InlineCode text={t.editionsHermesScan} /></p>
-      <p class="ed-note"><InlineCode text={t.editionsGitDisclaimer} /></p>
-    </div>
-    <p class="ed-tag">{t.editionsTagline}</p>
   </div>
 </section>
 
@@ -194,31 +167,6 @@ const cmdHtml = (cmd: string) =>
     margin-bottom: var(--s-3);
   }
 
-  /* The three answers: one column on a phone, three where the section is wide enough. The rows
-     follow at the distance the subtitle keeps above them. */
-  .ed-answers {
-    display: grid;
-    gap: var(--s-5) var(--s-6);
-    margin: 0 0 var(--s-6);
-  }
-  @media (min-width: 760px) {
-    .ed-answers {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-  .ed-answers dt {
-    color: var(--ink);
-    font-size: var(--fs-body);
-    font-weight: 600;
-    line-height: 1.4;
-  }
-  .ed-answers dd {
-    margin: var(--s-1) 0 0;
-    color: var(--ink-3);
-    font-size: var(--fs-body);
-    line-height: 1.5;
-  }
-
   .ed-row {
     gap: var(--s-3) var(--s-6);
     align-items: start;
@@ -234,13 +182,6 @@ const cmdHtml = (cmd: string) =>
     font-size: var(--fs-d3);
     font-weight: 500;
     line-height: 1.15;
-  }
-  .ed-desc {
-    max-width: 52ch;
-    margin-top: var(--s-1);
-    color: var(--ink-3);
-    font-size: var(--fs-body);
-    line-height: 1.5;
   }
 
   .ed-cmds {
@@ -317,22 +258,5 @@ const cmdHtml = (cmd: string) =>
     border-radius: var(--r-1);
     background: var(--bg-alt);
     user-select: all;
-  }
-
-  .ed-notes {
-    display: grid;
-    gap: var(--s-2);
-    margin-top: var(--s-6);
-  }
-  .ed-note {
-    max-width: 80ch;
-    color: var(--ink-3);
-    font-size: var(--fs-ui);
-    line-height: 1.6;
-  }
-  .ed-tag {
-    margin-top: var(--s-5);
-    color: var(--ink-4);
-    font-size: var(--fs-body);
   }
 </style>

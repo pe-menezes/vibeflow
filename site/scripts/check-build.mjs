@@ -31,19 +31,21 @@
 //   x-default in English;
 // * nothing is hidden at rest: no fade-in or reveal markup, no CSS that hides content unless it is
 //   gated by a class a script adds when motion is allowed, no style attribute that hides or pushes
-//   text off screen, no hidden attribute outside SHOWN_LATER, and exactly one h1 per page;
+//   text off screen, no hidden attribute outside SHOWN_LATER (home-rules.mjs), and exactly one h1
+//   per page;
 // * every in-page and cross-page anchor (#x, /<lang>/#x, /<lang>/<page>#x) has its target id;
 // * both languages have the same structure (ids, in-page links, buttons and sections); an inner
 //   page may translate its ids when both languages have the same number of them, on the same
 //   elements, in the same order;
 // * the hero title carries the highlighted term in both languages;
-// * the hero call shows heroSubtitle and then heroDescription, and the flow band is an image named
+// * the hero call shows heroSubtitle alone (no heroDescription), and the flow band is an image named
 //   by heroFlowLabel with the heroFlowBefore and heroFlowAfter notes, all read from src/i18n.
 //
 // checkPages and checkCss are exported so the checks can run on HTML in memory.
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isShownLater } from './home-rules.mjs';
 import { expandSelectors, serialize } from './selectors.mjs';
 
 const SITE = 'https://www.vibeflow.run';
@@ -54,13 +56,6 @@ const INNER = ['commands/', 'anatomy/'];
 const BANNED = ['vibeflow.dev', 'vibeflow-two.vercel.app', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 // Classes a script adds only when motion is allowed or a piece is played; CSS under them may hide.
 const GATES = ['.motion-ok', '.gx-tocando'];
-// Elements that carry the hidden attribute in the HTML because a script shows them later, by id.
-// The phone menu is not one: it ships open, so the navigation works without a script, and only a
-// page running JavaScript closes it, by a class the head script sets before the first paint.
-const SHOWN_LATER = {
-  'form-success': 'the contact form success message, shown after the form is sent',
-};
-
 const siteDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 let problems = [];
 const fail = (msg) => problems.push(msg);
@@ -198,8 +193,8 @@ export function checkCss(css, where) {
 }
 
 // What hides content at rest in the markup of one page: a style attribute that hides or pushes
-// off screen, the hidden attribute on anything SHOWN_LATER does not list, and an h1 count other
-// than one.
+// off screen, the hidden attribute on anything SHOWN_LATER (home-rules.mjs) does not list, and an
+// h1 count other than one.
 function checkMarkup(html, where) {
   const found = [];
   for (const m of html.matchAll(/<([a-z][\w-]*)\b[^>]*>/gi)) {
@@ -214,7 +209,7 @@ function checkMarkup(html, where) {
     }
     if (/\shidden(\s|=|\/?>)/.test(tag.replace(/"[^"]*"/g, '""')) && !/^<(input|template)\b/i.test(tag)) {
       const id = attr(tag, 'id');
-      if (!id || !(id in SHOWN_LATER)) found.push(`${where}: <${m[1]}${id ? `#${id}` : ''}> has the hidden attribute at rest`);
+      if (!isShownLater(id)) found.push(`${where}: <${m[1]}${id ? `#${id}` : ''}> has the hidden attribute at rest`);
     }
   }
   for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)) found.push(...checkCss(m[1], `${where} <style>`).map((p) => p.replace(`${where} <style>: `, `${where}: <style> `)));
@@ -421,10 +416,8 @@ for (const out of outputs) {
     const html = readFileSync(file, 'utf8');
     const key = (k) => i18nValue(lang, k) ?? `(missing ${k})`;
     const call = plain(/<div class="hero-side[^"]*"[^>]*>([\s\S]*?)<div class="hero-actions"/.exec(html)?.[1] ?? '');
-    const sub = call.indexOf(key('heroSubtitle'));
-    const desc = call.indexOf(key('heroDescription'));
-    if (sub < 0) fail(`${label}: /${lang}/ hero call without heroSubtitle`);
-    if (desc < 0 || desc < sub) fail(`${label}: /${lang}/ hero call without heroDescription after heroSubtitle`);
+    if (call !== decode(key('heroSubtitle'))) fail(`${label}: /${lang}/ hero call is not heroSubtitle alone`);
+    if (call.includes(decode(key('heroDescription')))) fail(`${label}: /${lang}/ hero call still shows heroDescription`);
 
     const bandTag = /<div class="flow-band"[^>]*>/.exec(html)?.[0] ?? '';
     if (attr(bandTag, 'role') !== 'img') fail(`${label}: /${lang}/ flow band is not role="img"`);

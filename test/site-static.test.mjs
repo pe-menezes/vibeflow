@@ -263,13 +263,12 @@ test('the hero names the flow band, shows its two notes and keeps its inside out
   for (const [, tag, attrs] of children) assert.match(attrs, /aria-hidden="true"/, `<${tag}${attrs}>`);
 });
 
-test('the hero call shows the subtitle first, then the description', () => {
+test('the hero call shows the subtitle alone, without the description', () => {
   const hero = read('site/src/components/Hero.astro');
   const side = /<div class="hero-side[^>]*>([\s\S]*?)<div class="hero-actions">/.exec(hero)?.[1] ?? '';
-  const sub = side.indexOf('{t.heroSubtitle}');
-  const desc = side.indexOf('{t.heroDescription}');
-  assert.ok(sub >= 0, 'heroSubtitle is shown');
-  assert.ok(desc > sub, 'heroDescription comes after heroSubtitle');
+  assert.equal(side.split('{t.heroSubtitle}').length, 2, 'heroSubtitle is shown, once');
+  assert.ok(!/\bt\.heroDescription\b/.test(hero), 'heroDescription is not shown');
+  assert.equal(side.split('{t.').length, 2, 'nothing else in the call');
 });
 
 test('no machine path in the files of this part', () => {

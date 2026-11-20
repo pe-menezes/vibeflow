@@ -89,6 +89,19 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* === Type scale ===
+   The site reads one step above the design system scale (the approved mock-up of the contained
+   home page). The design system sets these tokens on :root and is imported before this file, so the
+   same selector wins by order, in both themes and on every page. */
+:root {
+  --fs-label: 12.5px;
+  --fs-data: 13.5px;
+  --fs-meta: 15px;
+  --fs-ui: 16px;
+  --fs-body: 18px;
+  --fs-lede: clamp(20px, 1.7vw, 24px);
+}
+
 /* === Site variables ===
    Measures of this site that the design system has no token for. */
 body {

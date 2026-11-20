@@ -26,13 +26,14 @@ const LANGS = ['en', 'pt-br'];
 const values = (v) => (Array.isArray(v) ? v : [v]);
 
 // Contract: spec decision 3 and criterion 5, the new block uses the tokens the section already uses,
-// with no literal colour. Regression: a hex, rgb(), hsl() or named black/white colour in a rule of
+// with no literal colour. Since the contained home page the answers and notes live in their own
+// block on the commands page (EditionsAnswers), which the probe reads as well. Regression: a hex, rgb(), hsl() or named black/white colour in a rule of
 // the editions or the loop component (an audit mutant set `color: #333` on the answer titles and the
 // whole site suite passed). Why the executor's test misses it: the reading test checks sizes only,
 // and the literal colour test of site-static reads global.css, not the components.
 test('the editions and loop components style with tokens, no literal colour', () => {
   const literal = /#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(|:\s*(white|black)\b/;
-  for (const name of ['Editions', 'Loop']) {
+  for (const name of ['Editions', 'Loop', 'EditionsAnswers']) {
     const css = styles(component(name));
     assert.ok(css.trim(), `${name} has a style block`);
     const found = literal.exec(css);
@@ -60,18 +61,20 @@ test('every i18n value pairs its backticks, in both languages', () => {
 
 // Contract: no backtick on screen. A key rendered as plain text, outside InlineCode, shows its
 // backticks as they are. Regression: a code span added to one of the three answer titles or to the
-// loop link sentence (or any other text the editions and loop components print as is), which then
+// loop link sentence (or any other text the editions, answers and loop components print as is), which then
 // reaches the page with its backticks. Why the executor's test misses it: it pins that the titles
 // and the link render `{t.key}` as plain text, and nothing reads what those values hold; the build
 // check squashes backticks away before it compares.
-test('the editions and loop components print as plain text only values with no backtick', () => {
+test('the editions, answers and loop components print as plain text only values with no backtick', () => {
   const plainKeys = new Set();
-  for (const name of ['Editions', 'Loop']) {
+  for (const name of ['Editions', 'Loop', 'EditionsAnswers']) {
     const markup = template(component(name));
     // `{t.key}` as element content: not an attribute value (`=` before it) and not InlineCode's text.
     for (const m of markup.matchAll(/(.)\{t\.(\w+)\}/g)) if (m[1] !== '=') plainKeys.add(m[2]);
   }
-  assert.ok(plainKeys.has('loopSetupLink'), 'the loop link sentence is printed as plain text');
+  // The loop's one link is the one to the details since the contained home page (loopSetupLink left).
+  assert.ok(plainKeys.has('loopMore'), 'the loop link sentence is printed as plain text');
+  assert.ok(plainKeys.has('editionsTagline'), 'the editions subtitle is printed as plain text');
   for (const k of ['editionsCostTitle', 'editionsCodeTitle', 'editionsFirstTitle']) assert.ok(plainKeys.has(k), `${k} is printed as plain text`);
   for (const lang of LANGS) {
     const t = i18n(lang);
