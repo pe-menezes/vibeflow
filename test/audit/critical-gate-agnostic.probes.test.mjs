@@ -322,3 +322,64 @@ test('probe: with no diff, item b and the output note say Clean only under a neg
     assert.ok(cleanIsNegated(clause), `${edition}: the note lets Clean follow No diff scanned: ${clause}`);
   }
 });
+
+// --- reaudit 3: DAT101 leaves out only one record by its key and what is held in memory -----------
+
+// The behaviour cell of one catalog row, without the names in parentheses at its end.
+function behaviourCell(step, id) {
+  const row = step.find((line) => line.trim().startsWith(`| ${id} |`));
+  assert.ok(row, `${id} is in the catalog`);
+  return row.trim().slice(1, -1).split('|')[3].trim().replace(/\s*\([^()]*\)$/, '');
+}
+
+// The clauses of a behaviour, cut at a semicolon and at a comma that opens an exclusion; a clause
+// that takes something out of the rule; and whether every such clause is about one record deleted
+// by its key or about what is held in memory, and says nothing about a condition or a filter.
+const OPENS_EXCLUSION = /,(?=\s*(?:nor|except|unless|but|other than|excluding|apart from|save)\b)/i;
+const TAKES_OUT = /\b(?:no|not|nor|never|neither|none|without|except|unless|excluding|other than|only|unfiltered)\b|n't\b/i;
+const NAMES_A_CONDITION = /\b(?:condition|filter\w*|where|scoped?|narrows?|selects?|matche?s?)\b/i;
+function leavesOutOnlyKeyAndMemory(behaviour) {
+  return behaviour
+    .split(';')
+    .flatMap((part) => part.split(OPENS_EXCLUSION))
+    .map((clause) => clause.trim())
+    .filter((clause) => TAKES_OUT.test(clause))
+    .every((clause) => (/\bkey\b/i.test(clause) || /\bmemory\b/i.test(clause)) && !NAMES_A_CONDITION.test(clause));
+}
+
+test('probe: the DAT101 exclusion check catches a delete with a condition taken out in new words, and leaves the measured row alone', () => {
+  const head = 'many stored records are deleted in one operation: every record of a table, collection or store, or all those a condition selects, by a query, an ORM call or a file command';
+  const tail = 'one record deleted by its key is not this, nor is emptying a list, map or cache held in memory';
+  for (const sample of [
+    `${head}; ${tail}; a delete a condition narrows is not this`,
+    `${head}; one record deleted by its key is not this, nor is a filtered delete, nor is emptying a list, map or cache held in memory`,
+    `${head}; ${tail}; a delete with a where clause is not this`,
+    `${head.replace('a condition selects,', 'a condition selects, except a delete scoped by a condition,')}; ${tail}`,
+    `${head}; ${tail}; it applies only to unfiltered deletes`,
+    'every record of a table, collection or store is deleted, with no condition that narrows it, by a query, an ORM call or a file command',
+  ]) {
+    assert.equal(leavesOutOnlyKeyAndMemory(sample), false, sample);
+  }
+  assert.equal(leavesOutOnlyKeyAndMemory(`${head}; ${tail}`), true);
+});
+
+// Contract: in the three editions, DAT101 covers a delete of many stored records whether or not a
+// condition selects them, and the only things its row takes out of the rule are one record deleted
+// by its key and emptying a list, map or cache held in memory (measured as a defect: a row that took
+// out the delete with a condition fired on a filtered bulk delete in 0 calls of 36, Sonnet and Opus).
+// Breaks when: a rewrite of the row takes the delete with a condition back out in words that come
+// after the condition or open a clause of their own — "nor is a filtered delete", "a delete a
+// condition narrows is not this", "a delete with a where clause is not this", "except a delete
+// scoped by a condition", "it applies only to unfiltered deletes"; each survived a mutation of the
+// three editions.
+// Missed by the implementer's test because: its negation pattern needs no, not, without or
+// unfiltered before condition, filter or where with no comma or semicolon between them, so a
+// negation that follows the condition word, "nor", "except", "only" or "filtered" passes it.
+test('probe: DAT101 takes out of the rule only one record by its key and what is held in memory, in the three editions', () => {
+  for (const [edition, raw] of editions()) {
+    const step = extractStep(raw);
+    assert.ok(step, `${edition}: the Critical Gate step`);
+    const behaviour = behaviourCell(step, 'DAT101');
+    assert.ok(leavesOutOnlyKeyAndMemory(behaviour), `${edition}: DAT101 takes something else out of the rule: ${behaviour}`);
+  }
+});
