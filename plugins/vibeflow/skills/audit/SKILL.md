@@ -285,14 +285,15 @@ restore.
         person that only names the thing (a label, an error or help text), a
         test name or description and documentation prose do not fire. A
         string the program runs or sends (SQL, a shell command) is the
-        behaviour, and so is a text that carries the value itself. When you
-        cannot tell, treat the line as doing it.
+        behaviour, and so is a text that carries the data or the secret
+        itself. When you cannot tell, treat the line as doing it.
       - **Say what was scanned.** The `### Critical Gate` section carries a
         `Scanned:` line: how many of the changed files were scanned and, by
         path, each file left out and why. A path the package took out is
         cited as item a says, by the package section where its note appears.
         When step 1 ran over the code, the `No diff scanned` line stands in
-        its place.
+        place of the `Scanned:` line, and the section does not say "Clean":
+        nothing was scanned.
    c. **Honor overrides.** Skip a finding if the spec, the PR body, or a comment
       near the line contains `vibeflow:allow <RULE_ID>: <reason>`. CRITICAL/HIGH
       require a non-empty justification; WARNING/INFO may be overridden without one.
@@ -307,7 +308,7 @@ restore.
    **Rules Catalog (~40 rules, 6 domains).** Each rule is a behaviour. A
    domain's "where" says where that behaviour usually lives, as a guide and
    never as a filter. Item b says when a rule fires: on what a line does, in
-   any language, and not on a mention.
+   any language, and not on a mention; a line you cannot place fires.
 
    _Database_ — where: SQL, in `.sql` files, in migrations and inside code
    | ID | Sev | Scope | Trigger |
@@ -539,7 +540,7 @@ Scanned: <n> of <m> changed file(s); not scanned: <path> (<why>), <path> (<why>)
 - 🟡 WARNING [CFG102] config/app.yml:4 — debug mode enabled
 - ✅ ALLOWED [DS104] db/migrate/004.sql:7 — DROP COLUMN — override: vibeflow:allow DS104: <reason>
 (one finding per line: a rule that matches two lines is two findings, each with its own `path:line`)
-(with no finding, "Clean — no destructive operations detected." takes the place of the finding lines, after the two lines above; when step 1 ran over the code, "No diff scanned — <why>." takes the place of the `Scanned:` line)
+(with no finding, "Clean — no destructive operations detected." takes the place of the finding lines, after the two lines above; when step 1 ran over the code, "No diff scanned — <why>." takes the place of the `Scanned:` line and no finding or "Clean" line follows: nothing was scanned)
 
 ### Findings
 - [F1] defect · implementation · confidence high — total ignores the discount — evidence: src/cart.ts:42 — probe: tests/audit/cart-p1.test.ts::discount enters the total

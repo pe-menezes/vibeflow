@@ -3,9 +3,15 @@
 // carries its three rules (every changed file is scanned, a word is not the
 // behaviour, say what was scanned), the Security and Data domains list no
 // language extension, the catalog keeps 38 rules in 6 domains, and the output
-// format carries a `Scanned:` line and the one-finding-per-line note. The
-// assertions pin the contract, not the wording, so a rewrite of the technology
-// domains keeps passing as long as it keeps the contract.
+// format carries a `Scanned:` line and the one-finding-per-line note.
+// Item b leaves out of the scan only what cannot hold a rule, and a file a tool
+// generated is scanned. When step 1 ran over the code, the `No diff scanned`
+// line is named in item b and takes the place of the `Scanned:` line, and the
+// section does not say Clean, in item b and in the output note. Every finding
+// example of the output format carries the severity its rule has in the
+// catalog, and every rule keeps the id, severity and scope it had in v1.20.0.
+// The assertions pin the contract, not the wording, so a rewrite of the
+// technology domains keeps passing as long as it keeps the contract.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -228,6 +234,26 @@ test('the No diff scanned line is named in item b and takes the place of the Sca
     assert.ok(note, `${edition}: the output format has a note with the No diff scanned line`);
     const after = note.slice(note.indexOf('No diff scanned'));
     assert.match(after, /^[^;]*\b(place of|instead of|replaces|stands in for)\b[^;]*`Scanned:` line/i, `${edition}: the note says No diff scanned takes the place of the Scanned: line`);
+  });
+});
+
+// A negation that reaches the word Clean in the same clause. The name of the
+// No diff scanned line is taken out first, so its own "No" does not count.
+const NO_CLEAN = /\b(no|not|never|nor|without)\b[^;]*\bClean\b/i;
+
+test('with no diff, the section does not say Clean, in item b and in the output note', () => {
+  forEachEdition((raw, edition) => {
+    const rule = sentences(itemBRule(itemB(gateStep(raw, edition), edition), 'Say what was scanned', edition));
+    const noDiff = rule.filter((sentence) => sentence.includes('No diff scanned'));
+    assert.ok(noDiff.length > 0, `${edition}: "Say what was scanned" has a sentence on the No diff scanned line`);
+    assert.ok(
+      noDiff.some((sentence) => NO_CLEAN.test(sentence.replaceAll('No diff scanned', ''))),
+      `${edition}: "Say what was scanned" says the section does not say Clean when step 1 ran over the code`,
+    );
+    const note = extractOutputFormat(raw).find((line) => line.startsWith('(') && line.includes('No diff scanned'));
+    assert.ok(note, `${edition}: the output format has a note with the No diff scanned line`);
+    const clause = note.slice(note.indexOf('No diff scanned') + 'No diff scanned'.length).split(';')[0];
+    assert.match(clause, NO_CLEAN, `${edition}: the note says no finding or Clean line follows No diff scanned`);
   });
 });
 
