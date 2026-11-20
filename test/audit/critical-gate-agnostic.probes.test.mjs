@@ -252,3 +252,73 @@ test('probe: item b and the output note say what No diff scanned and Clean take 
     assert.match(noDiff, /\b(place of|instead of|replaces?)\s+the\s+`Scanned:` line/i, `${edition}: No diff scanned takes the place of the Scanned: line: ${noDiff}`);
   }
 });
+
+// --- reaudit 2: with no diff, every "Clean" is said under a negation -----------------------------
+
+// Whether every "Clean" in a piece of prose sits under a negation: within the same phrase (no comma,
+// colon, semicolon or period between them), a "no", "not", "never", "nor" or "without" at most three
+// words before it, not itself a condition ("with no finding"), or a "not" or "never" at most two
+// words after it. Code spans are folded first, so the colon of `Scanned:` does not end a phrase.
+const NEGATION = /^(no|not|never|nor|without)$/i;
+function cleanIsNegated(text) {
+  const prose = text.replace(/`[^`]*`/g, 'CODE');
+  const found = [...prose.matchAll(/"?\bClean\b"?/g)];
+  if (found.length === 0) return false;
+  return found.every((match) => {
+    const before = prose.slice(0, match.index).split(/[,:;.]/).at(-1).trim().split(/\s+/).filter(Boolean);
+    const window = before.slice(-4);
+    const at = window.findLastIndex((word) => NEGATION.test(word));
+    const negatedBefore = at >= 0 && !/^with$/i.test(window[at - 1] ?? before[before.length - window.length + at - 1] ?? '');
+    const after = prose.slice(match.index + match[0].length).split(/[,:;.)]/)[0].trim().split(/\s+/).filter(Boolean).slice(0, 3);
+    const negatedAfter = after.some((word) => /^(not|never)$/i.test(word));
+    return negatedBefore || negatedAfter;
+  });
+}
+
+test('probe: the negated-Clean check catches Clean said to follow in new words, and leaves the measured text and correct rewrites alone', () => {
+  for (const sample of [
+    'the `No diff scanned` line stands in place of the `Scanned:` line, and the section says "Clean" after it',
+    'When step 1 ran over the code and no diff was given, the line stands in place of the `Scanned:` line, and the section says "Clean"',
+    'stands in place of the `Scanned:` line, and with no finding the section says "Clean"',
+    ' — <why>." takes the place of the `Scanned:` line and, with no finding, the "Clean" line follows it)',
+    ' — <why>." takes the place of the `Scanned:` line, no finding line follows, and the "Clean" line follows)',
+    ' — <why>." takes the place of the `Scanned:` line and with no finding "Clean" follows)',
+    ' — <why>." takes the place of the `Scanned:` line and a "Clean" line follows, not a finding line)',
+    ' — <why>." takes the place of the `Scanned:` line)',
+  ]) {
+    assert.equal(cleanIsNegated(sample), false, sample);
+  }
+  for (const sample of [
+    'the `` line stands in place of the `Scanned:` line, and the section does not say "Clean": nothing was scanned.',
+    ' — <why>." takes the place of the `Scanned:` line and no finding or "Clean" line follows: nothing was scanned)',
+    ' — <why>." takes the place of the `Scanned:` line, and a finding or "Clean" line never follows: nothing was scanned)',
+    'stands in place of the `Scanned:` line, and "Clean" is never written: nothing was scanned.',
+    'stands in place of the `Scanned:` line, and the section ends without "Clean".',
+  ]) {
+    assert.equal(cleanIsNegated(sample), true, sample);
+  }
+});
+
+// Contract: in the three editions, when step 1 ran over the code, the Critical Gate section writes
+// no "Clean" after the `No diff scanned` line: item b's "Say what was scanned" and the clause of the
+// output note that follows `No diff scanned` put every "Clean" they name under a negation (spec,
+// "Conserto 2 da parte 2a", changes 1 and 2; finding L1 of reaudit 1, measured as a defect: with the
+// text of 0f47643 the section wrote "Clean" after `No diff scanned` in 6 calls of 6, Sonnet and Opus).
+// Breaks when: a rewrite keeps a negation word in the sentence or clause but lets "Clean" follow —
+// "with no finding, the Clean line follows it", "no finding line follows, and the Clean line
+// follows", or a "no" in the sentence's condition ("when … no diff was given, … the section says
+// Clean"); each survived a mutation of the three editions.
+// Missed by the implementer's test because: its NO_CLEAN pattern accepts any "no", "not", "never",
+// "nor" or "without" anywhere before "Clean" in the same clause (up to a semicolon), whatever that
+// word negates.
+test('probe: with no diff, item b and the output note say Clean only under a negation, in the three editions', () => {
+  for (const [edition, raw] of editions()) {
+    const said = itemBBullet(extractStep(raw), 'Say what was scanned').find((sentence) => sentence.includes('`No diff scanned`'));
+    assert.ok(said, `${edition}: "Say what was scanned" names the No diff scanned line`);
+    assert.ok(cleanIsNegated(said.replaceAll('`No diff scanned`', '``')), `${edition}: item b lets Clean follow No diff scanned: ${said}`);
+    const note = extractOutputFormat(raw).find((line) => line.startsWith('(') && line.includes('No diff scanned'));
+    assert.ok(note, `${edition}: the output format has a note with the No diff scanned line`);
+    const clause = note.slice(note.indexOf('No diff scanned') + 'No diff scanned'.length).split(';')[0];
+    assert.ok(cleanIsNegated(clause), `${edition}: the note lets Clean follow No diff scanned: ${clause}`);
+  }
+});
