@@ -438,7 +438,12 @@ test('a standalone audit writes the probe file and sabotages only with --probes;
 
 test('behavior probes go to the suite with three answers, state probes stay in the report', () => {
   forEachEdition((content, edition) => {
-    assert.match(content, /`<test dir>\/audit\/<feature>-<part>\.test\.<ext>`/, `${edition}: probe path`);
+    // The probe goes where the project's own tests go, found by its marker; no folder or suffix is fixed.
+    assert.match(content, /in the folder where they live, with the file name its test runner picks up and the same test framework/,
+      `${edition}: probe file placed and named as the project's tests`);
+    assert.match(content, new RegExp(`comment on the file's first lines carries the marker \`${['vibeflow', 'probe:'].join('-')} <feature>-<part>\``),
+      `${edition}: probe marker`);
+    assert.doesNotMatch(content, /<test dir>\/audit\/|\.test\.<ext>/, `${edition}: no fixed probe folder or suffix`);
     assert.match(content, /pinned by content/i, `${edition}: probes pin by content`);
     assert.match(content, /the contract it protects, the plausible regression that breaks it and why the implementer's tests miss it/,
       `${edition}: the three pruning answers`);
@@ -451,14 +456,16 @@ test('behavior probes go to the suite with three answers, state probes stay in t
   });
 });
 
-test('a probe of an open finding carries the expected-failure marker, and check-probes reads the probe folder used', () => {
+test('a probe of an open finding carries the expected-failure marker, and check-probes finds the probe file by its marker', () => {
   forEachEdition((content, edition) => {
     assert.match(content, /probe that reproduces an open finding carries the test framework's expected-failure marker naming the finding/i,
       `${edition}: expected-failure marker on a probe of an open finding`);
     assert.match(content, /`todo` in node:test, `xfail` in pytest, `test\.failing` in Jest/, `${edition}: the marker per framework`);
     assert.match(content, /never turns the project's suite red/i, `${edition}: the audit never turns the suite red`);
     assert.match(content, /fix that closes the finding removes the marker/i, `${edition}: the fix removes the marker`);
-    assert.match(content, /check-probes\.mjs <project root> --base <base> --dir <probe dir>/, `${edition}: check-probes with --dir`);
+    assert.match(content, /check-probes\.mjs <project root> --base <base>` before the final stage; it finds the probe file by its marker\./,
+      `${edition}: check-probes without --dir, by the marker`);
+    assert.doesNotMatch(content, /check-probes\.mjs[^`]*--dir/, `${edition}: no --dir in the check-probes call`);
     assert.match(content, /how many probe files it read/i, `${edition}: the report states how many probe files were read`);
   });
 });

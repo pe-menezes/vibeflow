@@ -16,25 +16,37 @@ if (Number(process.versions.node.split('.')[0]) < 18) {
 
 const USAGE = `usage: check-probes.mjs <repo> [--base <ref>] [--dir <probe folder>]
 
-Without --dir, the probes are the files under an "audit/" folder inside a test folder
-(test/, tests/, __tests__/ or spec/, at any depth). With --base, only the probe files changed
-since <ref> (committed, modified or untracked) are read; without it, every probe file is
-(periodic pruning). A --dir folder is relative to the repository's top level, or absolute;
-either way it must be a folder inside the repository.
+Without --dir, the probes are the files that carry the marker "vibeflow-probe: <name>" (in
+any folder, with any extension), and the files under an "audit/" folder inside a test folder
+(test/, tests/, __tests__/ or spec/, at any depth), where probes went before the marker.
+With --base, only the probe files changed since <ref> (committed, modified or untracked) are
+read; without it, every probe file is (periodic pruning).
+A --dir folder is relative to the repository's top level, or absolute; either way it must be a
+folder inside the repository, and every file in it is read.
 
 exit 0 clean · 1 suspects · 64 bad arguments, git failure, or a --dir that does not exist,
 is not a folder or is outside the repository`;
 
+// Each family matches the form that does not depend on the project's language: a `git` string
+// literal (the program a process call runs) or a git command line; a version name, key or
+// literal; a sentence of state; `<name>.<extension>:<number>`; a `now`, `today` or `utcnow`
+// member of any receiver; a string literal that ends in a document file.
 const FAMILIES = [
-  ['reads git', /\b(execFileSync|execFile|spawnSync|spawn|execSync|exec)\(\s*['"`]git\b|subprocess\.\w+\(\s*\[\s*['"]git|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/],
-  ['current version', /\bVERSION\b|['"]version['"]|\.version\b|package\.json|CHANGELOG|__version__|['"]v?\d+\.\d+\.\d+['"]/],
+  ['reads git', /['"`]git['"`]|\bgit (diff|log|show|rev-parse|status|ls-files)\b|origin\/(main|master)|HEAD~\d/],
+  ['current version', /\bVERSION\b|['"]version['"]|\.version\b|CHANGELOG|['"]v?\d+\.\d+\.\d+['"]/],
   ['state that changes by itself', /\b(still|remains|is)\s+(pending|open|unfixed|todo)\b|\bnot yet (done|fixed|implemented|shipped)\b/i],
-  ['line number', /\.(ts|tsx|js|jsx|mjs|cjs|py|rb|go|rs|java|md|sh):\d+\b/],
-  ['real clock', /\bDate\.now\(\)|new Date\(\s*\)|datetime\.(now|today|utcnow)\(|date\.today\(|time\.time\(\)/],
-  ['doc text', /\b(readFileSync|readFile|read_text|open)\([^)]*\.(md|html|txt)\b/],
+  ['line number', /[\w-]+\.[A-Za-z][A-Za-z0-9]*:\d+\b/],
+  ['real clock', /(\.|::)(now|today|utcnow)\b|\bDate\(\s*\)|\btime\.time\(\)/i],
+  ['doc text', /['"`][^'"`\n]*\.(md|html|txt|rst|adoc)['"`]/],
 ];
 
 const DEFAULT_PROBE_PATH = /(^|\/)(test|tests|__tests__|spec)\/(.*\/)?audit\//;
+// The marker the audit writes in a probe's comment, followed by its name. Assembled, so this
+// script is not a probe where the kit is installed; a text that quotes the marker's template
+// (`<feature>-<part>`, in angle brackets) is not one either.
+const MARKER = ['vibeflow', 'probe:'].join('-');
+const MARKED = `${MARKER}[[:space:]]*[^[:space:]<]`;
+const NOT_READ = 'not read: state that reaches a probe through another file (a helper, a fixture loader) or through the environment; the auditor reads that';
 
 function fail(message) {
   console.error(`check-probes: ${message}`);
@@ -45,10 +57,10 @@ function cleanEnv() {
   return Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
 }
 
-function git(dir, args) {
+function git(dir, args, okStatuses = [0]) {
   const result = spawnSync('git', args, { cwd: dir, env: cleanEnv(), encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
   if (result.error) fail(`git could not run: ${result.error.message}`);
-  if (result.status !== 0) fail(`git ${args.join(' ')} failed: ${result.stderr.trim().slice(0, 200)}`);
+  if (!okStatuses.includes(result.status)) fail(`git ${args.join(' ')} failed: ${result.stderr.trim().slice(0, 200)}`);
   return result.stdout.split('\0').filter(Boolean);
 }
 
@@ -86,11 +98,20 @@ function probeFolder(top, dir) {
   return inside.split(sep).join('/');
 }
 
+// The tracked and untracked files whose text carries the marker with a name after it.
+function markedFiles(top) {
+  return new Set(git(top, ['grep', '-l', '-z', '-I', '--untracked', '-E', '-e', MARKED], [0, 1]));
+}
+
 function probeFiles(top, { base, dir }) {
   const folder = dir === null ? null : probeFolder(top, dir);
-  const inScope = folder === null
-    ? (path) => DEFAULT_PROBE_PATH.test(path)
-    : (path) => folder === '' || path.startsWith(`${folder}/`);
+  let inScope;
+  if (folder === null) {
+    const marked = markedFiles(top);
+    inScope = (path) => marked.has(path) || DEFAULT_PROBE_PATH.test(path);
+  } else {
+    inScope = (path) => folder === '' || path.startsWith(`${folder}/`);
+  }
   const listed = base
     ? [
         ...git(top, ['diff', '--name-only', '--no-renames', '--diff-filter=d', '-z', base, '--']),
@@ -124,10 +145,11 @@ function main(argv) {
     });
   }
   console.log(`${files.length} probe file(s) read; ${suspects} suspect line(s)`);
-  if (files.length === 0) console.log('no probe file found: check --dir or --base if the audit wrote probes');
+  if (files.length === 0) console.log('no probe file found: check the marker, --dir or --base if the audit wrote probes');
   if (suspects) {
     console.log('For each: a behavior probe stays; a state probe (git, version, sentence, line, clock, doc text) moves to the report before the PR.');
   }
+  console.log(NOT_READ);
   return suspects ? 1 : 0;
 }
 

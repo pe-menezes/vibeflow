@@ -37,15 +37,11 @@ function commandOf(text, script, argsShape) {
   return { kitPrefix: match[1], args: argsShape };
 }
 
-// Fill the placeholders and point the edition's kit path at this repository's kit. The two
-// placeholders with a space (`<project root>`, `<probe dir>`) are one argument each.
+// Fill the placeholders and point the edition's kit path at this repository's kit. The
+// placeholder with a space (`<project root>`) is one argument.
 function run(command, script, values, env) {
-  const argv = command.args.replace('<project root>', '@ROOT').replace('<probe dir>', '@PROBE_DIR').split(' ').map((token) => {
+  const argv = command.args.replace('<project root>', '@ROOT').split(' ').map((token) => {
     if (token === '@ROOT') return values.root;
-    if (token === '@PROBE_DIR') {
-      assert.ok('<probe dir>' in values, 'placeholder <probe dir> has a value');
-      return values['<probe dir>'];
-    }
     if (/^<.*>$/.test(token)) {
       assert.ok(token in values, `placeholder ${token} has a value`);
       return values[token];
@@ -58,7 +54,9 @@ function run(command, script, values, env) {
 
 const STEP1 = ['review-package.mjs', '<project root> <base> <out>'];
 const REAUDIT = ['review-package.mjs', '<project root> <round-commit> <out>'];
-const PROBES = ['check-probes.mjs', '<project root> --base <base> --dir <probe dir>'];
+const PROBES = ['check-probes.mjs', '<project root> --base <base>'];
+// The marker a probe's comment carries, assembled so this file is not read as a marked probe.
+const MARK = ['vibeflow', 'probe:'].join('-');
 
 // ------------------------------------------------------------- empty package
 
@@ -130,25 +128,29 @@ test('re-audit: the command, started at the round commit, carries the fix (commi
 
 // -------------------------------------------------------------------- probes
 
-// Contract: check-probes, called as the editions call it, reads the probe file the audit just wrote (untracked) and flags a state line in it.
-// Breaks when: an edition drops `--base` or `--dir` from the call, or the script stops reading untracked files under `--base`.
+// Contract: check-probes, called as the editions call it, reads the probe file the audit just wrote (untracked, beside the project's tests, with the marker) and flags a state line in it.
+// Breaks when: an edition drops `--base` from the call or puts a `--dir` back, or the script stops finding an untracked file by its marker under `--base`.
 // Not covered by: no implementer test runs the script in the form the editions write.
 test('probes: check-probes, called as the editions call it, reads the probe file the audit just wrote (untracked) and flags a state line', () => {
   for (const [name, path] of Object.entries(EDITIONS)) {
     const command = commandOf(edition(path), ...PROBES);
     withSandbox((box) => {
       box.git('checkout', '-q', '-b', 'feat');
-      box.write('tests/audit/feat-api.test.ts', "it('total', () => expect(total([1, 2])).toBe(3))\n");
-      const clean = run(command, PROBES[0], { root: box.repo, '<base>': 'main', '<probe dir>': 'tests/audit' }, box.env());
+      const marker = `// ${MARK} feat-api\n`;
+      box.write('tests/feat-api.test.ts', `${marker}it('total', () => expect(total([1, 2])).toBe(3))\n`);
+      // A test of the project without the marker is not a probe, even with a state line.
+      box.write('tests/other.test.ts', 'expect(stamp).toBeLessThan(Date.now())\n');
+      const clean = run(command, PROBES[0], { root: box.repo, '<base>': 'main' }, box.env());
       assert.equal(clean.status, 0, `${name}: ${clean.out}`);
-      assert.match(clean.out, /1 probe file\(s\) read/, `${name}: the untracked probe file is read`);
+      assert.match(clean.out, /^1 probe file\(s\) read/m, `${name}: the untracked probe file is read, and only it`);
       // The fixture's state line and the expected report are assembled, so check-probes run on
       // this file does not read the fixture as a state probe of this repository.
       const stateLine = `const out = execSync('${['git', 'diff', 'main'].join(' ')}')\n`;
-      box.write('tests/audit/feat-api.test.ts', stateLine);
-      const suspect = run(command, PROBES[0], { root: box.repo, '<base>': 'main', '<probe dir>': 'tests/audit' }, box.env());
+      box.write('tests/feat-api.test.ts', `${marker}${stateLine}`);
+      const suspect = run(command, PROBES[0], { root: box.repo, '<base>': 'main' }, box.env());
       assert.equal(suspect.status, 1, `${name}: ${suspect.out}`);
-      assert.ok(suspect.out.includes(['tests/audit/feat-api.test.ts', '1 [reads git]'].join(':')), `${name}: the state line is named`);
+      assert.ok(suspect.out.includes(['tests/feat-api.test.ts', '2 [reads git]'].join(':')), `${name}: the state line is named`);
+      assert.ok(!suspect.out.includes('tests/other.test.ts:'), `${name}: the unmarked test is not read`);
     });
   }
 });
@@ -485,19 +487,25 @@ test('artifacts: a subproject\'s own .vibeflow/ artifacts stay out when the proj
   });
 });
 
-// Contract: check-probes reads the probe folder whether `--dir` is relative to the project or absolute.
-// Breaks when: the script compares `--dir` with paths relative to the root, so an absolute folder reads zero files and exits 0.
-// Not covered by: the kit's tests call the script directly, never with the command line an edition writes, with `--base` and an untracked probe file.
-test('probes: check-probes reads the probe folder whether --dir is given relative to the project or absolute', () => {
-  const command = commandOf(edition(EDITIONS.shared), ...PROBES);
-  withSandbox((box) => {
-    box.git('checkout', '-q', '-b', 'feat');
-    box.write('tests/audit/feat-api.test.ts', "it('total', () => expect(total([1, 2])).toBe(3))\n");
-    for (const dir of ['tests/audit', join(box.repo, 'tests/audit')]) {
-      const result = run(command, PROBES[0], { root: box.repo, '<base>': 'main', '<probe dir>': dir }, box.env());
-      assert.match(result.out, /1 probe file\(s\) read/, `--dir ${dir}: ${result.out}`);
-    }
-  });
+// Contract: called as the editions call it, check-probes finds a probe by its marker where a non-JavaScript project keeps its tests (a Go probe beside the code), still reads an older probe under the audit/ folder, and does not read the production code beside the probe.
+// Breaks when: the script reads only an audit/ folder again, or reads a whole folder, so the production code beside a Go probe is read as a probe.
+// Not covered by: the kit's tests call the script directly, never with the command line an edition writes, with `--base` and untracked probe files.
+test('probes: check-probes, called as the editions call it, finds a probe beside the code by its marker and the older audit/ probe, and not the code beside them', () => {
+  for (const [name, path] of Object.entries(EDITIONS)) {
+    const command = commandOf(edition(path), ...PROBES);
+    withSandbox((box) => {
+      box.git('checkout', '-q', '-b', 'feat');
+      const clock = ['time', 'Now()'].join('.');
+      box.write('billing/billing_feat_probe_test.go', `// ${MARK} feat-api\npackage billing\nfunc TestStamp(t *testing.T) { _ = ${clock} }\n`);
+      box.write('billing/billing.go', `package billing\nfunc Stamp() time.Time { return ${clock} }\n`);
+      box.write('tests/audit/feat-api.test.ts', "it('total', () => expect(total([1, 2])).toBe(3))\n");
+      const result = run(command, PROBES[0], { root: box.repo, '<base>': 'main' }, box.env());
+      assert.equal(result.status, 1, `${name}: ${result.out}`);
+      assert.match(result.out, /^2 probe file\(s\) read; 1 suspect line\(s\)$/m, `${name}: ${result.out}`);
+      assert.ok(result.out.includes(['billing/billing_feat_probe_test.go', '3 [real clock]'].join(':')), `${name}: the Go probe is read`);
+      assert.ok(!result.out.includes('billing/billing.go:'), `${name}: the production code is not read`);
+    });
+  }
 });
 
 // Contract: nothing under `.vibeflow/` counts as a change, so a new spec left untracked over work committed on the default branch gives an empty package (exit 1, EMPTY PACKAGE, the `.vibeflow/` path counted), and each edition sends that case to the committed-work rule, which audits the code; next to a real change the spec is in the package as context.

@@ -35,7 +35,7 @@ The checks that must always run are scripts in `scripts/` (see `README.md`); the
    * A state probe pins the repository instead of a behavior: a diff against the base, the list of files touched, today's version, a sentence of a document, "still pending", a line number, the real clock. It stays out of the test directory, and `check-probes.mjs` lists the suspects before the PR.
    * A probe pins by content. The executor does not shape code to please a probe; it records the conflict and the re-audit decides.
    * An old probe that the part makes false (a defect now fixed, a sentence rewritten) is rewritten only with written permission in the briefing, by the fact and with equal strength.
-   * A rule over a space of inputs (a date window, an amount, a time zone) becomes a property test when the repository has fast-check or Hypothesis, with the oracle written in the test.
+   * A rule over a space of inputs (a date window, an amount, a time zone) becomes a property test when the repository has a property-testing library (fast-check, Hypothesis and the like), with the oracle written in the test.
    * In an operational runbook, a new instruction is a command with its expected output and a stop condition, proven in a temporary directory.
 
 8. **The ceiling is written, and it escalates.**
