@@ -183,7 +183,7 @@ test('make.mjs: the + and - lines of the change are exactly the lines of the cas
 // filed under DAT104, which asks for the logging call): the decoy then baits a reader of the
 // catalog's words less than its kind says, and the false-positive rate per kind mixes two things.
 // Not covered by: the implementer's tests check decoy kinds per language, never the decoy's label.
-test('decoys: every decoy holds a term of its rule, by tokenListed', { todo: 'open gap: go-SEC106-decoy-name, swift-SEC106-decoy-name, php-SEC106-decoy-name and kotlin-DAT104-decoy-comment have tokenListed false' }, () => {
+test('decoys: every decoy holds a term of its rule, by tokenListed', () => {
   const weak = expandCases().filter((c) => c.kind === 'decoy' && !tokenListed(c.rule, c.snippet.join('\n'))).map((c) => c.id);
   assert.deepEqual(weak, []);
 });
@@ -222,7 +222,7 @@ test('meter: two findings on one case, one ALLOWED and one with ./, count the ca
 // the whole method (`csharp/Customers.cs:1-6` for the response on line 5) reads as "outside the
 // manifest".
 // Not covered by: the implementer's tests never write a range.
-test('meter: a finding whose line range holds the planted line detects it', { todo: 'open gap: a range is read by its first line only, so a range that starts more than 2 lines before the case is outside the manifest' }, () => {
+test('meter: a finding whose line range holds the planted line detects it', () => {
   const c = byId('csharp-DAT102-idiomatic');
   const text = `### Critical Gate\n- 🟠 HIGH [DAT102] ${c.path}:1-${c.line + 1} — card number in the response\n`;
   const r = measure(manifest, [{ path: 'r.md', text }]).reports[0];
@@ -235,7 +235,7 @@ test('meter: a finding whose line range holds the planted line detects it', { to
 // of a second one (a reaudit appended to the report, a model that writes the section twice) vanish
 // from every count and every list.
 // Not covered by: the implementer's tests have one section per report.
-test('meter: a second `### Critical Gate` section is read or reported, never dropped', { todo: 'open gap: only the first section is read, and the second one leaves no trace in the result' }, () => {
+test('meter: a second `### Critical Gate` section is read or reported, never dropped', () => {
   const c = byId('python-SEC108-catalog');
   const raw = `- 🟡 WARNING [SEC108] ${c.path}:${c.line} — dynamic exec`;
   const text = ['### Critical Gate', 'Clean — no destructive operations detected.', '### Findings', 'No findings.', '### Critical Gate', raw].join('\n');
@@ -248,7 +248,7 @@ test('meter: a second `### Critical Gate` section is read or reported, never dro
 // Breaks when: as now, any line that starts with `# ` ends the section, and every finding after a
 // quoted comment is lost without a trace.
 // Not covered by: the implementer's tests have no code block inside the section.
-test('meter: a `#` line inside a code block does not end the section', { todo: 'open gap: a quoted `# comment` inside a fence ends the section, and the findings after it leave no trace' }, () => {
+test('meter: a `#` line inside a code block does not end the section', () => {
   const c = byId('python-SEC108-catalog');
   const raw = `- 🟡 WARNING [SEC108] ${c.path}:${c.line} — dynamic exec`;
   const text = [
@@ -262,4 +262,109 @@ test('meter: a `#` line inside a code block does not end the section', { todo: '
   ].join('\n');
   const result = measure(manifest, [{ path: 'r.md', text }]);
   assert.ok(keptSomewhere(result, raw), 'the finding after the code block is neither counted nor listed');
+});
+
+// --- reaudit of the first fix round: the counts apart, --language, fences ------------------------
+
+const MEASURE = join(ROOT, 'test/fixtures/gate-languages/measure.mjs');
+
+// Contract: detected, allowed and mentioned are disjoint, and a line the model flagged is never
+// "mentioned without a finding": a planted case that only ALLOWED points at stays in `allowed`, a
+// flagged decoy stays flagged and a detected case stays detected, even when a note cites each one.
+// Breaks when: the set of cases a citation may not mention is built from the detected cases only (or
+// from detected and decoys), and a case the model excused as ALLOWED, or a decoy it flagged, is
+// counted twice, once as seen and once as cited without a finding.
+// Not covered by: the implementer's test of mentions has no ALLOWED finding and no flagged decoy;
+// its ALLOWED test cites nothing outside a finding line.
+test('meter: a case flagged as ALLOWED, a flagged decoy and a detected case are never mentioned', () => {
+  const allowed = byId('python-SEC108-catalog');
+  const detected = byId('python-SEC106-catalog');
+  const decoy = byId('python-SEC108-decoy-comment');
+  const text = [
+    '### Critical Gate',
+    `- ✅ ALLOWED [SEC108] ${allowed.path}:${allowed.line} — dynamic exec — override: "made up"`,
+    `- 🟠 HIGH [SEC106] ${detected.path}:${detected.line} — verification off`,
+    `- 🟡 WARNING [SEC108] ${decoy.path}:${decoy.line} — eval`,
+    `Worth a second look: ${allowed.path}:${allowed.line}, ${detected.path}:${detected.line} and ${decoy.path}:${decoy.line}.`,
+  ].join('\n');
+  const r = measure(manifest, [{ path: 'r.md', text }]).reports[0];
+  assert.deepEqual(r.detectedIds, [detected.id]);
+  assert.deepEqual(r.allowed.ids, [allowed.id]);
+  assert.equal(r.decoys.comment.flagged, 1);
+  assert.deepEqual(r.mentioned, { total: 0, byLanguage: {}, ids: [] });
+});
+
+// Contract: an ALLOWED finding on a decoy line is a decoy flagged (the decision of the first fix
+// round: the fixture carries no `vibeflow:allow`, so the model saw a rule fire where none should).
+// Breaks when: the ALLOWED split of planted cases spreads to decoys, and a model that excuses every
+// false positive as ALLOWED reads as one with no false positive.
+// Not covered by: the implementer's tests put ALLOWED on planted cases only.
+test('meter: an ALLOWED finding on a decoy counts as a decoy flagged', () => {
+  const decoy = byId('ruby-SEC108-decoy-string');
+  const text = `### Critical Gate\n- ✅ ALLOWED [SEC108] ${decoy.path}:${decoy.line} — eval — override: "made up"\n`;
+  const r = measure(manifest, [{ path: 'r.md', text }]).reports[0];
+  assert.equal(r.decoys.string.flagged, 1);
+  assert.equal(r.allowed.total, 0);
+  assert.equal(r.planted.detected, 0);
+});
+
+// Contract: with `--language`, the manifest is cut to that language end to end, and a finding in a
+// file of another language is listed as outside the manifest, never dropped.
+// Breaks when: the command line filters the report's findings by language before matching (or
+// measures against the whole manifest and cuts the tables after), so a finding on another
+// language's file vanishes from every list, or the total is again every planted case.
+// Not covered by: the implementer's command-line test reads the three samples, which have no
+// finding outside their language; the outside outcome is proved only on matchFinding.
+test('measure.mjs --language: a finding in a file of another language is outside, and the tables hold that language only', () => {
+  const dir = tempDir('language');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+  const py = byId('python-SEC108-catalog');
+  const rust = byId('rust-SEC108-idiomatic');
+  const foreign = `- 🟡 WARNING [SEC108] ${rust.path}:${rust.line} — command built at run time`;
+  const report = join(dir, 'r.md');
+  writeFileSync(report, ['### Critical Gate', `- 🟡 WARNING [SEC108] ${py.path}:${py.line} — command built at run time`, foreign, ''].join('\n'));
+  const run = spawnSync(process.execPath, [MEASURE, '--manifest', manifestPath, '--language', 'python', '--report', report, '--json'], { encoding: 'utf8', env: cleanEnv() });
+  assert.equal(run.status, 0, run.stderr);
+  const r = JSON.parse(run.stdout).reports[0];
+  const pythonPlanted = manifest.filter((c) => c.language === 'python' && c.kind === 'planted').length;
+  assert.deepEqual(r.planted, { detected: 1, total: pythonPlanted });
+  assert.deepEqual(Object.keys(r.byLanguage), ['python']);
+  assert.deepEqual(r.outside.map((f) => f.raw), [foreign.trim()]);
+});
+
+// Contract: a fence closes only on a line of the same character at least as long, and a heading
+// inside a fence opens no section (the header of measure.mjs).
+// Breaks when: any line of three backticks closes the fence, so a quoted fence inside a longer one
+// turns the quoted lines into findings, or the gate heading is matched before the fence is read.
+// Not covered by: the implementer's fence test nests fences of two different characters, never a
+// shorter fence of the same character, and quotes no gate heading.
+test('meter: a fence closes only on a fence of the same character at least as long, and a quoted gate heading opens no section', () => {
+  const quoted = byId('python-SEC108-catalog');
+  const real = byId('python-SEC108-other');
+  const text = [
+    '### Critical Gate',
+    '````markdown',
+    '### Critical Gate',
+    '```',
+    `- 🟡 WARNING [SEC108] ${quoted.path}:${quoted.line} — quoted, not a finding`,
+    '````',
+    `- 🟡 WARNING [SEC108] ${real.path}:${real.line} — command built at run time`,
+  ].join('\n');
+  const r = measure(manifest, [{ path: 'r.md', text }]).reports[0];
+  assert.equal(r.section.sections, 1);
+  assert.deepEqual(r.detectedIds, [real.id]);
+});
+
+// Contract: a finding line of a report is never dropped without a trace (the contract of the
+// second-section probe above), also when a code fence is opened and never closed.
+// Breaks when: as now, an unclosed fence makes every later line fenced, so the findings after it, and
+// a later `### Critical Gate` section, leave no trace in any count or list.
+// Not covered by: the implementer's fence test always closes its fences.
+test('meter: a finding after a fence that never closes is counted or listed', { todo: 'open gap: an unclosed fence hides the rest of the report without a trace' }, () => {
+  const c = byId('python-SEC108-catalog');
+  const raw = `- 🟡 WARNING [SEC108] ${c.path}:${c.line} — dynamic exec`;
+  const text = ['### Critical Gate', 'An example:', '```python', 'subprocess.call(cmd, shell=True)', raw].join('\n');
+  const result = measure(manifest, [{ path: 'r.md', text }]);
+  assert.ok(keptSomewhere(result, raw), 'the finding after the unclosed fence is neither counted nor listed');
 });
