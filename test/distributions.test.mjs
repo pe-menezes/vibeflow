@@ -69,30 +69,43 @@ function frontmatterValue(content, key) {
 // spaces at the end of a block line are dropped: YAML keeps them, but a reader cannot see them, and
 // two descriptions that differ only there must not fail the comparison over an invisible difference.
 // A value that is only a comment (`description: # ...`) is null in YAML and reads as empty text.
-// Any other form (a plain or quoted value that continues on the next line, a block with an
-// indentation indicator, a flow, anchor or tag value) fails naming the file instead of returning
-// part of the text. Returns undefined when the front matter has no `description`.
+// A comment after a quoted value (`'text' # ...`) is not part of the text.
+// Only ASCII space and tab separate and indent, as in YAML: any other Unicode space (a no-break
+// space, say) is text, so JavaScript's `\s` and `trim` are not used here.
+// The rule is to read only the forms read with certainty and to fail on everything else, naming
+// the file, instead of returning a text YAML would not give: a plain or quoted value that continues
+// on the next line, a block with an indentation indicator, a flow, anchor or tag value, anything
+// after a closing quote other than a comment, a plain value that YAML reads as something other than
+// text (null, a boolean, a number or a date, in YAML 1.2 or 1.1, since hosts use either), and a
+// plain value with `: ` inside or `:` at the end, which is not valid YAML there.
+// Returns undefined when the front matter has no `description`.
 function descriptionText(content, file) {
   const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(frontmatter, `${file} must start with YAML frontmatter`);
   const lines = frontmatter[1].split('\n');
-  const at = lines.findIndex((line) => /^description:(?:\s|$)/.test(line));
+  const at = lines.findIndex((line) => /^description:(?:[ \t]|$)/.test(line));
   if (at === -1) return undefined;
   const unread = (why) => assert.fail(`${file}: the description is in a form this test does not read (${why})`);
-  const value = lines[at].slice('description:'.length).trim();
+  const blank = (line) => /^[ \t]*$/.test(line);
+  const value = lines[at].slice('description:'.length).replace(/^[ \t]+|[ \t]+$/g, '');
   const after = lines.slice(at + 1);
-  const indented = after.findIndex((line) => line.trim() && !/^\s/.test(line));
+  const indented = after.findIndex((line) => !blank(line) && !/^[ \t]/.test(line));
   const body = indented === -1 ? after : after.slice(0, indented);
-  const block = /^([>|])[+-]?(?:\s+#.*)?$/.exec(value);
+  const block = /^([>|])[+-]?(?:[ \t]+#.*)?$/.exec(value);
   if (block) {
-    while (body.length && !body.at(-1).trim()) body.pop();
-    const first = body.find((line) => line.trim());
+    while (body.length && blank(body.at(-1))) body.pop();
+    const first = body.find((line) => !blank(line));
     if (!first) return '';
-    const indent = first.match(/^\s*/)[0];
+    // YAML indents with spaces only: a tab is never indentation.
+    const indent = first.match(/^ */)[0];
+    if (!indent) unread('a block line indented with a tab');
     const text = body.map((line) => {
-      if (!line.trim()) return '';
+      if (blank(line)) {
+        if (line.includes('\t')) unread('a blank block line with a tab');
+        return '';
+      }
       if (!line.startsWith(indent)) unread('a block line indented less than its first line');
-      return line.slice(indent.length).trimEnd();
+      return line.slice(indent.length).replace(/[ \t]+$/, '');
     });
     if (block[1] === '|') return text.join('\n');
     // Folding: a single line break between two text lines becomes a space, each empty line in
@@ -106,7 +119,7 @@ function descriptionText(content, file) {
         continue;
       }
       if (previous === undefined) out += '\n'.repeat(empty);
-      else if (/^\s/.test(line) || /^\s/.test(previous)) out += '\n'.repeat(empty + 1);
+      else if (/^[ \t]/.test(line) || /^[ \t]/.test(previous)) out += '\n'.repeat(empty + 1);
       else out += empty ? '\n'.repeat(empty) : ' ';
       out += line;
       previous = line;
@@ -115,24 +128,41 @@ function descriptionText(content, file) {
     return out;
   }
   if (/^[>|]/.test(value)) unread(`block header \`${value}\``);
-  if (body.some((line) => line.trim())) unread('the value continues on the next line');
+  if (body.some((line) => !blank(line))) unread('the value continues on the next line');
+  // After a closing quote, only a comment preceded by a space or tab.
+  const commentOnly = (rest) => /^(?:[ \t]+#.*)?$/.test(rest);
   if (value.startsWith("'")) {
-    const single = /^'((?:[^']|'')*)'$/.exec(value);
+    const single = /^'((?:[^']|'')*)'(.*)$/.exec(value);
     if (!single) unread('a single-quoted value that does not close on its line');
+    if (!commentOnly(single[2])) unread('text after the closing quote');
     return single[1].replace(/''/g, "'");
   }
   if (value.startsWith('"')) {
-    if (!/^"(?:[^"\\]|\\.)*"$/.test(value)) unread('a double-quoted value that does not close on its line');
+    const double = /^("(?:[^"\\]|\\.)*")(.*)$/.exec(value);
+    if (!double) unread('a double-quoted value that does not close on its line');
+    if (!commentOnly(double[2])) unread('text after the closing quote');
     try {
-      return JSON.parse(value);
+      return JSON.parse(double[1]);
     } catch {
       return unread('a double-quoted value with an escape outside JSON');
     }
   }
   // A value that is only a comment is null in YAML, so it reads as no text at all.
   if (value.startsWith('#')) return '';
-  if (/^[[{&*!%@`]/.test(value)) unread(`a value starting with \`${value[0]}\``);
-  return value.replace(/\s+#.*$/, '');
+  // YAML starts a flow, alias, anchor, tag, directive or sequence with these, or refuses them.
+  if (/^(?:[,[\]{}&*!%@`]|[-?:](?:[ \t]|$))/.test(value)) unread(`a value starting with \`${value[0]}\``);
+  const plain = value.replace(/[ \t]+#.*$/, '');
+  if (/:(?:[ \t]|$)/.test(plain)) unread('a plain value with `: ` inside or `:` at the end');
+  const notText = [
+    ['null', /^(?:~|null|Null|NULL)$/],
+    ['a boolean', /^(?:true|True|TRUE|false|False|FALSE|y|Y|yes|Yes|YES|n|N|no|No|NO|on|On|ON|off|Off|OFF)$/],
+    ['a number', /^[-+]?(?=\.?[0-9])(?:[0-9][0-9_]*(?::[0-5]?[0-9])*)?(?:\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?$/],
+    ['a number', /^[-+]?0(?:b[01_]+|o[0-7]+|x[0-9a-fA-F_]+)$/],
+    ['a number', /^(?:[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/],
+    ['a date', /^[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:(?:[Tt]|[ \t]+)[0-9].*)?$/],
+  ].find(([, form]) => form.test(plain));
+  if (notText) unread(`a plain value YAML reads as ${notText[0]}, not text`);
+  return plain;
 }
 
 test('the description reader returns the text a host shows, whatever YAML form the file uses', () => {
@@ -161,12 +191,64 @@ test('the description reader returns the text a host shows, whatever YAML form t
   assert.equal(parse('description: >'), '', 'an empty block reads as empty text');
   assert.equal(parse('description: # to be written'), '', 'a value that is only a comment reads as empty text');
   assert.equal(parse('other: value'), undefined);
+  // Only ASCII space (and tab) is indentation or separation in YAML; a no-break space is text.
+  assert.equal(parse('description: >-\n  One\n   two\n  three'), 'One  two three', 'a no-break space does not make a block line more indented');
+  assert.equal(parse('description: |\n  One \n  two'), 'One \ntwo', 'a no-break space at the end of a block line is text');
+  assert.equal(parse('description: One # not a comment'), 'One # not a comment', 'a hash after a no-break space is text');
+  assert.equal(parse('description:  One'), ' One', 'a no-break space at the start of a value is text');
+  // A comment after the closing quote is not part of the text.
+  assert.equal(parse("description: 'One' # unchanged text"), 'One', 'a comment after a single-quoted value');
+  assert.equal(parse('description: "One" # unchanged text'), 'One', 'a comment after a double-quoted value');
+  assert.equal(parse("description: 'It''s one'\t# note"), "It's one", 'a comment after a tab');
+  // Plain values YAML still reads as text.
+  for (const plain of ['text:more', 'True story', 'nullable value', 'one - two', 'the 42 steps', 'a, b', 'what? this']) {
+    assert.equal(parse(`description: ${plain}`), plain, plain);
+  }
+  assert.equal(parse("description: 'a: b'"), 'a: b', 'a colon inside quotes is text');
+  assert.equal(parse("description: 'null'"), 'null', 'a quoted null is text');
   for (const yaml of [
     'description: Fast-tracks small tasks\n  into a prompt pack.',
     "description: 'Fast-tracks small tasks\n  into a prompt pack.'",
     'description: "Fast-tracks small tasks\n  into a prompt pack."',
     'description: >2\n  Fast-tracks small tasks.',
     'description: [Fast-tracks]',
+    // Plain values YAML reads as something other than text: null, booleans, numbers and, in
+    // YAML 1.1 readers, the yes/no/on/off booleans and dates.
+    'description: null',
+    'description: Null',
+    'description: NULL',
+    'description: ~',
+    'description: null # to be written',
+    'description: true',
+    'description: True',
+    'description: TRUE',
+    'description: false',
+    'description: False',
+    'description: FALSE',
+    'description: yes',
+    'description: No',
+    'description: OFF',
+    'description: 42',
+    'description: -1.5e3',
+    'description: .inf',
+    'description: .NaN',
+    'description: 0x1F',
+    'description: 0o17',
+    'description: 2026-11-20',
+    // Plain values that are not valid YAML or are not a plain scalar.
+    'description: text: more',
+    'description: text:',
+    'description: - item',
+    'description: ? key',
+    'description: : value',
+    'description: , value',
+    'description: } value',
+    // Anything after the closing quote other than a comment.
+    "description: 'One' more",
+    "description: 'One'# comment",
+    'description: "One" more',
+    'description: "One"# comment',
+    "description: 'One' # comment",
   ]) {
     assert.throws(() => parse(yaml), { name: 'AssertionError', message: /^synthetic: the description is in a form this test does not read/ }, yaml);
   }
