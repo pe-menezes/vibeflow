@@ -123,7 +123,7 @@ test('probe: no sentence of item b or the catalog header lets a file type, a lan
 
 // Contract: in the three editions, a comment, a string shown to a person, a test name and
 // documentation prose do not fire a rule, and a line the auditor cannot place is treated as doing
-// the behaviour (spec, part 2a, change 1: "na dúvida, dispara"; technical decision 4).
+// the behaviour: when in doubt, the rule fires.
 // Breaks when: the bullet is rewritten so that the mentions fire ("documentation prose fire too")
 // or the doubt goes the other way ("When you cannot tell, do not fire"); both survived a mutation of
 // the three editions.
@@ -206,8 +206,8 @@ test('probe: the out-of-scan check catches a generated or third-party file in ne
 
 // Contract: in the three editions, the only files item b takes out of the scan are those that
 // cannot hold a rule (binary and media files, lockfiles); a generated file and a third-party file
-// are scanned like any other (spec, "Conserto 1 da parte 2a", change 1: "Arquivo de terceiros também
-// deixa de ser exceção"; audit finding F1, measured: with the old exclusion the Sonnet wrote "Clean"
+// are scanned like any other, and a third-party file is no exception (measured as a defect: with the
+// old exclusion the Sonnet wrote "Clean"
 // over a generated migration with DROP TABLE in 3 runs of 3).
 // Breaks when: a rewrite of the bullet puts a generated, vendored or third-party file back out of the
 // scan in words other than "leave out" ("are skipped", "unless the project marks it as generated",
@@ -228,8 +228,8 @@ test('probe: item b takes out of the scan only what cannot hold a rule, in any w
 
 // Contract: in the three editions, with no diff the `No diff scanned` line takes the place of the
 // `Scanned:` line, in item b and in the output format alike, and "Clean" takes the place of the
-// finding lines only, so the `Left out` and `Scanned:` lines stay (spec, "Conserto 1 da parte 2a",
-// change 3: "a nota do formato diz o que 'Clean' e 'No diff scanned' substituem"; audit finding F2).
+// finding lines only, so the `Left out` and `Scanned:` lines stay; the output note says which line
+// each of "Clean" and "No diff scanned" takes the place of.
 // Breaks when: item b keeps the name `No diff scanned` but says the line follows the `Scanned:` line,
 // the format note says "Clean" replaces the whole section, or the note says No diff scanned takes
 // the place of another line and only names `Scanned:` after it; each survived a mutation of the
@@ -301,8 +301,8 @@ test('probe: the negated-Clean check catches Clean said to follow in new words, 
 
 // Contract: in the three editions, when step 1 ran over the code, the Critical Gate section writes
 // no "Clean" after the `No diff scanned` line: item b's "Say what was scanned" and the clause of the
-// output note that follows `No diff scanned` put every "Clean" they name under a negation (spec,
-// "Conserto 2 da parte 2a", changes 1 and 2; finding L1 of reaudit 1, measured as a defect: with the
+// output note that follows `No diff scanned` put every "Clean" they name under a negation
+// (measured as a defect: with the
 // text of 0f47643 the section wrote "Clean" after `No diff scanned` in 6 calls of 6, Sonnet and Opus).
 // Breaks when: a rewrite keeps a negation word in the sentence or clause but lets "Clean" follow —
 // "with no finding, the Clean line follows it", "no finding line follows, and the Clean line

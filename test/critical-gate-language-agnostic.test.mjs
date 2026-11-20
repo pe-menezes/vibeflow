@@ -1,7 +1,12 @@
 // The Critical Gate describes behaviours, not languages. In each of the three
 // audit editions, step 4 must not choose what to scan by a file's type, item b
 // carries its three rules (every changed file is scanned, a word is not the
-// behaviour, say what was scanned), the Security and Data domains list no
+// behaviour, say what was scanned), item b's sentence on when a rule fires is
+// the measured direction-and-scope part followed by one clause saying any
+// language or format counts, and nothing else (checked by inclusion, against
+// rewrites that narrow it by the file), DAT101 covers the records a condition
+// selects and leaves out one record deleted by its key and what is held in
+// memory, the Security and Data domains list no
 // language extension, the catalog keeps 38 rules in 6 domains, and the output
 // format carries a `Scanned:` line and the one-finding-per-line note.
 // Item b leaves out of the scan only what cannot hold a rule, and a file a tool
@@ -11,7 +16,8 @@
 // example of the output format carries the severity its rule has in the
 // catalog, and every rule keeps the id, severity and scope it had in v1.20.0.
 // The assertions pin the contract, not the wording, so a rewrite of the
-// technology domains keeps passing as long as it keeps the contract.
+// technology domains keeps passing as long as it keeps the contract; the one
+// exception is the trigger sentence, whose measured part is pinned by its words.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -113,6 +119,84 @@ test('item b fires a rule on what the line does, never on the file type', () => 
     assert.doesNotMatch(text, /\bthe file matches\b/i, `${edition}: item b still conditions a rule on the file`);
     assert.match(text, /what the rule describes/i, `${edition}: item b fires on the behaviour`);
     assert.match(text, /examples?\b/i, `${edition}: item b reads the names in parentheses as examples`);
+  });
+});
+
+// The sentence of item b that says when a rule fires, with its line breaks
+// folded: the first sentence of item b with "A rule fires", from those words on
+// (the bold title before them ends in a period the sentence split does not see).
+function triggerSentence(step, edition) {
+  const found = sentences(itemB(step, edition)).find((sentence) => /\bA rule fires\b/.test(sentence));
+  assert.ok(found, `${edition}: item b says when a rule fires`);
+  return found.slice(found.indexOf('A rule fires'));
+}
+
+// The part of the trigger sentence that gives the direction, the scope and the
+// behaviour. It is pinned by its words because the sentence was measured with a
+// model: a rewrite of this part has to be measured again before it lands here.
+const DIRECTION_AND_SCOPE =
+  "A rule fires when the diff line's direction matches its `scope` (a=added, r=removed, b=both) and the line does what the rule describes";
+// The clauses that may close the sentence, each saying that any language or
+// format counts: the measured one and two harmless rewrites of it.
+const ANY_LANGUAGE_CLAUSES = {
+  measured: ', in whatever language or format the file is written.',
+  R1: ', whatever the language or the format the file is written in.',
+  R2: ', in any language or format.',
+};
+
+const fold = (text) => text.replace(/\s+/g, ' ').trim();
+
+// The trigger contract, by inclusion: with its spaces folded, the sentence is
+// the direction-and-scope part followed by one any-language clause, and
+// nothing else. Any condition on the file, before or after the behaviour, or a
+// missing clause, makes it something else.
+function firesOnBehaviourInAnyLanguage(sentence) {
+  const text = fold(sentence);
+  return Object.values(ANY_LANGUAGE_CLAUSES).some((clause) => text === DIRECTION_AND_SCOPE + clause);
+}
+
+// Narrowing rewrites, applied to the sentence read from an edition: each one
+// takes some files out of the rule, or drops the any-language clause.
+const BEHAVIOUR = 'does what the rule describes';
+const withEnding = (ending) => (text) => text.slice(0, text.indexOf(BEHAVIOUR) + BEHAVIOUR.length) + ending;
+const beforeTheEnd = (addition) => (text) => text.replace(/\.$/, addition);
+const MUTATIONS = {
+  M1: withEnding(", provided the file's language is Python."),
+  M2: withEnding(" AND the file matches the rule's target types."),
+  M3: withEnding(', in the languages the catalog names.'),
+  M4: withEnding(", when the file's extension is listed under the rule's domain."),
+  M5: withEnding('.'),
+  M6: beforeTheEnd(', except in generated files.'),
+  X1: beforeTheEnd(", for files under the rule's domain."),
+  X2: (text) => text.replace(/^A rule fires when\b/, 'A rule fires, in source files, when'),
+  X3: beforeTheEnd(', as long as it is source code.'),
+  X4: withEnding(", in any language or format the rule's domain names."),
+  X5: beforeTheEnd(', in source files.'),
+};
+const REWRITES = {
+  R1: withEnding(ANY_LANGUAGE_CLAUSES.R1),
+  R2: withEnding(ANY_LANGUAGE_CLAUSES.R2),
+};
+
+test('item b fires a rule on what the line does in any language, and no clause narrows it by the file', () => {
+  const checkSentence = (sentence, where) => {
+    assert.ok(firesOnBehaviourInAnyLanguage(sentence), `${where}: the trigger sentence passes the check: ${sentence}`);
+    const text = fold(sentence);
+    for (const [name, mutate] of Object.entries(MUTATIONS)) {
+      const mutated = mutate(text);
+      assert.notEqual(mutated, text, `${where}: ${name} changes the sentence`);
+      assert.equal(firesOnBehaviourInAnyLanguage(mutated), false, `${where}: ${name} is rejected: ${mutated}`);
+    }
+    for (const [name, rewrite] of Object.entries(REWRITES)) {
+      const rewritten = rewrite(text);
+      assert.ok(firesOnBehaviourInAnyLanguage(rewritten), `${where}: ${name} is accepted: ${rewritten}`);
+    }
+  };
+  const diffText = 'diff --git a/app/run.sh b/app/run.sh\n+rm -rf "$DIR"\n';
+  forEachEdition((raw, edition) => {
+    checkSentence(triggerSentence(gateStep(raw, edition), edition), edition);
+    const prompt = buildPrompt({ skillText: raw, skillName: 'SKILL.md', diffText });
+    checkSentence(triggerSentence(gateStep(prompt, `${edition} request`), `${edition} request`), `${edition} request`);
   });
 });
 
@@ -293,6 +377,30 @@ test('every rule keeps its id, severity and scope', () => {
       catalog(gateStep(raw, edition)).flatMap((entry) => entry.rules).map((rule) => [rule.id, `${rule.severity} ${rule.scope}`]),
     );
     assert.deepEqual(found, RULES, `${edition}: the catalog's ids, severities and scopes`);
+  });
+});
+
+// The behaviour cell of one rule's row in the catalog.
+function ruleBehaviour(step, id, edition) {
+  const row = step.find((line) => line.trim().startsWith(`| ${id} |`));
+  assert.ok(row, `${edition}: ${id} is in the catalog`);
+  return row.trim().slice(1, -1).split('|')[3].trim();
+}
+
+test('DAT101 covers the records a condition selects, and leaves out one record by its key and what is held in memory', () => {
+  forEachEdition((raw, edition) => {
+    const behaviour = ruleBehaviour(gateStep(raw, edition), 'DAT101', edition);
+    const clauses = behaviour.split(';');
+    assert.match(behaviour, /\b(condition|filter)\b[^;]*\b(selects?|matches)\b/i, `${edition}: DAT101 covers the records a condition selects: ${behaviour}`);
+    assert.doesNotMatch(behaviour, /\b(no|not|without|unfiltered)\b[^;,]*\b(condition|filter|where)\b/i, `${edition}: DAT101 takes a delete with a condition out of the rule: ${behaviour}`);
+    assert.ok(
+      clauses.some((clause) => /\bkey\b/i.test(clause) && /\b(not|nor|never)\b/i.test(clause)),
+      `${edition}: DAT101 says one record deleted by its key is not this: ${behaviour}`,
+    );
+    assert.ok(
+      clauses.some((clause) => /\bmemory\b/i.test(clause) && /\b(not|nor|never)\b/i.test(clause)),
+      `${edition}: DAT101 says emptying what is held in memory is not this: ${behaviour}`,
+    );
   });
 });
 

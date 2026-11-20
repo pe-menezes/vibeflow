@@ -338,7 +338,7 @@ restore.
    _Data_ — where: application code, scripts and configuration, in any language
    | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
-   | DAT101 | CRITICAL | a | every record of a table, collection or store is deleted, with no condition that narrows it, by a query, an ORM call or a file command (`delete_all`, `destroy_all`, `removeAll`, `bulk_delete`, `purge`) |
+   | DAT101 | CRITICAL | a | many stored records are deleted in one operation: every record of a table, collection or store, or all those a condition selects, by a query, an ORM call or a file command; one record deleted by its key is not this, nor is emptying a list, map or cache held in memory (`delete_all`, `destroy_all`, `removeAll`, `bulk_delete`, `purge`) |
    | DAT102 | HIGH | a | personal data goes out unmasked in a response, a log, an export or a notification: a national or tax identifier, a passport number, a payment card number (`ssn`, `cpf`, `cnpj`, `passport_number`, `credit_card`, `card_number`) |
    | DAT103 | HIGH | r | encryption or hashing is removed (`encrypt`, `bcrypt`, `argon2`, `sha256`, `aes`, `rsa`) |
    | DAT104 | WARNING | a | a password, token, secret or key is written to a log or to the output, by any logging or printing call (`console.log`, `logger.*`) |
