@@ -65,10 +65,13 @@ function frontmatterValue(content, key) {
 // can come to use: a one-line value, plain, single-quoted (with `''` read as `'`) or double-quoted
 // (with the JSON escapes), or a folded (`>`) or literal (`|`) block, with or without the `-` or `+`
 // chomping indicator. The chomping indicator only decides the line breaks after the text, which a
-// description does not show, so every block reads as its text without them. Any other form (a plain
-// or quoted value that continues on the next line, a block with an indentation indicator, a flow,
-// anchor or tag value) fails naming the file instead of returning part of the text. Returns
-// undefined when the front matter has no `description`.
+// description does not show, so every block reads as its text without them. For the same reason the
+// spaces at the end of a block line are dropped: YAML keeps them, but a reader cannot see them, and
+// two descriptions that differ only there must not fail the comparison over an invisible difference.
+// A value that is only a comment (`description: # ...`) is null in YAML and reads as empty text.
+// Any other form (a plain or quoted value that continues on the next line, a block with an
+// indentation indicator, a flow, anchor or tag value) fails naming the file instead of returning
+// part of the text. Returns undefined when the front matter has no `description`.
 function descriptionText(content, file) {
   const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n/);
   assert.ok(frontmatter, `${file} must start with YAML frontmatter`);
@@ -126,6 +129,8 @@ function descriptionText(content, file) {
       return unread('a double-quoted value with an escape outside JSON');
     }
   }
+  // A value that is only a comment is null in YAML, so it reads as no text at all.
+  if (value.startsWith('#')) return '';
   if (/^[[{&*!%@`]/.test(value)) unread(`a value starting with \`${value[0]}\``);
   return value.replace(/\s+#.*$/, '');
 }
@@ -154,6 +159,7 @@ test('the description reader returns the text a host shows, whatever YAML form t
   assert.equal(parse('description: |\n  One line\n  two lines'), 'One line\ntwo lines', 'a literal block keeps its line breaks');
   assert.equal(parse('description: >\n  One\n\n  two\n    indented\n  three'), 'One\ntwo\n  indented\nthree', 'a folded block keeps empty and more-indented line breaks');
   assert.equal(parse('description: >'), '', 'an empty block reads as empty text');
+  assert.equal(parse('description: # to be written'), '', 'a value that is only a comment reads as empty text');
   assert.equal(parse('other: value'), undefined);
   for (const yaml of [
     'description: Fast-tracks small tasks\n  into a prompt pack.',
@@ -247,9 +253,10 @@ test('Cursor, Copilot and OpenCode host files use their documented frontmatter',
   assert.equal(frontmatterValue(read('cursor/rules/vibeflow.mdc'), 'alwaysApply'), 'true');
   assert.equal(frontmatterValue(read('cursor/rules/vibeflow-architect.mdc'), 'alwaysApply'), 'false');
 
-  const architect = read('copilot/github/agents/vibeflow-architect.agent.md');
+  const architectPath = 'copilot/github/agents/vibeflow-architect.agent.md';
+  const architect = read(architectPath);
   assert.equal(frontmatterValue(architect, 'name'), 'vibeflow-architect');
-  assert.ok(frontmatterValue(architect, 'description'));
+  assert.ok(descriptionText(architect, architectPath), `${architectPath} needs a description`);
 
   const instructions = read('copilot/github/instructions/vibeflow/vibeflow.instructions.md');
   assert.equal(frontmatterValue(instructions, 'applyTo'), '**');
@@ -264,7 +271,7 @@ test('Cursor, Copilot and OpenCode host files use their documented frontmatter',
   for (const [agent, mode] of Object.entries(modes)) {
     const path = `opencode/agents/${agent}.md`;
     const content = read(path);
-    assert.ok(frontmatterValue(content, 'description'), `${path} needs a description`);
+    assert.ok(descriptionText(content, path), `${path} needs a description`);
     assert.equal(frontmatterValue(content, 'mode'), mode, `${path} mode`);
     assert.match(content.match(/^---\n([\s\S]*?)\n---\n/)[1], /^permission:\n {2}\S/m, `${path} declares a permission map`);
     assert.equal(frontmatterValue(content, 'tools'), undefined, `${path} has no tools field`);
