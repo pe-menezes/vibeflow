@@ -308,7 +308,7 @@ export default {
 
   // ─── Página de comandos ─────────────────────────────────────
   cmdPageTitle: 'Todos os comandos',
-  cmdPageSubtitle: 'Referência completa de cada comando do Vibeflow: flags, modos e outputs.',
+  cmdPageSubtitle: 'Referência completa de cada comando do Vibeflow: flags, modos e outputs. As linhas de uso estão na forma do Claude Code; no Cursor, no Copilot e no OpenCode o comando é /vibeflow-<nome>, e no Codex e no Hermes você pede com as suas palavras.',
   cmdBackToHome: '← Voltar ao início',
   cmdUsage: 'Uso',
   cmdFlags: 'Flags e modos',
@@ -442,7 +442,7 @@ export default {
   anatomyTitle: 'Anatomia da pasta<br>.vibeflow/',
   anatomySubtitle: 'O que é cada arquivo, por que ele existe, e como o agente usa. Pra você saber o que pode mexer, e o que é melhor deixar quieto.',
   anatomyTocLabel: 'Nesta página',
-  anatomyIntro: 'Quando você roda /analyze, o Vibeflow cria uma pasta .vibeflow/ na raiz do projeto. É a base de conhecimento que o agente lê antes de cada spec, implementação e audit. Quatro artefatos formam essa base; os outros comandos põem as próprias pastas ao lado deles (PRDs, specs, audits e, com o implement --loop, os arquivos do loop).',
+  anatomyIntro: 'Quando você roda o analyze, o Vibeflow cria uma pasta .vibeflow/ na raiz do projeto. É a base de conhecimento que o agente lê antes de cada spec, implementação e audit. Quatro artefatos formam essa base; os outros comandos põem as próprias pastas ao lado deles (PRDs, specs, audits e, com o implement --loop, os arquivos do loop).',
 
   // Anatomy — section labels (reused per artifact)
   anatomyWhatLabel: 'O que é',
@@ -464,7 +464,7 @@ export default {
   anatomyPatternsWhat: 'Uma pasta com um arquivo markdown por pattern. Cada arquivo documenta um formato de solução que se repete no projeto: o que é, onde vive, as regras e exemplos reais de código tirados do próprio codebase.',
   anatomyPatternsWhy: 'Patterns carregam nuance: o quê, o porquê e o como. São como o agente escreve código que se parece com o seu, e não código genérico. Sem eles, cada implementação reinventa a estrutura.',
   anatomyPatternsAgent: 'gen-spec escolhe os patterns relevantes via Registry, mais os importados que se aplicam via registry.md da fonte, e lista no spec. implement lê só esses e replica a estrutura. audit verifica se a implementação seguiu. gen-spec, implement, prompt-pack e audit leem inteiros o conventions.md e cada doc de padrão que o spec lista, um arquivo por leitura, e declaram o que leram num recibo Read in full. teach pode adicionar novos, inclusive importando de repos externos via --from.',
-  anatomyPatternsEdit: 'Sim, mas com cuidado. O conteúdo dentro de <!-- vibeflow:auto:start/end --> é auto-gerado; edite fora dos marcadores pra adicionar notas que sobrevivam ao re-analyze. Use /teach pra adicionar um pattern novo em vez de soltar arquivo na mão.',
+  anatomyPatternsEdit: 'Sim, mas com cuidado. O conteúdo dentro de <!-- vibeflow:auto:start/end --> é auto-gerado; edite fora dos marcadores pra adicionar notas que sobrevivam ao re-analyze. Use o teach pra adicionar um pattern novo em vez de soltar arquivo na mão.',
 
   // Anatomy — conventions.md
   anatomyConventionsName: 'conventions.md',
@@ -472,7 +472,7 @@ export default {
   anatomyConventionsWhat: 'Um único arquivo com as regras pequenas e atômicas do projeto: nomenclatura, layout de arquivos, linguagem/runtime, tratamento de erro, delimitadores, documentação. Bullets curtos, sem narrativa.',
   anatomyConventionsWhy: 'Regras sem nuance ("faça assim") pertencem a uma lista flat única, não espalhadas por docs de pattern. Esse arquivo é o que o agente aplica em cada linha de código que escreve, independente do pattern em jogo.',
   anatomyConventionsAgent: 'Carregado por gen-spec, implement e audit a cada execução. Implement aplica linha a linha; audit trata violações como falha de qualidade (o craftsmanship gate).',
-  anatomyConventionsEdit: 'Sim. Use /teach pra adicionar ou corrigir uma convenção em linguagem natural ("a gente sempre usa named exports"). Edições diretas fora de <!-- vibeflow:auto:start/end --> são preservadas.',
+  anatomyConventionsEdit: 'Sim. Use o teach pra adicionar ou corrigir uma convenção em linguagem natural ("a gente sempre usa named exports"). Edições diretas fora de <!-- vibeflow:auto:start/end --> são preservadas.',
 
   // Anatomy — decisions.md
   anatomyDecisionsName: 'decisions.md',
@@ -480,7 +480,7 @@ export default {
   anatomyDecisionsWhat: 'Um log cronologicamente reverso de decisões arquiteturais: contexto, opções consideradas, o que foi escolhido e por quê. Mais novo primeiro. Escrito pelo architect durante specs e audits, nunca auto-gerado.',
   anatomyDecisionsWhy: 'Seis meses depois, ninguém lembra por que você escolheu opção B em vez da A. Esse arquivo é o rastro. Também evita que o agente re-discuta questões já resolvidas a cada novo spec.',
   anatomyDecisionsAgent: 'Lido por gen-spec e audit quando uma decisão é relevante pro escopo atual. O architect adiciona entradas quando um trade-off não-trivial é resolvido.',
-  anatomyDecisionsEdit: 'Sim. Esse é o mais "humano". Adicione entradas quando tomar uma decisão arquitetural que vale lembrar. /teach pode formatar pra você.',
+  anatomyDecisionsEdit: 'Sim. Esse é o mais "humano". Adicione entradas quando tomar uma decisão arquitetural que vale lembrar. O comando teach pode formatar pra você.',
 
   // Anatomy: pastas que o loop cria
   anatomyLoopTitle: 'As pastas que o loop cria',
