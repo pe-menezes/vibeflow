@@ -6,6 +6,15 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  LEFT_HOME_COMPONENTS,
+  LEFT_HOME_KEYS,
+  componentKeys,
+  i18nEntries,
+  importedComponents,
+  leftHomeProblems,
+  leftHomeValues,
+} from '../../site/scripts/home-rules.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (p) => readFileSync(join(root, p), 'utf8');
@@ -242,4 +251,112 @@ test('cmdHtml breaks a word after an inner "/", or an inner "@" not followed by 
       assert.deepEqual(got, want, `${JSON.stringify(cmd)}: breaks of ${JSON.stringify(text)} after these indexes`);
     });
   }
+});
+
+// The values check-home looks for on the home page of a language, computed from today's sources the
+// way check-home computes them (the left keys of home-rules.mjs and of the four components that left,
+// minus what the components the home page imports read), with extra kept keys when a case adds them.
+function homeLookup(lang, extraKept = []) {
+  const entries = i18nEntries(read(`site/src/i18n/${lang}.ts`));
+  const leftKeys = [...LEFT_HOME_KEYS, ...LEFT_HOME_COMPONENTS.flatMap((n) => componentKeys(component(n)))];
+  const home = importedComponents(read(`site/src/pages/${lang}/index.astro`));
+  const keptKeys = [...home.flatMap((n) => componentKeys(component(n))), ...extraKept];
+  return { entries, values: leftHomeValues(entries, leftKeys, keptKeys) };
+}
+const escHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const homePage = (extra) =>
+  `<!doctype html><html><head><title>t</title></head><body><main><section id="loop"><p>x</p></section>${extra}</main></body></html>`;
+// A value in the forms of the review, as the build writes it: in an attribute (`title={t.x}`) and in
+// a JSON script (`JSON.stringify(t.x)`) the value goes as it is, backticks included; in a paragraph
+// it goes as InlineCode renders it, backticks as <code>.
+const reviewForms = (v) => ({
+  attribute: `<span title="${escHtml(v)}"></span>`,
+  'JSON script': `<script type="application/json">${JSON.stringify({ d: v }).replace(/</g, '\\u003c')}</script>`,
+  'paragraph of another section': `<section id="editions"><p>${escHtml(v).replace(/`([^`]*)`/g, '<code>$1</code>')}</p></section>`,
+});
+
+// Contract: fix round 3, C2 and C3: no value of a key the spec lists as gone from the home page
+// (change 1) comes back anywhere in its raw HTML, in an attribute, a JSON script or a paragraph of
+// another section, and the use cases do not come back without their id; the exclusion of values the
+// page keeps never drops a key of that list. Regression: the exclusion rule of leftHomeValues widens
+// (a looser piece rule, a short kept value) or the list of left keys shrinks, and a listed key stops
+// being looked for, while check-home stays green on a clean page. Why the executor's test misses it:
+// site-home-rules runs the exclusion and the search on values of its own; on the real i18n and
+// components the list is computed only inside check-home, at build time, which CI does not run, and
+// check-home fails on a shrunk list only when it is empty. The values with backticks in an attribute
+// or a script are the case of R2-3 below, open, and are left out here.
+// The oracle is written here, from the spec (change 1 and the answers and notes of change 2), and
+// nothing recomputes it: the keys and the components that left the home page.
+const SPEC_LEFT_KEYS = [
+  'heroNotice', 'heroDescription', 'howSubtitle', 'pipelineExtra', 'pipelineExtraList', 'loopSetupLink',
+  'editionsSubtitle2', 'codexDesc', 'hermesDesc', 'claudeDesc', 'cursorDesc', 'copilotDesc', 'opencodeDesc',
+  'editionsCostTitle', 'editionsCostBody', 'editionsCodeTitle', 'editionsCodeBody', 'editionsFirstTitle',
+  'editionsFirstBody', 'editionsLoopKit', 'editionsHermesScan', 'editionsGitDisclaimer',
+];
+const SPEC_LEFT_COMPONENTS = ['LiveDemo', 'UseCases', 'Features', 'ContactForm'];
+test('check-home, on today\'s sources, looks for every value of every key the spec lists as gone, and finds each in the forms of the review', () => {
+  for (const key of SPEC_LEFT_KEYS) assert.ok(LEFT_HOME_KEYS.includes(key), `home-rules lists ${key}`);
+  for (const name of SPEC_LEFT_COMPONENTS) assert.ok(LEFT_HOME_COMPONENTS.includes(name), `home-rules lists ${name}`);
+  for (const lang of ['en', 'pt-br']) {
+    const { entries, values } = homeLookup(lang);
+    assert.deepEqual(leftHomeProblems(homePage(''), values), [], `${lang}: the clean page`);
+    let plainValues = 0;
+    for (const key of SPEC_LEFT_KEYS) {
+      const items = [entries[key]].flat();
+      assert.ok(items.length > 0, `${lang}: ${key} has a value`);
+      for (const v of items) {
+        assert.ok(values.some((x) => x.key === key && x.value === v), `${lang}: ${key} is looked for`);
+        for (const [name, extra] of Object.entries(reviewForms(v))) {
+          if (v.includes('`') && name !== 'paragraph of another section') continue;
+          if (!v.includes('`')) plainValues += 1;
+          assert.ok(leftHomeProblems(homePage(extra), values).includes(key), `${lang}: ${key} in an ${name}`);
+        }
+      }
+    }
+    assert.ok(plainValues > 0, `${lang}: some listed value has no backtick`);
+    // The use cases back as a block with no id: the text of every key UseCases reads.
+    const uc = componentKeys(component('UseCases')).filter((k) => typeof entries[k] === 'string');
+    assert.ok(uc.length > 0, 'UseCases reads keys');
+    const block = `<div class="uc">${uc.map((k) => `<p>${escHtml(entries[k])}</p>`).join('')}</div>`;
+    assert.ok(leftHomeProblems(homePage(block), values).some((k) => uc.includes(k)), `${lang}: the use cases with no id`);
+  }
+});
+
+// Reaudit 2, finding R2-1 (open, low by the brief's ceiling): the kept keys are the keys the home
+// components read, with no exception for the left ones, so a left key read again by a home
+// component (Loop.astro with `{t.heroDescription}`, FinalCTA.astro with the UseCases keys) is a kept
+// key, its value is not looked for, and the four checks and the site tests pass with it on the page.
+// Contract: the same as above (a key of the spec list is never kept). Regression: today's code.
+// Kept as todo so the case reruns without failing the suite; the fix turns it green.
+test('a key the spec lists as gone is still looked for when a home component reads it again', { todo: 'R2-1, reaudit 2: open' }, () => {
+  for (const lang of ['en', 'pt-br']) {
+    for (const key of SPEC_LEFT_KEYS) {
+      const { values } = homeLookup(lang, [key]);
+      assert.ok(values.some((x) => x.key === key), `${lang}: ${key} read by a home component is no longer looked for`);
+    }
+  }
+});
+
+// Reaudit 2, finding R2-3 (open, defect): leftHomeProblems compares a value as the page reads it,
+// backticks removed (shown), and an attribute or a script body as written, so a listed value with
+// backticks (the bodies of two answers and the three notes, in both languages) put in an attribute
+// or a JSON script the way the build writes it, backticks included, is not found, and check-home
+// passes with it on the page. Contract: fix round 3, C3 (attributes and scripts included).
+// Regression: today's code. Kept as todo so the case reruns without failing the suite; the fix
+// turns it green.
+test('a listed value with backticks is found in an attribute and in a JSON script, as the build writes them', { todo: 'R2-3, reaudit 2: open' }, () => {
+  let seen = 0;
+  for (const lang of ['en', 'pt-br']) {
+    const { entries, values } = homeLookup(lang);
+    for (const key of SPEC_LEFT_KEYS) {
+      for (const v of [entries[key]].flat().filter((x) => x.includes('`'))) {
+        seen += 1;
+        const forms = reviewForms(v);
+        for (const name of ['attribute', 'JSON script']) {
+          assert.ok(leftHomeProblems(homePage(forms[name]), values).includes(key), `${lang}: ${key} in an ${name}`);
+        }
+      }
+    }
+  }
+  assert.ok(seen > 0, 'some listed value has backticks');
 });
