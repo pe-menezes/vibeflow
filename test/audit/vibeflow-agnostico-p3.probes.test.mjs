@@ -229,3 +229,114 @@ test('check-probes: opening a fixture to write it is not reading a document', ()
     assert.deepEqual(familiesOf(box, lines), [null, null]);
   });
 });
+
+// ------------------------------------------------ reaudit 2 of part 3 (fix 2, commit de6b7c5)
+
+// Contract: spec part 3, criterion 3 (each family reads the state line written in Swift, among
+// others), and fix 2, "a comment runs nothing": a line that runs is read. Swift Testing writes
+// every assertion as a macro whose line starts with a hash and a name; a C directive, a Rust
+// attribute and a JavaScript private field start with a hash too, and they run.
+// Breaks when: a hash at the start of a line is a comment whatever follows it (the form at
+// de6b7c5), so the assertions of a Swift Testing probe, and lines the families of e04b531 read,
+// pass unread.
+// Not covered by: the implementer's Swift lines are all XCTest calls, and its comment case writes
+// every marker followed by a space.
+test('check-probes: a line that starts with a hash glued to a name or a bracket is code, and is read', { todo: 'open finding F14 of reaudit 2: a hash at the start of a line counts as a comment whatever follows it' }, () => {
+  withSandbox((box) => {
+    const rows = [
+      ['current version', 'Swift Testing, version', j('#expect(App.vers', 'ion == "1.0', '.0")')],
+      ['state that changes by itself', 'Swift Testing, sentence', j('#expect(notes.contains("the swap is still pen', 'ding"))')],
+      ['line number', 'Swift Testing, line number', j('#expect(trace.contains("App.sw', 'ift:30"))')],
+      ['real clock', 'Swift Testing, clock', j('#expect(stamp < Da', 'te())')],
+      ['current version', 'C, a directive', j('#define EXPECTED_VERS', 'ION "1.4', '.2"')],
+      ['line number', 'Rust, an attribute', j('#[should_panic(expected = "src/lib.r', 's:42")]')],
+      ['reads git', 'JavaScript, a private field', j("  #tag = execSync('", G, " describe --tags').toString()")],
+    ];
+    const found = familiesOf(box, rows.map(([, , line]) => line));
+    const wrong = rows.map(([family, name, line], index) => (found[index] === family ? null : `${name}: expected ${family}, got ${found[index]} · ${line}`)).filter(Boolean);
+    assert.deepEqual(wrong, []);
+  });
+});
+
+// Contract: fix 2 of part 3, "each family is the form of e04b531, whole": every alternative of
+// those families reads as it did. The lines below are the alternatives that no line of test/ nor
+// the two tables exercises alone.
+// Breaks when: an alternative of the form before is dropped: an extension of the line-number form
+// that the list of other ecosystems does not repeat, the datetime call with an argument, the read
+// call of a document with another suffix after it, or the exec call of the program glued to a dot
+// (in the reaudit's mutation run over a copy of de6b7c5, each of these eight left the two test
+// files of the part green).
+// Not covered by: the property of criterion 1 runs over real lines, and none of them carries these
+// alternatives alone.
+const BEFORE_ALTERNATIVES = [
+  ['reads git', 'an exec of the program glued to a suffix', j("const out = execFileSync('", G, ".exe', ['describe'])")],
+  ['line number', 'the jsx extension', j("expect(out).toContain('src/App.js", "x:9')")],
+  ['line number', 'the mjs extension', j("expect(out).toContain('scripts/run.mj", "s:12')")],
+  ['line number', 'the cjs extension', j("expect(out).toContain('lib/index.cj", "s:3')")],
+  ['line number', 'the rs extension', j('assert!(msg.contains("src/lib.r', 's:42"));')],
+  ['real clock', 'the datetime call with a time zone', j('now = datetime.no', 'w(timezone.utc)')],
+  ['doc text', 'readFile on a document with another suffix', j("const t = await readFile(join(ROOT, 'notes.tx", "t.bak'))")],
+  ['doc text', 'read_text on a document with another suffix', j('t = read_text(ROOT / "notes.tx', 't.bak")')],
+];
+
+test('check-probes: each alternative of the e04b531 families that no real line exercises alone still reads as its family', () => {
+  withSandbox((box) => {
+    const found = familiesOf(box, BEFORE_ALTERNATIVES.map(([, , line]) => line));
+    const wrong = BEFORE_ALTERNATIVES.map(([family, name, line], index) => (found[index] === family ? null : `${name}: expected ${family}, got ${found[index]} · ${line}`)).filter(Boolean);
+    assert.deepEqual(wrong, []);
+  });
+});
+
+// Contract: fix 2 of part 3, the narrow forms: a clock member is no real clock on a receiver whose
+// name says it is a test clock (fake, mock, fixed, test) and is one on a receiver ending in date; a
+// file opened to write, in each mode, is no document text, and the write mode clears only that
+// family; Go's Open and a name with Read inside read a document; a read word inside a literal is no
+// read; the program followed by an option or an interpolation, in a string of another language,
+// reads git.
+// Breaks when: any of these words or modes is dropped, the write mode skips the whole line, or the
+// read call is looked for inside the literals too (in the reaudit's mutation run over a copy of
+// de6b7c5, each of these left the two test files of the part green).
+// Not covered by: the tables name test clocks clock, stub and frozen only, open to write with the
+// w mode only, read a document in Go through ReadFile, and write their option and interpolation
+// lines inside a JavaScript exec call, which the form before already reads.
+const FIX2_FORMS = [
+  [null, 'Kotlin, a fake clock', j('val t = fakeClock.no', 'w()')],
+  [null, 'Kotlin, a mock clock', j('val t = mockClock.no', 'w()')],
+  [null, 'Java, a fixed clock', j('var t = fixedClock.no', 'w();')],
+  [null, 'Swift, a test clock', j('let t = testClock.no', 'w')],
+  ['real clock', 'Java, a date receiver', j('var d = LocalDate.no', 'w();')],
+  [null, 'Python, append mode', j('with open("notes.tx', 't", "a") as f:')],
+  [null, 'Python, exclusive mode', j('with open("notes.tx', 't", "x") as f:')],
+  [null, 'Python, write and read mode', j('with open("notes.tx', 't", "w+") as f:')],
+  ['reads git', 'Python, the program with its output sent to a file', j('subprocess.run(["', G, '", "log"], stdout=open("log.tx', 't", "w"))')],
+  ['doc text', 'Go, Open', j('f, _ := os.Open("README.m', 'd")')],
+  ['doc text', 'Java, a reader', j('var r = Files.newBufferedReader(Path.of("README.m', 'd"))')],
+  [null, 'JavaScript, a label with a read word', j("expect(menu.label).toBe('Open: notes.m", "d')")],
+  ['reads git', 'Python, an option after the program', j('out = subprocess.check_output("', G, ' --no-pager log", shell=True)')],
+  ['reads git', 'Kotlin, an interpolation after the program', j('val out = ProcessBuilder("sh", "-c", "', G, ' $args").start()')],
+];
+
+test('check-probes: each narrow form fix 2 adds or keeps reads as its family on a line of its own', () => {
+  withSandbox((box) => {
+    const found = familiesOf(box, FIX2_FORMS.map(([, , line]) => line));
+    const wrong = FIX2_FORMS.map(([family, name, line], index) => (found[index] === family ? null : `${name}: expected ${family}, got ${found[index]} · ${line}`)).filter(Boolean);
+    assert.deepEqual(wrong, []);
+  });
+});
+
+// Contract: fix 2 of part 3, criterion 1: every line that is not a comment, does not open a file
+// to write and that the families of e04b531 read, is read. A line that reads a document and then
+// compares it with a one-letter string does not open a file to write.
+// Breaks when: the write mode is looked for anywhere on the line, so a comma followed by a quoted
+// a, w or x after the read call drops a document read that e04b531 read (the form at de6b7c5).
+// Not covered by: the property's oracle excludes the lines with the script's own write-mode
+// pattern, so it cannot see a line that pattern drops by mistake.
+test('check-probes: a document read compared with a one-letter string is still a document read, as at e04b531', { todo: 'open finding F15 of reaudit 2: the write mode matches a one-letter string anywhere on the line' }, () => {
+  withSandbox((box) => {
+    const lines = [
+      j("assert.equal(readFileSync('docs/a.tx", "t', 'utf8'), 'a')"),
+      j("assert.deepEqual(readFileSync('notes.m", "d', 'utf8').split(','), ['x', 'w'])"),
+    ];
+    assert.deepEqual(familiesOf(box, lines), ['doc text', 'doc text']);
+  });
+});
