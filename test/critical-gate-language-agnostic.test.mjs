@@ -185,6 +185,91 @@ test('the output format carries the Scanned: line after the Left out line, and o
   });
 });
 
+// The sentences of a block of prose, with its line breaks folded.
+function sentences(lines) {
+  return lines
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .split(/(?<=\.)\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+// The lines of one bullet of item b, from its bold title to the next bullet.
+function itemBRule(lines, title, edition) {
+  const from = lines.findIndex((line) => new RegExp(`^\\s+-\\s+\\*\\*${title}`, 'i').test(line));
+  assert.ok(from >= 0, `${edition}: item b has the rule "${title}"`);
+  const next = lines.findIndex((line, i) => i > from && /^\s+-\s+\*\*/.test(line));
+  return lines.slice(from, next > from ? next : lines.length);
+}
+
+test('item b leaves out only what cannot hold a rule, and a generated file is scanned', () => {
+  forEachEdition((raw, edition) => {
+    const prose = sentences(itemBRule(itemB(gateStep(raw, edition), edition), 'Every changed file is scanned', edition));
+    const leaveOut = prose.filter((sentence) => /\bleave out\b/i.test(sentence));
+    assert.ok(leaveOut.length > 0, `${edition}: item b says what is left out of the scan`);
+    for (const sentence of leaveOut) {
+      assert.doesNotMatch(sentence, /generated|vendored|third[- ]party/i, `${edition}: a generated or third-party file is left out: ${sentence}`);
+    }
+    assert.ok(
+      prose.some((sentence) => /generated/i.test(sentence) && /\bscanned\b/i.test(sentence) && !/\b(not scanned|leave out|left out)\b/i.test(sentence)),
+      `${edition}: item b says a generated file is scanned`,
+    );
+  });
+});
+
+test('the No diff scanned line is named in item b and takes the place of the Scanned: line', () => {
+  forEachEdition((raw, edition) => {
+    const rule = itemBRule(itemB(gateStep(raw, edition), edition), 'Say what was scanned', edition).join('\n');
+    assert.match(rule, /`No diff scanned`/, `${edition}: "Say what was scanned" names the No diff scanned line`);
+    const lines = extractOutputFormat(raw);
+    assert.ok(lines, `${edition}: the ### Critical Gate output section is found`);
+    const note = lines.find((line) => line.startsWith('(') && line.includes('No diff scanned'));
+    assert.ok(note, `${edition}: the output format has a note with the No diff scanned line`);
+    const after = note.slice(note.indexOf('No diff scanned'));
+    assert.match(after, /^[^;]*\b(place of|instead of|replaces|stands in for)\b[^;]*`Scanned:` line/i, `${edition}: the note says No diff scanned takes the place of the Scanned: line`);
+  });
+});
+
+test('every finding example of the output format carries the severity its rule has in the catalog', () => {
+  forEachEdition((raw, edition) => {
+    const rules = new Map(catalog(gateStep(raw, edition)).flatMap((entry) => entry.rules).map((rule) => [rule.id, rule]));
+    const findings = extractOutputFormat(raw)
+      .map((line) => line.match(/^- \S+ ([A-Z]+) \[([A-Z0-9]+)\]/))
+      .filter(Boolean);
+    assert.ok(findings.length > 0, `${edition}: the format shows finding lines`);
+    for (const [line, severity, id] of findings) {
+      assert.ok(rules.has(id), `${edition}: ${id} is a rule of the catalog: ${line}`);
+      if (severity === 'ALLOWED') continue;
+      assert.equal(severity, rules.get(id).severity, `${edition}: ${id} is ${rules.get(id).severity} in the catalog: ${line}`);
+    }
+  });
+});
+
+// Id, severity and scope of every rule, as of v1.20.0. A rewrite of the
+// technology domains keeps these three fields; this table is the reference.
+const RULES = {
+  DS101: 'CRITICAL a', DS102: 'CRITICAL a', DS103: 'CRITICAL a', DS104: 'HIGH a',
+  DS105: 'HIGH a', DS106: 'HIGH a', DS108: 'WARNING a', DS110: 'INFO a',
+  SEC101: 'CRITICAL r', SEC102: 'CRITICAL r', SEC103: 'HIGH r', SEC104: 'CRITICAL a',
+  SEC105: 'HIGH a', SEC106: 'HIGH a', SEC107: 'WARNING r', SEC108: 'WARNING a',
+  IAC101: 'CRITICAL a', IAC102: 'CRITICAL a', IAC103: 'HIGH b', IAC104: 'HIGH r',
+  IAC105: 'WARNING a', IAC106: 'WARNING a',
+  K8S101: 'HIGH a', K8S102: 'HIGH a', K8S103: 'HIGH a', K8S104: 'HIGH a',
+  K8S105: 'WARNING a', K8S106: 'WARNING a',
+  CFG101: 'HIGH a', CFG102: 'WARNING a', CFG103: 'WARNING a', CFG104: 'WARNING a', CFG105: 'INFO r',
+  DAT101: 'CRITICAL a', DAT102: 'HIGH a', DAT103: 'HIGH r', DAT104: 'WARNING a', DAT105: 'WARNING r',
+};
+
+test('every rule keeps its id, severity and scope', () => {
+  forEachEdition((raw, edition) => {
+    const found = Object.fromEntries(
+      catalog(gateStep(raw, edition)).flatMap((entry) => entry.rules).map((rule) => [rule.id, `${rule.severity} ${rule.scope}`]),
+    );
+    assert.deepEqual(found, RULES, `${edition}: the catalog's ids, severities and scopes`);
+  });
+});
+
 test('gate-prompt builds, from each edition, a request that carries the two lines', () => {
   const diffText = 'diff --git a/app/run.sh b/app/run.sh\n+rm -rf "$DIR"\n';
   forEachEdition((raw, edition) => {

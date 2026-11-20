@@ -213,7 +213,7 @@ restore.
    - No runner found → warn "No test runner detected. Verify that tests
      were run manually." and continue.
 4. **Critical Gate — destructive-op safety scan** (`4/7 critical-gate`).
-   A deterministic safety net for dangerous changes the DoD never mentions —
+   A safety net for dangerous changes the DoD never mentions —
    security regressions and destructive operations that are side effects,
    not features. Not a style check.
 
@@ -249,17 +249,22 @@ restore.
       - **Every changed file is scanned.** A file's type tells which
         behaviours it can hold; it never takes the file out of the scan
         because its language is not named here. Leave out only what cannot
-        hold a rule: binary and media files, lockfiles, and files the project
-        marks as generated or vendored.
+        hold a rule: binary and media files, and lockfiles. A file a tool
+        generated is scanned like any other: a generated migration can drop
+        a table.
       - **A word is not the behaviour.** A rule fires on a line that does the
         thing, not on a line that mentions it: a comment, a string shown to a
-        person (a label, a message, a help text), a test name or description
-        and documentation prose do not fire. A string the program runs or
-        sends (SQL, a shell command) is the behaviour. When you cannot tell,
-        treat the line as doing it.
+        person that only names the thing (a label, an error or help text), a
+        test name or description and documentation prose do not fire. A
+        string the program runs or sends (SQL, a shell command) is the
+        behaviour, and so is a text that carries the value itself. When you
+        cannot tell, treat the line as doing it.
       - **Say what was scanned.** The `### Critical Gate` section carries a
         `Scanned:` line: how many of the changed files were scanned and, by
-        path, each file left out and why.
+        path, each file left out and why. A path the package took out is
+        cited as item a says, by the package section where its note appears.
+        When step 1 ran over the code, the `No diff scanned` line stands in
+        its place.
    c. **Honor overrides.** Skip a finding if the spec, the PR body, or a comment
       near the line contains `vibeflow:allow <RULE_ID>: <reason>`. CRITICAL/HIGH
       require a non-empty justification; WARNING/INFO may be overridden without one.
@@ -273,7 +278,8 @@ restore.
 
    **Rules Catalog (~40 rules, 6 domains).** Each rule is a behaviour. A
    domain's "where" says where that behaviour usually lives, as a guide and
-   never as a filter.
+   never as a filter. Item b says when a rule fires: on what a line does, in
+   any language, and not on a mention.
 
    _Database_ — where: SQL, in `.sql` files, in migrations and inside code
    | ID | Sev | Scope | Trigger |
@@ -332,7 +338,7 @@ restore.
    | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
    | DAT101 | CRITICAL | a | every record of a table, collection or store is deleted, with no condition that narrows it, by a query, an ORM call or a file command (`delete_all`, `destroy_all`, `removeAll`, `bulk_delete`, `purge`) |
-   | DAT102 | HIGH | a | personal data goes out unmasked in a response, a log, an export or a message: a national or tax identifier, a passport number, a payment card number (`ssn`, `cpf`, `cnpj`, `passport_number`, `credit_card`, `card_number`) |
+   | DAT102 | HIGH | a | personal data goes out unmasked in a response, a log, an export or a notification: a national or tax identifier, a passport number, a payment card number (`ssn`, `cpf`, `cnpj`, `passport_number`, `credit_card`, `card_number`) |
    | DAT103 | HIGH | r | encryption or hashing is removed (`encrypt`, `bcrypt`, `argon2`, `sha256`, `aes`, `rsa`) |
    | DAT104 | WARNING | a | a password, token, secret or key is written to a log or to the output, by any logging or printing call (`console.log`, `logger.*`) |
    | DAT105 | WARNING | r | masking or redaction is removed (`mask`, `redact`, `anonymize`) |
@@ -501,11 +507,12 @@ Not read whole: none
 Left out of the package: <n> file(s), read with git | none
 Scanned: <n> of <m> changed file(s); not scanned: <path> (<why>), <path> (<why>) | none
 - 🔴 CRITICAL [DS102] db/migrate/003.sql:12 — DROP TABLE in migration (blocks)
-- 🟠 HIGH [SEC101] api/auth.ts:1 — auth middleware removed (blocks)
+- 🔴 CRITICAL [SEC101] api/auth.ts:1 — auth middleware removed (blocks)
+- 🟠 HIGH [SEC106] api/client.ts:8 — certificate verification turned off (blocks)
 - 🟡 WARNING [CFG102] config/app.yml:4 — debug mode enabled
 - ✅ ALLOWED [DS104] db/migrate/004.sql:7 — DROP COLUMN — override: vibeflow:allow DS104: <reason>
 (one finding per line: a rule that matches two lines is two findings, each with its own `path:line`)
-(or "Clean — no destructive operations detected.", or "No diff scanned — <why>." when step 1 ran over the code)
+(with no finding, "Clean — no destructive operations detected." takes the place of the finding lines, after the two lines above; when step 1 ran over the code, "No diff scanned — <why>." takes the place of the `Scanned:` line)
 
 ### Findings
 - [F1] defect · implementation · confidence high — total ignores the discount — evidence: src/cart.ts:42 — probe: tests/audit/cart-p1.test.ts::discount enters the total
