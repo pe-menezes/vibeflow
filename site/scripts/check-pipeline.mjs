@@ -127,8 +127,8 @@ function checkLoop(html, lang, where) {
   for (let n = 1; n <= 5; n++) strings.push(`loopStep${n}Title`, `loopStep${n}Desc`);
   for (const k of strings) if (!text.includes(squash(key(k)))) fail(`${where}: loop without ${k}`);
   // The four operation lists moved to the implement entry of the commands page (check-pages.mjs
-  // finds them there): none of their items is left in the section, which links to them instead,
-  // with loopSetupLink as the link text.
+  // finds them there, under #loop-setup): none of their items is left in the section, whose one
+  // link, loopMore, goes to the README or the MANUAL.
   for (const b of LOOP_LISTS) {
     const items = i18nArray(lang, `${b}Items`);
     if (!items?.length) fail(`${where}: no ${b}Items in i18n`);

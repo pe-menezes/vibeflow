@@ -7,6 +7,8 @@
 // * what left each home section is gone from its component: the hero chip and long description,
 //   the pipeline subtitle, step outputs and extra commands, the loop's link to its lists, the
 //   edition descriptions, answers, notes and closing line;
+// * an "@" inside a word of an install command is a break point, and the copy button keeps the
+//   exact command;
 // * the Claude Code tabs open on the terminal one;
 // * the type scale of the site sits on top of the design system tokens, in global.css.
 //
@@ -132,6 +134,65 @@ test('the editions keep the agents and their commands, under the tagline, and no
   assert.equal(ed.split('t.editionsTagline').length, 2, 't.editionsTagline once');
 });
 
+// The display markup of each install command, from the cmdHtml function of Editions.astro run on
+// the i18n values the component passes it. An "@" inside a word (vibeflow@vibeflow-marketplace)
+// is a break point, like a "/" inside a word: with no break there, the piece is wider than the
+// command box on a phone and runs under the copy button.
+function editionCommands() {
+  const ed = component('Editions');
+  const fm = frontmatter(ed);
+  const start = fm.indexOf('const escapeHtml');
+  assert.ok(start >= 0, 'Editions.astro defines escapeHtml');
+  const code = fm.slice(start).replace(/\((\w+): string\)/g, '($1)');
+  const cmdHtml = new Function(`${code}\nreturn cmdHtml;`)();
+  const keys = [...new Set([...template(ed).matchAll(/cmdHtml\(t\.(\w+)\)/g)].map((m) => m[1]))];
+  assert.ok(keys.length >= 6, 'the component renders the install commands through cmdHtml');
+  const out = [];
+  for (const lang of LANGS) {
+    const src = read(`site/src/i18n/${lang}.ts`);
+    for (const key of keys) {
+      const value = new RegExp(`^\\s{2}${key}: '([^'\\n]*)',$`, 'm').exec(src)?.[1];
+      assert.ok(value, `${lang}: ${key} is a plain string`);
+      out.push({ lang, key, cmd: value, html: cmdHtml(value) });
+    }
+  }
+  return out;
+}
+
+test('an "@" inside a word of an install command is a break point, and the command reads the same', () => {
+  const unescape = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  let inside = 0;
+  for (const { lang, key, cmd, html } of editionCommands()) {
+    const where = `${lang}: ${key}`;
+    // Nothing but parts, <wbr> and the spaces between words.
+    assert.equal(html.replace(/<span class="ed-cmd-part">[^<]*<\/span>|<wbr>| /g, ''), '', `${where}: only parts, breaks and spaces`);
+    assert.equal(unescape(html.replace(/<[^>]+>/g, '')), cmd, `${where}: the parts read the command`);
+    for (const word of html.split(/ (?=<span )/)) {
+      const parts = [...word.matchAll(/<span class="ed-cmd-part">([^<]*)<\/span>(<wbr>)?/g)];
+      parts.forEach((m, i) => {
+        const piece = unescape(m[1]);
+        // An "@" with something before it in the word and something after it.
+        const at = [...piece.matchAll(/@/g)].map((a) => a.index).filter((j) => (i > 0 || j > 0) && j < piece.length - 1);
+        assert.deepEqual(at, [], `${where}: "${piece}" holds an "@" inside a word with no break after it`);
+        if (piece.endsWith('@') && (i > 0 || piece.length > 1)) {
+          inside += 1;
+          assert.ok(m[2] && i < parts.length - 1, `${where}: "${piece}" ends in "@" with no <wbr> after it`);
+        }
+      });
+    }
+  }
+  assert.ok(inside > 0, 'some command has an "@" inside a word');
+  // The copy button keeps the exact command: the same key as the text beside it.
+  const markup = template(component('Editions'));
+  const boxes = [...markup.matchAll(/<div class="ed-cmd">([\s\S]*?)<\/div>/g)].map((m) => m[1]);
+  assert.ok(boxes.length >= 6, 'the command boxes');
+  for (const box of boxes) {
+    const shown = /cmdHtml\(t\.(\w+)\)/.exec(box)?.[1];
+    assert.ok(shown, 'each box shows a command through cmdHtml');
+    assert.match(box, new RegExp(`data-copy=\\{t\\.${shown}\\}`), `the copy button of ${shown} copies t.${shown}`);
+  }
+});
+
 test('the Claude Code tabs open on the terminal one', () => {
   const markup = template(component('Editions'));
   const tabs = [...markup.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
@@ -196,6 +257,13 @@ test('the hero call and the spec card list take the sizes of the approved mock-u
   assert.equal(lede['line-height'], '1.3');
   assert.equal(lede['max-width'], '22ch');
   assert.equal(declarations(style, '.flow-spec__list')['font-size'], 'clamp(.95rem, 1.3vw, 1.05rem)');
+});
+
+test('the line under the pipeline scene sits one --s-5 below it, as in the approved mock-up', () => {
+  const rules = [...styleOf(component('HowItWorks')).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((m) => m[1].trim() === '.pipe-extra' && /margin-top\s*:/.test(m[2]));
+  assert.equal(rules.length, 1, 'one rule sets the margin of .pipe-extra');
+  assert.equal(declarations(styleOf(component('HowItWorks')), '.pipe-extra')['margin-top'], 'var(--s-5)');
 });
 
 test('no page links to the sections that left the home page', () => {

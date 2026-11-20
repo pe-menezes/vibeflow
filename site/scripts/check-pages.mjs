@@ -32,7 +32,7 @@ const HEADER_IDS = ['header', 'hamburger', 'mobile-menu'];
 const PAGES = {
   commands: {
     component: 'CommandsDocs.astro',
-    // ...and the id of the loop's operation lists, which the home loop links to.
+    // ...and the id of the loop's operation lists, in the implement entry.
     ids: [...HEADER_IDS, 'analyze', 'discover', 'gen-spec', 'implement', 'prompt-pack', 'audit', 'quick', 'hotfix', 'teach', 'stats', 'loop-setup'],
   },
   anatomy: {
