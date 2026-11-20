@@ -159,3 +159,96 @@ test('probe: the Critical Gate section of the output format reads the same in th
   assert.deepEqual(blocks.cursor, blocks.shared, 'cursor: the Critical Gate output section differs from the shared edition');
   assert.deepEqual(blocks.copilot, blocks.shared, 'copilot: the Critical Gate output section differs from the shared edition');
 });
+
+// --- reaudit 1: what stays out of the scan, and what each line of the section replaces -----------
+
+// The sentences (split at "." and ";") of one bullet of item b, from its bold title to the next
+// bullet, with the bold marks taken out.
+function itemBBullet(step, title) {
+  const from = step.findIndex((line) => /^\s+b\.\s+\*\*Match each changed line/.test(line));
+  const to = step.findIndex((line, i) => i > from && /^\s+c\.\s/.test(line));
+  const lines = step.slice(from, to);
+  const start = lines.findIndex((line) => new RegExp(`^\\s+-\\s+\\*\\*${title}`).test(line));
+  assert.ok(start >= 0, `item b has the bullet "${title}"`);
+  const next = lines.findIndex((line, i) => i > start && /^\s+-\s+\*\*/.test(line));
+  const text = lines.slice(start, next > start ? next : lines.length).join(' ').replace(/\*\*/g, '').replace(/\s+/g, ' ');
+  return text.split(/(?<=[.;])\s+/).map((sentence) => sentence.trim()).filter(Boolean);
+}
+
+// A sentence that takes something out of the scan, unless it says "never"; and whether every item
+// it takes out is one that cannot hold a rule (binary, media, lockfile).
+const EXCLUSION = /\bleave out\b|\bleft out\b|\bnot scanned\b|\bskip|\bexclud|\bignor|\bomit|\bunless\b|\bexcept\b|\bout of the scan\b/i;
+function excludesOnlyInert(sentence) {
+  const colon = sentence.indexOf(':');
+  if (colon < 0) return false;
+  const items = sentence.slice(colon + 1).replace(/\.$/, '').split(/,|\band\b/).map((item) => item.trim()).filter(Boolean);
+  return items.length > 0 && items.every((item) => /\bbinar|\bmedia\b|\blockfiles?\b/i.test(item));
+}
+const outOfScanSentences = (sentences) => sentences.filter((sentence) => EXCLUSION.test(sentence) && !/\bnever\b/i.test(sentence));
+
+test('probe: the out-of-scan check catches a generated or third-party file in new words, and leaves the measured text alone', () => {
+  for (const sentence of [
+    'Files the project marks as generated or vendored are skipped.',
+    'A file a tool generated is scanned unless the project marks it as generated.',
+    'Leave out only what cannot hold a rule: binary and media files, lockfiles, and vendor directories.',
+    'Skip only what cannot hold a rule: binary and media files, lockfiles, and generated files.',
+  ]) {
+    assert.ok(outOfScanSentences([sentence]).some((s) => !excludesOnlyInert(s)), sentence);
+  }
+  for (const sentence of [
+    'Leave out only what cannot hold a rule: binary and media files, and lockfiles.',
+    'A file a tool generated is scanned like any other: a generated migration can drop a table.',
+    'it never takes the file out of the scan because its language is not named here.',
+  ]) {
+    assert.ok(outOfScanSentences([sentence]).every(excludesOnlyInert), sentence);
+  }
+});
+
+// Contract: in the three editions, the only files item b takes out of the scan are those that
+// cannot hold a rule (binary and media files, lockfiles); a generated file and a third-party file
+// are scanned like any other (spec, "Conserto 1 da parte 2a", change 1: "Arquivo de terceiros também
+// deixa de ser exceção"; audit finding F1, measured: with the old exclusion the Sonnet wrote "Clean"
+// over a generated migration with DROP TABLE in 3 runs of 3).
+// Breaks when: a rewrite of the bullet puts a generated, vendored or third-party file back out of the
+// scan in words other than "leave out" ("are skipped", "unless the project marks it as generated",
+// "vendor directories" in the list); each of these survived a mutation of the three editions.
+// Missed by the implementer's tests because: their F1 case reads only the sentences with "leave out",
+// looks for the words generated, vendored and third-party in them, and accepts any other sentence
+// that says "generated" and "scanned" together.
+test('probe: item b takes out of the scan only what cannot hold a rule, in any words, in the three editions', () => {
+  for (const [edition, raw] of editions()) {
+    const sentences = itemBBullet(extractStep(raw), 'Every changed file is scanned');
+    const out = outOfScanSentences(sentences);
+    assert.ok(out.length > 0, `${edition}: the bullet says what stays out of the scan`);
+    for (const sentence of out) {
+      assert.ok(excludesOnlyInert(sentence), `${edition}: takes out of the scan more than binary, media and lockfiles: ${sentence}`);
+    }
+  }
+});
+
+// Contract: in the three editions, with no diff the `No diff scanned` line takes the place of the
+// `Scanned:` line, in item b and in the output format alike, and "Clean" takes the place of the
+// finding lines only, so the `Left out` and `Scanned:` lines stay (spec, "Conserto 1 da parte 2a",
+// change 3: "a nota do formato diz o que 'Clean' e 'No diff scanned' substituem"; audit finding F2).
+// Breaks when: item b keeps the name `No diff scanned` but says the line follows the `Scanned:` line,
+// the format note says "Clean" replaces the whole section, or the note says No diff scanned takes
+// the place of another line and only names `Scanned:` after it; each survived a mutation of the
+// three editions.
+// Missed by the implementer's tests because: their F2 case checks that item b names the
+// `No diff scanned` line, not what it does there, accepts any "place of" followed somewhere in the
+// clause by `Scanned:` line, and never reads the Clean clause.
+test('probe: item b and the output note say what No diff scanned and Clean take the place of, in the three editions', () => {
+  const REPLACES = /\bstands? in\b|\bplace of\b|\binstead of\b|\breplaces?\b/i;
+  for (const [edition, raw] of editions()) {
+    const said = itemBBullet(extractStep(raw), 'Say what was scanned').find((sentence) => sentence.includes('`No diff scanned`'));
+    assert.ok(said, `${edition}: "Say what was scanned" names the No diff scanned line`);
+    assert.match(said, REPLACES, `${edition}: item b says No diff scanned takes a line's place: ${said}`);
+    const note = extractOutputFormat(raw).find((line) => line.startsWith('(') && line.includes('Clean —'));
+    assert.ok(note, `${edition}: the output format has the note with the Clean line`);
+    const clean = note.slice(note.indexOf('Clean —')).split(';')[0];
+    assert.match(clean, /\b(place of|instead of|replaces?)\b[^;]*\bfinding lines\b/i, `${edition}: Clean takes the place of the finding lines: ${clean}`);
+    assert.doesNotMatch(clean, /`Scanned:`|\bLeft out\b|\bwhole section\b|\bthe section\b/i, `${edition}: Clean takes the place of more than the finding lines: ${clean}`);
+    const noDiff = note.slice(note.indexOf('No diff scanned')).split(';')[0];
+    assert.match(noDiff, /\b(place of|instead of|replaces?)\s+the\s+`Scanned:` line/i, `${edition}: No diff scanned takes the place of the Scanned: line: ${noDiff}`);
+  }
+});
