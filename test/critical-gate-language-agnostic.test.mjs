@@ -1,0 +1,199 @@
+// The Critical Gate describes behaviours, not languages. In each of the three
+// audit editions, step 4 must not choose what to scan by a file's type, item b
+// carries its three rules (every changed file is scanned, a word is not the
+// behaviour, say what was scanned), the Security and Data domains list no
+// language extension, the catalog keeps 38 rules in 6 domains, and the output
+// format carries a `Scanned:` line and the one-finding-per-line note. The
+// assertions pin the contract, not the wording, so a rewrite of the technology
+// domains keeps passing as long as it keeps the contract.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { buildPrompt, extractOutputFormat, extractStep } from './fixtures/gate-languages/gate-prompt.mjs';
+
+const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+
+const EDITIONS = {
+  shared: 'plugins/vibeflow/skills/audit/SKILL.md',
+  cursor: 'cursor/skills/vibeflow-audit/SKILL.md',
+  copilot: 'copilot/github/prompts/vibeflow-audit.prompt.md',
+};
+
+const SEVERITIES = new Set(['CRITICAL', 'HIGH', 'WARNING', 'INFO']);
+const SCOPES = new Set(['a', 'r', 'b']);
+
+function read(path) {
+  return readFileSync(join(ROOT, path), 'utf8');
+}
+
+function forEachEdition(check) {
+  for (const [edition, path] of Object.entries(EDITIONS)) check(read(path), edition);
+}
+
+function gateStep(raw, edition) {
+  const step = extractStep(raw);
+  assert.ok(step, `${edition}: the Critical Gate step is found`);
+  return step;
+}
+
+// Item b of step 4: from its "b." line to the "c." line of the same list.
+function itemB(step, edition) {
+  const from = step.findIndex((line) => /^\s+b\.\s+\*\*Match each changed line/.test(line));
+  assert.ok(from >= 0, `${edition}: item b starts`);
+  const indent = step[from].match(/^\s*/)[0];
+  const to = step.findIndex((line, i) => i > from && line.startsWith(`${indent}c. `));
+  assert.ok(to > from, `${edition}: item b ends at item c`);
+  return step.slice(from, to);
+}
+
+// The bold titles of item b's bullets, in order.
+function itemBRules(lines) {
+  return lines
+    .map((line) => line.match(/^\s+-\s+\*\*([^*]+)\*\*/))
+    .filter(Boolean)
+    .map((match) => match[1]);
+}
+
+// The catalog: each domain line (`_Name_ — ...`) with the rows of the table
+// under it, read as id, severity, scope and the table's fourth header.
+function catalog(step) {
+  const domains = [];
+  let current = null;
+  for (const line of step) {
+    const domain = line.match(/^\s+_([^_]+)_\s+—\s+(.*)$/);
+    if (domain) {
+      current = { name: domain[1], description: domain[2], header: null, rules: [] };
+      domains.push(current);
+      continue;
+    }
+    if (!current) continue;
+    const cells = line.trim().startsWith('|') ? line.trim().slice(1, -1).split('|').map((cell) => cell.trim()) : null;
+    if (!cells) continue;
+    if (cells[0] === 'ID') {
+      current.header = cells;
+      continue;
+    }
+    if (/^-+$/.test(cells[0])) continue;
+    current.rules.push({ id: cells[0], severity: cells[1], scope: cells[2] });
+  }
+  return domains;
+}
+
+function domain(domains, name, edition) {
+  const found = domains.find((entry) => entry.name === name);
+  assert.ok(found, `${edition}: domain ${name} is in the catalog`);
+  return found;
+}
+
+// An extension of a source language written as a glob or a dotted suffix:
+// `*.py`, `.ts`, `*.{js,ts}`.
+const EXTENSION = /(^|[\s`(,;])\*?\.(?:[a-z][a-z0-9]{0,5}|\{[^}]*\})(?=[\s`),;]|$)/i;
+
+test('the extension pattern catches a listed extension and leaves prose alone', () => {
+  for (const sample of ['files: source (`*.py,*.js`)', 'files: `*.tf`', 'in .ts files', 'globs `*.{js,ts}`']) {
+    assert.match(sample, EXTENSION, sample);
+  }
+  for (const sample of ['where: application code, scripts and configuration, in any language', 'e.g. a Node.js app']) {
+    assert.doesNotMatch(sample, EXTENSION, sample);
+  }
+});
+
+test('item b fires a rule on what the line does, never on the file type', () => {
+  forEachEdition((raw, edition) => {
+    const text = itemB(gateStep(raw, edition), edition).join('\n');
+    assert.doesNotMatch(text, /target types/i, `${edition}: item b still names the rule's target types`);
+    assert.doesNotMatch(text, /\bthe file matches\b/i, `${edition}: item b still conditions a rule on the file`);
+    assert.match(text, /what the rule describes/i, `${edition}: item b fires on the behaviour`);
+    assert.match(text, /examples?\b/i, `${edition}: item b reads the names in parentheses as examples`);
+  });
+});
+
+test('item b carries three rules: every file is scanned, a word is not the behaviour, say what was scanned', () => {
+  forEachEdition((raw, edition) => {
+    const lines = itemB(gateStep(raw, edition), edition);
+    const rules = itemBRules(lines);
+    assert.equal(rules.length, 3, `${edition}: item b has three rules, found ${JSON.stringify(rules)}`);
+    assert.match(rules[0], /every changed file is scanned/i, `${edition}: first rule`);
+    assert.match(rules[1], /a word is not the behaviour/i, `${edition}: second rule`);
+    assert.match(rules[2], /say what was scanned/i, `${edition}: third rule`);
+    const text = lines.join('\n');
+    assert.match(text, /comment/i, `${edition}: a comment does not fire`);
+    assert.match(text, /test name/i, `${edition}: a test name does not fire`);
+    assert.match(text, /`Scanned:`/, `${edition}: item b names the Scanned: line`);
+  });
+});
+
+test('every domain line says where, as a guide, and Security and Data list no language extension', () => {
+  forEachEdition((raw, edition) => {
+    const domains = catalog(gateStep(raw, edition));
+    for (const entry of domains) {
+      assert.match(entry.description, /^where:/, `${edition}: domain ${entry.name} opens with "where:"`);
+    }
+    for (const name of ['Security', 'Data']) {
+      const entry = domain(domains, name, edition);
+      assert.doesNotMatch(entry.description, EXTENSION, `${edition}: domain ${name} lists an extension`);
+      assert.equal(entry.header?.[3], 'Behaviour', `${edition}: the ${name} table describes behaviours`);
+    }
+  });
+});
+
+test('the catalog keeps 38 rules in 6 domains, with unique ids and valid severity and scope', () => {
+  const byEdition = {};
+  forEachEdition((raw, edition) => {
+    const domains = catalog(gateStep(raw, edition));
+    assert.equal(domains.length, 6, `${edition}: six domains`);
+    const rules = domains.flatMap((entry) => entry.rules);
+    assert.equal(rules.length, 38, `${edition}: 38 rules`);
+    const ids = rules.map((rule) => rule.id);
+    assert.equal(new Set(ids).size, ids.length, `${edition}: rule ids are unique`);
+    for (const rule of rules) {
+      assert.match(rule.id, /^[A-Z][A-Z0-9]*\d{3}$/, `${edition}: id ${rule.id}`);
+      assert.ok(SEVERITIES.has(rule.severity), `${edition}: ${rule.id} severity ${rule.severity}`);
+      assert.ok(SCOPES.has(rule.scope), `${edition}: ${rule.id} scope ${rule.scope}`);
+    }
+    byEdition[edition] = rules.map((rule) => `${rule.id} ${rule.severity} ${rule.scope}`);
+  });
+  assert.deepEqual(byEdition.cursor, byEdition.shared, 'cursor keeps the same ids, severities and scopes');
+  assert.deepEqual(byEdition.copilot, byEdition.shared, 'copilot keeps the same ids, severities and scopes');
+});
+
+// The output lines of the `### Critical Gate` section must carry the Scanned:
+// line right after the Left out line, and the one-finding-per-line note after
+// the last finding example.
+function checkOutputLines(lines, where) {
+  const leftOut = lines.findIndex((line) => line.startsWith('Left out of the package:'));
+  assert.ok(leftOut >= 0, `${where}: the Left out line is there`);
+  const scanned = lines[leftOut + 1] ?? '';
+  assert.match(scanned, /^Scanned: /, `${where}: the Scanned: line comes right after the Left out line`);
+  assert.match(scanned, /not scanned: <path> \(<why>\)/, `${where}: the Scanned: line names each file left out and why`);
+  assert.match(scanned, /\| none$/, `${where}: the Scanned: line has a "none" form`);
+  assert.equal(lines.filter((line) => line.startsWith('Scanned:')).length, 1, `${where}: one Scanned: line`);
+  const findings = lines.map((line, i) => (/^- \S+ [A-Z]+ \[[A-Z0-9]+\]/.test(line) ? i : -1)).filter((i) => i >= 0);
+  assert.ok(findings.length > 0, `${where}: the format shows finding lines`);
+  const note = lines.findIndex((line) => /^\(one finding per line\b/.test(line));
+  assert.ok(note > findings.at(-1), `${where}: the one-finding-per-line note follows the finding examples`);
+  assert.match(lines[note], /two findings/, `${where}: a rule on two lines is two findings`);
+}
+
+test('the output format carries the Scanned: line after the Left out line, and one finding per line', () => {
+  forEachEdition((raw, edition) => {
+    const lines = extractOutputFormat(raw);
+    assert.ok(lines, `${edition}: the ### Critical Gate output section is found`);
+    checkOutputLines(lines, edition);
+  });
+});
+
+test('gate-prompt builds, from each edition, a request that carries the two lines', () => {
+  const diffText = 'diff --git a/app/run.sh b/app/run.sh\n+rm -rf "$DIR"\n';
+  forEachEdition((raw, edition) => {
+    const prompt = buildPrompt({ skillText: raw, skillName: 'SKILL.md', diffText });
+    const lines = prompt.split('\n');
+    const from = lines.indexOf('## Output format');
+    const to = lines.indexOf('## Diff');
+    assert.ok(from >= 0 && to > from, `${edition}: the request has its output format`);
+    checkOutputLines(lines.slice(from, to), `${edition} request`);
+    assert.ok(prompt.includes('**Every changed file is scanned.**'), `${edition} request: carries item b's rules`);
+  });
+});
