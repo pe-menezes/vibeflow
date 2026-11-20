@@ -241,7 +241,7 @@ test('check-probes: opening a fixture to write it is not reading a document', ()
 // pass unread.
 // Not covered by: the implementer's Swift lines are all XCTest calls, and its comment case writes
 // every marker followed by a space.
-test('check-probes: a line that starts with a hash glued to a name or a bracket is code, and is read', { todo: 'open finding F14 of reaudit 2: a hash at the start of a line counts as a comment whatever follows it' }, () => {
+test('check-probes: a line that starts with a hash glued to a name or a bracket is code, and is read', () => {
   withSandbox((box) => {
     const rows = [
       ['current version', 'Swift Testing, version', j('#expect(App.vers', 'ion == "1.0', '.0")')],
@@ -331,7 +331,7 @@ test('check-probes: each narrow form fix 2 adds or keeps reads as its family on 
 // a, w or x after the read call drops a document read that e04b531 read (the form at de6b7c5).
 // Not covered by: the property's oracle excludes the lines with the script's own write-mode
 // pattern, so it cannot see a line that pattern drops by mistake.
-test('check-probes: a document read compared with a one-letter string is still a document read, as at e04b531', { todo: 'open finding F15 of reaudit 2: the write mode matches a one-letter string anywhere on the line' }, () => {
+test('check-probes: a document read compared with a one-letter string is still a document read, as at e04b531', () => {
   withSandbox((box) => {
     const lines = [
       j("assert.equal(readFileSync('docs/a.tx", "t', 'utf8'), 'a')"),

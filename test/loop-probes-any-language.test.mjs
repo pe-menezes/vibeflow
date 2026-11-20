@@ -587,6 +587,45 @@ test('check-probes reads no line that is only a comment, in any comment marker, 
   });
 });
 
+// The family check-probes names for each line of a probe folder, in order (null when none).
+function familiesRead(box, lines) {
+  box.write('probes/lines.txt', `${lines.join('\n')}\n`);
+  const result = runScript('check-probes.mjs', [box.repo, '--dir', 'probes'], box.env());
+  const found = new Map([...result.stdout.matchAll(/^probes\/lines\.txt:(\d+) \[([^\]]+)\]/gm)].map((match) => [Number(match[1]) - 1, match[2]]));
+  return lines.map((_, index) => found.get(index) ?? null);
+}
+
+// Fix 3, F14: a hash is a comment only when no letter, digit, `_` or `[` follows it. A Swift
+// Testing assertion, a C directive, a Rust attribute and a JavaScript private field start with a
+// hash glued to a name or a bracket, and they run; a hash followed by a space is a comment.
+test('check-probes reads a line that starts with a hash glued to a name or a bracket, and not a hash comment', () => {
+  withSandbox((box) => {
+    const rows = [
+      ['line number', '#expect(trace.contains("src/rules.ts:42"))'],
+      ['current version', '#define BUILD_VERSION "1.4.2"'],
+      ['line number', '#[should_panic(expected = "src/lib.rs:42")]'],
+      ['reads git', "  #tag = execSync('git describe --tags').toString()"],
+      [null, "# execSync('git describe --tags')"],
+      [null, '  # expect(trace).toContain("src/rules.ts:42")'],
+    ];
+    assert.deepEqual(familiesRead(box, rows.map(([, line]) => line)), rows.map(([family]) => family));
+  });
+});
+
+// Fix 3, F15: the write mode counts only as an argument of an opening call, so a document read
+// compared with a one-letter string is still a document read, and a file opened to write is not.
+test('check-probes reads a document read compared with a one-letter string, and not a file opened to write', () => {
+  withSandbox((box) => {
+    const rows = [
+      ['doc text', "assert.equal(readFileSync('docs/a.txt', 'utf8'), 'a')"],
+      [null, 'with open(p, "w") as f:'],
+      [null, 'File.open("x.txt", "w") { |f| f.write(body) }'],
+      [null, 'FILE *out = fopen("out.txt", "w");'],
+    ];
+    assert.deepEqual(familiesRead(box, rows.map(([, line]) => line)), rows.map(([family]) => family));
+  });
+});
+
 // -------------------------------------------------------- who-reads: readers outside prose
 
 const NON_DOCUMENT_REFERENCES = {

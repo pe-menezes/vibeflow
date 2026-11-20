@@ -53,7 +53,7 @@ const BEFORE = {
   clock: /\bDate\.now\(\)|new Date\(\s*\)|datetime\.(now|today|utcnow)\(|date\.today\(|time\.time\(\)/,
   doc: /\b(readFileSync|readFile|read_text|open)\([^)]*\.(md|html|txt)\b/,
 };
-const COMMENT = /^\s*(\/\/|#|--|;|\/\*|\*|<!--)/;
+const COMMENT = /^\s*(\/\/|#(?![\w[])|--|;|\/\*|\*|<!--)/;
 const STRING_LITERAL = /(['"`])(?:\\.|(?!\1).)*\1/g;
 const outsideStrings = (line) => line.replace(STRING_LITERAL, '""');
 const GIT_LITERAL = /[([]\s*['"`]git['"`]|['"`]git\s+[-a-z$]/;
@@ -63,7 +63,7 @@ const CLOCK_CALL = /(time|date|instant|clock|calendar|performance)\s*(\.|::)\s*(
 const TEST_CLOCK = /(?:\b(?:fake|mock|stub|frozen|fixed|test)\w*|\bclock)\s*(\.|::)\s*(now|today|utcnow)\b/i;
 const DOC_LITERAL = /['"`][^'"`\n]*\.(md|html|txt|rst|adoc)['"`]/;
 const READ_CALL = /(?:\b(?:[Rr]ead\w*|[Ll]oad\w*|[Oo]pen)|\w+Read\w*|contentsOf\w*)\s*[(:]/;
-const WRITE_MODE = /,\s*['"][wax]\+?b?['"]/;
+const WRITE_MODE = /open\w*\([^)]*,\s*['"][wax]\+?b?['"]/i;
 const FAMILIES = [
   ['reads git', { test: (line) => BEFORE.git.test(line) || GIT_LITERAL.test(line) }],
   ['current version', { test: (line) => BEFORE.version.test(line) || MANIFEST.test(line) }],
