@@ -137,3 +137,95 @@ test('check-probes: each form the spec names reads as its family on a line of it
     assert.deepEqual(wrong, []);
   });
 });
+
+// ------------------------------------------------ reaudit 1 of part 3 (fix 1, commit 724b8d0)
+
+// Contract: spec part 3, item 3, "the script keeps finding what it finds today in JavaScript and
+// Python", and fix 1, criterion 2: a state line the families read at e04b531 is read. At e04b531
+// a process call whose command string starts with the program name read as a git read, whatever
+// came after the name.
+// Breaks when: the command-line form asks for a lowercase word right after the program name and a
+// space, so a string whose next token is an option or an interpolation passes as behavior (the
+// form at 724b8d0).
+// Not covered by: the audit's table of 45 lines and the F1 probe write every command line as the
+// program name, a space and a lowercase subcommand.
+test('check-probes: a git command line in a string reads git when an option or an interpolation follows the program name, as at e04b531', { todo: 'open finding F10 of reaudit 1: the command-line form needs a lowercase word after the program name' }, () => {
+  withSandbox((box) => {
+    const lines = [
+      'const out = execSync(`' + G + ' ${args}`, { cwd: repo })',
+      `const out = execSync('${G} -C ' + dir + ' describe --tags')`,
+      `const out = execSync("${G} --no-pager show -s")`,
+      `const v = execSync('${G} --version')`,
+    ];
+    assert.deepEqual(familiesOf(box, lines), lines.map(() => 'reads git'));
+  });
+});
+
+// Contract: spec part 3, item 3 ("keeps finding what it finds today in JavaScript") and fix 1,
+// criterion 2: at e04b531 a known source extension followed by a colon and a number read as a
+// line number, whatever came before the extension.
+// Breaks when: the name before the extension may not follow a dot (the guard against a host name
+// with several dots), so a file name with two dots, the usual shape of a test or a declaration
+// file in TypeScript, and a regex with the dot escaped pass as behavior (the form at 724b8d0).
+// Not covered by: the table's line numbers all follow a name with a single dot.
+test('check-probes: a line number after a file name with two dots, or after an escaped dot, reads as a line number, as at e04b531', { todo: 'open finding F11 of reaudit 1: the name before the extension may not follow a dot' }, () => {
+  withSandbox((box) => {
+    const lines = [
+      j("expect(out).toContain('src/cart.test.t", "s:42')"),
+      j("expect(out).toContain('src/user.service.t", "s:12')"),
+      j('assert.match(stack, /cart\\.t', 's:42/)'),
+    ];
+    assert.deepEqual(familiesOf(box, lines), lines.map(() => 'line number'));
+  });
+});
+
+// Each form fix 1 of part 3 adds, alone on its line: the manifests of the version family, each of
+// the four words that read in the doc text family, and two of the five names of a test clock.
+const FIX1_FORMS = [
+  ['current version', 'Rust, Cargo manifest', j('let text = std::fs::read_to_string("Cargo.to', 'ml")?;')],
+  ['current version', 'Python, pyproject', j('data = tomllib.loads(Path("pyproject.to', 'ml").read_text())')],
+  ['current version', 'C#, project file', j('var doc = XDocument.Load("Billing.cs', 'proj");')],
+  ['current version', 'Ruby, gemspec', j('spec = Gem::Specification.load("billing.gem', 'spec")')],
+  ['current version', 'Kotlin, Gradle build', j('val text = File("build.gra', 'dle.kts").readText()')],
+  ['doc text', 'Python, open', j('with open(ROOT / "docs" / "guide.m', 'd") as f:')],
+  ['doc text', 'Python, load', j('page = load(ROOT / "docs" / "guide.m', 'd")')],
+  ['doc text', 'Swift, contents', j('let text = try String(contentsOfFile: "docs/guide.m', 'd")')],
+  ['doc text', 'Python, read', j('text = Path("docs/guide.m', 'd").read_text()')],
+  [null, 'Python, a stub clock', j('t = stub_time.n', 'ow()')],
+  [null, 'Python, a frozen clock', j('t = frozen_time.n', 'ow()')],
+  [null, 'JavaScript, a fixture whose name has the word read', j("writeFileSync(join(tmp, 'readme.t", "xt'), 'a,b')")],
+  [null, 'JavaScript, a fixture whose name has the word load', j("box.write('docs/loading.m", "d', '# Loading')")],
+  [null, 'Python, a fixture whose name has the word open', j('(tmp_path / "open-issues.t', 'xt").write_text("a")')],
+];
+
+// Contract: fix 1 of part 3, "the forms of the families": the version family reads the manifests
+// of several ecosystems; the doc text family needs, outside the literals, one of the four words
+// that read; the clock family skips a receiver whose name says it is a test clock.
+// Breaks when: a manifest name or a read word is dropped, a test-clock name is dropped, or the read
+// word is looked for inside the literals too (in the reaudit's mutation run over a copy of
+// 724b8d0, each of these left the subject's test files green).
+// Not covered by: the implementer's tables carry the npm manifest and the dunder name only, every
+// doc line there reads with read or contents, its test clocks are named clock, fake or mock, and
+// no literal in them has a read word inside.
+test('check-probes: each form fix 1 adds reads as its family on a line of its own, and a read word inside a literal is no read', () => {
+  withSandbox((box) => {
+    const found = familiesOf(box, FIX1_FORMS.map(([, , line]) => line));
+    const wrong = FIX1_FORMS.map(([family, name, line], index) => (found[index] === family ? null : `${name}: expected ${family}, got ${found[index]} · ${line}`))
+      .filter(Boolean);
+    assert.deepEqual(wrong, []);
+  });
+});
+
+// Contract: fix 1 of part 3, doc text: "writing a .txt fixture does not count".
+// Breaks when: the word that opens a file for writing counts as a read, so the usual way to write
+// a fixture in Python and Ruby reads as document text (the form at 724b8d0).
+// Not covered by: the implementer's case writes its ten fixtures with a JavaScript write call only.
+test('check-probes: opening a fixture to write it is not reading a document', { todo: 'open finding F12 of reaudit 1: open in write mode counts as a read' }, () => {
+  withSandbox((box) => {
+    const lines = [
+      j('with open(tmp_path / "input.t', 'xt", "w") as f:'),
+      j('File.open("input.t', 'xt", "w") { |f| f.puts("a,b") }'),
+    ];
+    assert.deepEqual(familiesOf(box, lines), [null, null]);
+  });
+});
