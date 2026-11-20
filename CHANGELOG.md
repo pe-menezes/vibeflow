@@ -2,7 +2,7 @@
 
 ### v1.20.1 (2026-11-19)
 
-Four fixes that came from reports of use, with no change to what the workflows decide: the Critical Gate override reaches the pull request body in the form `audit` reads; a `--force` reinstall keeps the `.gitignore` lines the user took out; the review package marks added files and keeps git's status columns; and the review package's secret check sees past a Unicode space. The installer fix ships in CLI 0.18.1.
+Four fixes that came from reports of use: the Critical Gate override reaches the pull request body in the form `audit` reads; a `--force` reinstall keeps the `.gitignore` lines the user took out; the review package marks added files and keeps git's status columns; and the review package's secret check sees past a Unicode space. The installer fix ships in CLI 0.18.1, and the entry also lists the site's changes since v1.20.0, under **Site**.
 
 **Fixed**
 
@@ -11,6 +11,17 @@ Four fixes that came from reports of use, with no change to what the workflows d
 - **The review package marks a file added since the base**: under `## Files and lines`, a file git gives as added (committed, staged or `git add -N`) ends in ` | new`, and an empty `## New files`, which lists the change's untracked files only, says so instead of `(none)`.
 - **The review package keeps git's status columns**: `## git status --short` is git's output byte for byte, less the untracked knowledge-base lines and the trailing line breaks, so a change that is not staged no longer reads as staged.
 - **The review package's secret check sees past a Unicode space at the end of a line or path**: a secret-looking value followed by U+00A0 or another space `trim()` takes off no longer reaches the package; its file diff is withheld and the package is still written.
+
+**Site**
+
+The marketing site changed between v1.20.0 and this release. It is independent of the methodology: none of these changes touches the plugin, the CLI or the editions.
+
+- **Site: a new site, one idea told with motion** ([#50](https://github.com/pe-menezes/vibeflow/pull/50)): the home page is rebuilt around a flow drawn on a canvas, with a pipeline scene pinned to the scroll where the stage fits the screen, and the commands and anatomy pages become reference pages with a reading column and an index that follows the reader. Tokens and pieces come from a design system copied unedited into `site/src/styles/genius/`, the fonts are self-hosted, and the theme follows the system until the reader chooses. The copy did not change.
+- **Site: the language link keeps the page** ([#52](https://github.com/pe-menezes/vibeflow/pull/52)): the language link leads to the same page in the other language, and the theme and menu buttons take their accessible names in the language of the page. The pinned scene takes the visible height (`svh`, with `vh` as the fallback), and its safety net measures the content against the height the pinned stage has instead of `innerHeight` alone; in Safari on an iPad the two differ by 71 px.
+- **Site: the build check reads selectors with a parser** ([#53](https://github.com/pe-menezes/vibeflow/pull/53)): `site/scripts/check-build.mjs` reads CSS selectors with a small parser (`site/scripts/selectors.mjs`) instead of patterns, and `make-assets.mjs` fails in one line on a `CHROME_PATH` that does not exist, stops a Chrome that does not finish, and stages every file before any reaches `site/public/`. The built site is the same, file by file.
+- **Site: easier reading on the home page** ([#54](https://github.com/pe-menezes/vibeflow/pull/54)): the running text goes from 14 px to 16 px, one token of the scale swapped for another, and the four pipeline steps stay at 14 px where the scene pins. The demo comes before the loop, and the four operation lists of the loop move, with the same text, to the `implement` entry of the commands page, under `#loop-setup`.
+- **Site: clearer copy on the home page** ([#55](https://github.com/pe-menezes/vibeflow/pull/55)): the hero says what Vibeflow is, a set of commands installed into the agent the reader already uses, and three answers sit above the install rows: what it costs, where the code goes, and the first command. The count of commands reads as ten, four of them the main path, and the two notes under the editions say what they mean.
+- **Site: one name for the done criteria and one for the file limit** ([#56](https://github.com/pe-menezes/vibeflow/pull/56)): the pipeline steps name the DoD and the budget as the tool does, with the plain-language gloss once, where the term enters.
 
 ### v1.20.0 (2026-11-13)
 
