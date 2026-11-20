@@ -218,9 +218,9 @@ test('meter: two findings on one case, one ALLOWED and one with ./, count the ca
 
 // Contract: a finding that cites a range of lines holding the planted line is a detection of that
 // case (the matching rule speaks of the finding's line; a range that holds the case points at it).
-// Breaks when: as now, the range's first line is taken as the finding's line, so a model that cites
-// the whole method (`csharp/Customers.cs:1-6` for the response on line 5) reads as "outside the
-// manifest".
+// Breaks when: the end of the range is dropped (from the line pattern or from the distance), so the
+// range's first line is taken as the finding's line, and a model that cites the whole method
+// (`csharp/Customers.cs:1-6` for the response on line 5) reads as "outside the manifest".
 // Not covered by: the implementer's tests never write a range.
 test('meter: a finding whose line range holds the planted line detects it', () => {
   const c = byId('csharp-DAT102-idiomatic');
@@ -231,8 +231,8 @@ test('meter: a finding whose line range holds the planted line detects it', () =
 
 // Contract: a finding line of a report is never dropped without a trace: what the meter does not
 // count, it lists (unparsed, outside, a note).
-// Breaks when: as now, the meter reads only the first `### Critical Gate` section, and the findings
-// of a second one (a reaudit appended to the report, a model that writes the section twice) vanish
+// Breaks when: the reader goes back to stopping at the first `### Critical Gate` section, and the
+// findings of a second one (a reaudit appended to the report, a model that writes the section twice) vanish
 // from every count and every list.
 // Not covered by: the implementer's tests have one section per report.
 test('meter: a second `### Critical Gate` section is read or reported, never dropped', () => {
@@ -245,8 +245,9 @@ test('meter: a second `### Critical Gate` section is read or reported, never dro
 
 // Contract: the section runs to the next heading; a `#` line inside a fenced code block (a quoted
 // Python, Ruby or shell comment, which three of the decoys are) is not a heading.
-// Breaks when: as now, any line that starts with `# ` ends the section, and every finding after a
-// quoted comment is lost without a trace.
+// Breaks when: the heading test runs before the fence is read (or the fence reading goes), so any
+// line that starts with `# ` ends the section, and every finding after a quoted comment is lost
+// without a trace.
 // Not covered by: the implementer's tests have no code block inside the section.
 test('meter: a `#` line inside a code block does not end the section', () => {
   const c = byId('python-SEC108-catalog');
@@ -358,13 +359,52 @@ test('meter: a fence closes only on a fence of the same character at least as lo
 
 // Contract: a finding line of a report is never dropped without a trace (the contract of the
 // second-section probe above), also when a code fence is opened and never closed.
-// Breaks when: as now, an unclosed fence makes every later line fenced, so the findings after it, and
-// a later `### Critical Gate` section, leave no trace in any count or list.
+// Breaks when: a fence that never closes goes back to running to the end of the report, every later
+// line fenced, so the findings after it, and a later `### Critical Gate` section, leave no trace in
+// any count or list.
 // Not covered by: the implementer's fence test always closes its fences.
-test('meter: a finding after a fence that never closes is counted or listed', { todo: 'open gap: an unclosed fence hides the rest of the report without a trace' }, () => {
+test('meter: a finding after a fence that never closes is counted or listed', () => {
   const c = byId('python-SEC108-catalog');
   const raw = `- 🟡 WARNING [SEC108] ${c.path}:${c.line} — dynamic exec`;
   const text = ['### Critical Gate', 'An example:', '```python', 'subprocess.call(cmd, shell=True)', raw].join('\n');
   const result = measure(manifest, [{ path: 'r.md', text }]);
   assert.ok(keptSomewhere(result, raw), 'the finding after the unclosed fence is neither counted nor listed');
+});
+
+// --- reaudit of the second fix round: mentioned planted cases and decoys apart ------------------
+
+// Contract: the split of the mentioned cases into planted cases and decoys keeps one count per case:
+// a case detected, one only ALLOWED, one matched by a finding of another rule and a flagged decoy are
+// in neither part, even when a note cites each of them; a planted case and a decoy cited and not
+// flagged are each in their own part, and the parts add up to `mentioned`, by language, per report
+// and summed.
+// Breaks when: the two parts are built by kind from the citations of the section instead of from the
+// mentioned set, so a case the model flagged, excused or put under another rule is counted again,
+// in a part, as seen and not flagged.
+// Not covered by: the implementer's tests of the split read samples whose notes cite no flagged
+// case, its other-rule test has no decoy and no ALLOWED, and the counts-apart probe above asserts
+// `mentioned` only.
+test('meter: a case flagged, allowed or under another rule is in neither part of mentioned, and the parts add up', () => {
+  const detected = byId('python-SEC106-catalog');
+  const allowed = byId('python-SEC108-catalog');
+  const other = byId('python-SEC104-catalog');
+  const decoy = byId('python-SEC108-decoy-comment');
+  const seenPlanted = byId('python-DAT104-catalog');
+  const seenDecoy = byId('python-DAT102-decoy-string');
+  const text = [
+    '### Critical Gate',
+    `- 🟠 HIGH [SEC106] ${detected.path}:${detected.line} — verification off`,
+    `- ✅ ALLOWED [SEC108] ${allowed.path}:${allowed.line} — dynamic exec — override: "made up"`,
+    `- 🔴 CRITICAL [DAT101] ${other.path}:${other.line} — not this rule`,
+    `- 🟡 WARNING [SEC108] ${decoy.path}:${decoy.line} — eval`,
+    `Seen: ${[detected, allowed, other, decoy, seenPlanted, seenDecoy].map((c) => `${c.path}:${c.line}`).join(', ')}.`,
+  ].join('\n');
+  const result = measure(manifest, [{ path: 'r.md', text }]);
+  const r = result.reports[0];
+  assert.deepEqual(r.otherRule.map((f) => f.caseId), [other.id]);
+  assert.deepEqual(r.mentionedPlanted, { total: 1, byLanguage: { python: 1 }, ids: [seenPlanted.id] });
+  assert.deepEqual(r.mentionedDecoys, { total: 1, byLanguage: { python: 1 }, ids: [seenDecoy.id] });
+  assert.deepEqual(r.mentioned, { total: 2, byLanguage: { python: 2 }, ids: [seenPlanted.id, seenDecoy.id] });
+  assert.deepEqual(result.sum.mentionedPlanted, { total: 1, byLanguage: { python: 1 } });
+  assert.deepEqual(result.sum.mentionedDecoys, { total: 1, byLanguage: { python: 1 } });
 });
