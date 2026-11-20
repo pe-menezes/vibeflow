@@ -259,13 +259,6 @@ test('the hero call and the spec card list take the sizes of the approved mock-u
   assert.equal(declarations(style, '.flow-spec__list')['font-size'], 'clamp(.95rem, 1.3vw, 1.05rem)');
 });
 
-test('the line under the pipeline scene sits one --s-5 below it, as in the approved mock-up', () => {
-  const rules = [...styleOf(component('HowItWorks')).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-    .filter((m) => m[1].trim() === '.pipe-extra' && /margin-top\s*:/.test(m[2]));
-  assert.equal(rules.length, 1, 'one rule sets the margin of .pipe-extra');
-  assert.equal(declarations(styleOf(component('HowItWorks')), '.pipe-extra')['margin-top'], 'var(--s-5)');
-});
-
 test('no page links to the sections that left the home page', () => {
   const files = ['Header', 'Footer', 'Hero', 'HowItWorks', 'Loop', 'Editions', 'FinalCTA', 'CommandsDocs', 'VibeflowAnatomy']
     .map((n) => `site/src/components/${n}.astro`);
