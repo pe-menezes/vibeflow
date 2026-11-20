@@ -153,9 +153,10 @@ const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 // The file line of the first diff line that looks like a secret, or 0 when none does. Only the
 // hunks are read here; the lines above the first hunk, which hold the paths, are read by
 // secretInPath. An added or context line counts in the new
-// file, a removed line in the base; a line of a CRLF file is tested without its "\r". The function
-// context after a hunk header is a line of the file: git gives no number for it, so the hunk's
-// first line is named.
+// file, a removed line in the base; each line is tested by looksSecret, so a line of a CRLF file
+// is tested without its "\r" and a value followed by a space trim takes off still counts. The
+// function context after a hunk header is a line of the file: git gives no number for it, so the
+// hunk's first line is named.
 function secretLine(chunk) {
   let oldLine = 0;
   let newLine = 0;
@@ -165,13 +166,13 @@ function secretLine(chunk) {
     const hunk = HUNK_HEADER.exec(line);
     if (hunk) {
       [oldLine, newLine] = [Number(hunk[1]), Number(hunk[2])];
-      if (SECRET.test(line.slice(hunk[0].length))) return newLine || oldLine || 1;
+      if (looksSecret(line.slice(hunk[0].length))) return newLine || oldLine || 1;
       inHunk = true;
     } else if (inHunk && line.startsWith('-')) {
-      if (SECRET.test(line)) return oldLine;
+      if (looksSecret(line)) return oldLine;
       oldLine += 1;
     } else if (inHunk && (line.startsWith('+') || line.startsWith(' '))) {
-      if (SECRET.test(line)) return newLine;
+      if (looksSecret(line)) return newLine;
       newLine += 1;
       if (line.startsWith(' ')) oldLine += 1;
     }
@@ -179,10 +180,12 @@ function secretLine(chunk) {
   return 0;
 }
 
-// A line of the package or a path that looks like a secret, tested as secretLine tests a diff
-// line (without a final "\r") and also without the spaces at its ends that String.prototype.trim
-// takes off (U+00A0 and the other Unicode spaces among them): a bare value followed by such a
-// space, as at the end of a path, is not followed by what the detector reads as the end of it.
+// A line of the diff or the package, or a path, that looks like a secret: tested without a final
+// "\r" and also without the spaces at its ends that String.prototype.trim takes off (U+00A0 and
+// the other Unicode spaces among them): a bare value followed by such a space, at the end of a
+// path or of a line of a file, is not followed by what the detector reads as the end of it. The
+// retention of a file diff (secretLine, secretInPath) and the last check use this one test, so a
+// line the last check would stop keeps its file diff out instead.
 function looksSecret(printed) {
   const line = printed.endsWith('\r') ? printed.slice(0, -1) : printed;
   return SECRET.test(line) || SECRET.test(line.trim());
@@ -193,7 +196,7 @@ function looksSecret(printed) {
 // looks like one or names a path that does. Such a diff stays out whole, like one with a secret
 // line.
 function secretInPath(chunk, namesHiddenPath) {
-  if (SECRET.test(chunk.path) || (chunk.heading && SECRET.test(chunk.heading))) return true;
+  if (looksSecret(chunk.path) || (chunk.heading && looksSecret(chunk.heading))) return true;
   if (namesHiddenPath(chunk.path) || (chunk.heading && namesHiddenPath(chunk.heading))) return true;
   for (const line of chunk.text.split('\n')) {
     if (HUNK_HEADER.test(line)) return false;

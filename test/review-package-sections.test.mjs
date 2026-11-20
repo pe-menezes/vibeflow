@@ -4,6 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -315,7 +316,7 @@ function trailingSpaceCase(c, place, position) {
 }
 
 test('the characters trim takes off are found, U+00A0 among them', () => {
-  assert.ok(TRIMMED.includes(' '));
+  assert.ok(TRIMMED.includes('\u00a0'));
   assert.ok(TRIMMED.includes(' ') && TRIMMED.includes('\t') && TRIMMED.includes('\n'));
   assert.ok(TRIMMED.length > 10, `${TRIMMED.length}`);
 });
@@ -331,6 +332,88 @@ for (const place of Object.keys(PLACES)) {
       assert.deepEqual(failures, []);
     });
   }
+}
+
+// The forms in which a content line reaches the diff: added to a tracked file, removed from one,
+// a context line that did not change, 7 lines from a change (8 when the character is a line
+// break; the diff has 10 lines of context), and a line of a new file outside git. Each builds the
+// file around the secret-looking line (the value, then the character, then a line break) and says
+// the file, the number the WITHHELD list must give (in the new file, or in the base for a removed
+// line) and the prefix git gives the line in the diff.
+const FILLER = (from, count) => Array.from({ length: count }, (_, i) => `line ${from + i}\n`).join('');
+const CONTENT_FORMS = {
+  added: { path: 'config.txt', line: 6, prefix: '+', setUp: (box, secret) => {
+    box.write('config.txt', FILLER(1, 5) + FILLER(6, 20));
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'content base');
+    box.write('config.txt', FILLER(1, 5) + secret + FILLER(6, 20));
+  } },
+  removed: { path: 'config.txt', line: 6, prefix: '-', setUp: (box, secret) => {
+    box.write('config.txt', FILLER(1, 5) + secret + FILLER(6, 20));
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'content base');
+    box.write('config.txt', FILLER(1, 5) + FILLER(6, 20));
+  } },
+  context: { path: 'config.txt', line: 6, prefix: ' ', setUp: (box, secret) => {
+    box.write('config.txt', FILLER(1, 5) + secret + FILLER(6, 20));
+    box.git('add', '-A');
+    box.git('commit', '-q', '-m', 'content base');
+    box.write('config.txt', FILLER(1, 5) + secret + FILLER(6, 6) + 'line 12 changed\n' + FILLER(13, 13));
+  } },
+  untracked: { path: 'new-config.txt', line: 3, prefix: '+', setUp: (box, secret) => {
+    box.write('new-config.txt', FILLER(1, 2) + secret + FILLER(3, 5));
+  } },
+};
+
+// The diff git gives a file outside git against nothing, as the script reads it (exit 1 when the
+// file is not empty).
+function noIndexDiff(box, path) {
+  const result = spawnSync('git', ['diff', '--no-color', '--no-index', '--', '/dev/null', path], { cwd: box.repo, env: box.env(), encoding: 'utf8' });
+  assert.equal(result.status, 1, result.stderr);
+  return result.stdout;
+}
+
+// A content line that looks like a secret, with the character after its value, in one form; the
+// script must exit 0, list the file under WITHHELD with the line's number, and write no line with
+// the name and value.
+function trailingSpaceContentCase(c, form) {
+  return withSandbox((box) => {
+    const { path, line, prefix, setUp } = CONTENT_FORMS[form];
+    setUp(box, `${SECRET_LOOKING_NAME}${c}\n`);
+    const base = box.git('rev-parse', 'HEAD').trim();
+
+    // The case is the one it says: git gives the line in the diff with that prefix, and the file
+    // is outside git only in the untracked form.
+    const diff = form === 'untracked' ? noIndexDiff(box, path) : box.git('diff', '--no-color', '-U10', base, '--', path);
+    const diffLine = `${prefix}${SECRET_LOOKING_NAME}${c === '\n' ? '' : c}`;
+    assert.ok(diff.split('\n').includes(diffLine), `${form} U+${c.codePointAt(0).toString(16)}`);
+    const untrackedPaths = box.git('ls-files', '--others', '--exclude-standard', '-z').split('\0');
+    assert.equal(untrackedPaths.includes(path), form === 'untracked');
+
+    const out = join(box.root, 'package.md');
+    const result = runScript('review-package.mjs', [box.repo, base, out], box.env());
+    if (result.status !== 0) return `exit ${result.status}: ${result.out.trim()}`;
+    const lines = readFileSync(out, 'utf8').split('\n');
+    const leak = lines.findIndex((text) => text.includes(SECRET_LOOKING_NAME));
+    if (leak >= 0) return `line ${leak + 1} of the package holds the name and value`;
+    const start = lines.findIndex((text) => text.startsWith('WITHHELD: '));
+    if (start < 0) return 'no WITHHELD list';
+    const listed = [];
+    for (let i = start + 1; i < lines.length && lines[i].startsWith('- '); i += 1) listed.push(lines[i]);
+    const entry = new RegExp(`^- ${path.replace('.', '\\.')} \\(\\d+ bytes, line ${line}\\)$`);
+    return listed.some((text) => entry.test(text)) ? null : `WITHHELD lists ${JSON.stringify(listed)}`;
+  });
+}
+
+for (const form of Object.keys(CONTENT_FORMS)) {
+  test(`a secret-looking content line ending in a space trim takes off is withheld with its number (${form})`, () => {
+    const failures = [];
+    for (const c of TRIMMED) {
+      const failure = trailingSpaceContentCase(c, form);
+      if (failure) failures.push(`U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')} ${failure}`);
+    }
+    assert.deepEqual(failures, [], `${failures.length} of ${TRIMMED.length} fail`);
+  });
 }
 
 test('git status --short without the untracked knowledge base when it is git\'s first line', () => {
