@@ -107,7 +107,7 @@ In a project with no knowledge base (the preflight's `[attention] knowledge base
 * <if the repository has a mutation tool: its report of survivors on the part's lines>
 
 ## Probes
-* in `<test dir>/audit/<feature>-<part>.test.<ext>`, behavior only, pinned by content, each with the three answers of the pruning rule
+* in one new test file written like the project's tests (their folder, a name their runner picks up, their framework), with the marker `vibeflow-probe: <feature>-<part>` in a comment; behavior only, pinned by content, each with the three answers of the pruning rule
 * a state probe stays in the report
 * <if the part makes an old probe false: permission to rewrite `<file::case>`, by the fact and with equal strength, with before and after in the report>
 

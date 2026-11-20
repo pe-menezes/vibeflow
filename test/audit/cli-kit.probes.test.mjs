@@ -535,7 +535,7 @@ function commandOf(text, script, argsShape) {
 
 const STEP1 = ['review-package.mjs', '<project root> <base> <out>'];
 const REAUDIT = ['review-package.mjs', '<project root> <round-commit> <out>'];
-const PROBES = ['check-probes.mjs', '<project root> --base <base> --dir <probe dir>'];
+const PROBES = ['check-probes.mjs', '<project root> --base <base>'];
 
 // Every `scripts/<name>.mjs ...` command written between backticks in orchestrator.md.
 function orchestratorCommands() {

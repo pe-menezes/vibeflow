@@ -418,11 +418,15 @@ restore.
      it. List every sabotage and every survivor under `### Sabotage`; with no
      risk code in the diff, say so and skip the stage.
 
-7. **Probes** (`7/7 probes`). Behavior probes go to
-   `<test dir>/audit/<feature>-<part>.test.<ext>` (a standalone audit uses its
-   feature slug for `<feature>-<part>`), following the project's test
-   conventions, pinned by content: each asserts a behavior through the code's
-   interface. A probe that reproduces an open finding carries the test
+7. **Probes** (`7/7 probes`). Behavior probes go in one new test file for
+   `<feature>-<part>` (a standalone audit uses its feature slug), written the
+   way the project's own tests are: in the folder where they live, with the
+   file name its test runner picks up and the same test framework, so the
+   project's usual test command runs it; in a project with no test yet, the
+   layout its language's default test runner expects. A comment on the file's
+   first lines carries the marker `vibeflow-probe: <feature>-<part>`, by which
+   the kit finds its probes. Probes are pinned by content: each asserts a
+   behavior through the code's interface. A probe that reproduces an open finding carries the test
    framework's expected-failure marker naming the finding (`todo` in
    node:test, `xfail` in pytest, `test.failing` in Jest), so an audit never
    turns the project's suite red; the fix that closes the finding removes the
@@ -435,9 +439,8 @@ restore.
    standalone audit without `--probes` writes no probe file and skips the check
    below: it lists under `### Probes` the probe cases it would write, as code.
    - Run the probe file, then
-     `node .github/vibeflow/loop/scripts/check-probes.mjs <project root> --base <base> --dir <probe dir>`
-     before the final stage, with `<probe dir>` the folder the probe file
-     went to; the report states how many probe files it read, from its
+     `node .github/vibeflow/loop/scripts/check-probes.mjs <project root> --base <base>`
+     before the final stage; it finds the probe file by its marker. The report states how many probe files it read, from its
      summary line. Its exit 1 means suspects only when that summary lists
      them; any other exit is an error, quoted as such. Each suspect leaves
      the test directory or is rewritten to pin behavior. Without the kit,
@@ -519,7 +522,7 @@ Scanned: <n> of <m> changed file(s); not scanned: <path> (<why>), <path> (<why>)
 (with no finding, "Clean — no destructive operations detected." takes the place of the finding lines, after the two lines above; when step 1 ran over the code, "No diff scanned — <why>." takes the place of the `Scanned:` line and no finding or "Clean" line follows: nothing was scanned)
 
 ### Findings
-- [F1] defect · implementation · confidence high — total ignores the discount — evidence: src/cart.ts:42 — probe: tests/audit/cart-p1.test.ts::discount enters the total
+- [F1] defect · implementation · confidence high — total ignores the discount — evidence: src/cart.ts:42 — probe: tests/cart-p1.test.ts::discount enters the total
 (or "No findings.")
 
 ### Sabotage
