@@ -132,6 +132,28 @@ test('every key a section used before the redesign is still used, moved or remov
   }
 });
 
+// The keys the home page no longer reads and that stay in i18n (spec, decision 2: the cleanup is
+// another PR), written here and recomputed from nothing: the hero chip and long description, the
+// pipeline subtitle, a step output and the extra commands, the loop's link to its lists, the
+// editions subtitle and the description of each agent. Each is still in both languages, not empty.
+const RETAINED_KEYS = [
+  'heroNotice', 'heroDescription',
+  'howSubtitle', 'pipelineExtra', 'pipelineExtraList', 'heroQuickStart1Desc',
+  'loopSetupLink',
+  'editionsSubtitle2', 'codexDesc', 'hermesDesc', 'claudeDesc', 'cursorDesc', 'copilotDesc', 'opencodeDesc',
+];
+
+test('every key the home page stopped reading is still in both languages', () => {
+  for (const lang of ['en', 'pt-br']) {
+    const src = read(`site/src/i18n/${lang}.ts`);
+    for (const key of RETAINED_KEYS) {
+      const value = new RegExp(`^\\s{2}${key}:\\s*'((?:[^'\\\\]|\\\\.)*)',$`, 'm').exec(src)?.[1];
+      assert.ok(value !== undefined, `${lang}: ${key} is gone`);
+      assert.ok(value.trim().length > 0, `${lang}: ${key} is empty`);
+    }
+  }
+});
+
 test('the two languages carry the same keys', () => {
   const keys = (file) => [...read(file).matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]).sort();
   assert.deepEqual(keys('site/src/i18n/pt-br.ts'), keys('site/src/i18n/en.ts'));
@@ -780,6 +802,8 @@ test('the new files exist and carry no machine path', () => {
     'site/src/components/EditionsAnswers.astro',
     'site/src/lib/pipeline-scene.js',
     'site/scripts/check-pipeline.mjs',
+    'site/scripts/home-rules.mjs',
+    'test/site-home-rules.test.mjs',
   ]) {
     assert.ok(existsSync(join(root, f)), `${f} exists`);
     assert.ok(!read(f).includes(needle), `${f} carries a machine path`);

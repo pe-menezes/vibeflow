@@ -166,6 +166,14 @@ test('the hidden attribute is allowed only on the listed elements a script shows
   assert.ok(named(checkPages(pages), 'en/', /at rest/));
 });
 
+test('the hidden attribute on an element whose id is a name every object inherits still fails', () => {
+  for (const id of Object.getOwnPropertyNames(Object.prototype)) {
+    const pages = site();
+    pages['en/'] = pages['en/'].replace('</body>', `<div id="${id}" hidden><p>Back</p></div></body>`);
+    assert.ok(named(checkPages(pages), 'en/', new RegExp(`#${id.replace(/[$_]/g, '\\$&')}> has the hidden attribute at rest`)), id);
+  }
+});
+
 // ---------- the header navigation on a narrow screen without JavaScript ----------
 
 test('the phone menu back to what it was, hidden in the markup, fails the check', () => {
@@ -259,7 +267,7 @@ test('the phone menu ships open in the markup with the four links, and the class
 });
 
 test('check-build no longer lists the phone menu among the elements shown later', () => {
-  assert.ok(!/'mobile-menu'\s*:/.test(read('site/scripts/check-build.mjs')));
+  for (const file of ['site/scripts/check-build.mjs', 'site/scripts/home-rules.mjs']) assert.ok(!/'mobile-menu'\s*:/.test(read(file)), file);
 });
 
 // ---------- item 2: exactly one h1 per page ----------

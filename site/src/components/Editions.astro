@@ -10,11 +10,12 @@ const { lang } = Astro.props;
 const t = useTranslations(lang);
 
 // Display markup for a command: pieces that never break inside (`pe-menezes`,
-// `vibeflow-marketplace`, `--cursor`), joined by spaces, or by a "/" or an "@" plus <wbr>,
-// so the line breaks only there. A leading "/" or "@", as in `/plugin`, gets no break after
-// it. Without the break after "@", `vibeflow@vibeflow-marketplace` is wider than the command
-// box on a phone and runs under the copy button. The copy button keeps the exact command in
-// data-copy.
+// `vibeflow-marketplace`, `--cursor`, `setup-vibeflow@latest`), joined by spaces, or by a "/" or an
+// "@" plus <wbr>, so the line breaks only there. A leading "/" or "@", as in `/plugin`, gets no
+// break after it. Without the break after "@", `vibeflow@vibeflow-marketplace` is wider than the
+// command box on a phone and runs under the copy button. An "@" followed by a version (`latest`,
+// `next`, or a number, up to the next "/", "@" or the end of the word) gets no break either, so a
+// package and its version stay on one line. The copy button keeps the exact command in data-copy.
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const cmdHtml = (cmd: string) =>
@@ -22,7 +23,7 @@ const cmdHtml = (cmd: string) =>
     .split(' ')
     .map((word) =>
       word
-        .split(/(?<=[^/]\/|[^@]@)/)
+        .split(/(?<=[^/]\/)|(?<=[^@]@)(?!(?:latest|next)(?![^/@])|[0-9])/)
         .map((piece) => `<span class="ed-cmd-part">${escapeHtml(piece)}</span>`)
         .join('<wbr>'),
     )

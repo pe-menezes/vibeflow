@@ -1,14 +1,15 @@
 // Checks on the contained home page, from the sources and with no build:
 //
-// * the home pages run five sections: hero, pipeline, loop, editions, closing; the demo, the use
-//   cases, the list of the ten commands and the contact form are not on them;
+// * the home pages run five sections, each a direct child of <main> outside any expression: hero,
+//   pipeline, loop, editions, closing; the demo, the use cases, the list of the ten commands and the
+//   contact form are not on them;
 // * the commands pages end with the use cases, the three answers and the three notes of the
 //   editions, and the contact form, in that order, after the reference;
 // * what left each home section is gone from its component: the hero chip and long description,
 //   the pipeline subtitle, step outputs and extra commands, the loop's link to its lists, the
 //   edition descriptions, answers, notes and closing line;
-// * an "@" inside a word of an install command is a break point, and the copy button keeps the
-//   exact command;
+// * an "@" inside a word of an install command is a break point unless a version follows it, and
+//   the copy button keeps the exact command;
 // * the Claude Code tabs open on the terminal one;
 // * the type scale of the site sits on top of the design system tokens, in global.css.
 //
@@ -32,10 +33,17 @@ const I18N_KEYS = new Set([...read('site/src/i18n/en.ts').matchAll(/^\s{2}(\w+):
 const usedKeys = (src) =>
   [...new Set([...src.replace(/<script[\s\S]*?<\/script>/g, '').matchAll(/\bt\.(\w+)/g)].map((m) => m[1]).filter((k) => I18N_KEYS.has(k)))].sort();
 
-// The components a page puts in its <main>, in order, each with its lang attribute.
+// The components a page puts in its <main>, in order, each with its lang attribute. Only a direct
+// child counts: a component inside an expression (`{false && <UseCases lang="en" />}`) or inside
+// another element is not one of the sections, and neither is anything else in <main>, which is
+// returned as text so the test can say what it is.
 function mainOf(page) {
   const main = /<main>([\s\S]*?)<\/main>/.exec(read(page))?.[1] ?? '';
-  return [...main.matchAll(/<([A-Z]\w*)\s+lang="([^"]+)"\s*\/>/g)].map((m) => ({ name: m[1], lang: m[2] }));
+  const children = main.replace(/<!--[\s\S]*?-->/g, '').trim().split(/(?<=\/>)\s*/).filter(Boolean);
+  return children.map((child) => {
+    const m = /^<([A-Z]\w*)\s+lang="([^"]+)"\s*\/>$/.exec(child);
+    return m ? { name: m[1], lang: m[2] } : { name: `not a section: ${child.slice(0, 60)}`, lang: null };
+  });
 }
 
 const HOME = ['Hero', 'HowItWorks', 'Loop', 'Editions', 'FinalCTA'];
@@ -135,9 +143,10 @@ test('the editions keep the agents and their commands, under the tagline, and no
 });
 
 // The display markup of each install command, from the cmdHtml function of Editions.astro run on
-// the i18n values the component passes it. An "@" inside a word (vibeflow@vibeflow-marketplace)
-// is a break point, like a "/" inside a word: with no break there, the piece is wider than the
-// command box on a phone and runs under the copy button.
+// the i18n values the component passes it. An "@" inside a word is a break point when what follows
+// it is a name (vibeflow@vibeflow-marketplace): with no break there, the piece is wider than the
+// command box on a phone and runs under the copy button. An "@" followed by a version (latest, next,
+// or a number, as in setup-vibeflow@latest) is not: the package and its version read as one piece.
 function editionCommands() {
   const ed = component('Editions');
   const fm = frontmatter(ed);
@@ -159,29 +168,40 @@ function editionCommands() {
   return out;
 }
 
-test('an "@" inside a word of an install command is a break point, and the command reads the same', () => {
+// What follows an "@" up to the next "/", "@" or the end of the word, and whether it is a version.
+const afterAt = (word, i) => word.slice(i + 1).split(/[/@]/)[0];
+const isVersion = (s) => s === 'latest' || s === 'next' || /^[0-9]/.test(s);
+
+test('an "@" inside a word of an install command is a break point unless a version follows it, and the command reads the same', () => {
   const unescape = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-  let inside = 0;
+  let named = 0;
+  let versioned = 0;
   for (const { lang, key, cmd, html } of editionCommands()) {
     const where = `${lang}: ${key}`;
     // Nothing but parts, <wbr> and the spaces between words.
     assert.equal(html.replace(/<span class="ed-cmd-part">[^<]*<\/span>|<wbr>| /g, ''), '', `${where}: only parts, breaks and spaces`);
     assert.equal(unescape(html.replace(/<[^>]+>/g, '')), cmd, `${where}: the parts read the command`);
-    for (const word of html.split(/ (?=<span )/)) {
-      const parts = [...word.matchAll(/<span class="ed-cmd-part">([^<]*)<\/span>(<wbr>)?/g)];
-      parts.forEach((m, i) => {
-        const piece = unescape(m[1]);
-        // An "@" with something before it in the word and something after it.
-        const at = [...piece.matchAll(/@/g)].map((a) => a.index).filter((j) => (i > 0 || j > 0) && j < piece.length - 1);
-        assert.deepEqual(at, [], `${where}: "${piece}" holds an "@" inside a word with no break after it`);
-        if (piece.endsWith('@') && (i > 0 || piece.length > 1)) {
-          inside += 1;
-          assert.ok(m[2] && i < parts.length - 1, `${where}: "${piece}" ends in "@" with no <wbr> after it`);
-        }
+    const plainWords = cmd.split(' ');
+    const words = html.split(/ (?=<span )/);
+    assert.equal(words.length, plainWords.length, `${where}: one display word per word`);
+    words.forEach((word, k) => {
+      const text = plainWords[k];
+      const pieces = word.split('<wbr>').map((p) => unescape(/^<span class="ed-cmd-part">([^<]*)<\/span>$/.exec(p)?.[1] ?? '\u0000'));
+      assert.ok(!pieces.includes('\u0000'), `${where}: each break sits between two whole parts`);
+      const breaks = new Set();
+      let at = -1;
+      for (const p of pieces.slice(0, -1)) breaks.add((at += p.length));
+      [...text].forEach((ch, i) => {
+        if (ch !== '@' || i === 0 || i === text.length - 1) return;
+        const version = isVersion(afterAt(text, i));
+        if (version) versioned += 1;
+        else named += 1;
+        assert.equal(breaks.has(i), !version, `${where}: the "@" at ${i} of "${text}" ${version ? 'is followed by a version and breaks' : 'has no break after it'}`);
       });
-    }
+    });
   }
-  assert.ok(inside > 0, 'some command has an "@" inside a word');
+  assert.ok(named > 0, 'some command has an "@" inside a word followed by a name');
+  assert.ok(versioned > 0, 'some command has an "@" inside a word followed by a version');
   // The copy button keeps the exact command: the same key as the text beside it.
   const markup = template(component('Editions'));
   const boxes = [...markup.matchAll(/<div class="ed-cmd">([\s\S]*?)<\/div>/g)].map((m) => m[1]);

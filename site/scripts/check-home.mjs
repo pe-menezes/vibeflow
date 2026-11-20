@@ -8,6 +8,10 @@
 // * the home page: the closing stage is dark and links to the repository; the demo, the use cases,
 //   the list of the ten commands and the contact form are not on it, and no element carries their
 //   ids (demo, use-cases, commands, contact);
+// * no value of a key that left the home page (LEFT_HOME_KEYS and every key of LEFT_HOME_COMPONENTS,
+//   in home-rules.mjs) is anywhere in the raw HTML of the home page, attributes and scripts included,
+//   but the ones that are part of a value of a key the components the home page imports read (the
+//   rule and its limits are in home-rules.mjs);
 // * the commands page ends with the use cases, the answers and notes of the editions, and the
 //   contact form, in that order, after the reference entries and with nothing after them;
 // * the four use cases, in the order of today;
@@ -18,6 +22,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LEFT_HOME_COMPONENTS, LEFT_HOME_KEYS, componentKeys, i18nEntries, importedComponents, leftHomeProblems, leftHomeValues } from './home-rules.mjs';
 
 const siteDir = join(dirname(fileURLToPath(import.meta.url)), '..');
 const outputs = [join(siteDir, 'dist'), join(siteDir, '.vercel', 'output', 'static')].filter((d) => existsSync(d));
@@ -58,6 +63,19 @@ function section(html, id) {
 
 if (!outputs.length) fail('no build output found (dist/ or .vercel/output/static/)');
 
+const componentSource = (name) => readFileSync(join(siteDir, 'src', 'components', `${name}.astro`), 'utf8');
+// The values of the keys that left the home page, minus the ones its components still show.
+function leftValues(lang) {
+  const entries = i18nEntries(readFileSync(join(siteDir, 'src', 'i18n', `${lang}.ts`), 'utf8'));
+  const leftKeys = [...LEFT_HOME_KEYS, ...LEFT_HOME_COMPONENTS.flatMap((n) => componentKeys(componentSource(n)))];
+  const home = importedComponents(readFileSync(join(siteDir, 'src', 'pages', lang, 'index.astro'), 'utf8'));
+  if (!home.length) fail(`/${lang}/: the home page source imports no component`);
+  const keptKeys = home.flatMap((n) => componentKeys(componentSource(n)));
+  const values = leftHomeValues(entries, leftKeys, keptKeys);
+  if (!values.length) fail(`/${lang}/: no value of a key that left the home page to look for`);
+  return values;
+}
+
 for (const out of outputs) {
   const label = relative(siteDir, out);
   for (const lang of ['en', 'pt-br']) {
@@ -70,6 +88,7 @@ for (const out of outputs) {
       const where = `${label}: /${lang}/`;
       for (const id of LEFT_HOME) if (new RegExp(`\\sid="${id}"`).test(html)) fail(`${where} still has #${id}`);
       if (/<form\b/.test(html)) fail(`${where} still has a form`);
+      for (const k of leftHomeProblems(html, leftValues(lang))) fail(`${where} still has the value of ${k}`);
       const cta = /<section class="[^"]*\bgx-escuro\b[^"]*\bcta\b[\s\S]*?<\/section>/.exec(html)?.[0];
       if (!cta) fail(`${where} without the dark closing stage`);
       else if (!cta.includes('href="https://github.com/pe-menezes/vibeflow"')) fail(`${where} closing without the GitHub link`);

@@ -89,13 +89,33 @@ test('the six scale tokens are declared once each, in global.css, on a top-level
 // markup gains a second selected tab or loses the panel wiring (aria-controls, data-gx-painel), and
 // the desktop panel opens. Why the executor's test misses it: it reads the aria-selected attributes
 // of the markup and never runs the script that decides which panel the visitor sees.
+// The script runs on stand-ins for the elements, whose querySelectorAll matches a selector by class
+// token, by attribute (present or equal to a value) and by tag, the forms the script asks with, and
+// stops on any other form, so a tab whose class no longer carries the token the script asks for is
+// not found (fix round 3, C4: a terminal tab with the class `gx-aba--active` opened both panels).
 test('with the design system script running, the Claude Code tabs open the terminal panel and hide the desktop one', async () => {
   const markup = template(component('Editions'));
   const group = /<div[^>]*\sdata-gx-abas\b[^>]*>([\s\S]*?)<\/div>/.exec(markup);
   assert.ok(group, 'the tab group');
   const attrs = (tag) => Object.fromEntries([...tag.matchAll(/\s([\w-]+)(?:="([^"]*)")?/g)].map((m) => [m[1], m[2] ?? '']));
-  const makeEl = (a) => {
+  // One compound selector, as the script writes them: a tag, `.class` tokens, `[attr]` and
+  // `[attr="value"]`. Any other form (lists, combinators, pseudo-classes) stops the probe.
+  const matches = (el, sel) => {
+    if (!sel || !/^(?:[a-z][\w-]*)?(?:\.[\w-]+|\[[\w-]+(?:="[^"]*")?\])*$/i.test(sel)) throw new Error(`selector form the stand-ins do not read: ${sel}`);
+    const tag = /^[a-z][\w-]*/i.exec(sel)?.[0];
+    if (tag && tag.toLowerCase() !== el.tag) return false;
+    const classes = (el.attrs.class ?? '').split(/\s+/).filter(Boolean);
+    for (const m of sel.matchAll(/\.([\w-]+)|\[([\w-]+)(?:="([^"]*)")?\]/g)) {
+      if (m[1] !== undefined && !classes.includes(m[1])) return false;
+      if (m[2] !== undefined && !(m[2] in el.attrs)) return false;
+      if (m[3] !== undefined && el.attrs[m[2]] !== m[3]) return false;
+    }
+    return true;
+  };
+  const makeEl = (tagText) => {
+    const a = attrs(tagText);
     const el = {
+      tag: /^<([a-z][\w-]*)/i.exec(tagText)[1].toLowerCase(),
       attrs: { ...a },
       hidden: 'hidden' in a,
       style: { setProperty() {} },
@@ -108,15 +128,17 @@ test('with the design system script running, the Claude Code tabs open the termi
     };
     return el;
   };
-  const tabs = [...group[1].matchAll(/<button\b[^>]*>/g)].map((m) => makeEl(attrs(m[0])));
-  const panels = [...markup.matchAll(/<div\b[^>]*\srole="tabpanel"[^>]*>/g)].map((m) => makeEl(attrs(m[0])));
-  assert.equal(tabs.length, 2, 'two tabs');
+  const tabs = [...group[1].matchAll(/<button\b[^>]*>/g)].map((m) => makeEl(m[0]));
+  const panels = [...markup.matchAll(/<div\b[^>]*\srole="tabpanel"[^>]*>/g)].map((m) => makeEl(m[0]));
+  assert.equal(tabs.length, 2, 'two buttons in the tab group');
   assert.equal(panels.length, 2, 'two panels');
+  const groupEl = makeEl(group[0]);
+  const all = [groupEl, ...tabs, ...panels];
   const doc = {
-    getElementById: (id) => panels.find((p) => p.attrs.id === id) ?? null,
-    querySelectorAll: (sel) => (sel === '[data-gx-abas]' ? [groupEl] : []),
+    getElementById: (id) => all.find((e) => e.attrs.id === id) ?? null,
+    querySelectorAll: (sel) => all.filter((e) => matches(e, sel)),
   };
-  const groupEl = { ...makeEl(attrs(group[0])), ownerDocument: doc, querySelectorAll: (sel) => (sel === '.gx-aba' ? tabs : []) };
+  Object.assign(groupEl, { ownerDocument: doc, querySelectorAll: (sel) => tabs.filter((e) => matches(e, sel)) });
   const { iniciar } = await import(join(root, 'site/src/scripts/genius/genius.js'));
   const saved = globalThis.addEventListener;
   try {
@@ -154,17 +176,25 @@ test('every link to an anchor of the home page lands on an id one of its five se
   assert.deepEqual(lost, [], 'links to a home anchor that is not on the home page');
 });
 
-// Contract: the install commands of the editions break only at their break points (reaudit 1, PG-1,
-// and the comment over cmdHtml): a "/" or an "@" with something before and after it in the word is
-// followed by <wbr>; a leading "/" or "@" (as in `/plugin` or `@scope/pkg`) and a trailing one are
-// not; nothing else breaks a word; the pieces read the command exactly, escaped for HTML.
+// Contract: the install commands of the editions break only at their break points (reaudit 1, PG-1;
+// fix round 3, A1; and the comment over cmdHtml): a "/" with something before and after it in the
+// word is followed by <wbr>; so is an "@" with something before and after it, unless what follows it
+// up to the next "/", "@" or the end of the word is a version (`latest`, `next`, or anything that
+// starts with a digit), so `setup-vibeflow@latest` stays one piece; a leading "/" or "@" (as in
+// `/plugin` or `@scope/pkg`) and a trailing one are not; nothing else breaks a word; the pieces read
+// the command exactly, escaped for HTML.
 // Regression: the split pattern of cmdHtml is simplified or reordered (`(?<=\/|[^@]@)`,
-// `(?<=[^/]\/|@)`, `(?<=[/@])`) and a leading "/" or "@" ends a line alone, or the "@" break is lost
-// again. Why the executor's test misses it: it runs cmdHtml only on today's install commands and
-// checks only the "@"; none of them starts a word with "@", and the "/" rules are checked nowhere.
-// Oracle: for a word w, a break follows index i exactly when w[i] is "/" or "@", 0 < i < w.length - 1.
-// The words come from a seeded generator, so a failure names an input that reproduces.
-test('cmdHtml breaks a word after an inner "/" or "@" only, and its pieces read the command', () => {
+// `(?<=[^/]\/|@)`, `(?<=[/@])`) and a leading "/" or "@" ends a line alone, the "@" break is lost
+// again, or the version test is dropped or widened (a break before `latest`, or none before a name
+// that only starts like a version word, such as `nextjs`). Why the executor's test misses it: it
+// runs cmdHtml only on today's install commands; none of them starts a word with "@", and the "/"
+// rules are checked nowhere.
+// Oracle: for a word w, a break follows index i exactly when 0 < i < w.length - 1 and either w[i] is
+// "/", or w[i] is "@" and the text after it up to the next "/", "@" or the end of w is not `latest`
+// or `next` and does not start with a digit. The words come from a seeded generator (the same 400
+// as before this round, plus the 8 written by hand) and from a list written by hand around the
+// version test, so a failure names an input that reproduces.
+test('cmdHtml breaks a word after an inner "/", or an inner "@" not followed by a version, only, and its pieces read the command', () => {
   const fm = /^---\n([\s\S]*?)\n---\n/.exec(component('Editions'))?.[1] ?? '';
   const start = fm.indexOf('const escapeHtml');
   assert.ok(start >= 0, 'Editions.astro defines escapeHtml before cmdHtml');
@@ -187,8 +217,12 @@ test('cmdHtml breaks a word after an inner "/" or "@" only, and its pieces read 
   };
   const inputs = ['/plugin install a@b-c', '@scope/pkg@latest --x', 'npx a-b@latest', 'p/q/r/s', '@', '/', 'a@', 'a/'];
   for (let i = 0; i < 400; i++) inputs.push(Array.from({ length: 1 + rand(4) }, word).join(' '));
+  assert.equal(inputs.length, 408, 'the 8 written by hand and the 400 generated');
+  // Around the version test: versions, names that only start like one, and a version mid-word.
+  const versioned = ['npx a@1.2.3', 'a@next', 'a@nextjs', 'a@latest-x', 'a@latest/b', 'x@0', 'x@v1', '@s/p@9/q@r', 'a@latest@b', 'a@next@'];
+  const isVersion = (s) => s === 'latest' || s === 'next' || /^[0-9]/.test(s);
 
-  for (const cmd of inputs) {
+  for (const cmd of [...inputs, ...versioned]) {
     const html = cmdHtml(cmd);
     assert.equal(html.replace(/<span class="ed-cmd-part">[^<]*<\/span>|<wbr>| /g, ''), '', `${JSON.stringify(cmd)}: only parts, breaks and spaces`);
     assert.equal(unescape(html.replace(/<[^>]+>/g, '')), cmd, `${JSON.stringify(cmd)}: the parts read the command`);
@@ -202,7 +236,9 @@ test('cmdHtml breaks a word after an inner "/" or "@" only, and its pieces read 
       let at = -1;
       for (const p of pieces.slice(0, -1)) got.push((at += p.length));
       const text = plainWords[k];
-      const want = [...text].flatMap((ch, i) => ((ch === '/' || ch === '@') && i > 0 && i < text.length - 1 ? [i] : []));
+      const inner = (i) => i > 0 && i < text.length - 1;
+      const want = [...text].flatMap((ch, i) =>
+        (ch === '/' && inner(i)) || (ch === '@' && inner(i) && !isVersion(text.slice(i + 1).split(/[/@]/)[0])) ? [i] : []);
       assert.deepEqual(got, want, `${JSON.stringify(cmd)}: breaks of ${JSON.stringify(text)} after these indexes`);
     });
   }
