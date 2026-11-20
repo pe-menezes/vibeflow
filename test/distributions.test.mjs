@@ -112,6 +112,19 @@ test('all editions expose the same workflow inventory and valid names', () => {
   }
 });
 
+// The OpenCode command restates the workflow's description in the Copilot prompt's words, so the two change together.
+test('each OpenCode command carries the description of the Copilot prompt of its workflow', () => {
+  for (const workflow of WORKFLOWS) {
+    const command = `opencode/commands/vibeflow-${workflow}.md`;
+    const prompt = workflowFiles(workflow).copilot;
+    assert.equal(
+      frontmatterValue(read(command), 'description'),
+      frontmatterValue(read(prompt), 'description'),
+      `${command} and ${prompt} carry different descriptions`,
+    );
+  }
+});
+
 test('all workflow editions preserve their essential behavior contracts', () => {
   for (const workflow of WORKFLOWS) {
     for (const [edition, path] of Object.entries(workflowFiles(workflow))) {

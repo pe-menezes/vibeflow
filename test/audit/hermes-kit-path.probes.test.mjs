@@ -3,10 +3,14 @@
 // does — resolve `${CLAUDE_SKILL_DIR}` as the directory of the SKILL.md being read and run the
 // command again — instead of landing in the "kit not installed" case written for an old Claude
 // Code or an unknown host. The implementer's contract tests pin the two key sentences and the
-// kit paragraph of `audit`; these probes pin that the Claude Code cases never name Hermes, and
-// that the path the sentence tells both hosts to resolve really reaches the scripts each skill
-// names. That every host sentence names every host is the opencode-kit-path probe's case 1. Each case states, as comments, the contract it protects, the
-// plausible regression that breaks it and why the implementer's tests did not catch it.
+// kit paragraph of `audit`. Case 1 pins that the Claude Code and unknown-host cases of `audit`
+// and `stats` never name Hermes. Case 2 pins that the path the sentence tells the hosts to
+// resolve really reaches the scripts each skill names, and that the `implement` kit path is
+// followed by one parenthetical that names exactly the hosts of the `audit` never-substituted
+// rule. The opencode-kit-path probe's case 1 judges the sentences of the three skills that
+// resolve the kit path and name a host of that rule against the rule's host list, each host
+// named once. Each case states, as comments, the contract it protects, the plausible regression
+// that breaks it and why the implementer's tests did not catch it.
 // Run with: node --test test/*.test.mjs test/audit/*.test.mjs
 
 import { test } from 'node:test';
@@ -15,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { neverSubstitutedHosts } from '../kit-path-hosts.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const SKILLS = {
@@ -32,13 +37,7 @@ const KIT_PAREN = /`\$\{CLAUDE_SKILL_DIR\}\/loop\/` \(in ([^()]*?), `loop\/` in 
 const hostList = (list) => list.split(/, | and /);
 const count = (text, word) => (text.match(new RegExp(`\\b${word}\\b`, 'g')) ?? []).length;
 // The hosts that do not substitute the variable are the ones the `audit` rule "In … the variable is never substituted" lists; Codex and Hermes stay the floor.
-const neverSubstitutedHosts = () => {
-  const ruleHosts = /\bIn ((?:[A-Z]\w*(?:, | and ))*[A-Z]\w*) the variable is never substituted/.exec(flat(read(SKILLS.audit)))?.[1];
-  assert.ok(ruleHosts, 'audit: one sentence lists the hosts where "the variable is never substituted"');
-  const hosts = hostList(ruleHosts);
-  for (const floor of ['Codex', 'Hermes']) assert.ok(hosts.includes(floor), `audit: the never-substituted rule names ${floor}: ${ruleHosts}`);
-  return hosts;
-};
+const FLOOR = ['Codex', 'Hermes'];
 const joinHosts = (hosts) => (hosts.length > 1 ? `${hosts.slice(0, -1).join(', ')} and ${hosts.at(-1)}` : hosts.join(''));
 // Null when the sentence with the kit path names exactly `hosts` in its parenthetical, in any order, each once in the sentence; otherwise what is wrong.
 const kitParenProblem = (text, hosts) => {
@@ -94,7 +93,7 @@ test('Hermes kit path: resolving ${CLAUDE_SKILL_DIR} as the directory of each SK
     }
   }
   const implement = flat(read(SKILLS.implement));
-  const hosts = neverSubstitutedHosts();
+  const hosts = neverSubstitutedHosts(FLOOR);
   assert.equal(kitParenProblem(implement, hosts), null, `implement: ${kitParenProblem(implement, hosts)}`);
   // Equal force: the same check rejects the sentence with any host dropped from the list, and with a host appended after it.
   const [paren, list] = KIT_PAREN.exec(implement);
