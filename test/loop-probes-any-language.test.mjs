@@ -626,6 +626,20 @@ test('check-probes reads a document read compared with a one-letter string, and 
   });
 });
 
+// Fix 4, C1: the write mode is looked for outside the string literals, so an opening call quoted
+// inside a literal does not hide the document read on the same line.
+test('check-probes reads a document read next to a quoted opening call, and not a real opening call that writes', () => {
+  withSandbox((box) => {
+    const rows = [
+      ['doc text', `assert "open('out.txt', 'w')" in open("README.md").read()`],
+      ['doc text', `expect(readFileSync('docs/a.md', 'utf8')).toContain("open(f, 'w')")`],
+      [null, 'with open("notes.md", "w") as f:'],
+      [null, `with open("notes.md", 'a') as f: f.write("see README.md")`],
+    ];
+    assert.deepEqual(familiesRead(box, rows.map(([, line]) => line)), rows.map(([family]) => family));
+  });
+});
+
 // -------------------------------------------------------- who-reads: readers outside prose
 
 const NON_DOCUMENT_REFERENCES = {
@@ -636,7 +650,7 @@ const NON_DOCUMENT_REFERENCES = {
   'tools/release.sh': 'cp src/rules.ts dist/rules.ts\n',
   'manifest.json': '{ "files": ["src/rules.ts"] }\n',
 };
-const DOCUMENTS = ['md', 'mdx', 'txt', 'rst', 'adoc'].map((ext) => `docs/notes.${ext}`);
+const DOCUMENTS = ['md', 'txt', 'rst', 'adoc'].map((ext) => `docs/notes.${ext}`);
 
 test('who-reads marks a reference from any file that is not a document as a reader, and a document\'s as a mention', () => {
   withSandbox((box) => {
@@ -676,5 +690,35 @@ test('who-reads exits 0 when only documents mention the file', () => {
     const result = runScript('who-reads.mjs', [box.repo, 'src/alone.ts'], box.env());
     assert.equal(result.status, 0, result.out);
     assert.match(result.stdout, new RegExp(`src/alone\\.ts: ${DOCUMENTS.length} reference`));
+  });
+});
+
+// Fix 4, C2: an MDX file imports components, so its reference reads the file.
+test('who-reads marks a reference from an MDX file as a reader', () => {
+  withSandbox((box) => {
+    box.write('src/Widget.tsx', 'export default function Widget() { return null; }\n');
+    box.write('docs/widget.mdx', 'import Widget from "../src/Widget.tsx"\n\n<Widget />\n');
+    box.git('add', '-A');
+    const result = runScript('who-reads.mjs', [box.repo, 'src/Widget.tsx'], box.env());
+    assert.equal(result.status, 1, result.out);
+    assert.match(result.stdout, /^ {2}reads docs\/widget\.mdx:1:/m, result.out);
+  });
+});
+
+// Fix 4, C3: the path is read whole, up to git grep's NUL, so a colon inside a document's name
+// does not cut its extension off and turn prose into a reader.
+test('who-reads reads a path with a colon whole: a document whose name has a colon only mentions', () => {
+  withSandbox((box) => {
+    box.write('src/Widget.tsx', 'export default function Widget() { return null; }\n');
+    box.write('docs/guide:api.md', 'See src/Widget.tsx.\n');
+    box.git('add', '-A');
+    const mention = runScript('who-reads.mjs', [box.repo, 'src/Widget.tsx'], box.env());
+    assert.equal(mention.status, 0, mention.out);
+    assert.match(mention.stdout, /^ {8}docs\/guide:api\.md:1:See src\/Widget\.tsx\.$/m, mention.out);
+    box.write('tools/build:web.sh', 'cp src/Widget.tsx dist/\n');
+    const reader = runScript('who-reads.mjs', [box.repo, 'src/Widget.tsx'], box.env());
+    assert.equal(reader.status, 1, reader.out);
+    assert.match(reader.stdout, /^ {2}reads tools\/build:web\.sh:1:cp src\/Widget\.tsx dist\/$/m, reader.out);
+    assert.match(reader.stdout, /^ {8}docs\/guide:api\.md:1:/m, reader.out);
   });
 });

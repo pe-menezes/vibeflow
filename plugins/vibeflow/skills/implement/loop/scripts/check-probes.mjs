@@ -55,7 +55,8 @@ const BEFORE = {
 };
 const COMMENT = /^\s*(\/\/|#(?![\w[])|--|;|\/\*|\*|<!--)/;
 const STRING_LITERAL = /(['"`])(?:\\.|(?!\1).)*\1/g;
-const outsideStrings = (line) => line.replace(STRING_LITERAL, '""');
+// The line with each string literal emptied, except the ones `keep` matches whole.
+const outsideStrings = (line, keep = null) => line.replace(STRING_LITERAL, (literal) => (keep?.test(literal) ? literal : '""'));
 const GIT_LITERAL = /[([]\s*['"`]git['"`]|['"`]git\s+[-a-z$]/;
 const MANIFEST = /Cargo\.toml|pyproject\.toml|\.csproj\b|\.gemspec\b|build\.gradle/;
 const SOURCE_LINE = /\.(cs|fs|vb|kt|kts|java|scala|groovy|swift|m|mm|c|h|cc|cpp|hpp|cxx|php|pl|pm|r|jl|lua|dart|ex|exs|erl|hrl|hs|ml|mli|clj|cljs|zig|nim|vue|svelte|tf|yml|yaml|toml|json|sql):\d+\b/;
@@ -63,14 +64,17 @@ const CLOCK_CALL = /(time|date|instant|clock|calendar|performance)\s*(\.|::)\s*(
 const TEST_CLOCK = /(?:\b(?:fake|mock|stub|frozen|fixed|test)\w*|\bclock)\s*(\.|::)\s*(now|today|utcnow)\b/i;
 const DOC_LITERAL = /['"`][^'"`\n]*\.(md|html|txt|rst|adoc)['"`]/;
 const READ_CALL = /(?:\b(?:[Rr]ead\w*|[Ll]oad\w*|[Oo]pen)|\w+Read\w*|contentsOf\w*)\s*[(:]/;
+// Tested outside the string literals but the mode itself, so an opening call quoted in a literal
+// does not count.
 const WRITE_MODE = /open\w*\([^)]*,\s*['"][wax]\+?b?['"]/i;
+const MODE_LITERAL = /^['"][wax]\+?b?['"]$/i;
 const FAMILIES = [
   ['reads git', { test: (line) => BEFORE.git.test(line) || GIT_LITERAL.test(line) }],
   ['current version', { test: (line) => BEFORE.version.test(line) || MANIFEST.test(line) }],
   ['state that changes by itself', /\b(still|remains|is)\s+(pending|open|unfixed|todo)\b|\bnot yet (done|fixed|implemented|shipped)\b/i],
   ['line number', { test: (line) => BEFORE.line.test(line) || SOURCE_LINE.test(line) }],
   ['real clock', { test: (line) => BEFORE.clock.test(line) || (CLOCK_CALL.test(line) && !TEST_CLOCK.test(line)) || /\bDate\(\s*\)/.test(line) }],
-  ['doc text', { test: (line) => (BEFORE.doc.test(line) || (DOC_LITERAL.test(line) && READ_CALL.test(outsideStrings(line)))) && !WRITE_MODE.test(line) }],
+  ['doc text', { test: (line) => (BEFORE.doc.test(line) || (DOC_LITERAL.test(line) && READ_CALL.test(outsideStrings(line)))) && !WRITE_MODE.test(outsideStrings(line, MODE_LITERAL)) }],
 ];
 
 const DEFAULT_PROBE_PATH = /(^|\/)(test|tests|__tests__|spec)\/(.*\/)?audit\//;
