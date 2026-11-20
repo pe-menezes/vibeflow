@@ -388,3 +388,115 @@ test('probe: DAT101 takes out of the rule only one record by its key and what is
     assert.ok(leavesOutOnlyKeyAndMemory(behaviour), `${edition}: DAT101 takes something else out of the rule: ${behaviour}`);
   }
 });
+
+// --- reaudit 4: a lockfile is scanned, and DAT102 covers a literal value wherever it is written -------
+
+// The sentences (split at "." and ";") of the whole of item b, with the bold marks taken out.
+function itemBSentences(step) {
+  const from = step.findIndex((line) => /^\s+b\.\s+\*\*Match each changed line/.test(line));
+  const to = step.findIndex((line, i) => i > from && /^\s+c\.\s/.test(line));
+  const text = step.slice(from, to).join(' ').replace(/\*\*/g, '').replace(/\s+/g, ' ');
+  return text.split(/(?<=[.;])\s+/).map((sentence) => sentence.trim()).filter(Boolean);
+}
+
+// Whether item b names a lockfile, and names it only in a sentence that says it is scanned, with no
+// negation or exception in that sentence; and whether every "never" of the bullet on what is
+// scanned is about taking a file out of the scan.
+const NAMES_A_LOCKFILE = /\block ?files?\b|\.lock\b|-lock\.json\b/i;
+const NEGATES = /\b(?:no|not|never|nor|without|except|unless|only)\b|n't\b/i;
+function namesLockfileOnlyAsScanned(sentences) {
+  const named = sentences.filter((sentence) => NAMES_A_LOCKFILE.test(sentence));
+  return named.length > 0 && named.every((sentence) => /\bscanned\b/i.test(sentence) && !NEGATES.test(sentence));
+}
+const neverOnlyKeepsInScan = (sentences) =>
+  sentences.filter((sentence) => /\bnever\b/i.test(sentence)).every((sentence) => /\bnever\b[^.;]*\bout of the scan\b/i.test(sentence));
+
+// DAT102: the clause with the literal is about a person's value and places it in code,
+// configuration and data, all three and nothing else; every other clause that takes something out
+// of the rule is "a field, column or pattern ... that only names the data is not this", and nothing
+// more.
+const PLACES = ['code', 'configuration', 'data'];
+const EXCEPTS = /\b(?:except|unless|other than|but not|apart from|excluding)\b/i;
+const TAKES_OUT_OF_RULE = /\b(?:no|not|nor|never|without)\b|n't\b/i;
+function literalCoversEveryPlace(behaviour) {
+  const clauses = behaviour.split(';').map((clause) => clause.trim());
+  const literal = clauses.find((clause) => /\bliteral\b/i.test(clause));
+  if (!literal || EXCEPTS.test(literal) || !/\bperson'?s\b[^;]*\bliteral\b/i.test(literal)) return false;
+  const places = literal.match(/\bliteral\s+in\s+(.+)$/i);
+  if (!places) return false;
+  const items = places[1].split(/,|\bor\b|\band\b/).map((item) => item.trim().replace(/^in\s+/i, '')).filter(Boolean);
+  if (items.length !== PLACES.length || !PLACES.every((place) => items.includes(place))) return false;
+  return clauses
+    .filter((clause) => clause !== literal && (TAKES_OUT_OF_RULE.test(clause) || EXCEPTS.test(clause)))
+    .every((clause) => {
+      const head = clause.split(':')[0].trim();
+      const match = head.match(/^(.*)\bthat only names the data is not this$/i);
+      if (!match) return false;
+      const subjects = match[1].split(/,|\bor\b/).map((item) => item.trim().replace(/^an?\s+/i, '')).filter(Boolean);
+      return subjects.length > 0 && subjects.every((subject) => /^(field|column|pattern)$/i.test(subject));
+    });
+}
+
+test('probe: the lockfile and DAT102 checks catch a lockfile or a literal taken out in new words, and leave the measured text alone', () => {
+  const measured = [
+    "it never takes the file out of the scan because its language is not named here.",
+    'Leave out only what cannot hold a rule: binary and media files.',
+    'A file a tool generated is scanned like any other: a generated migration can drop a table, and a lockfile can carry a credential in a package address.',
+  ];
+  assert.equal(namesLockfileOnlyAsScanned(measured), true);
+  assert.equal(neverOnlyKeepsInScan(measured), true);
+  for (const extra of ['Lockfiles are passed over.', 'Treat a lockfile as binary.', 'a test name, documentation prose and a lockfile do not fire.', 'lockfiles are the exception;']) {
+    assert.equal(namesLockfileOnlyAsScanned([...measured, extra]), false, extra);
+  }
+  for (const extra of ['Lockfiles are never scanned.', 'Lockfiles are never read.', 'Generated files are never scanned.']) {
+    assert.equal(neverOnlyKeepsInScan([...measured, extra]), false, extra);
+  }
+  assert.equal(namesLockfileOnlyAsScanned(measured.map((s) => s.replace(', and a lockfile can carry a credential in a package address', ''))), false);
+
+  const out = 'personal data is exposed unmasked: it goes out in a response, a log, an export or a notification, or ';
+  const lit = "a person's value is written as a literal in code, configuration or data";
+  const exc = 'a field, column or pattern that only names the data is not this: a national or tax identifier, a passport number, a payment card number';
+  assert.equal(literalCoversEveryPlace(`${out}${lit}; ${exc}`), true);
+  assert.equal(literalCoversEveryPlace(`${out}a person's value is written as a literal in code, in configuration or in data; ${exc}`), true);
+  for (const sample of [
+    `${out}a person's value is written as a literal in production configuration; ${exc}`,
+    `${out}${lit}, except seed and fixture data; ${exc}`,
+    `${out}a person's value is written as a literal in code; ${exc}`,
+    `${out}any value is written as a literal in code, configuration or data; ${exc}`,
+    `${out}${lit}; ${exc.replace('is not this:', 'is not this, nor is a value in seed or test data:')}`,
+    `${out}${lit}; ${exc}; a literal in a test is not this`,
+    'personal data goes out unmasked in a response, a log, an export or a notification: a national or tax identifier, a passport number, a payment card number',
+  ]) {
+    assert.equal(literalCoversEveryPlace(sample), false, sample);
+  }
+});
+
+// Contract: in the three editions, item b tells that a lockfile is scanned (it can carry a
+// credential in a package address) and names a lockfile nowhere else, and the bullet on what is
+// scanned says "never" only to keep a file in the scan; DAT102 covers a person's value written as a
+// literal in code, configuration and data alike, and the only thing its row takes out of the rule is
+// a field, column or pattern that only names the data (measured as defects: with lockfiles left out
+// a credential in a lockfile's package address was reported in 0 calls of 12, and with the row that
+// asked the data to go out a literal card number in seed data was reported in 0 calls of 6).
+// Breaks when: the sentence on the lockfile is dropped, or a new one sets lockfiles apart in words
+// the out-of-scan list does not hold ("are passed over", "are never scanned", "are never read",
+// "treat a lockfile as binary", a lockfile among the mentions that do not fire, "lockfiles are the
+// exception"); or the DAT102 literal is narrowed to some places ("in production configuration",
+// "in code", "except seed and fixture data", "a literal in a test is not this") or widened past a
+// person's value ("any value"); each of these survived a mutation of the three editions.
+// Missed by the implementer's tests because: their out-of-scan case finds the sentences that take
+// files out by a list of verbs and passes over any sentence with "never", reads only the bullet on
+// what is scanned, and needs no sentence on the lockfile; their DAT102 case looks for a "value ...
+// literal" clause and an "only names" clause, and reads neither where the literal is written nor
+// any other clause that takes something out of the rule.
+test('probe: item b scans a lockfile and DAT102 covers a literal in code, configuration and data, in the three editions', () => {
+  for (const [edition, raw] of editions()) {
+    const step = extractStep(raw);
+    assert.ok(step, `${edition}: the Critical Gate step`);
+    assert.ok(namesLockfileOnlyAsScanned(itemBSentences(step)), `${edition}: item b does not name a lockfile only as scanned`);
+    const bullet = itemBBullet(step, 'Every changed file is scanned');
+    assert.ok(neverOnlyKeepsInScan(bullet), `${edition}: the bullet says "never" about something other than taking a file out of the scan: ${bullet.join(' ')}`);
+    const behaviour = behaviourCell(step, 'DAT102');
+    assert.ok(literalCoversEveryPlace(behaviour), `${edition}: DAT102 narrows or widens the literal, or takes something else out of the rule: ${behaviour}`);
+  }
+});
