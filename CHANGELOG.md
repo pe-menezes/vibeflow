@@ -1,5 +1,17 @@
 # Changelog
 
+### v1.20.1 (2026-11-19)
+
+Four fixes that came from reports of use, with no change to what the workflows decide: the Critical Gate override reaches the pull request body in the form `audit` reads; a `--force` reinstall keeps the `.gitignore` lines the user took out; the review package marks added files and keeps git's status columns; and the review package's secret check sees past a Unicode space. The installer fix ships in CLI 0.18.1.
+
+**Fixed**
+
+- **The Critical Gate override reaches the PR body in the form `audit` reads**: the report's `ALLOWED` line writes its override as `vibeflow:allow <RULE_ID>: <reason>`, with the rule ID of its brackets, in the shared skill, Copilot and Cursor, and `pr-body.md` copies, for each part, the Critical Gate lines of its last report and the `ALLOWED` lines of its earlier reports, word for word, so an audit of the PR run without the author's spec resolves the finding instead of failing it.
+- **A `--force` reinstall keeps the `.gitignore` lines the user took out** (CLI 0.18.1): an edition whose marker file was there before the install never gives back a first-release line the Vibeflow block lacks, and adds only the lines later versions brought; an edition installed for the first time over another edition's block still adds all of its own lines.
+- **The review package marks a file added since the base**: under `## Files and lines`, a file git gives as added (committed, staged or `git add -N`) ends in ` | new`, and an empty `## New files`, which lists the change's untracked files only, says so instead of `(none)`.
+- **The review package keeps git's status columns**: `## git status --short` is git's output byte for byte, less the untracked knowledge-base lines and the trailing line breaks, so a change that is not staged no longer reads as staged.
+- **The review package's secret check sees past a Unicode space at the end of a line or path**: a secret-looking value followed by U+00A0 or another space `trim()` takes off no longer reaches the package; its file diff is withheld and the package is still written.
+
 ### v1.20.0 (2026-11-13)
 
 The workflows now tell a linked worktree without the knowledge base from a project that never ran `analyze`. The knowledge base lives in `.vibeflow/`, which the default install leaves out of git, so a new `git worktree` starts without it while the main checkout still has it. The workflows decided by the `.vibeflow/` folder and took that worktree for a project without `analyze`: on the fixture in `test/fixtures/missing-base/`, with the base only in the main checkout, `implement` with `claude-sonnet-5-5` changed the code and answered that the implementation was complete, the missing base only among its caveats, and `gen-spec` saved its spec with the default budget of 6 files where the base sets 4. Now `gen-spec`, `implement`, `quick`, `prompt-pack` and `audit` settle one of three states before writing anything, and in the worktree whose main checkout has the base they stop, give its path and the command that copies it. The audit report and the pull request body say which state the work ran in, and the loop's scripts check the base before a dispatch, check the knowledge files a briefing names, and leave a copied base out of the review package and the perimeter. All 3 editions updated; on OpenCode, the `auditor` agent.
