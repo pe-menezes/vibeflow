@@ -77,12 +77,10 @@ test('OpenCode host table: the row opens the round with the `subagent` tool and 
   assert.doesNotMatch(paragraph, /\.opencode\/|\.config\/opencode/, 'the paragraph names no OpenCode install path');
 });
 
-// Contract: the auditor role and the Claude agent that carries it send an OpenCode auditor to `.opencode/skills/audit/SKILL.md`, the shared audit workflow the CLI installs (`.opencode/skills/<name>/SKILL.md` in `cli/index.js`), named as that same shared workflow and before the Cursor and Copilot paths, while `skills/audit/SKILL.md` in the Vibeflow plugin stays the path of Claude Code, Codex and Hermes, so an OpenCode auditor reads the shared workflow with its kit-path rule from where it is installed, instead of looking for a plugin this host does not have or for a Cursor or Copilot file.
+// Contract: the auditor role and the Claude agent that carries it send an OpenCode auditor to `.opencode/skills/audit/SKILL.md`, the shared audit workflow the CLI installs there (proved by running the CLI in cli-kit, which reads that file after `--opencode --force`), named as that same shared workflow and before the Cursor and Copilot paths, while `skills/audit/SKILL.md` in the Vibeflow plugin stays the path of Claude Code, Codex and Hermes, so an OpenCode auditor reads the shared workflow with its kit-path rule from where it is installed, instead of looking for a plugin this host does not have or for a Cursor or Copilot file.
 // Breaks when: the host list is edited in the role file only (the agent body then differs from the role); OpenCode goes back among the plugin hosts, where the edition is installed and no plugin exists; the path drifts from the folder the CLI writes; or OpenCode lands after the Cursor or Copilot path.
 // Not covered by: audit-contracts checks that the agent body equals the role and that the role names each edition's path, not which hosts read the plugin path nor where OpenCode reads it; the opencode-edition probes compare the OpenCode agent body with the role, not what the role says.
 test('OpenCode auditor role: the role and the agent send OpenCode to the shared audit workflow the CLI installs, not to a plugin', () => {
-  const cli = readFileSync(join(ROOT, 'cli/index.js'), 'utf8');
-  assert.ok(cli.includes('dest: `.opencode/skills/${name}/SKILL.md`'), 'the CLI installs each shared skill to .opencode/skills/<name>/SKILL.md');
   for (const [name, path] of Object.entries(AUDITOR)) {
     const text = flat(read(path));
     const sentence = /The procedure is the audit workflow of your host, read from its file: [^]*?in Copilot\./.exec(text)?.[0];
