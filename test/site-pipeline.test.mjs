@@ -54,8 +54,8 @@ const NEW_KEYS = {
 };
 
 // Keys that left a section for another component: the loop's four operation lists moved to the
-// implement entry of the commands page. Their titles and items are read there and no longer in the
-// section, which links to them with a sentence of its own (loopSetupLink).
+// implement entry of the commands page, and the three answers and three notes of the editions to
+// their own block at the end of the commands page. They are read there and no longer in the section.
 const MOVED_KEYS = {
   Loop: {
     to: 'CommandsDocs',
@@ -65,7 +65,28 @@ const MOVED_KEYS = {
     ],
     shared: [],
   },
+  Editions: {
+    to: 'EditionsAnswers',
+    keys: [
+      'editionsCodeBody', 'editionsCodeTitle', 'editionsCostBody', 'editionsCostTitle',
+      'editionsFirstBody', 'editionsFirstTitle',
+      'editionsGitDisclaimer', 'editionsHermesScan', 'editionsLoopKit',
+    ],
+    // The label of the editions titles both blocks.
+    shared: ['editionsLabel'],
+  },
 };
+
+// Keys the contained home page no longer shows anywhere (spec, change 1): the pipeline subtitle,
+// the step outputs and the extra commands line; the loop's link to its lists; the editions'
+// subtitle and the description of each agent. They stay in i18n; no component of the home page or
+// of the commands page reads them.
+const REMOVED_KEYS = {
+  HowItWorks: ['howSubtitle', 'pipelineExtra', 'pipelineExtraList', 'heroQuickStart1Desc', 'heroQuickStart2Desc', 'heroQuickStart3Desc'],
+  Loop: ['loopSetupLink'],
+  Editions: ['editionsSubtitle2', 'codexDesc', 'hermesDesc', 'claudeDesc', 'cursorDesc', 'copilotDesc', 'opencodeDesc'],
+};
+const PAGE_COMPONENTS = ['Hero', 'HowItWorks', 'Loop', 'Editions', 'FinalCTA', 'CommandsDocs', 'UseCases', 'EditionsAnswers', 'ContactForm'];
 
 const I18N_KEYS = new Set([...read('site/src/i18n/en.ts').matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1]));
 
@@ -83,17 +104,30 @@ function template(source) {
     .replace(/<style[\s\S]*?<\/style>/g, '');
 }
 
-test('every key a section used before the redesign is still used, plus the ones the design adds', () => {
+test('every key a section used before the redesign is still used, moved or removed by name, plus the ones the design adds', () => {
   for (const name of Object.keys(BASE_KEYS)) {
     const now = new Set(usedKeys(component(name)));
     const moved = MOVED_KEYS[name] ?? { keys: [], shared: [] };
+    const removed = REMOVED_KEYS[name] ?? [];
     const there = moved.to ? new Set(usedKeys(component(moved.to))) : new Set();
     for (const key of [...BASE_KEYS[name], ...NEW_KEYS[name]]) {
       if (moved.keys.includes(key) || moved.shared.includes(key)) {
         assert.ok(there.has(key), `${moved.to} does not use t.${key}, moved from ${name}`);
       }
-      if (moved.keys.includes(key)) assert.ok(!now.has(key), `${name} still uses t.${key}, moved to ${moved.to}`);
+      if (moved.keys.includes(key) || removed.includes(key)) assert.ok(!now.has(key), `${name} still uses t.${key}`);
       else assert.ok(now.has(key), `${name} no longer uses t.${key}`);
+    }
+  }
+  // A removed key is read by no component of the two pages it could show on.
+  for (const key of Object.values(REMOVED_KEYS).flat()) {
+    const readers = PAGE_COMPONENTS.filter((n) => n !== 'Hero' || !/^heroQuickStart/.test(key)).filter((n) => usedKeys(component(n)).includes(key));
+    assert.deepEqual(readers, [], `t.${key} is still read`);
+  }
+  // Each removed or moved key is one the section used before, and a key is either moved or removed.
+  for (const [name, keys] of Object.entries(REMOVED_KEYS)) {
+    for (const key of keys) {
+      assert.ok([...BASE_KEYS[name], ...NEW_KEYS[name]].includes(key), `${key} was not used by ${name}`);
+      assert.ok(!(MOVED_KEYS[name]?.keys ?? []).includes(key), `${key} both moved and removed`);
     }
   }
 });
@@ -162,18 +196,22 @@ test('the scene pins only where its CSS pins it: the same media query, under the
   assert.ok(!/position:\s*sticky/.test(style.replace(pinning[0][0], '')), 'sticky only inside the gated block');
 });
 
-test('the pipeline scene: canvas, four gates, four steps with their output, and the extra commands', () => {
+test('the pipeline scene: canvas, four gates, four steps with their name and description, and the link to the commands', () => {
   const how = component('HowItWorks');
   const markup = template(how);
   assert.match(markup, /<canvas[^>]*data-flow="pipeline"[^>]*aria-hidden="true"/);
   assert.match(how, /from '\.\.\/lib\/pipeline-scene\.js'/);
   assert.match(markup, /<ol\b/, 'the steps are an ordered list');
   for (const n of [1, 2, 3, 4]) {
-    for (const key of [`step${n}Title`, `pipelineStep${n}Desc`, `heroQuickStart${n}Desc`]) {
+    for (const key of [`step${n}Title`, `pipelineStep${n}Desc`]) {
       assert.match(how, new RegExp(`\\bt\\.${key}\\b`), `uses t.${key}`);
     }
   }
-  assert.match(markup, /pipelineExtra/);
+  // Each step: its name and its description, and no output line.
+  const step = /<li class="pipe-step"[^>]*>([\s\S]*?)<\/li>/.exec(markup)?.[1] ?? '';
+  assert.deepEqual([...step.matchAll(/<(h3|p)\b[^>]*>/g)].map((m) => m[1]), ['h3', 'p'], 'a step is its name and its description');
+  assert.match(how, /\bt\.heroQuickStart4Desc\.split\('\.'\)\[0\]/, 'the verdict, from the first sentence of the audit output');
+  assert.match(markup, /\{t\.featSeeAll\}/);
 });
 
 test('nothing in the three sections starts hidden: no hidden attribute and every step lit at rest', () => {
@@ -188,7 +226,7 @@ test('nothing in the three sections starts hidden: no hidden attribute and every
   assert.match(how, /data-active="true"/, 'steps and gates are lit at rest');
 });
 
-test('the loop is a dark stage: the thesis struck on its second line, steps in sequence, a link to the lists', () => {
+test('the loop is a dark stage: the thesis struck on its second line, steps in sequence, a link to the details', () => {
   const loop = component('Loop');
   const markup = template(loop);
   assert.match(markup, /<section[^>]*class="[^"]*\bgx-escuro\b[^"]*"[^>]*id="loop"|<section[^>]*id="loop"[^>]*class="[^"]*\bgx-escuro\b/);
@@ -197,7 +235,10 @@ test('the loop is a dark stage: the thesis struck on its second line, steps in s
   assert.match(markup, /<ol\b/, 'the five steps are an ordered list');
   // The operation lists moved to the commands page (site-reading.test.mjs checks where they went).
   assert.ok(!/<ul\b/.test(markup), 'no operation list left on the stage');
-  assert.match(markup, /href=\{`\/\$\{lang\}\/commands#\$\{LOOP_SETUP_ID\}`\}/, 'the stage links to the lists on the commands page');
+  // The home loop no longer links to the lists (spec, change 1): one link, to the details.
+  assert.ok(!/commands#|LOOP_SETUP_ID/.test(loop), 'no link to the lists on the commands page');
+  assert.equal([...markup.matchAll(/<a\b/g)].length, 1, 'one link on the stage');
+  assert.match(markup, /href=\{t\.loopMoreHref\}/, 'the link to the details');
   assert.ok(!/gx-cartao|loop-block\b/.test(markup), 'no card inside the stage');
   assert.ok(!/fixed header/i.test(loop), 'no note about a fixed header that is gone');
 });
@@ -227,18 +268,20 @@ test('the editions are a list with one row per agent, in today\'s order, and the
   );
 });
 
-// The three answers above the edition rows: cost, code, first command, in that order.
+// The three answers of the editions: cost, code, first command, in that order. They left the home
+// page for a block of their own at the end of the commands page, before the three notes.
 const ANSWERS = ['editionsCost', 'editionsCode', 'editionsFirst'];
 
-test('the editions open with three answers between the subtitle and the rows: a definition list, no h3', () => {
-  const ed = component('Editions');
+test('the answers of the editions open their block between its label and the notes: a definition list, no h3', () => {
+  const ed = component('EditionsAnswers');
   const markup = template(ed);
-  const sub = markup.indexOf('{t.editionsSubtitle2}');
-  const rows = markup.indexOf('<ul class="gx-lista ed-list">');
-  assert.ok(sub >= 0 && rows > sub, 'the subtitle, then the rows');
+  const sub = markup.indexOf('{t.editionsLabel}');
+  const rows = markup.indexOf('<div class="ed-notes">');
+  assert.ok(sub >= 0 && rows > sub, 'the label, then the notes');
   const between = markup.slice(sub, rows);
   const dl = /<dl class="ed-answers">([\s\S]*?)<\/dl>/.exec(between);
-  assert.ok(dl, 'a definition list between the subtitle and the rows');
+  assert.ok(dl, 'a definition list between the label and the notes');
+  assert.ok(!/<dl\b/.test(component('Editions')), 'none left in the editions of the home page');
   assert.equal(markup.split('<dl').length, 2, 'one definition list in the section');
   const pairs = [...dl[1].matchAll(/<dt>\{t\.(\w+)Title\}<\/dt>\s*<dd><InlineCode text=\{t\.(\w+)Body\} \/><\/dd>/g)];
   assert.deepEqual(pairs.map((m) => m[1]), ANSWERS, 'each title in a dt, in the order cost, code, first command');
@@ -246,7 +289,7 @@ test('the editions open with three answers between the subtitle and the rows: a 
   for (const base of ANSWERS) {
     for (const key of [`${base}Title`, `${base}Body`]) assert.equal(ed.split(`t.${key}`).length, 2, `t.${key} once`);
   }
-  assert.ok(!/<h[1-6]\b/.test(dl[1]), 'no heading inside the answers: the h3 of the section are the six agents');
+  assert.ok(!/<h[1-6]\b/.test(markup), 'no heading in the block: it adds no title of its own');
   assert.ok(!/aria-label/.test(dl[0]), 'no aria-label on the answers');
 });
 
@@ -270,14 +313,14 @@ function divAt(markup, opening) {
   return markup.slice(start);
 }
 
-test('the extra commands line sits in the section, below the pinned stage and outside it', () => {
+test('the link to the commands sits in the section, below the pinned stage and outside it', () => {
   const markup = template(component('HowItWorks'));
   const stage = divAt(markup, /<div[^>]*\sdata-scene-stage\b/);
   assert.ok(stage.length > 0, 'the stage is there');
-  assert.ok(!/pipelineExtra|featSeeAll/.test(stage), 'the extra commands line is inside the pinned stage');
+  assert.ok(!/featSeeAll|<a\b/.test(stage), 'the link is inside the pinned stage');
   const track = divAt(markup, /<div[^>]*\sdata-scene-track\b/);
   const after = markup.slice(markup.indexOf(track) + track.length);
-  assert.match(after, /t\.pipelineExtra\b[\s\S]*t\.featSeeAll\b[\s\S]*<\/section>/, 'the line follows the track, inside the section');
+  assert.match(after, /<a href=\{`\/\$\{lang\}\/commands`\}[^>]*>\{t\.featSeeAll\}<\/a>[\s\S]*<\/section>/, 'the link follows the track, inside the section');
 });
 
 test('pinned, the stage is the screen, the band sits between BAND_MIN and BAND_MAX, and the content is centred', async () => {
@@ -734,6 +777,7 @@ test('the new files exist and carry no machine path', () => {
     'site/src/components/HowItWorks.astro',
     'site/src/components/Loop.astro',
     'site/src/components/Editions.astro',
+    'site/src/components/EditionsAnswers.astro',
     'site/src/lib/pipeline-scene.js',
     'site/scripts/check-pipeline.mjs',
   ]) {

@@ -4,16 +4,17 @@
 // It exits with 1 and lists every problem it finds.
 //
 // * the pipeline: the four gates and the four steps are in the document, lit and not hidden, each
-//   step with its name, description and output; the band is an image named by pipelineFlowLabel;
-//   the verdict and the extra commands line are there;
-// * the order of the sections: hero, pipeline, demo, loop, use cases, commands, editions, closing,
-//   contact;
+//   step with its name and description and no output line; the band is an image named by
+//   pipelineFlowLabel; the verdict and the link to the commands page are there, and the subtitle and
+//   the extra commands line are not;
+// * the order of the sections: hero, pipeline, loop, editions, closing;
 // * the loop: a dark stage, the thesis with its second line struck, every step of today, none of
-//   the four operation lists (they live on the commands page), one link to them with
-//   loopSetupLink as its text, and the link to the details;
-// * the editions: six agents in today's order, each copy button holding an exact i18n command and
-//   the feedback of its language, the Claude Code tabs with both panels in the document, and the
-//   texts of the three answers above the rows (where and in what order is the source test's).
+//   the four operation lists (they live on the commands page), no link to them, and one link, to
+//   the details;
+// * the editions: six agents in today's order under the tagline, each copy button holding an exact
+//   i18n command and the feedback of its language, the Claude Code tabs with both panels in the
+//   document and the terminal one selected, and none of the agent descriptions, the three answers
+//   or the three notes (they live on the commands page, which check-home.mjs reads).
 // Every expected text is read from src/i18n.
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -62,8 +63,15 @@ function checkPipeline(html, lang, where) {
   if (!found) return fail(`${where}: no #how section`);
   const body = found[2];
   const text = squash(plain(body));
-  for (const k of ['pipelineLabel', 'howTitle', 'howSubtitle', 'pipelineExtra', 'pipelineExtraList', 'featSeeAll']) {
+  for (const k of ['pipelineLabel', 'howTitle', 'featSeeAll']) {
     if (!text.includes(squash(key(k)))) fail(`${where}: pipeline without ${k}`);
+  }
+  for (const k of ['howSubtitle', 'pipelineExtra', 'pipelineExtraList']) {
+    if (text.includes(squash(key(k)))) fail(`${where}: pipeline still shows ${k}`);
+  }
+  const links = [...body.matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)];
+  if (links.length !== 1 || links[0][1] !== `/${lang}/commands` || plain(links[0][2]) !== key('featSeeAll')) {
+    fail(`${where}: the pipeline links ${JSON.stringify(links.map((m) => m[1]))}, not once to /${lang}/commands with featSeeAll`);
   }
   if (!/<canvas[^>]*data-flow="pipeline"/.test(body)) fail(`${where}: pipeline without its canvas`);
   const band = /<div[^>]*class="[^"]*\bpipe-band\b[^"]*"[^>]*>/.exec(body)?.[0] ?? '';
@@ -84,9 +92,11 @@ function checkPipeline(html, lang, where) {
     if (attr(s[1], 'data-active') !== 'true' || isHidden(s[1])) fail(`${where}: step ${n} is not lit at rest`);
     if (/\shidden(\s|=|>)/.test(s[2])) fail(`${where}: step ${n} hides something`);
     const stepText = squash(plain(s[2]));
-    for (const k of [`step${n}Title`, `pipelineStep${n}Desc`, `heroQuickStart${n}Desc`]) {
+    for (const k of [`step${n}Title`, `pipelineStep${n}Desc`]) {
       if (!stepText.includes(squash(key(k)))) fail(`${where}: step ${n} without ${k}`);
     }
+    if (stepText !== squash(key(`step${n}Title`) + key(`pipelineStep${n}Desc`))) fail(`${where}: step ${n} shows more than its name and description`);
+    if (/pipe-step__out/.test(s[2])) fail(`${where}: step ${n} still has an output line`);
   });
 
   const end = /<span[^>]*\sdata-scene-end\b[^>]*>([\s\S]*?)<\/span>/.exec(body);
@@ -125,10 +135,12 @@ function checkLoop(html, lang, where) {
     for (const item of items ?? []) if (text.includes(squash(item))) fail(`${where}: loop still shows an item of ${b}Items`);
   }
   if (/<ul\b/.test(body)) fail(`${where}: loop still has a list besides its steps`);
-  const setup = [...body.matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)].filter((m) => m[1] === `/${lang}/commands#${LOOP_SETUP_ID}`);
-  const setupText = key('loopSetupLink');
-  if (setup.length !== 1) fail(`${where}: ${setup.length} links to /${lang}/commands#${LOOP_SETUP_ID} instead of 1`);
-  else if (plain(setup[0][2]) !== setupText) fail(`${where}: the link to the lists reads "${plain(setup[0][2])}"`);
+  // One link, to the details: the link to the lists on the commands page left with loopSetupLink.
+  const links = [...body.matchAll(/<a\b[^>]*\shref="([^"]*)"[^>]*>([\s\S]*?)<\/a>/g)];
+  if (links.some((m) => m[1].includes(`#${LOOP_SETUP_ID}`))) fail(`${where}: the loop still links to #${LOOP_SETUP_ID}`);
+  if (text.includes(squash(key('loopSetupLink')))) fail(`${where}: the loop still shows loopSetupLink`);
+  if (links.length !== 1) fail(`${where}: ${links.length} links in the loop instead of 1`);
+  else if (plain(links[0][2]) !== key('loopMore')) fail(`${where}: the loop link reads "${plain(links[0][2])}"`);
   const steps = (/<ol\b[^>]*>([\s\S]*?)<\/ol>/.exec(body)?.[1].match(/<li\b/g) ?? []).length;
   if (steps !== 5) fail(`${where}: ${steps} loop steps in the ordered list instead of 5`);
   if (!body.includes(`href="${key('loopMoreHref')}"`)) fail(`${where}: loop without the loopMoreHref link`);
@@ -136,7 +148,7 @@ function checkLoop(html, lang, where) {
 
 // The sections of the home page, in order: by id, and by class for the two that have none (the
 // hero and the closing stage).
-const HOME_ORDER = ['hero', 'how', 'demo', 'loop', 'use-cases', 'commands', 'editions', 'cta', 'contact'];
+const HOME_ORDER = ['hero', 'how', 'loop', 'editions', 'cta'];
 function checkOrder(html, where) {
   const main = /<main\b[^>]*>([\s\S]*?)<\/main>/.exec(html)?.[1] ?? '';
   const order = [...main.matchAll(/<section\b[^>]*>/g)].map((m) => {
@@ -171,6 +183,8 @@ function checkEditions(html, lang, where) {
 
   const tabs = [...body.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map((m) => m[0]);
   if (tabs.length !== 2) fail(`${where}: ${tabs.length} Claude Code tabs instead of 2`);
+  const selected = tabs.filter((tab) => attr(tab, 'aria-selected') === 'true').map((tab) => attr(tab, 'id'));
+  if (JSON.stringify(selected) !== JSON.stringify(['ed-tab-cli'])) fail(`${where}: the selected Claude Code tab is ${JSON.stringify(selected)}, not ed-tab-cli`);
   for (const tab of tabs) {
     const id = attr(tab, 'aria-controls');
     const panel = new RegExp(`<div[^>]*\\sid="${id}"[^>]*>`).exec(body)?.[0];
@@ -179,11 +193,17 @@ function checkEditions(html, lang, where) {
   }
 
   const text = squash(plain(body));
-  const strings = ['editionsLabel', 'editionsTitle2', 'editionsSubtitle2', 'claudeDesktopLabel', 'claudeCliLabel',
-    'claudeStep1', 'claudeStep2', 'claudeStep4', 'claudeStep5', 'editionsLoopKit', 'editionsHermesScan',
-    'editionsGitDisclaimer', 'editionsTagline', 'editionsCostTitle', 'editionsCostBody', 'editionsCodeTitle',
-    'editionsCodeBody', 'editionsFirstTitle', 'editionsFirstBody', ...EDITIONS.map((k) => k.replace('Title', 'Desc')), ...COMMANDS];
+  const strings = ['editionsLabel', 'editionsTitle2', 'editionsTagline', 'claudeDesktopLabel', 'claudeCliLabel',
+    'claudeStep1', 'claudeStep2', 'claudeStep4', 'claudeStep5', ...COMMANDS];
   for (const k of strings) if (!text.includes(squash(key(k)))) fail(`${where}: editions without ${k}`);
+  const sub = /<p class="section-sub"[^>]*>([\s\S]*?)<\/p>/.exec(body)?.[1];
+  if (sub === undefined || plain(sub) !== key('editionsTagline')) fail(`${where}: the editions subtitle is not editionsTagline`);
+  // What left the section for the commands page, or left the site: none of it is here.
+  const gone = ['editionsSubtitle2', 'editionsLoopKit', 'editionsHermesScan', 'editionsGitDisclaimer', 'editionsCostTitle',
+    'editionsCostBody', 'editionsCodeTitle', 'editionsCodeBody', 'editionsFirstTitle', 'editionsFirstBody',
+    ...EDITIONS.map((k) => k.replace('Title', 'Desc'))];
+  for (const k of gone) if (text.includes(squash(key(k)))) fail(`${where}: editions still show ${k}`);
+  if (/<dl\b/.test(body)) fail(`${where}: editions still have a definition list`);
 }
 
 if (!outputs.length) fail('no build output found (dist/ or .vercel/output/static/)');

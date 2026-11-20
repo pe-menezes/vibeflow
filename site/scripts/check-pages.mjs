@@ -9,7 +9,9 @@
 // * on the commands page, the four operation lists of the loop sit once in the implement entry,
 //   after the loop mode block, under their own id, with the i18n items character for character,
 //   and none of their items is anywhere else (the rule and its limits are in loop-setup.mjs);
-// * no element of the page content carries the hidden attribute.
+// * no element of the page content carries the hidden attribute, but the ones a script shows later
+//   (SHOWN_LATER of check-build.mjs: the success message of the contact form, at the end of the
+//   commands page).
 //
 // What it does not decide: it reads the HTML as text with regular expressions (no DOM, no CSS), so
 // it does not see what a browser would hide or move. The check of every text of the two pages
@@ -17,6 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SHOWN_LATER } from './check-build.mjs';
 import { decode, loopSetupProblems, plain, shown, tight } from './loop-setup.mjs';
 
 const siteDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -92,7 +95,10 @@ for (const out of outputs) {
         if (!entries.length) fail(`${where}: no entries`);
         for (const id of entries) if (!linked.has(id)) fail(`${where}: the index has no link to #${id}`);
       }
-      if (/<[a-z][^>]*\shidden(\s|=|>)/.test(main)) fail(`${where}: content with the hidden attribute`);
+      for (const m of main.matchAll(/<[a-z][^>]*\shidden(\s|=|>)[^>]*>?/g)) {
+        const id = /\sid="([^"]*)"/.exec(m[0])?.[1];
+        if (!id || !(id in SHOWN_LATER)) fail(`${where}: content with the hidden attribute${id ? ` (#${id})` : ''}`);
+      }
 
       const text = tight(plain(main));
       const hrefs = new Set([...main.matchAll(/\shref="([^"]+)"/g)].map((m) => decode(m[1])));

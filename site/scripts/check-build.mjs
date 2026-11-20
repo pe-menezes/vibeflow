@@ -37,7 +37,7 @@
 //   page may translate its ids when both languages have the same number of them, on the same
 //   elements, in the same order;
 // * the hero title carries the highlighted term in both languages;
-// * the hero call shows heroSubtitle and then heroDescription, and the flow band is an image named
+// * the hero call shows heroSubtitle alone (no heroDescription), and the flow band is an image named
 //   by heroFlowLabel with the heroFlowBefore and heroFlowAfter notes, all read from src/i18n.
 //
 // checkPages and checkCss are exported so the checks can run on HTML in memory.
@@ -57,7 +57,7 @@ const GATES = ['.motion-ok', '.gx-tocando'];
 // Elements that carry the hidden attribute in the HTML because a script shows them later, by id.
 // The phone menu is not one: it ships open, so the navigation works without a script, and only a
 // page running JavaScript closes it, by a class the head script sets before the first paint.
-const SHOWN_LATER = {
+export const SHOWN_LATER = {
   'form-success': 'the contact form success message, shown after the form is sent',
 };
 
@@ -421,10 +421,8 @@ for (const out of outputs) {
     const html = readFileSync(file, 'utf8');
     const key = (k) => i18nValue(lang, k) ?? `(missing ${k})`;
     const call = plain(/<div class="hero-side[^"]*"[^>]*>([\s\S]*?)<div class="hero-actions"/.exec(html)?.[1] ?? '');
-    const sub = call.indexOf(key('heroSubtitle'));
-    const desc = call.indexOf(key('heroDescription'));
-    if (sub < 0) fail(`${label}: /${lang}/ hero call without heroSubtitle`);
-    if (desc < 0 || desc < sub) fail(`${label}: /${lang}/ hero call without heroDescription after heroSubtitle`);
+    if (call !== decode(key('heroSubtitle'))) fail(`${label}: /${lang}/ hero call is not heroSubtitle alone`);
+    if (call.includes(decode(key('heroDescription')))) fail(`${label}: /${lang}/ hero call still shows heroDescription`);
 
     const bandTag = /<div class="flow-band"[^>]*>/.exec(html)?.[0] ?? '';
     if (attr(bandTag, 'role') !== 'img') fail(`${label}: /${lang}/ flow band is not role="img"`);
