@@ -51,6 +51,17 @@ function datedBelowNext(text) {
   return text.replace(/^(### v\d+\.\d+\.\d+ \()\d{4}-\d{2}-\d{2}\)/m, (_, head) => `${head}${before})`);
 }
 
+// The text with a new entry on top, both read from the file: the minor version
+// after the newest entry's (X.Y+1.0), dated one year after the newest dated
+// entry, on the same day and month.
+function releaseAYearLater(text) {
+  const list = headings(text);
+  const [major, minor] = list[0].version.split('.').map(Number);
+  const [, year, monthDay] = /^(\d{4})-(\d{2}-\d{2})$/.exec(list.find((h) => h.date).date);
+  const heading = `### v${major}.${minor + 1}.0 (${Number(year) + 1}-${monthDay})`;
+  return text.replace(/^### v/m, `${heading}\n\n* next.\n\n### v`);
+}
+
 // Problems with the "[#N](url)" links: the URL must be this repository's
 // pull request or issue N, the number the reader sees; a "#..." fragment or a
 // "?..." query after the number is allowed.
@@ -85,8 +96,10 @@ test('CHANGELOG entries are newest first and each version has one entry', () => 
   const [first] = headings(text);
   assert.ok(headingProblems(datedBelowNext(text)).length > 0, 'a newest entry dated before the entry below it went unnoticed');
   // The control holds when the next release comes exactly a year after the
-  // previous one (a year back would equal the date below and stay valid).
-  const nextYear = text.replace(/^### v/m, '### v1.22.0 (2027-11-20)\n\n* next.\n\n### v');
+  // previous one (a year back would equal the date below and stay valid). The
+  // version and the date come from the file, so the control holds after the
+  // next cut too.
+  const nextYear = releaseAYearLater(text);
   assert.deepEqual(headingProblems(nextYear), [], 'a release one year after the previous one was reported');
   assert.ok(headingProblems(datedBelowNext(nextYear)).length > 0, 'the control went quiet on a release one year after the previous one');
   const lines = text.split('\n');
