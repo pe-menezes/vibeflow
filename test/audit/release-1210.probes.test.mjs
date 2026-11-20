@@ -41,13 +41,24 @@ function headingProblems(text) {
   return problems;
 }
 
+// The text with its newest dated heading moved to one day before the next
+// dated heading, so the order check must report it.
+function datedBelowNext(text) {
+  const dated = headings(text).filter((h) => h.date);
+  const day = new Date(`${dated[1].date}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - 1);
+  const before = day.toISOString().slice(0, 10);
+  return text.replace(/^(### v\d+\.\d+\.\d+ \()\d{4}-\d{2}-\d{2}\)/m, (_, head) => `${head}${before})`);
+}
+
 // Problems with the "[#N](url)" links: the URL must be this repository's
-// pull request or issue N, the number the reader sees.
+// pull request or issue N, the number the reader sees; a "#..." fragment or a
+// "?..." query after the number is allowed.
 function linkProblems(text) {
   const problems = [];
   for (const m of text.matchAll(/\[#(\d+)\]\(([^)\s]+)\)/g)) {
     const [, shown, url] = m;
-    const target = /^https:\/\/github\.com\/pe-menezes\/vibeflow\/(?:pull|issues)\/(\d+)$/.exec(url);
+    const target = /^https:\/\/github\.com\/pe-menezes\/vibeflow\/(?:pull|issues)\/(\d+)(?:[#?].*)?$/.exec(url);
     if (!target) problems.push(`[#${shown}] points outside pe-menezes/vibeflow pulls and issues: ${url}`);
     else if (target[1] !== shown) problems.push(`[#${shown}] points at #${target[1]}: ${url}`);
   }
@@ -69,14 +80,15 @@ test('CHANGELOG entries are newest first and each version has one entry', () => 
   assert.ok(headings(text).length > 1, 'CHANGELOG.md has fewer than two "### vX.Y.Z" entries');
   assert.deepEqual(headingProblems(text), []);
 
-  // The check bites: the newest heading dated a year back, and the newest
-  // entry pasted again under the second one.
+  // The check bites: the newest dated heading dated one day before the dated
+  // heading below it, and the newest entry pasted again under the second one.
   const [first] = headings(text);
-  const yearBack = text.replace(
-    /^### v(\d+\.\d+\.\d+) \((\d{4})-/m,
-    (_, v, y) => `### v${v} (${Number(y) - 1}-`,
-  );
-  assert.ok(headingProblems(yearBack).length > 0, 'a newest entry dated a year back went unnoticed');
+  assert.ok(headingProblems(datedBelowNext(text)).length > 0, 'a newest entry dated before the entry below it went unnoticed');
+  // The control holds when the next release comes exactly a year after the
+  // previous one (a year back would equal the date below and stay valid).
+  const nextYear = text.replace(/^### v/m, '### v1.22.0 (2027-11-20)\n\n* next.\n\n### v');
+  assert.deepEqual(headingProblems(nextYear), [], 'a release one year after the previous one was reported');
+  assert.ok(headingProblems(datedBelowNext(nextYear)).length > 0, 'the control went quiet on a release one year after the previous one');
   const lines = text.split('\n');
   const starts = lines.flatMap((l, i) => (/^### v\d+\.\d+\.\d+\b/.test(l) ? [i] : []));
   const entry = lines.slice(starts[0], starts[1]);
@@ -104,4 +116,9 @@ test('every [#N] link in CHANGELOG.md points at pull request or issue N of this 
   assert.ok(linkProblems(swapped).length > 0, 'a link whose URL names another number went unnoticed');
   const forked = text.replace(/\[#(\d+)\]\(https:\/\/github\.com\/pe-menezes\/vibeflow\//, (_, n) => `[#${n}](https://github.com/someone/vibeflow/`);
   assert.ok(linkProblems(forked).length > 0, 'a link to another repository went unnoticed');
+  // A right link may carry a fragment or a query; the number before it still counts.
+  const base = 'https://github.com/pe-menezes/vibeflow';
+  assert.deepEqual(linkProblems(`[#62](${base}/pull/62#discussion_r123)`), [], 'a right link with a fragment was reported');
+  assert.deepEqual(linkProblems(`[#62](${base}/pull/62?tab=files)`), [], 'a right link with a query was reported');
+  assert.ok(linkProblems(`[#62](${base}/pull/59#discussion_r123)`).length > 0, 'a fragment hid a link to another number');
 });
