@@ -265,6 +265,48 @@ test('every language has the three decoy kinds', () => {
   }
 });
 
+test('every decoy holds a term of the rule it is filed under, by tokenListed', () => {
+  for (const c of decoys()) {
+    assert.equal(c.tokenListed, true, `${c.id}: ${c.text}`);
+    assert.equal(tokenListed(c.rule, c.snippet.join('\n')), true, c.id);
+  }
+});
+
+test('Ruby SEC106 is a pair: a catalog variant with verify: false and another form without the term', () => {
+  assert.ok(ecosystemTerms('SEC106', 'ruby').includes('verify=false'));
+  const cases = planted().filter((c) => c.language === 'ruby' && c.rule === 'SEC106');
+  assert.deepEqual(cases.map((c) => c.variant).sort(), ['catalog', 'other']);
+  const catalog = cases.find((c) => c.variant === 'catalog');
+  assert.match(catalog.text, /verify: false/);
+  assert.equal(catalog.tokenListed, true);
+  const other = cases.find((c) => c.variant === 'other');
+  assert.match(other.text, /VERIFY_NONE/);
+  assert.equal(other.tokenListed, false);
+});
+
+test('TSX SEC106 is planted in server code with the catalog term, and is no longer not applicable', () => {
+  assert.equal(NOT_APPLICABLE.tsx?.SEC106, undefined);
+  const cases = planted().filter((c) => c.language === 'tsx' && c.rule === 'SEC106');
+  assert.equal(cases.length, 1);
+  assert.equal(cases[0].variant, 'idiomatic');
+  assert.match(cases[0].text, /NODE_TLS_REJECT_UNAUTHORIZED/);
+  assert.equal(cases[0].tokenListed, true);
+  assert.equal(cases[0].extensionListed, false);
+});
+
+test('every DAT102 case shows where the data goes out (a response, a render, a print or a log)', () => {
+  const OUT = /res\.json|JsonResponse|render json:|json\.NewEncoder\(w\)|return Map\.of|Ok\(|return mapOf|encodeResponse|response\(\)->json|Json\(|echo |<td>/;
+  for (const c of planted().filter((p) => p.rule === 'DAT102')) assert.match(c.snippet.join('\n'), OUT, c.id);
+});
+
+test('the product has 125 planted cases and 39 decoys after the first fix round', () => {
+  assert.equal(planted().length, 125);
+  assert.equal(decoys().length, 39);
+  assert.equal(manifest.length, 164);
+  const quadrant = (e, t) => planted().filter((c) => c.extensionListed === e && c.tokenListed === t).length;
+  assert.deepEqual([quadrant(true, true), quadrant(true, false), quadrant(false, true), quadrant(false, false)], [35, 42, 20, 28]);
+});
+
 // --- criterion 4: the labels come from CATALOG_1_20 by function ---------------------------------
 
 test('every label in the manifest is what the two functions compute from CATALOG_1_20', () => {

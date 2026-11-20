@@ -73,7 +73,7 @@ const ALL_LISTED = ['python', 'javascript', 'typescript', 'ruby', 'go', 'java'];
 export const TERM_ECOSYSTEMS = Object.freeze({
   SEC101: { authenticate: ['python', 'ruby'], '@login_required': ['python'], isAuthenticated: ['javascript', 'typescript', 'java'], requireAuth: ['javascript', 'typescript'] },
   SEC104: { password: ALL_LISTED, secret: ALL_LISTED, api_key: ALL_LISTED, token: ALL_LISTED },
-  SEC106: { 'verify=false': ['python'], 'InsecureSkipVerify=true': ['go'], 'NODE_TLS_REJECT_UNAUTHORIZED=0': ['javascript', 'typescript'] },
+  SEC106: { 'verify=false': ['python', 'ruby'], 'InsecureSkipVerify=true': ['go'], 'NODE_TLS_REJECT_UNAUTHORIZED=0': ['javascript', 'typescript'] },
   SEC108: { eval: ['python', 'javascript', 'typescript', 'ruby'], exec: ['python', 'ruby', 'go', 'java'], system: ['python', 'ruby'], popen: ['python', 'ruby'], 'subprocess.call': ['python'], 'child_process.exec': ['javascript', 'typescript'] },
   DAT101: { delete_all: ['ruby'], destroy_all: ['ruby'], removeAll: [], bulk_delete: [], purge: [] },
   DAT102: { ssn: ALL_LISTED, cpf: ALL_LISTED, cnpj: ALL_LISTED, passport_number: ALL_LISTED, credit_card: ALL_LISTED, card_number: ALL_LISTED },
@@ -82,7 +82,6 @@ export const TERM_ECOSYSTEMS = Object.freeze({
 
 export const NOT_APPLICABLE = Object.freeze({
   shell: { SEC101: 'A shell script has no request routing and no auth middleware or guard to take out.' },
-  tsx: { SEC106: 'Code that runs in the browser cannot turn certificate verification off: the browser owns TLS.' },
 });
 
 // --- labels --------------------------------------------------------------------------------------
@@ -237,7 +236,10 @@ const CASES = {
       seg('catalog', ['Billing.configure do |config|', '  config.host = "billing.internal"'], [`  config.api_key = "${FAKE}"`], ['end'], 'Initializer sets the API key to a literal.'),
       seg('other', ['Mailer.configure do |config|', '  config.host = "smtp.internal"'], [`  config.auth_pass = "${FAKE}"`], ['end'], 'Initializer sets the mail credential to a literal, under a name the catalog does not list.'),
     ],
-    SEC106: one(['http = Net::HTTP.new(uri.host, uri.port)', 'http.use_ssl = true'], ['http.verify_mode = OpenSSL::SSL::VERIFY_NONE'], ['response = http.get(uri.request_uri)'], 'Net::HTTP with certificate verification off.'),
+    SEC106: [
+      seg('catalog', ['def rates_client(base_url)'], ['  Faraday.new(url: base_url, ssl: { verify: false })'], ['end'], 'Faraday connection with certificate verification turned off.'),
+      seg('other', ['http = Net::HTTP.new(uri.host, uri.port)', 'http.use_ssl = true'], ['http.verify_mode = OpenSSL::SSL::VERIFY_NONE'], ['response = http.get(uri.request_uri)'], 'Net::HTTP with certificate verification off, through a constant the catalog does not name.'),
+    ],
     SEC108: [
       seg('catalog', ['def archive(name)'], ['  system("tar -czf #{name}.tgz reports/")'], ['end'], 'Kernel#system with an interpolated command string.'),
       seg('other', ['def thumbnail(path)'], ['  `convert #{path} -resize 200x200 thumb.png`'], ['end'], 'Backtick shell-out with an interpolated command string.'),
@@ -306,6 +308,7 @@ const CASES = {
   tsx: {
     SEC101: one(['export function AdminPage() {', '  const { session } = useSession();'], ['  if (!session) return <Navigate to="/login" replace />;'], ['  return <UserTable />;', '}'], 'Component guard that sends anonymous users to the login page, removed.'),
     SEC104: one(['export const mapsUrl = "https://maps.internal/embed";'], [`export const MAPS_API_KEY = "${FAKE}";`], ['export const defaultZoom = 12;'], 'API key literal shipped in the client bundle.'),
+    SEC106: one(['export default async function RatesPage() {'], ['  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";'], ['  const rates = await fetch("https://rates.internal/today").then((res) => res.json());', '  return <RatesTable rates={rates} />;', '}'], 'Next.js server component turns certificate verification off for the whole Node process before it fetches.'),
     SEC108: one(['export function Formula({ expression }: { expression: string }) {'], ['  const value = eval(expression);'], ['  return <span>{value}</span>;', '}'], 'Component evals a prop as code.'),
     DAT101: one(['async function onResetClick() {'], ['  await supabase.from("orders").delete().neq("id", 0);'], ['  setOrders([]);', '}'], 'Supabase delete whose filter matches every row.'),
     DAT102: one(['export function CustomerRow({ customer }: { customer: Customer }) {', '  return ('], ['    <tr><td>{customer.name}</td><td>{customer.cpf}</td></tr>'], ['  );', '}'], 'Row renders the full CPF in the page, no mask.'),
@@ -335,7 +338,7 @@ const CASES = {
     SEC106: one(['func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,', '                completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {'], ['    completionHandler(.useCredential, URLCredential(trust: challenge.protectionSpace.serverTrust!))'], ['}'], 'Delegate accepts any server trust without evaluating it.'),
     SEC108: one(['func archive(name: String) throws {', '    let task = Process()', '    task.executableURL = URL(fileURLWithPath: "/bin/sh")'], ['    task.arguments = ["-c", "tar -czf \\(name).tgz reports/"]'], ['    try task.run()', '}'], 'Process runs sh -c with an interpolated command.'),
     DAT101: one(['func resetOrders(in context: NSManagedObjectContext) throws {'], ['    let request = NSBatchDeleteRequest(fetchRequest: Order.fetchRequest())', '    try context.execute(request)'], ['}'], 'Core Data batch delete with no predicate.'),
-    DAT102: one(['func cardResponse(_ card: Card) -> CardDTO {'], ['    CardDTO(holder: card.holder, cardNumber: card.cardNumber)'], ['}'], 'Response object carries the full card number, no mask.'),
+    DAT102: one(['app.get("cards", ":id") { req async throws -> Response in', '    let card = try await Card.find(req.parameters.get("id"), on: req.db)!'], ['    return try await CardDTO(holder: card.holder, cardNumber: card.cardNumber).encodeResponse(for: req)'], ['}'], 'Vapor route sends the full card number in the HTTP response, no mask.'),
     DAT104: one(['func login(user: String, token: String) async throws {'], ['    logger.debug("Login \\(user) token \\(token, privacy: .public)")'], ['    try await session.open(user: user, token: token)', '}'], 'os Logger writes the token and marks it public.'),
   },
   php: {
@@ -390,7 +393,7 @@ const DECOYS = {
   go: {
     comment: decoy('SEC104', ['func loadConfig() Config {'], '\t// the password comes from the environment, never from this file', ['\treturn Config{DSN: os.Getenv("DSN")}', '}'], 'password is in a comment.'),
     string: decoy('DAT101', ['func confirmText() string {'], '\treturn "This will purge every archived order. Type the shop name to confirm."', ['}'], 'purge is in a confirmation message.'),
-    name: decoy('SEC106', ['type tlsSuite struct{}'], 'func TestInsecureSkipVerifyIsNeverSet(t *testing.T) {', ['\tif defaultTLS().InsecureSkipVerify {', '\t\tt.Fatal("verification must stay on")', '\t}', '}'], 'InsecureSkipVerify is in a test name.'),
+    name: decoy('SEC108', ['type jobsSuite struct{}'], 'func TestArchiveNeverCallsExec(t *testing.T) {', ['\tif len(runner.Commands()) > 0 {', '\t\tt.Fatal("archive must not start a process")', '\t}', '}'], 'Exec is in a test name.'),
   },
   java: {
     comment: decoy('SEC101', ['public List<Report> publicReports() {'], '    // public on purpose: no requireAuth here, the reports are open data', ['    return reports.findPublic();', '}'], 'requireAuth is in a comment.'),
@@ -408,19 +411,19 @@ const DECOYS = {
     name: decoy('DAT101', ['[Fact]'], 'public async Task Purge_RequiresAdmin()', ['{', '    await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _orders.ArchiveAsync(guest));', '}'], 'Purge is in a test name.'),
   },
   kotlin: {
-    comment: decoy('DAT104', ['fun audit(user: User) {'], '    // never log the password, only the user id', ['    auditLog.record(user.id)', '}'], 'password is in a comment about logging.'),
+    comment: decoy('DAT104', ['fun audit(user: User) {'], '    // never pass the password to logger.info, only the user id', ['    auditLog.record(user.id)', '}'], 'logger.info and password are in a comment.'),
     string: decoy('SEC101', ['object Messages {'], '    const val LOGIN = "Please authenticate to see this page"', ['}'], 'authenticate is in a message shown to the user.'),
     name: decoy('SEC104', ['@Test'], 'fun `secret is read from the vault`() {', ['    assertNotNull(settings.vaultRef)', '}'], 'secret is in a test name.'),
   },
   swift: {
     comment: decoy('SEC108', ['func parse(_ text: String) -> Decimal? {'], '    // no NSExpression or eval here: the text is parsed as a number', ['    Decimal(string: text)', '}'], 'eval is in a comment.'),
     string: decoy('DAT102', ['struct DocumentField: View {', '    var body: some View {'], '        TextField("CPF", text: $document)', ['    }', '}'], 'CPF is a field label.'),
-    name: decoy('SEC106', ['final class TLSTests: XCTestCase {'], '    func testVerifyFalseIsNeverAccepted() {', ['        XCTAssertTrue(client.validatesCertificates)', '    }', '}'], 'verify is in a test name.'),
+    name: decoy('DAT101', ['final class OrderStoreTests: XCTestCase {'], '    func testPurgeAsksForConfirmation() {', ['        XCTAssertTrue(store.needsConfirmationBeforeReset)', '    }', '}'], 'Purge is in a test name.'),
   },
   php: {
     comment: decoy('DAT101', ['public function archive(Order $order): void', '{'], '    // archived orders are kept; purge runs only from the console', ["    $order->update(['archived' => true]);", '}'], 'purge is in a comment.'),
     string: decoy('SEC104', ['public function messages(): array', '{'], "    return ['min' => 'The password needs at least 12 characters'];", ['}'], 'password is in a validation message.'),
-    name: decoy('SEC106', ['class HttpClientTest extends TestCase', '{'], '    public function test_verify_false_is_rejected(): void', ['    {', "        $this->assertTrue(Http::options()['verify']);", '    }', '}'], 'verify is in a test name.'),
+    name: decoy('SEC108', ['class ThumbnailTest extends TestCase', '{'], '    public function test_exec_is_never_called_with_user_input(): void', ['    {', '        $this->assertSame([], $this->runner->commands());', '    }', '}'], 'exec is in a test name.'),
   },
   rust: {
     comment: decoy('DAT102', ['fn masked(doc: &str) -> String {'], '    // keep only the last four digits of the card_number', ['    format!("****{}", &doc[doc.len() - 4..])', '}'], 'card_number is in a comment about masking.'),

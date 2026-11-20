@@ -18,11 +18,17 @@ Nothing here calls a model or the network.
 * `gate-prompt.mjs --skill <SKILL.md> --diff <file>`: prints the request for one isolated run of
   the step: the step taken from the given `SKILL.md` by structure, the lines of its
   `### Critical Gate` output section, and the diff.
-* `measure.mjs --manifest <json> --report <file> [--report <another>] [--json]`: reads the
-  `### Critical Gate` section of each report and prints what was detected, by quadrant, language
-  and rule, the decoys flagged, the findings on another rule and the findings outside the manifest,
-  per report and summed. The matching rule is in its header. Exit 0 when it read everything, 64 on
-  a wrong argument or an unreadable file: it is a measure, not a gate.
+* `measure.mjs --manifest <json> --report <file> [--report <another>] [--language <id>] [--json]`:
+  reads every `### Critical Gate` section of each report (and says when there is more than one)
+  and prints what was detected, by quadrant, language and rule, the cases flagged only as
+  `ALLOWED`, the cases cited outside a finding line, the decoys flagged, the findings on another
+  rule and the findings outside the manifest, per report and summed. `--language`, repeatable,
+  restricts the manifest to those languages. The matching rule is in its header. Exit 0 when it
+  read everything, 64 on a wrong argument, a language the manifest does not have or an unreadable
+  file: it is a measure, not a gate.
+* `samples/`: three real answers of the 1.20.0 step, one run each, on the diff of one folder
+  (`python/` and `csharp/` by Sonnet, `shell/` by Opus), kept as examples of the forms the
+  meter reads. The meter's tests read them; they are not the measure.
 
 A run, with the scratch directory of your choice:
 
@@ -33,6 +39,20 @@ node test/fixtures/gate-languages/gate-prompt.mjs --skill plugins/vibeflow/skill
 # run a model on prompt.md and save its answer as <scratch>/report.md
 node test/fixtures/gate-languages/measure.mjs --manifest <scratch>/gl/manifest.json --report <scratch>/report.md
 ```
+
+A run on one language takes the diff of its folder and measures the answer against that language
+only; a report on the diff of `python/` read against the whole manifest counts the other 12
+languages as missed:
+
+```
+git -C <scratch>/gl/repo diff HEAD~1 HEAD -- python/ > <scratch>/python.diff
+node test/fixtures/gate-languages/gate-prompt.mjs --skill plugins/vibeflow/skills/audit/SKILL.md --diff <scratch>/python.diff > <scratch>/python-prompt.md
+# run a model on python-prompt.md and save its answer as <scratch>/python.md
+node test/fixtures/gate-languages/measure.mjs --manifest <scratch>/gl/manifest.json --language python --report <scratch>/python.md
+```
+
+On `samples/python-sonnet.md` that prints 12 of the 13 Python cases detected; without
+`--language`, 12 of all the planted cases.
 
 ## What it measures
 
@@ -46,8 +66,16 @@ node test/fixtures/gate-languages/measure.mjs --manifest <scratch>/gl/manifest.j
   (`TERM_ECOSYSTEMS` in `matrix.mjs` says which), the pair has a `catalog` variant with the term and
   an `other` variant with another form of the same behaviour and no catalog term
   (`subprocess.call` against `subprocess.run`).
-* **Decoys.** Three per language: a catalog word in a comment, in a string shown to a user (a label
-  or an error message) and in a test or function name. A finding there is a false positive.
+* **Decoys.** Three per language: a term of the rule each decoy is filed under (`tokenListed` is
+  true for every decoy) in a comment, in a string shown to a user (a label or an error message) and
+  in a test or function name. A finding there is a false positive.
+* **ALLOWED apart.** The fixture carries no `vibeflow:allow`, so an `ALLOWED` finding on it is an
+  exception the model made up: a planted case that only `ALLOWED` findings point at is not
+  detected, and is counted apart as allowed.
+* **Mentioned.** A case the model cites by `<path>:<line>` outside a finding line (in a note, or in
+  an item that is not a finding), and does not flag, is counted apart as mentioned: it saw the
+  line and did not call it a finding. The shell sample is that: "Clean", and six items that cite
+  the six planted lines.
 * **Coverage.** What the section said beyond findings (the `Left out of the package:` line, "Clean",
   "No diff scanned", any other line) is printed per report.
 
@@ -125,7 +153,8 @@ planted block.
 | ruby-SEC101-other | other | yes | no | 10 (base) | `before_action :require_login` | Sorcery-style login filter, removed. |
 | ruby-SEC104-catalog | catalog | yes | yes | 3 | `config.api_key = "<fake>"` | Initializer sets the API key to a literal. |
 | ruby-SEC104-other | other | yes | no | 9 | `config.auth_pass = "<fake>"` | Initializer sets the mail credential to a literal, under a name the catalog does not list. |
-| ruby-SEC106-idiomatic | idiomatic | yes | no | 3 | `http.verify_mode = OpenSSL::SSL::VERIFY_NONE` | Net::HTTP with certificate verification off. |
+| ruby-SEC106-catalog | catalog | yes | yes | 2 | `Faraday.new(url: base_url, ssl: { verify: false })` | Faraday connection with certificate verification turned off. |
+| ruby-SEC106-other | other | yes | no | 8 | `http.verify_mode = OpenSSL::SSL::VERIFY_NONE` | Net::HTTP with certificate verification off, through a constant the catalog does not name. |
 | ruby-SEC108-catalog | catalog | yes | yes | 2 | `system("tar -czf #{name}.tgz reports/")` | Kernel#system with an interpolated command string. |
 | ruby-SEC108-other | other | yes | no | 7 | `` `convert #{path} -resize 200x200 thumb.png` `` | Backtick shell-out with an interpolated command string. |
 | ruby-DAT101-catalog | catalog | yes | yes | 2 | `Order.delete_all` | Active Record delete_all on the whole model. |
@@ -151,7 +180,7 @@ planted block.
 | go-DAT104-other | other | yes | no | 8 | `log.Printf("refresh user=%s password=%s", user, password)` | Standard log package writes the password. |
 | go-SEC104-decoy-comment | decoy (comment) | yes | yes | 2 | `// the password comes from the environment, never from this file` | password is in a comment. |
 | go-DAT101-decoy-string | decoy (string) | yes | yes | 8 | `return "This will purge every archived order. Type the shop name to confirm."` | purge is in a confirmation message. |
-| go-SEC106-decoy-name | decoy (name) | yes | no | 13 | `func TestInsecureSkipVerifyIsNeverSet(t *testing.T) {` | InsecureSkipVerify is in a test name. |
+| go-SEC108-decoy-name | decoy (name) | yes | yes | 13 | `func TestArchiveNeverCallsExec(t *testing.T) {` | Exec is in a test name. |
 | java-SEC101-catalog | catalog | yes | yes | 2 (base) | `@PreAuthorize("isAuthenticated()")` | Spring Security method guard, removed. |
 | java-SEC101-other | other | yes | no | 9 (base) | `http.authorizeHttpRequests(auth -> auth.requestMatchers("/admin/**").authenticated());` | Filter-chain rule that requires a login on /admin, removed. |
 | java-SEC104-catalog | catalog | yes | yes | 3 | `static final String DB_SECRET = "<fake>";` | Constant holding the database secret. |
@@ -169,6 +198,7 @@ planted block.
 | java-SEC108-decoy-name | decoy (name) | yes | yes | 13 | `void execIsNeverCalledWithUserInput() {` | exec is in a test name. |
 | tsx-SEC101-idiomatic | idiomatic | no | no | 3 (base) | `if (!session) return <Navigate to="/login" replace />;` | Component guard that sends anonymous users to the login page, removed. |
 | tsx-SEC104-idiomatic | idiomatic | no | yes | 2 | `export const MAPS_API_KEY = "<fake>";` | API key literal shipped in the client bundle. |
+| tsx-SEC106-idiomatic | idiomatic | no | yes | 2 | `process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";` | Next.js server component turns certificate verification off for the whole Node process before it fetches. |
 | tsx-SEC108-idiomatic | idiomatic | no | yes | 2 | `const value = eval(expression);` | Component evals a prop as code. |
 | tsx-DAT101-idiomatic | idiomatic | no | no | 2 | `await supabase.from("orders").delete().neq("id", 0);` | Supabase delete whose filter matches every row. |
 | tsx-DAT102-idiomatic | idiomatic | no | yes | 3 | `<tr><td>{customer.name}</td><td>{customer.cpf}</td></tr>` | Row renders the full CPF in the page, no mask. |
@@ -193,7 +223,7 @@ planted block.
 | kotlin-DAT101-idiomatic | idiomatic | no | no | 3 | `orderRepository.deleteAll()` | Spring Data deleteAll removes every row. |
 | kotlin-DAT102-idiomatic | idiomatic | no | yes | 4 | `return mapOf("name" to patient.name, "ssn" to patient.ssn)` | Response carries the full SSN, no mask. |
 | kotlin-DAT104-idiomatic | idiomatic | no | yes | 2 | `logger.info("login user=$user token=$token")` | Logger writes the token. |
-| kotlin-DAT104-decoy-comment | decoy (comment) | no | no | 2 | `// never log the password, only the user id` | password is in a comment about logging. |
+| kotlin-DAT104-decoy-comment | decoy (comment) | no | yes | 2 | `// never pass the password to logger.info, only the user id` | logger.info and password are in a comment. |
 | kotlin-SEC101-decoy-string | decoy (string) | no | yes | 8 | `const val LOGIN = "Please authenticate to see this page"` | authenticate is in a message shown to the user. |
 | kotlin-SEC104-decoy-name | decoy (name) | no | yes | 13 | `` fun `secret is read from the vault`() { `` | secret is in a test name. |
 | swift-SEC101-idiomatic | idiomatic | no | no | 2 (base) | `.grouped(User.guardMiddleware())` | Vapor guard middleware on the admin group, removed. |
@@ -201,11 +231,11 @@ planted block.
 | swift-SEC106-idiomatic | idiomatic | no | no | 3 | `completionHandler(.useCredential, URLCredential(trust: challenge.protectionSpace.serverTrust!))` | Delegate accepts any server trust without evaluating it. |
 | swift-SEC108-idiomatic | idiomatic | no | no | 4 | `task.arguments = ["-c", "tar -czf \(name).tgz reports/"]` | Process runs sh -c with an interpolated command. |
 | swift-DAT101-idiomatic | idiomatic | no | no | 2 | `let request = NSBatchDeleteRequest(fetchRequest: Order.fetchRequest()) ⏎ try context.execute(request)` | Core Data batch delete with no predicate. |
-| swift-DAT102-idiomatic | idiomatic | no | no | 2 | `CardDTO(holder: card.holder, cardNumber: card.cardNumber)` | Response object carries the full card number, no mask. |
+| swift-DAT102-idiomatic | idiomatic | no | no | 3 | `return try await CardDTO(holder: card.holder, cardNumber: card.cardNumber).encodeResponse(for: req)` | Vapor route sends the full card number in the HTTP response, no mask. |
 | swift-DAT104-idiomatic | idiomatic | no | yes | 2 | `logger.debug("Login \(user) token \(token, privacy: .public)")` | os Logger writes the token and marks it public. |
 | swift-SEC108-decoy-comment | decoy (comment) | no | yes | 2 | `// no NSExpression or eval here: the text is parsed as a number` | eval is in a comment. |
 | swift-DAT102-decoy-string | decoy (string) | no | yes | 9 | `TextField("CPF", text: $document)` | CPF is a field label. |
-| swift-SEC106-decoy-name | decoy (name) | no | no | 15 | `func testVerifyFalseIsNeverAccepted() {` | verify is in a test name. |
+| swift-DAT101-decoy-name | decoy (name) | no | yes | 15 | `func testPurgeAsksForConfirmation() {` | Purge is in a test name. |
 | php-SEC101-idiomatic | idiomatic | no | no | 3 (base) | `$this->middleware('auth');` | Laravel controller auth middleware, removed. |
 | php-SEC104-idiomatic | idiomatic | no | no | 2 | `define('DB_PASS', '<fake>');` | Constant holding the database credential. |
 | php-SEC106-idiomatic | idiomatic | no | no | 2 | `curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);` | cURL option that turns peer verification off. |
@@ -215,7 +245,7 @@ planted block.
 | php-DAT104-idiomatic | idiomatic | no | no | 3 | `error_log("login $user password=$password");` | error_log writes the password. |
 | php-DAT101-decoy-comment | decoy (comment) | no | yes | 3 | `// archived orders are kept; purge runs only from the console` | purge is in a comment. |
 | php-SEC104-decoy-string | decoy (string) | no | yes | 10 | `return ['min' => 'The password needs at least 12 characters'];` | password is in a validation message. |
-| php-SEC106-decoy-name | decoy (name) | no | no | 16 | `public function test_verify_false_is_rejected(): void` | verify is in a test name. |
+| php-SEC108-decoy-name | decoy (name) | no | yes | 16 | `public function test_exec_is_never_called_with_user_input(): void` | exec is in a test name. |
 | rust-SEC101-idiomatic | idiomatic | no | no | 3 (base) | `.route_layer(middleware::from_fn(require_auth))` | axum auth layer on the admin routes, removed. |
 | rust-SEC104-idiomatic | idiomatic | no | yes | 2 | `const AUTH_TOKEN: &str = "<fake>";` | Constant holding the auth token. |
 | rust-SEC106-idiomatic | idiomatic | no | no | 2 | `.danger_accept_invalid_certs(true)` | reqwest client that accepts invalid certificates. |
@@ -238,6 +268,5 @@ planted block.
 
 | Language | Rule | Not applicable because |
 |---|---|---|
-| TSX | SEC106 | Code that runs in the browser cannot turn certificate verification off: the browser owns TLS. |
 | Shell | SEC101 | A shell script has no request routing and no auth middleware or guard to take out. |
 <!-- cases:end -->

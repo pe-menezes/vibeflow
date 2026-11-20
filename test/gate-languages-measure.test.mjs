@@ -10,7 +10,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { criticalGateSection, matchFinding, measure, parseFindingLine, parseReport } from './fixtures/gate-languages/measure.mjs';
+import { expandCases } from './fixtures/gate-languages/matrix.mjs';
+import * as meter from './fixtures/gate-languages/measure.mjs';
+
+const { criticalGateSection, matchFinding, measure, parseFindingLine, parseReport, restrictManifest } = meter;
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FIXTURE = join(ROOT, 'test/fixtures/gate-languages');
@@ -204,6 +207,196 @@ test('with several reports the meter keeps one table per report and their sum', 
   assert.deepEqual(result.sum.planted, { detected: 3, total: 8 });
   assert.deepEqual(result.sum.byRule.SEC108, { detected: 3, total: 6 });
   assert.deepEqual(result.sum.byLanguage.rust, { detected: 1, total: 2 });
+});
+
+// --- first fix round: ranges, sections, fences, ALLOWED, mentions --------------------------------
+
+test('a finding with a line range is read by the whole range, and matches a case up to 2 lines from it', () => {
+  const parsed = parseFindingLine('- 🟠 HIGH [SEC108] `python/jobs.py:4-8` — the whole function');
+  assert.equal(parsed.line, 4);
+  assert.equal(parsed.lineEnd, 8);
+  assert.equal(parseFindingLine('- HIGH [SEC108] python/jobs.py:4 — one line').lineEnd, null);
+  const ranged = (start, end) => ({ ...finding('SEC108', 'python/jobs.py', start), lineEnd: end });
+  assert.deepEqual(matchFinding(ranged(4, 8), MANIFEST), { outcome: 'detected', caseId: 'p1' });
+  assert.deepEqual(matchFinding(ranged(1, 15), MANIFEST), { outcome: 'detected', caseId: 'p1' });
+  assert.deepEqual(matchFinding(ranged(1, 7), MANIFEST), { outcome: 'outside', caseId: null });
+  // Two candidates: the nearer one wins (p1 at 10 is 2 from 12, p2 at 20 is 1 from 19).
+  assert.deepEqual(matchFinding(ranged(12, 19), MANIFEST), { outcome: 'detected', caseId: 'p2' });
+  assert.deepEqual(matchFinding({ ...finding('DAT102', 'python/helpers.py', 1), lineEnd: 5 }, MANIFEST), { outcome: 'decoy', caseId: 'd1' });
+});
+
+test('every `### Critical Gate` section is read, their findings summed, and more than one is said', () => {
+  const text = [
+    '### Critical Gate',
+    'Clean — no destructive operations detected.',
+    '### Findings',
+    'No findings.',
+    '### Critical Gate',
+    '- 🟡 WARNING [SEC108] python/jobs.py:10 — dynamic exec',
+  ].join('\n');
+  const report = parseReport(text);
+  assert.equal(report.sections, 2);
+  assert.equal(report.findings.length, 1);
+  assert.equal(report.clean, true);
+  assert.equal(parseReport('### Critical Gate\nClean.\n').sections, 1);
+  assert.equal(parseReport('### Findings\n').sections, 0);
+  const r = measure(MANIFEST, [{ path: 'r.md', text }]).reports[0];
+  assert.deepEqual(r.detectedIds, ['p1']);
+  assert.equal(r.section.sections, 2);
+});
+
+test('a line inside a code fence is neither a heading nor a finding, and the section goes on after it', () => {
+  const text = [
+    '### Critical Gate',
+    '- 🟡 WARNING [SEC108] python/helpers.py:7 — eval in a comment:',
+    '```python',
+    '# never pass the text to eval, parse it',
+    '- 🔴 CRITICAL [SEC104] python/jobs.py:20 — quoted, not a finding',
+    '```',
+    '~~~~',
+    '## a quoted heading',
+    '```',
+    '~~~~',
+    '- 🟡 WARNING [SEC108] python/jobs.py:10 — dynamic exec',
+    '### Findings',
+    '- 🟡 WARNING [SEC108] python/jobs.py:20 — not in the section',
+  ].join('\n');
+  const report = parseReport(text);
+  assert.equal(report.sections, 1);
+  assert.deepEqual(report.findings.map((f) => `${f.path}:${f.line}`), ['python/helpers.py:7', 'python/jobs.py:10']);
+  assert.deepEqual(report.unparsed, []);
+  assert.deepEqual(report.notes, []);
+});
+
+test('a planted case flagged only as ALLOWED is not detected: it is counted apart, in the result and the text', () => {
+  const text = [
+    '### Critical Gate',
+    '- ✅ ALLOWED [SEC108] python/jobs.py:10 — dynamic exec — override: "made up"',
+    '- 🟡 WARNING [SEC108] python/jobs.py:20 — dynamic exec',
+    '- ✅ ALLOWED [SEC108] python/jobs.py:21 — dynamic exec — override: "made up"',
+  ].join('\n');
+  const r = measure(MANIFEST, [{ path: 'r.md', text }]).reports[0];
+  assert.deepEqual(r.detectedIds, ['p2']);
+  assert.equal(r.planted.detected, 1);
+  assert.deepEqual(r.allowed, { total: 1, byLanguage: { python: 1 }, ids: ['p1'] });
+  assert.deepEqual(r.byRule.SEC108, { detected: 1, total: 3 });
+  const dir = tempDir('allowed');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(MANIFEST));
+  const report = join(dir, 'r.md');
+  writeFileSync(report, text);
+  const human = run(MEASURE, ['--manifest', manifestPath, '--report', report]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /^Allowed only, not counted as detected: 1 \(python 1\)$/m);
+  assert.match(human.stdout, /^ {2}p1$/m);
+  const json = JSON.parse(run(MEASURE, ['--manifest', manifestPath, '--report', report, '--json']).stdout);
+  assert.deepEqual(json.reports[0].allowed.ids, ['p1']);
+  assert.deepEqual(json.sum.allowed, { total: 1, byLanguage: { python: 1 } });
+});
+
+test('a case cited by path and line outside a finding, and not detected, is counted as mentioned', () => {
+  const text = [
+    '### Critical Gate',
+    'Clean — nothing the catalog names.',
+    'Worth a look: python/jobs.py:11 and `python/maintenance.py`:5, and ./python/helpers.py:8.',
+    '- `exec` in python/jobs.py:20 runs a command',
+    '- 🟡 WARNING [SEC108] python/jobs.py:20 — dynamic exec',
+    'Also rust/jobs.rs:9 and python/other.py:1.',
+  ].join('\n');
+  const r = measure(MANIFEST, [{ path: 'r.md', text }]).reports[0];
+  assert.deepEqual(r.detectedIds, ['p2']);
+  assert.deepEqual(r.mentioned, { total: 3, byLanguage: { python: 3 }, ids: ['p1', 'p3', 'd1'] });
+  assert.deepEqual(r.section.unparsed, ['- `exec` in python/jobs.py:20 runs a command']);
+  assert.equal(r.section.notes.length, 2);
+});
+
+// --- real reports: one run each of the 1.20.0 pilot, kept in samples/ -----------------------------
+
+const SAMPLES = join(FIXTURE, 'samples');
+const sample = (name) => ({ path: name, text: readFileSync(join(SAMPLES, name), 'utf8') });
+const cases = expandCases();
+
+test('the Python report of the pilot: 12 findings, 12 of the 13 Python cases detected', () => {
+  const r = measure(restrictManifest(cases, ['python']), [sample('python-sonnet.md')]).reports[0];
+  assert.equal(r.findings.length, 12);
+  assert.deepEqual(r.planted, { detected: 12, total: 13 });
+  assert.deepEqual(Object.keys(r.byLanguage), ['python']);
+  assert.deepEqual(cases.filter((c) => c.language === 'python' && c.kind === 'planted' && !r.detectedIds.includes(c.id)).map((c) => c.id), ['python-DAT102-other']);
+  assert.equal(r.outside.length, 0);
+  const whole = measure(cases, [sample('python-sonnet.md')]).reports[0];
+  assert.deepEqual(whole.planted, { detected: 12, total: 125 });
+  assert.equal(Object.keys(whole.byLanguage).length, 13);
+});
+
+test('the C# report of the pilot: 7 of the 7 C# cases detected', () => {
+  const r = measure(restrictManifest(cases, ['csharp']), [sample('csharp-sonnet.md')]).reports[0];
+  assert.equal(r.findings.length, 7);
+  assert.deepEqual(r.planted, { detected: 7, total: 7 });
+  assert.equal(r.outside.length + r.otherRule.length, 0);
+});
+
+test('the shell report of the pilot: Clean, two notes, 6 cases cited and none detected', () => {
+  const r = measure(restrictManifest(cases, ['shell']), [sample('shell-opus.md')]).reports[0];
+  assert.equal(r.section.clean, true);
+  assert.equal(r.section.notes.length, 2);
+  assert.equal(r.section.unparsed.length, 6);
+  assert.deepEqual(r.planted, { detected: 0, total: 6 });
+  assert.equal(r.mentioned.total, 6);
+  assert.deepEqual(r.mentioned.byLanguage, { shell: 6 });
+  assert.deepEqual([...r.mentioned.ids].sort(), cases.filter((c) => c.language === 'shell' && c.kind === 'planted').map((c) => c.id).sort());
+});
+
+test('the two note lines that open the all-languages report of the pilot are notes', () => {
+  // The first two lines after `Left out of the package:` in that report, copied as they are.
+  const scanned = 'Scanned: `.go`, `.java`, `.js`, `.py`, `.rb` and `.ts`, the file types the catalog names for source rules. The `csharp/`, `kotlin/`, `php/`, `rust/`, `shell/`, `swift/` and `tsx/` files fall outside those types and were not matched. Lines are the line number in the new file for added lines and in the old file for removed lines. No `vibeflow:allow` override appears anywhere.';
+  const verdict = '**Verdict: FAIL** (CRITICAL and HIGH findings unresolved)';
+  const report = parseReport(['### Critical Gate', 'Left out of the package: none', scanned, '', verdict, ''].join('\n'));
+  assert.deepEqual(report.notes, [scanned, verdict]);
+  assert.deepEqual(report.findings, []);
+  assert.deepEqual(report.unparsed, []);
+});
+
+test('restrictManifest keeps the given languages, and a finding in another language is outside', () => {
+  const python = restrictManifest(MANIFEST, ['python']);
+  assert.deepEqual(python.map((c) => c.id), ['p1', 'p2', 'p3', 'd1']);
+  assert.deepEqual(restrictManifest(MANIFEST, ['python', 'rust']).length, 5);
+  assert.deepEqual(matchFinding(finding('SEC108', 'rust/jobs.rs', 2), python), { outcome: 'outside', caseId: null });
+  assert.throws(() => restrictManifest(MANIFEST, ['cobol']), /cobol/);
+});
+
+test('measure.mjs --language restricts the manifest, can repeat, and exits 64 on a language it does not have', () => {
+  const dir = tempDir('language');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(cases));
+  const py = join(SAMPLES, 'python-sonnet.md');
+  const cs = join(SAMPLES, 'csharp-sonnet.md');
+  const one = JSON.parse(run(MEASURE, ['--manifest', manifestPath, '--language', 'python', '--report', py, '--json']).stdout);
+  assert.deepEqual(one.reports[0].planted, { detected: 12, total: 13 });
+  assert.deepEqual(Object.keys(one.reports[0].byLanguage), ['python']);
+  const two = run(MEASURE, ['--manifest', manifestPath, '--language', 'python', '--language', 'csharp', '--report', py, '--report', cs]);
+  assert.equal(two.status, 0, two.stderr);
+  // Each report is measured against the restricted manifest, so the sum is over 2 x 20 cases.
+  assert.match(two.stdout, /^Planted cases detected: 12\/20$/m);
+  assert.match(two.stdout, /^Planted cases detected: 7\/20$/m);
+  assert.match(two.stdout, /^Planted cases detected: 19\/40$/m);
+  assert.match(two.stdout, /^Languages: python, csharp$/m);
+  assert.equal(run(MEASURE, ['--manifest', manifestPath, '--language', 'cobol', '--report', py]).status, 64);
+  assert.equal(run(MEASURE, ['--manifest', manifestPath, '--language', '--report', py]).status, 64);
+  const shell = run(MEASURE, ['--manifest', manifestPath, '--language', 'shell', '--report', join(SAMPLES, 'shell-opus.md')]);
+  assert.match(shell.stdout, /^Said: Clean$/m);
+  assert.match(shell.stdout, /^Mentioned without a finding: 6 \(shell 6\)$/m);
+  assert.match(shell.stdout, /^Planted cases detected: 0\/6$/m);
+});
+
+test('more than one `### Critical Gate` section is said in the text', () => {
+  const dir = tempDir('sections');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(MANIFEST));
+  const report = join(dir, 'r.md');
+  writeFileSync(report, '### Critical Gate\nClean.\n### Critical Gate\n- WARNING [SEC108] python/jobs.py:10 — exec\n');
+  const out = run(MEASURE, ['--manifest', manifestPath, '--report', report]).stdout;
+  assert.match(out, /^### Critical Gate: present, 2 sections \(warning: the findings of all of them are counted\)$/m);
+  assert.match(out, /^Planted cases detected: 1\/4$/m);
 });
 
 // --- the command line ----------------------------------------------------------------------------
