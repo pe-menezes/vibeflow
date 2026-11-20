@@ -176,28 +176,33 @@ function itemBBullet(step, title) {
 }
 
 // A sentence that takes something out of the scan, unless it says "never"; and whether every item
-// it takes out is one that cannot hold a rule (binary, media, lockfile).
+// it takes out is one that cannot hold a rule: binary files or media files, and nothing else. A
+// lockfile can hold a rule (a credential in a package address), so it is not inert.
 const EXCLUSION = /\bleave out\b|\bleft out\b|\bnot scanned\b|\bskip|\bexclud|\bignor|\bomit|\bunless\b|\bexcept\b|\bout of the scan\b/i;
 function excludesOnlyInert(sentence) {
   const colon = sentence.indexOf(':');
   if (colon < 0) return false;
   const items = sentence.slice(colon + 1).replace(/\.$/, '').split(/,|\band\b/).map((item) => item.trim()).filter(Boolean);
-  return items.length > 0 && items.every((item) => /\bbinar|\bmedia\b|\blockfiles?\b/i.test(item));
+  return items.length > 0 && items.every((item) => /^(binary|media)( files)?$/i.test(item));
 }
 const outOfScanSentences = (sentences) => sentences.filter((sentence) => EXCLUSION.test(sentence) && !/\bnever\b/i.test(sentence));
 
-test('probe: the out-of-scan check catches a generated or third-party file in new words, and leaves the measured text alone', () => {
+test('probe: the out-of-scan check catches a lockfile, a generated or a third-party file in new words, and leaves the measured text alone', () => {
   for (const sentence of [
     'Files the project marks as generated or vendored are skipped.',
     'A file a tool generated is scanned unless the project marks it as generated.',
+    'Leave out only what cannot hold a rule: binary and media files, and lockfiles.',
     'Leave out only what cannot hold a rule: binary and media files, lockfiles, and vendor directories.',
     'Skip only what cannot hold a rule: binary and media files, lockfiles, and generated files.',
+    'Leave out only what cannot hold a rule: binary and media files, and vendor directories.',
+    'Leave out only what cannot hold a rule: binary and media files, and snapshot fixtures.',
+    'Lockfiles are not scanned.',
   ]) {
     assert.ok(outOfScanSentences([sentence]).some((s) => !excludesOnlyInert(s)), sentence);
   }
   for (const sentence of [
-    'Leave out only what cannot hold a rule: binary and media files, and lockfiles.',
-    'A file a tool generated is scanned like any other: a generated migration can drop a table.',
+    'Leave out only what cannot hold a rule: binary and media files.',
+    'A file a tool generated is scanned like any other: a generated migration can drop a table, and a lockfile can carry a credential in a package address.',
     'it never takes the file out of the scan because its language is not named here.',
   ]) {
     assert.ok(outOfScanSentences([sentence]).every(excludesOnlyInert), sentence);
@@ -205,23 +210,23 @@ test('probe: the out-of-scan check catches a generated or third-party file in ne
 });
 
 // Contract: in the three editions, the only files item b takes out of the scan are those that
-// cannot hold a rule (binary and media files, lockfiles); a generated file and a third-party file
-// are scanned like any other, and a third-party file is no exception (measured as a defect: with the
-// old exclusion the Sonnet wrote "Clean"
-// over a generated migration with DROP TABLE in 3 runs of 3).
-// Breaks when: a rewrite of the bullet puts a generated, vendored or third-party file back out of the
-// scan in words other than "leave out" ("are skipped", "unless the project marks it as generated",
-// "vendor directories" in the list); each of these survived a mutation of the three editions.
-// Missed by the implementer's tests because: their F1 case reads only the sentences with "leave out",
-// looks for the words generated, vendored and third-party in them, and accepts any other sentence
-// that says "generated" and "scanned" together.
+// cannot hold a rule (binary and media files); a lockfile, a generated file and a third-party file
+// are scanned like any other (measured as defects: with the old exclusion the Sonnet wrote "Clean"
+// over a generated migration with DROP TABLE in 3 runs of 3, and with lockfiles left out a
+// credential in a package address of a lockfile was reported in 0 calls of 12).
+// Breaks when: a rewrite of the bullet puts a lockfile, a generated, vendored or third-party file,
+// or any other category back out of the scan, in the list or in words other than "leave out"
+// ("are skipped", "unless the project marks it as generated", "vendor directories" in the list).
+// Missed by the implementer's tests because: their first case on this bullet read only the sentences
+// with "leave out", looked for the words generated, vendored and third-party in them, and accepted
+// any other sentence that says "generated" and "scanned" together.
 test('probe: item b takes out of the scan only what cannot hold a rule, in any words, in the three editions', () => {
   for (const [edition, raw] of editions()) {
     const sentences = itemBBullet(extractStep(raw), 'Every changed file is scanned');
     const out = outOfScanSentences(sentences);
     assert.ok(out.length > 0, `${edition}: the bullet says what stays out of the scan`);
     for (const sentence of out) {
-      assert.ok(excludesOnlyInert(sentence), `${edition}: takes out of the scan more than binary, media and lockfiles: ${sentence}`);
+      assert.ok(excludesOnlyInert(sentence), `${edition}: takes out of the scan more than binary and media files: ${sentence}`);
     }
   }
 });

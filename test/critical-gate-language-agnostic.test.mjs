@@ -9,8 +9,14 @@
 // memory, the Security and Data domains list no
 // language extension, the catalog keeps 38 rules in 6 domains, and the output
 // format carries a `Scanned:` line and the one-finding-per-line note.
-// Item b leaves out of the scan only what cannot hold a rule, and a file a tool
-// generated is scanned. When step 1 ran over the code, the `No diff scanned`
+// Item b leaves out of the scan only binary and media files, checked by
+// inclusion on the list that follows the sentence's colon, against widenings
+// that add a lockfile, a generated file, a third-party folder or any other
+// category; a file a tool generated is scanned. DAT102 covers personal data that
+// goes out unmasked and a person's value written as a literal, and says that a
+// field, column or pattern that only names the data is not this, checked
+// against the earlier line and against rewrites that drop or invert either
+// clause. When step 1 ran over the code, the `No diff scanned`
 // line is named in item b and takes the place of the `Scanned:` line, and the
 // section does not say Clean, in item b and in the output note. Every finding
 // example of the output format carries the severity its rule has in the
@@ -293,13 +299,47 @@ function itemBRule(lines, title, edition) {
   return lines.slice(from, next > from ? next : lines.length);
 }
 
+// A sentence that takes files out of the scan, unless it says "never".
+const OUT_OF_SCAN = /\b(leave out|left out|not scanned|skip\w*|exclud\w*|ignor\w*|omit\w*|out of the scan)\b/i;
+const outOfScan = (prose) => prose.filter((sentence) => OUT_OF_SCAN.test(sentence) && !/\bnever\b/i.test(sentence));
+
+// The out-of-scan contract, by inclusion: the sentence lists what it takes out
+// after its colon, and every item of that list is binary files or media files.
+// A lockfile, a generated file, a third-party folder or any other category in
+// the list makes it something else.
+function leavesOutOnlyBinaryAndMedia(sentence) {
+  const colon = sentence.indexOf(':');
+  if (colon < 0) return false;
+  const items = sentence
+    .slice(colon + 1)
+    .replace(/\.$/, '')
+    .split(/,|\band\b/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return items.length > 0 && items.every((item) => /^(binary|media)( files)?$/i.test(item));
+}
+
+// Widenings of the list, applied to the sentence read from an edition: each
+// one takes out of the scan a file that can hold a rule.
+const WIDENINGS = {
+  lockfile: (text) => text.replace(/\.$/, ', and lockfiles.'),
+  generated: (text) => text.replace(/\.$/, ', and generated files.'),
+  'third-party folder': (text) => text.replace(/\.$/, ', and vendor directories.'),
+  'invented category': (text) => text.replace(/\.$/, ', and snapshot fixtures.'),
+};
+
 test('item b leaves out only what cannot hold a rule, and a generated file is scanned', () => {
   forEachEdition((raw, edition) => {
     const prose = sentences(itemBRule(itemB(gateStep(raw, edition), edition), 'Every changed file is scanned', edition));
-    const leaveOut = prose.filter((sentence) => /\bleave out\b/i.test(sentence));
+    const leaveOut = outOfScan(prose);
     assert.ok(leaveOut.length > 0, `${edition}: item b says what is left out of the scan`);
     for (const sentence of leaveOut) {
-      assert.doesNotMatch(sentence, /generated|vendored|third[- ]party/i, `${edition}: a generated or third-party file is left out: ${sentence}`);
+      assert.ok(leavesOutOnlyBinaryAndMedia(sentence), `${edition}: item b takes out of the scan more than binary and media files: ${sentence}`);
+      for (const [name, widen] of Object.entries(WIDENINGS)) {
+        const widened = widen(sentence);
+        assert.notEqual(widened, sentence, `${edition}: the ${name} widening changes the sentence`);
+        assert.equal(leavesOutOnlyBinaryAndMedia(widened), false, `${edition}: the ${name} widening is rejected: ${widened}`);
+      }
     }
     assert.ok(
       prose.some((sentence) => /generated/i.test(sentence) && /\bscanned\b/i.test(sentence) && !/\b(not scanned|leave out|left out)\b/i.test(sentence)),
@@ -401,6 +441,43 @@ test('DAT101 covers the records a condition selects, and leaves out one record b
       clauses.some((clause) => /\bmemory\b/i.test(clause) && /\b(not|nor|never)\b/i.test(clause)),
       `${edition}: DAT101 says emptying what is held in memory is not this: ${behaviour}`,
     );
+  });
+});
+
+// The DAT102 contract: the behaviour covers personal data that goes out
+// unmasked and a person's value written as a literal, in clauses that do not
+// negate them, and says that a field, column or pattern that only names the
+// data is not this.
+function exposesDataAndLiteralValue(behaviour) {
+  const clauses = behaviour.split(';');
+  const negation = /\b(no|not|never|nor|without)\b/i;
+  const goesOut = clauses.some((clause) => /\bunmasked\b/i.test(clause) && /\b(goes out|sent|exposed)\b[^;]*\b(response|log)\b/i.test(clause) && !negation.test(clause));
+  const literal = clauses.some((clause) => /\bvalue\b[^;]*\bliteral\b/i.test(clause) && !negation.test(clause));
+  const onlyNames = clauses.some((clause) => /\bonly names?\b[^;:]*\b(not|never|nor)\b/i.test(clause));
+  return goesOut && literal && onlyNames;
+}
+
+// Rewrites of the measured DAT102 cell, as proof that the check holds: the
+// earlier line, which only had the data going out, the literal clause gone,
+// the naming exclusion gone, the exclusion turned into an inclusion, and the
+// literal negated.
+const DAT102_MUTATIONS = {
+  'branch line': (text) => text.replace(/ is exposed unmasked: .*? is not this: /, ' goes out unmasked in a response, a log, an export or a notification: '),
+  'no literal': (text) => text.replace(/, or [^;]*\bliteral\b[^;]*/, ''),
+  'no naming exclusion': (text) => text.replace(/; [^;:]*\bonly names\b[^:]*:/, ':'),
+  'exclusion as inclusion': (text) => text.replace(/\bonly names the data is not this\b/, 'only names the data is also this'),
+  'literal negated': (text) => text.replace(/\bvalue is written as a literal\b/, 'value is never written as a literal'),
+};
+
+test('DAT102 covers data that goes out unmasked and a value written as a literal, and leaves out what only names the data', () => {
+  forEachEdition((raw, edition) => {
+    const behaviour = ruleBehaviour(gateStep(raw, edition), 'DAT102', edition);
+    assert.ok(exposesDataAndLiteralValue(behaviour), `${edition}: DAT102 covers the data that goes out and the literal value, and not what only names it: ${behaviour}`);
+    for (const [name, mutate] of Object.entries(DAT102_MUTATIONS)) {
+      const mutated = mutate(behaviour);
+      assert.notEqual(mutated, behaviour, `${edition}: the "${name}" rewrite changes the line`);
+      assert.equal(exposesDataAndLiteralValue(mutated), false, `${edition}: the "${name}" rewrite is rejected: ${mutated}`);
+    }
   });
 });
 
