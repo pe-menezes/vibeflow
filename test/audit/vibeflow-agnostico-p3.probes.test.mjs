@@ -393,3 +393,46 @@ test('check-probes: a fixture opened to write through a path built by a call is 
     assert.deepEqual(familiesOf(box, lines), [null, null, null]);
   });
 });
+
+// ------------------------------------------------ reaudit 4 of part 3 (fix 4, commit 5f99234)
+
+// Contract: fix 4 of part 3, C1: the write mode is looked for outside the string literals, and the
+// literal of the mode itself stays, so a file opened to write in any mode WRITE_MODE names, the
+// binary ones included, is no document text.
+// Breaks when: the literal kept as the mode stops matching a binary mode (the `b` dropped from
+// MODE_LITERAL), so the mode is emptied with the other literals and a fixture written in binary
+// reads as a document read; in the reaudit's mutation run over a copy of 5f99234, that change left
+// the two test files of the part green.
+// Not covered by: no test of the part opens a file with a binary mode.
+test('check-probes: a fixture opened to write in a binary mode is not a document read', () => {
+  withSandbox((box) => {
+    const lines = [
+      j('with open("fixture.tx', 't", "wb") as f:'),
+      j("with open('notes.m", "d', 'ab') as f:"),
+      j('FILE *out = fopen("out.tx', 't", "w+b");'),
+    ];
+    assert.deepEqual(familiesOf(box, lines), [null, null, null]);
+  });
+});
+
+// Contract: fix 4 of part 3, C3: the path is read whole, as git stores it, up to git grep's NUL,
+// and the output shows path:number:text; a document's reference is a mention whatever its name
+// holds.
+// Breaks when: the NUL output is dropped and the path is parsed out of the colon-separated line
+// instead (a lazy match up to the first colon followed by a number and a colon passes the
+// implementer's colon case): git quotes a name with a double quote, a backslash or a tab even with
+// core.quotePath off, so the closing quote hides the extension, and a name with a colon, a number
+// and a colon inside is cut there; both turn prose into a reader. At 8a34be7 all four read.
+// Not covered by: the implementer's colon case has no number after the colon, and no test of the
+// part names a file with a character git quotes.
+test('who-reads: a document whose name holds a quote, a backslash, a tab or a colon and a number only mentions, shown as stored', () => {
+  withSandbox((box) => {
+    box.write('src/alone.ts', 'export {}\n');
+    const names = ['docs/say "hi"', 'docs/back\\slash', 'docs/tab\there', 'docs/notes:2:draft'].map((name) => [name, 'md'].join('.'));
+    for (const name of names) box.write(name, 'We split src/alone.ts.\n');
+    box.git('add', '-A');
+    const result = runScript('who-reads.mjs', [box.repo, 'src/alone.ts'], box.env());
+    assert.equal(result.status, 0, result.out);
+    for (const name of names) assert.match(result.stdout, new RegExp(`^ {8}${escape(name)}:1:We split`, 'm'), `${name}\n${result.out}`);
+  });
+});
