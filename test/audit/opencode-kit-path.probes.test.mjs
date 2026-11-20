@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { neverSubstitutedHosts } from '../kit-path-hosts.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const SKILLS = {
@@ -35,13 +36,7 @@ const sentences = (text) => flat(text).split(/(?<=\.)\s+/);
 const count = (text, word) => (text.match(new RegExp(`\\b${word}\\b`, 'g')) ?? []).length;
 
 // The hosts that do not substitute the variable are the ones the `audit` rule "In … the variable is never substituted" lists; OpenCode, Codex and Hermes stay the floor.
-const neverSubstitutedHosts = () => {
-  const ruleHosts = /\bIn ((?:[A-Z]\w*(?:, | and ))*[A-Z]\w*) the variable is never substituted/.exec(flat(read(SKILLS.audit)))?.[1];
-  assert.ok(ruleHosts, 'audit: one sentence lists the hosts where "the variable is never substituted"');
-  const hosts = ruleHosts.split(/, | and /);
-  for (const floor of ['OpenCode', 'Codex', 'Hermes']) assert.ok(hosts.includes(floor), `audit: the never-substituted rule names ${floor}: ${ruleHosts}`);
-  return hosts;
-};
+const FLOOR = ['OpenCode', 'Codex', 'Hermes'];
 // A sentence that resolves the kit path: it shows the variable, says the path is the same relative to this SKILL.md, says whether a host substitutes the variable, or says where the kit is without being an install instruction (one that runs the installer or updates the plugin; a sentence that only uses the word "installed" still says where the kit is).
 const installInstruction = /npx|setup-vibeflow|updating the Vibeflow plugin/;
 const resolvesKitPath = (s) =>
@@ -49,9 +44,9 @@ const resolvesKitPath = (s) =>
 
 // Contract: in the three skills, every sentence that resolves the kit path and names a host of the `audit` never-substituted rule names every host of that rule, once each, and each skill has as many such sentences as the five places that resolve the kit path (the `implement` kit path, the `audit` kit paragraph and its never-substituted rule, the `stats` command line and its rule): those are where a reader of a host that does not substitute the variable meets its host's name. The host list is read from the rule, so a host added to the rule has to reach every other kit-path sentence. Install instructions are out of the contract: a sentence that tells one host how to install the kit (the `npx setup-vibeflow@latest --opencode --force` hint names its folder, but could name OpenCode alone) does not route any host to the kit path.
 // Breaks when: one of the five keeps "(in Codex and Hermes, …)" without OpenCode — an OpenCode session reading it would take the Claude Code tail and count the kit as not installed —; a host gets a kit sentence of its own that drifts from the rule the next change to the kit path edits; or a fourth host enters the rule, the `audit` kit paragraph and the `implement` parenthetical, the audit-contracts literals are updated with it, and the `stats` sentences are forgotten (the gesture that added OpenCode); or a new sentence names part of the rule's hosts while saying something else about the variable or the kit ("In Hermes the variable is substituted automatically.", "In Codex and Hermes the kit is installed beside the skill."), contradicting the rule for the host it leaves out.
-// Not covered by: audit-contracts and loop-stats pin the `audit` and `stats` sentences as literals, which the maintainer rewrites when adding a host, and the Hermes probe's case 3 the `implement` parenthetical against the same rule; only this case checks every kit-path sentence of the three skills against the rule's own list. It took over the Hermes probe's former case 1.
+// Not covered by: audit-contracts and loop-stats pin the `audit` and `stats` sentences as literals, which the maintainer rewrites when adding a host, and the Hermes probe's case 2 the `implement` parenthetical against the same rule; only this case checks every kit-path sentence of the three skills against the rule's own list.
 test('OpenCode kit path: every host sentence in audit, implement and stats that resolves the kit path names every host of the never-substituted rule', () => {
-  const hosts = neverSubstitutedHosts();
+  const hosts = neverSubstitutedHosts(FLOOR);
   const expected = { audit: 2, implement: 1, stats: 2 };
   const hostPattern = new RegExp(`\\b(?:${hosts.join('|')})\\b`);
   for (const [name, path] of Object.entries(SKILLS)) {
@@ -82,12 +77,10 @@ test('OpenCode host table: the row opens the round with the `subagent` tool and 
   assert.doesNotMatch(paragraph, /\.opencode\/|\.config\/opencode/, 'the paragraph names no OpenCode install path');
 });
 
-// Contract: the auditor role and the Claude agent that carries it send an OpenCode auditor to `.opencode/skills/audit/SKILL.md`, the shared audit workflow the CLI installs (`.opencode/skills/<name>/SKILL.md` in `cli/index.js`), named as that same shared workflow and before the Cursor and Copilot paths, while `skills/audit/SKILL.md` in the Vibeflow plugin stays the path of Claude Code, Codex and Hermes, so an OpenCode auditor reads the shared workflow with its kit-path rule from where it is installed, instead of looking for a plugin this host does not have or for a Cursor or Copilot file.
+// Contract: the auditor role and the Claude agent that carries it send an OpenCode auditor to `.opencode/skills/audit/SKILL.md`, the shared audit workflow the CLI installs there (proved by running the CLI in cli-kit, which reads that file after `--opencode --force`), named as that same shared workflow and before the Cursor and Copilot paths, while `skills/audit/SKILL.md` in the Vibeflow plugin stays the path of Claude Code, Codex and Hermes, so an OpenCode auditor reads the shared workflow with its kit-path rule from where it is installed, instead of looking for a plugin this host does not have or for a Cursor or Copilot file.
 // Breaks when: the host list is edited in the role file only (the agent body then differs from the role); OpenCode goes back among the plugin hosts, where the edition is installed and no plugin exists; the path drifts from the folder the CLI writes; or OpenCode lands after the Cursor or Copilot path.
 // Not covered by: audit-contracts checks that the agent body equals the role and that the role names each edition's path, not which hosts read the plugin path nor where OpenCode reads it; the opencode-edition probes compare the OpenCode agent body with the role, not what the role says.
 test('OpenCode auditor role: the role and the agent send OpenCode to the shared audit workflow the CLI installs, not to a plugin', () => {
-  const cli = readFileSync(join(ROOT, 'cli/index.js'), 'utf8');
-  assert.ok(cli.includes('dest: `.opencode/skills/${name}/SKILL.md`'), 'the CLI installs each shared skill to .opencode/skills/<name>/SKILL.md');
   for (const [name, path] of Object.entries(AUDITOR)) {
     const text = flat(read(path));
     const sentence = /The procedure is the audit workflow of your host, read from its file: [^]*?in Copilot\./.exec(text)?.[0];

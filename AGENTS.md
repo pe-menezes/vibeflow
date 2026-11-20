@@ -26,8 +26,10 @@ to Copilot and Cursor in the same pull request.
 OpenCode has no copy of a workflow: the CLI installs the shared `SKILL.md`
 itself into `.opencode/skills/<name>/`, so a change to a workflow's logic
 changes nothing in `opencode/`. Its command file per workflow holds only a
-`description`, which restates the skill's, and the line that loads the skill:
-it changes only when the skill's description does.
+`description` and the line that loads the skill. The `description` is the
+same text as the Copilot prompt's, and `test/distributions.test.mjs` holds the
+two equal: it changes only when the workflow's description does, together with
+the Copilot prompt.
 
 | Shared plugin | Copilot | Cursor | OpenCode |
 |---|---|---|---|
