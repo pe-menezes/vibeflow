@@ -150,3 +150,15 @@ the Claude, Codex and Hermes manifests resolve to the same versioned plugin. It
 also covers the loop kit's scripts, contracts and installer, and the CLI's
 install of each file-based edition, OpenCode's shared skills and kit included. GitHub Actions runs the same
 command for every pull request and push to `main`.
+
+## Critical Gate across languages
+
+`fixtures/gate-languages/` measures what the audit's Critical Gate flags in each
+programming language: the same seven dangerous behaviours written in 13
+languages, with decoys, built by `make.mjs` into a scratch repository with a
+manifest, plus `gate-prompt.mjs`, which prints the request for one isolated run
+of the step, and `measure.mjs`, which reads the `### Critical Gate` section of
+the reports a model wrote. The suite covers the scripts
+(`gate-languages-fixture.test.mjs`, `gate-languages-measure.test.mjs`) and never
+calls a model; running one on the fixture is a separate, paid step. Its README
+says what it measures, what it does not, and lists every case.

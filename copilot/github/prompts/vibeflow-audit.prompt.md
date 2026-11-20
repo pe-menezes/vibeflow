@@ -216,7 +216,7 @@ restore.
    - No runner found → warn "No test runner detected. Verify that tests
      were run manually." and continue.
 4. **Critical Gate — destructive-op safety scan** (`4/7 critical-gate`).
-   A deterministic safety net for dangerous changes the DoD never mentions —
+   A safety net for dangerous changes the DoD never mentions —
    security regressions and destructive operations that are side effects,
    not features. Not a style check.
 
@@ -243,8 +243,32 @@ restore.
       package section where the note on that path appears and by its line
       number, never by its path.
    b. **Match each changed line against the Rules Catalog below.** A rule fires
-      only when the diff line's direction matches its `scope` (a=added, r=removed,
-      b=both) AND the file matches the rule's target types.
+      when the diff line's direction matches its `scope` (a=added, r=removed,
+      b=both) and the line does what the rule describes, in whatever language
+      or format the file is written. The catalog describes behaviours. The
+      names in parentheses are examples from a few ecosystems, never the list
+      of what counts: the same behaviour under another name, in another
+      language, fires the same rule.
+      - **Every changed file is scanned.** A file's type tells which
+        behaviours it can hold; it never takes the file out of the scan
+        because its language is not named here. Leave out only what cannot
+        hold a rule: binary and media files. A file a tool
+        generated is scanned like any other: a generated migration can drop
+        a table, and a lockfile can carry a credential in a package address.
+      - **A word is not the behaviour.** A rule fires on a line that does the
+        thing, not on a line that mentions it: a comment, a string shown to a
+        person that only names the thing (a label, an error or help text), a
+        test name or description and documentation prose do not fire. A
+        string the program runs or sends (SQL, a shell command) is the
+        behaviour, and so is a text that carries the data or the secret
+        itself. When you cannot tell, treat the line as doing it.
+      - **Say what was scanned.** The `### Critical Gate` section carries a
+        `Scanned:` line: how many of the changed files were scanned and, by
+        path, each file left out and why. A path the package took out is
+        cited as item a says, by the package section where its note appears.
+        When step 1 ran over the code, the `No diff scanned` line stands in
+        place of the `Scanned:` line, and the section does not say "Clean":
+        nothing was scanned.
    c. **Honor overrides.** Skip a finding if the spec, the PR body, or a comment
       near the line contains `vibeflow:allow <RULE_ID>: <reason>`. CRITICAL/HIGH
       require a non-empty justification; WARNING/INFO may be overridden without one.
@@ -256,9 +280,12 @@ restore.
       | INFO | informational note only |
       | none | proceed normally |
 
-   **Rules Catalog (~40 rules, 6 domains).**
+   **Rules Catalog (~40 rules, 6 domains).** Each rule is a behaviour. A
+   domain's "where" says where that behaviour usually lives, as a guide and
+   never as a filter. Item b says when a rule fires: on what a line does, in
+   any language, and not on a mention; a line you cannot place fires.
 
-   _Database_ — files: `*.sql`, `**/migrations/*`
+   _Database_ — where: SQL, in `.sql` files, in migrations and inside code
    | ID | Sev | Scope | Trigger |
    |---|---|---|---|
    | DS101 | CRITICAL | a | `DROP DATABASE` |
@@ -270,19 +297,19 @@ restore.
    | DS108 | WARNING | a | `RENAME TABLE` / `ALTER TABLE … RENAME` |
    | DS110 | INFO | a | `ALTER TABLE … MODIFY` (column type change → data loss) |
 
-   _Security_ — files: source (`*.py,*.js,*.ts,*.rb,*.go,*.java`); SEC104 also config/env
-   | ID | Sev | Scope | Trigger |
+   _Security_ — where: application code, scripts and configuration, in any language
+   | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
-   | SEC101 | CRITICAL | r | auth middleware/guard removed (`authenticate`, `@login_required`, `isAuthenticated`, `requireAuth`) |
-   | SEC102 | CRITICAL | r | CSRF protection removed |
-   | SEC103 | HIGH | r | rate limiting / throttle removed |
-   | SEC104 | CRITICAL | a | hardcoded secret (`password`/`secret`/`api_key`/`token` = literal ≥8 chars) |
-   | SEC105 | HIGH | a | TLS/SSL disabled (`ssl`/`tls` = false/off/0) |
-   | SEC106 | HIGH | a | cert verification off (`verify=false`, `InsecureSkipVerify=true`, `NODE_TLS_REJECT_UNAUTHORIZED=0`) |
-   | SEC107 | WARNING | r | sanitization/encoding removed (XSS risk) |
-   | SEC108 | WARNING | a | dynamic exec (`eval`/`exec`/`system`/`popen`/`subprocess.call`/`child_process.exec`) |
+   | SEC101 | CRITICAL | r | a check that requires authentication or authorization is taken off a route, handler, job or resource: a decorator or annotation, a middleware or filter, a guard that turns anonymous users away (`authenticate`, `@login_required`, `isAuthenticated`, `requireAuth`) |
+   | SEC102 | CRITICAL | r | CSRF protection is removed |
+   | SEC103 | HIGH | r | rate limiting or throttling is removed |
+   | SEC104 | CRITICAL | a | a credential is written as a literal of 8 characters or more: a password, token, key or secret assigned, passed or set, under any name (`password`, `secret`, `api_key`, `token`) |
+   | SEC105 | HIGH | a | TLS/SSL is turned off (`ssl`/`tls` = false/off/0) |
+   | SEC106 | HIGH | a | certificate or host verification is turned off: an option, flag, callback or trust manager that accepts any certificate or skips the check (`verify=false`, `InsecureSkipVerify=true`, `NODE_TLS_REJECT_UNAUTHORIZED=0`) |
+   | SEC107 | WARNING | r | sanitization or output encoding is removed (XSS risk) |
+   | SEC108 | WARNING | a | code or a command line built at run time from a value that is not a constant is evaluated or handed to a shell or a process launcher (`eval`, `exec`, `system`, `popen`, `subprocess.call`, `child_process.exec`) |
 
-   _Infrastructure (IaC)_ — files: `*.tf`, `*.hcl`
+   _Infrastructure (IaC)_ — where: infrastructure declarations; Terraform and HCL shown, the same setting in another tool counts
    | ID | Sev | Scope | Trigger |
    |---|---|---|---|
    | IAC101 | CRITICAL | a | `force_destroy = true` / `destroy = true` |
@@ -292,7 +319,7 @@ restore.
    | IAC105 | WARNING | a | `cidr_blocks = ["0.0.0.0/0"]` (public access) |
    | IAC106 | WARNING | a | `publicly_accessible`/`public_access = true` |
 
-   _Kubernetes_ — files: `*.yml`, `*.yaml`
+   _Kubernetes_ — where: Kubernetes manifests and the templates that produce them
    | ID | Sev | Scope | Trigger |
    |---|---|---|---|
    | K8S101 | HIGH | a | `privileged: true` |
@@ -302,7 +329,7 @@ restore.
    | K8S105 | WARNING | a | dangerous capability (`SYS_ADMIN`/`NET_ADMIN`/`ALL`) |
    | K8S106 | WARNING | a | `hostNetwork: true` |
 
-   _Config_ — files: `*.yml,*.yaml,*.json,*.toml`, Dockerfiles, code
+   _Config_ — where: configuration in any format, Dockerfiles and configuration set in code
    | ID | Sev | Scope | Trigger |
    |---|---|---|---|
    | CFG101 | HIGH | a | CORS wildcard `*` (`access-control-allow-origin: *`) |
@@ -311,14 +338,14 @@ restore.
    | CFG104 | WARNING | a | sensitive port exposed (22/3389/5432/3306/6379/27017/9200/11211) |
    | CFG105 | INFO | r | timeout config removed (hung connections) |
 
-   _Data_ — files: source; DAT102 also config
-   | ID | Sev | Scope | Trigger |
+   _Data_ — where: application code, scripts and configuration, in any language
+   | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
-   | DAT101 | CRITICAL | a | mass delete (`delete_all`/`destroy_all`/`removeAll`/`bulk_delete`/`purge`) |
-   | DAT102 | HIGH | a | PII exposure (`ssn`/`cpf`/`cnpj`/`passport_number`/`credit_card`/`card_number`) |
-   | DAT103 | HIGH | r | encryption/hashing removed (`encrypt`/`bcrypt`/`argon2`/`sha256`/`aes`/`rsa`) |
-   | DAT104 | WARNING | a | logging sensitive data (`console.log`/`logger.*` of password/token/secret/key) |
-   | DAT105 | WARNING | r | masking/redaction removed (`mask`/`redact`/`anonymize`) |
+   | DAT101 | CRITICAL | a | many stored records are deleted in one operation: every record of a table, collection or store, or all those a condition selects, by a query, an ORM call or a file command; one record deleted by its key is not this, nor is emptying a list, map or cache held in memory (`delete_all`, `destroy_all`, `removeAll`, `bulk_delete`, `purge`) |
+   | DAT102 | HIGH | a | personal data is exposed unmasked: it goes out in a response, a log, an export or a notification, or a person's value is written as a literal in code, configuration or data; a field, column or pattern that only names the data is not this: a national or tax identifier, a passport number, a payment card number (`ssn`, `cpf`, `cnpj`, `passport_number`, `credit_card`, `card_number`) |
+   | DAT103 | HIGH | r | encryption or hashing is removed (`encrypt`, `bcrypt`, `argon2`, `sha256`, `aes`, `rsa`) |
+   | DAT104 | WARNING | a | a password, token, secret or key is written to a log or to the output, by any logging or printing call (`console.log`, `logger.*`) |
+   | DAT105 | WARNING | r | masking or redaction is removed (`mask`, `redact`, `anonymize`) |
 
    When a finding is intentional and documented in the spec, treat it as an override.
 
@@ -482,11 +509,14 @@ Not read whole: none
 
 ### Critical Gate
 Left out of the package: <n> file(s), read with git | none
+Scanned: <n> of <m> changed file(s); not scanned: <path> (<why>), <path> (<why>) | none
 - 🔴 CRITICAL [DS102] db/migrate/003.sql:12 — DROP TABLE in migration (blocks)
-- 🟠 HIGH [SEC101] api/auth.ts:1 — auth middleware removed (blocks)
+- 🔴 CRITICAL [SEC101] api/auth.ts:1 — auth middleware removed (blocks)
+- 🟠 HIGH [SEC106] api/client.ts:8 — certificate verification turned off (blocks)
 - 🟡 WARNING [CFG102] config/app.yml:4 — debug mode enabled
 - ✅ ALLOWED [DS104] db/migrate/004.sql:7 — DROP COLUMN — override: vibeflow:allow DS104: <reason>
-(or "Clean — no destructive operations detected.", or "No diff scanned — <why>." when step 1 ran over the code)
+(one finding per line: a rule that matches two lines is two findings, each with its own `path:line`)
+(with no finding, "Clean — no destructive operations detected." takes the place of the finding lines, after the two lines above; when step 1 ran over the code, "No diff scanned — <why>." takes the place of the `Scanned:` line and no finding or "Clean" line follows: nothing was scanned)
 
 ### Findings
 - [F1] defect · implementation · confidence high — total ignores the discount — evidence: src/cart.ts:42 — probe: tests/audit/cart-p1.test.ts::discount enters the total
