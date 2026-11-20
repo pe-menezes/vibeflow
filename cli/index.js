@@ -148,11 +148,17 @@ ${OPENCODE_WORKFLOWS.map((name) => `.opencode/skills/${name}/`).join('\n')}
 `,
 };
 
-// What a reinstall may add to a Vibeflow block that is already in .gitignore. A line that an
-// older block already had is never added back: the user may have changed or deleted it on
-// purpose (the hotfix carve-out swaps `.vibeflow/` for `.vibeflow/*` + `!.vibeflow/hotfixes/`).
-// `shared` lines belong to every edition's block. `since` lists, per edition, the lines that
-// entered its block after its first release, each with the version that added it; a new
+// What a reinstall may add to a Vibeflow block that is already in .gitignore. An edition that
+// was installed when the install began (its current `marker` file was there; the `markerLegacy`
+// does not count) never gives back a line of its first release that the file does not have: the
+// user may have taken it out on purpose, to track those files (the hotfix carve-out swaps
+// `.vibeflow/` for `.vibeflow/*` + `!.vibeflow/hotfixes/`). It only adds its `since` lines that
+// the file lacks. An edition not installed yet, over a block with none of its first-release
+// lines, reads the block as another edition's (they share the marker) and adds all of its own
+// lines. The limit: the block keeps no version, so a `since` line the user deleted from a block
+// that already had it comes back on the next reinstall. `shared` lines belong to every
+// edition's block and never enter a block that exists. `since` lists, per edition, the lines
+// that entered its block after its first release, each with the version that added it; a new
 // line in GITIGNORE_BLOCKS goes here too, or existing installs never get it.
 const GITIGNORE_UPDATES = {
   shared: ['.vibeflow/'],
@@ -495,13 +501,16 @@ function upsertDelimitedBlock(existing, newBlock, legacyMarker) {
 }
 
 // The .gitignore block is a marker comment line followed by its paths, up to the first blank
-// line. Pure, like upsertDelimitedBlock: marker absent → the block is appended. Marker present
-// → the edition's lines listed in GITIGNORE_UPDATES.since that the file does not have yet
-// (anywhere, as a whole line) are inserted right after the block. When the file has none of
-// the edition's own lines, the block there is another edition's (they share the marker), and
-// all of this edition's lines except the shared ones are the candidates instead.
-function upsertGitignoreBlock(existing, block, edition) {
-  const marker = GITIGNORE_MARKER;
+// line. Pure, like upsertDelimitedBlock, and like `confinement` it reaches nothing outside its
+// arguments (the suite runs it alone, test/cli-gitignore-reinstall.test.mjs): `marker` is the
+// marker line, `shared` and `since` the edition's entries of GITIGNORE_UPDATES, and `installed`
+// says whether the edition's current marker file was there when the install began. Marker line
+// absent → the whole block is appended. Marker line present → only the candidates the file does
+// not have yet (anywhere, as a whole line) are inserted right after the block. The candidates
+// are the `since` lines when the edition was installed, or when the file has one of its
+// first-release lines; otherwise the block there is another edition's, and they are all of
+// this edition's lines except the shared ones.
+function upsertGitignoreBlock(existing, block, { marker, shared, since, installed }) {
   const paths = block.trim().split('\n').filter((line) => line !== marker);
   const lines = existing.split('\n');
   const bare = (line) => line.replace(/\r$/, '').trim();
@@ -511,11 +520,10 @@ function upsertGitignoreBlock(existing, block, edition) {
     return { content, action: 'appended', added: paths };
   }
   const present = new Set(lines.map(bare));
-  const since = GITIGNORE_UPDATES.since[edition] || [];
-  const own = paths.filter((path) => !GITIGNORE_UPDATES.shared.includes(path));
+  const own = paths.filter((path) => !shared.includes(path));
   const firstRelease = own.filter((path) => !since.includes(path));
-  const installed = firstRelease.some((path) => present.has(path));
-  const candidates = installed ? since : own;
+  const ownBlock = installed || firstRelease.some((path) => present.has(path));
+  const candidates = ownBlock ? since : own;
   const missing = candidates.filter((path) => !present.has(path));
   if (missing.length === 0) return { content: existing, action: 'present', added: [] };
   let end = markerIdx + 1;
@@ -647,7 +655,11 @@ async function main() {
   // Check if already installed
   const markerPath = join(cwd, edition.marker);
   const markerLegacyPath = edition.markerLegacy ? join(cwd, edition.markerLegacy) : null;
-  if ((existsSync(markerPath) || (markerLegacyPath && existsSync(markerLegacyPath))) && !force) {
+  // Read before anything is written: the install writes the marker itself. The .gitignore
+  // block takes it as the edition being installed already (GITIGNORE_UPDATES); the legacy
+  // marker does not count, since a project of the old layout may predate the block.
+  const wasInstalled = existsSync(markerPath);
+  if ((wasInstalled || (markerLegacyPath && existsSync(markerLegacyPath))) && !force) {
     log(pc.yellow('!'), 'Vibeflow already installed. Use --force to reinstall.');
     console.log('');
     process.exit(0);
@@ -798,7 +810,12 @@ async function main() {
       if (existsSync(gitignorePath)) {
         content = readFileSync(gitignorePath, 'utf-8');
       }
-      const result = upsertGitignoreBlock(content, block, editionKey);
+      const result = upsertGitignoreBlock(content, block, {
+        marker: GITIGNORE_MARKER,
+        shared: GITIGNORE_UPDATES.shared,
+        since: GITIGNORE_UPDATES.since[editionKey] || [],
+        installed: wasInstalled,
+      });
       if (result.action === 'present') {
         log(pc.dim('-'), `${pc.dim('.gitignore')} ${pc.dim('(Vibeflow block already present)')}`);
       } else {

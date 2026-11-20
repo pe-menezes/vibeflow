@@ -72,7 +72,8 @@ const SECRET = new RegExp([
 const USAGE = `usage: review-package.mjs <dir> <base> <out> [--max-bytes <n>]
 
 Writes to <out> the commits since <base>, git status, each changed file with its line counts
-(every path whole, a rename as both paths), the diff from <base> to the worktree with 10 lines
+(every path whole, a rename as both paths, a file git gives as added since <base> ending in
+"| new"), the diff from <base> to the worktree with 10 lines
 of context, and every untracked, not ignored file. File diffs that do
 not fit under --max-bytes (default ${DEFAULT_MAX_BYTES}) are left out and listed at the top.
 A file diff with a line that looks like a secret or credential (the detector of
@@ -152,9 +153,10 @@ const HUNK_HEADER = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
 // The file line of the first diff line that looks like a secret, or 0 when none does. Only the
 // hunks are read here; the lines above the first hunk, which hold the paths, are read by
 // secretInPath. An added or context line counts in the new
-// file, a removed line in the base; a line of a CRLF file is tested without its "\r". The function
-// context after a hunk header is a line of the file: git gives no number for it, so the hunk's
-// first line is named.
+// file, a removed line in the base; each line is tested by looksSecret, so a line of a CRLF file
+// is tested without its "\r" and a value followed by a space trim takes off still counts. The
+// function context after a hunk header is a line of the file: git gives no number for it, so the
+// hunk's first line is named.
 function secretLine(chunk) {
   let oldLine = 0;
   let newLine = 0;
@@ -164,13 +166,13 @@ function secretLine(chunk) {
     const hunk = HUNK_HEADER.exec(line);
     if (hunk) {
       [oldLine, newLine] = [Number(hunk[1]), Number(hunk[2])];
-      if (SECRET.test(line.slice(hunk[0].length))) return newLine || oldLine || 1;
+      if (looksSecret(line.slice(hunk[0].length))) return newLine || oldLine || 1;
       inHunk = true;
     } else if (inHunk && line.startsWith('-')) {
-      if (SECRET.test(line)) return oldLine;
+      if (looksSecret(line)) return oldLine;
       oldLine += 1;
     } else if (inHunk && (line.startsWith('+') || line.startsWith(' '))) {
-      if (SECRET.test(line)) return newLine;
+      if (looksSecret(line)) return newLine;
       newLine += 1;
       if (line.startsWith(' ')) oldLine += 1;
     }
@@ -178,10 +180,15 @@ function secretLine(chunk) {
   return 0;
 }
 
-// A line of the package that looks like a secret, tested as secretLine tests a diff line: without
-// a final "\r".
+// A line of the diff or the package, or a path, that looks like a secret: tested without a final
+// "\r" and also without the spaces at its ends that String.prototype.trim takes off (U+00A0 and
+// the other Unicode spaces among them): a bare value followed by such a space, at the end of a
+// path or of a line of a file, is not followed by what the detector reads as the end of it. The
+// retention of a file diff (secretLine, secretInPath) and the last check use this one test, so a
+// line the last check would stop keeps its file diff out instead.
 function looksSecret(printed) {
-  return SECRET.test(printed.endsWith('\r') ? printed.slice(0, -1) : printed);
+  const line = printed.endsWith('\r') ? printed.slice(0, -1) : printed;
+  return SECRET.test(line) || SECRET.test(line.trim());
 }
 
 // Whether a file diff's path looks like a secret: the path, the `## New file:` heading, or a line
@@ -189,7 +196,7 @@ function looksSecret(printed) {
 // looks like one or names a path that does. Such a diff stays out whole, like one with a secret
 // line.
 function secretInPath(chunk, namesHiddenPath) {
-  if (SECRET.test(chunk.path) || (chunk.heading && SECRET.test(chunk.heading))) return true;
+  if (looksSecret(chunk.path) || (chunk.heading && looksSecret(chunk.heading))) return true;
   if (namesHiddenPath(chunk.path) || (chunk.heading && namesHiddenPath(chunk.heading))) return true;
   for (const line of chunk.text.split('\n')) {
     if (HUNK_HEADER.test(line)) return false;
@@ -209,6 +216,9 @@ function printedForms(path) {
   const quoted = path.replace(/[\x00-\x1f"\\\x7f]/g, (c) => QUOTED_ESCAPES[c] ?? `\\${c.charCodeAt(0).toString(8).padStart(3, '0')}`);
   return quoted === path ? [path] : [path, quoted];
 }
+
+// What the New files section says when no file is untracked.
+const NO_UNTRACKED = '(no untracked file in the change; a file added since the base and already in git is marked new under Files and lines)';
 
 // What replaces, in the header, a line that looks like a secret or holds a path that does.
 const LINE_NOTE = '(line left out: it looks like a secret or credential; see HEADER LINES LEFT OUT at the top)';
@@ -241,6 +251,26 @@ function changedFiles(dir, base) {
     files.push({ added: counts[1], removed: counts[2], paths });
   }
   return files;
+}
+
+// Every path that `git diff --name-status -z` gives as added (A) since the base, with the same
+// rename detection as changedFiles: committed, staged or marked with `git add -N`. A rename or a
+// copy carries a score and two paths; every other status, one path.
+function addedPaths(dir, base) {
+  const fields = git(dir, ['diff', '--name-status', '-z', base, ...ARTIFACT_PATHSPEC]).split('\0');
+  const added = new Set();
+  for (let i = 0; i < fields.length;) {
+    const status = fields[i];
+    if (!status) {
+      i += 1;
+    } else if (/^[RC]/.test(status)) {
+      i += 3;
+    } else {
+      if (status === 'A') added.add(fields[i + 1]);
+      i += 2;
+    }
+  }
+  return added;
 }
 
 function build({ dir: dirArg, base, out, maxBytes }) {
@@ -356,10 +386,14 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     return `${hash} (title left out: it looks like a secret or credential; read it with git log -1 ${hash})`;
   });
   // One line per changed file, with every path whole: a line goes out when one of its paths
-  // looks like a secret on its own, when the line does, or when it names a withheld path.
+  // looks like a secret on its own, when the line does, or when it names a withheld path. A file
+  // git gives as added since the base ends in ` | new`: the New files list names untracked files
+  // only, so a new file already in git is marked here.
   const files = changedFiles(dir, base);
+  const addedSinceBase = addedPaths(dir, base);
   const fileLines = files.map(({ added, removed, paths }) => {
-    const line = `${paths.join(' => ')} | ${added === '-' ? 'binary' : `+${added} -${removed}`}`;
+    const mark = paths.length === 1 && addedSinceBase.has(paths[0]) ? ' | new' : '';
+    const line = `${paths.join(' => ')} | ${added === '-' ? 'binary' : `+${added} -${removed}`}${mark}`;
     if (!paths.some(looksSecret) && !looksSecret(line) && !namesWithheld(line)) return line;
     leftOutOfHeader += 1;
     return LINE_NOTE;
@@ -376,7 +410,7 @@ function build({ dir: dirArg, base, out, maxBytes }) {
     '## Commits since the base', commitLines.join('\n') || '(none: the round is not committed)',
     '## git status --short', clean(statusLines(git(dir, ['status', '--short', ...ARTIFACT_PATHSPEC]))) || '(clean)',
     '## Files and lines', fileLines.join('\n') || '(no tracked change)',
-    '## New files', newFileLines.join('\n') || '(none)',
+    '## New files', newFileLines.join('\n') || NO_UNTRACKED,
   ].join('\n\n');
 
   let size = Buffer.byteLength(`${title}\n\n${topLines}\n\n${headSections}\n\n## Diff (base to worktree, 10 lines of context)\n\n`);
@@ -408,13 +442,15 @@ function build({ dir: dirArg, base, out, maxBytes }) {
   return { empty: false, text, leftOut, withheld, newFiles: untracked.length, hiddenForms };
 }
 
-// git status --short without the untracked knowledge base, which the package leaves out.
+// git status --short without the untracked knowledge base, which the package leaves out, and
+// without the line breaks at the end. Nothing else is cut: a leading space is the X column
+// (" M" is changed and not staged, "M " is staged).
 function statusLines(status) {
   return status
     .split('\n')
     .filter((line) => !(line.startsWith('?? ') && isKnowledge(line.slice(3))))
     .join('\n')
-    .trim();
+    .replace(/\n+$/, '');
 }
 
 // The count at the top of the package of the header lines it left out, with the git commands
