@@ -107,4 +107,4 @@ function main(argv) {
   return outside.length > 0 ? 1 : 0;
 }
 
-process.exit(main(process.argv.slice(2)));
+process.exitCode = main(process.argv.slice(2));

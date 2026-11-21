@@ -386,4 +386,4 @@ function main(argv) {
   return Math.max(...findings.map(([level]) => level));
 }
 
-process.exit(main(process.argv.slice(2)));
+process.exitCode = main(process.argv.slice(2));

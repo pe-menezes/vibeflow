@@ -213,4 +213,4 @@ async function main(argv) {
   }
 }
 
-process.exit(await main(process.argv.slice(2)));
+process.exitCode = await main(process.argv.slice(2));
