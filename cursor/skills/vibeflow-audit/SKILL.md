@@ -206,7 +206,7 @@ restore.
    the "insufficient context" FAIL of the verdict rules.
 3. **Tests** (`3/7 tests`). Run the tests. Prefer commands listed in the spec;
    otherwise detect the project's runner from the stack (`.vibeflow/index.md`,
-   then the test command in the project's manifest or build file, such as package.json, pyproject.toml, Cargo.toml, go.mod, a `.csproj`, `build.gradle` or `Package.swift`, or the equivalent in the project's stack).
+   then the test command that the project's manifest or build file declares or implies, such as package.json, pyproject.toml, Cargo.toml, go.mod, a `.csproj`, `build.gradle` or `Package.swift`, or the equivalent in the project's stack).
    - Tests fail → the verdict is FAIL and auditing stops; the incremental
      prompt pack targets the failures first.
    - No runner found → warn "No test runner detected. Verify that tests
@@ -422,7 +422,7 @@ restore.
    layout its language's default test runner expects. A comment on the file's
    first lines carries the marker `vibeflow-probe: <feature>-<part>`, by which
    the kit finds its probes. Probes are pinned by content: each asserts a
-   behavior through the code's interface. A probe that reproduces an open finding carries the test framework's expected-failure marker naming the finding (for example `todo` in node:test, `xfail` in pytest, `test.failing` in Jest, `withKnownIssue` in Swift Testing); in a framework with no such marker, its skip marker naming the finding (`Skip` in xUnit, `@Disabled` in JUnit, `t.Skip` in Go); where the marker takes no reason (`expectedFailure` in unittest), a comment beside it names the finding. So an audit never turns the project's suite red, and the fix that closes the finding removes the marker. In the report, each probe answers the contract it protects, the
+   behavior through the code's interface. A probe that reproduces an open finding carries the test framework's expected-failure marker naming the finding (for example `todo` in node:test, `xfail` in pytest, `test.failing` in Jest, `withKnownIssue` in Swift Testing); in a framework with no such marker, its skip marker naming the finding (`Skip` in xUnit, `@Disabled` in JUnit, `t.Skip` in Go); where the marker takes no reason (`expectedFailure` in unittest), a comment beside it names the finding. A probe under a skip marker never runs in the suite: run it once without the marker before you mark it, and quote that failure in the report. So an audit never turns the project's suite red, and the fix that closes the finding removes the marker. In the report, each probe answers the contract it protects, the
    plausible regression that breaks it and why the implementer's tests miss
    it; a probe without the three answers stays in the report. A state probe —
    one that pins the repository instead of a behavior: a diff against the
@@ -604,7 +604,7 @@ standalone, one more than the re-audit reports already there).
    audit. The Critical Gate runs on the fix diff.
 4. The re-audit closes or keeps each open finding with its proof (the test,
    the sabotage that now dies, the line), and looks for new defects in the fix
-   diff only, with cause `fix` when the fix introduced them. It appends its
+   diff only, with cause `fix` when the fix introduced them. A probe still under its skip or expected-failure marker is no proof that its finding closed: run it without the marker, and the finding closes only when it passes. It appends its
    new probes to the audit's probe file. A standalone re-audit follows the
    `--probes` rule of a standalone audit.
 5. Do a full audit only when the fix left the findings' scope, saying why
