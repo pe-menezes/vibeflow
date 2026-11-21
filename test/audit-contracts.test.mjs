@@ -498,6 +498,26 @@ const actionClauses = (sentence) => actionOf(sentence).split(/,\s*(?:and\s+)?/).
 // - a verb that leaves it out: "and omit that failure from the report."
 // - a frequency word: "and rarely quote that failure in the report."
 // - a second way out after a semicolon: "closes only when it passes; skipping it also closes it."
+// More known limits of the same cases (each sentence passes checkSkipRun or checkReauditClose
+// in the three editions; the line says whether a probe catches it):
+// - a condition that narrows the run, with no word of the lists: "run it once without the marker
+//   when time allows before you mark it", "run it without the marker if it is slow, and the
+//   finding closes only when it passes." (nothing catches these by rule, not even the probes)
+// - a condition that narrows the quote: "and quote that failure in the report if the reviewer
+//   asks.", "and quote that failure in the report where possible." (nothing catches these by rule)
+// - a second place for the quote: "and quote that failure in the report or in the chat."
+//   (nothing catches this by rule)
+// - a softening word: "and ideally quote that failure in the report." (the clause probe catches it)
+// - another subject for the pass: "the finding closes only when the suite passes." (the closing
+//   condition probe catches it)
+// - every sentence above, and the four limits already written, also fail the generated case
+//   below only because the action text it plants into is no longer there, which a rewording
+//   that keeps the rule fails too ("run it once without its marker before you mark it", "the
+//   finding closes only when the probe passes"): the generated case pins the literal action
+// - the generated sentences use only the words of TURNS: the other words of NOT_BINDING (might,
+//   could, nor) and of WITHDRAWN (instead of, neither, cannot, except, a word ending in n't)
+//   have no generated case, so taking any of them out of its list leaves every test of the part
+//   green
 const WITHDRAWN = /\b(no longer|rather than|instead of|need not|needn't|neither|cannot|unless|except)\b|\w+n't\b/i;
 const assertAffirmative = (sentence, edition) => {
   const action = actionOf(sentence);

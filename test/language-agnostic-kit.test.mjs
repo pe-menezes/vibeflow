@@ -20,6 +20,26 @@
 // - the object of a verb, with no preposition: "Prefer Go."
 // - after "is", "are" or "as": "The project is Go.", "Rewrite the probes as Go."
 // - before a noun outside the stack nouns: "Write Go probes."
+// - after a preposition outside the stack context (like, onto, of, over): "Write the probes like
+//   Go.", "Port the probes onto Swift.", "Base the probes on top of Go."
+// More known limits, each sentence passing P1 and P2 unless the line says it fails:
+// - a false alarm the other way, since "to" and "from" read a stack: "Walk from node to node."
+//   and "Add an edge from node A to node B." fail P1
+// - "E.g." capitalized with no colon ends the sentence, so "E.g. Jest or pytest." fails P1
+// - a parenthesized list of "`x` in Y" pairs after a marked list in the same sentence reads as
+//   an example with no mark of its own, and P2 does not read it (N3): "Mark each probe (for
+//   example `todo` in node:test, `xfail` in pytest); every probe uses (`test.failing` in Jest)."
+// - an excerpt runs past a comma followed by "and" and a term (N4): "Use a mutation tool such as
+//   Stryker or mutmut, and Jest for the probes."
+// - in the files listed for the runtime, a Node.js version is taken out wherever it is, and any
+//   loop/scripts path counts as the kit's (N5): "This applies to Node 18+ projects only." and
+//   "Run the tests with `node ./loop/scripts/app.mjs`." pass in the audit editions
+// - the vocabulary is closed and read with its case (A6): "Write every probe with Playwright.",
+//   "Write the probes in Bash.", "Write the probes in rust."
+// - the generated COMMON_CASES cover only the prepositions in PREPOSITIONS (in, to, into, from,
+//   with, using): the other words of STACK_BEFORE (on, for, via, and the verbs use, run and
+//   install with their -s forms) have no generated case, so taking any of them out of
+//   STACK_BEFORE, say "for" to quiet "for node in graph", leaves every test of the part green
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -49,7 +69,8 @@ function kitFiles() {
 // stand alone (a front matter line indented under the previous one joins it).
 // A sentence ends at a period, a semicolon or a colon followed by a capital
 // letter, a backtick, a parenthesis or a bold opener, and at the end of its
-// block; "e.g." and "i.e." end nothing, and neither does a colon right after an
+// block; "e.g." and "i.e." in lowercase end nothing (a capitalized "E.g." with no
+// colon does end it, a known limit in the header), and neither does a colon right after an
 // example mark in any case ("for example:", "For example:"), which introduces
 // the example.
 const BREAK = /(?<=[.;:])(?<!\be\.g\.)(?<!\bi\.e\.)\s+(?=[A-Z`(*])/g;
