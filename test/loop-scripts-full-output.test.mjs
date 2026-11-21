@@ -8,6 +8,12 @@
 // A script that waits for its output before exiting hands over every line; one that exits at once
 // has already dropped the rest. No clock decides the outcome.
 //
+// On a synchronous pipe (Windows) the write call itself waits for the reader, so the second notice
+// would never come. The script also reports when the write starts, and the reader starts anyway
+// SYNC_PIPE_WAIT_MS after that. On an asynchronous pipe the write returns at once, long before that
+// wait ends; and should the wait end first on a slow machine, a script that exits at once still
+// drops what its write had queued, because it never lets the event loop pass it to the pipe.
+//
 // Each script prints its usage on --help and returns 0 from main. The preload module
 // test/fixtures/amplify-console-log.mjs turns that one console.log into AMPLIFY_LINES numbered
 // lines, so the same path covers all nine scripts.
@@ -29,6 +35,8 @@ const AMPLIFIER = pathToFileURL(join(HERE, 'fixtures', 'amplify-console-log.mjs'
 const LINES = 50_000;
 // Far above the under-one-second run of a script that exits; reached only by one that never does.
 const EXIT_GUARD_MS = 60_000;
+// Far above the instant an asynchronous write takes to return; only a synchronous pipe waits it out.
+const SYNC_PIPE_WAIT_MS = 2_000;
 const SCRIPTS = readdirSync(SCRIPTS_DIR).filter((name) => name.endsWith('.mjs')).sort();
 
 function runWithLateReader(script) {
@@ -47,9 +55,11 @@ function runWithLateReader(script) {
       killedByGuard = true;
       child.kill('SIGKILL');
     }, EXIT_GUARD_MS);
+    let syncPipeWait;
     const finish = () => {
       if (stdoutClosed && status !== undefined) {
         clearTimeout(guard);
+        clearTimeout(syncPipeWait);
         resolve({ status, stdout, stderr, killedByGuard });
       }
     };
@@ -69,9 +79,13 @@ function runWithLateReader(script) {
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
       if (stderr.includes('amplified write returned\n')) startReading();
+      else if (syncPipeWait === undefined && stderr.includes('amplified write starting\n')) {
+        syncPipeWait = setTimeout(startReading, SYNC_PIPE_WAIT_MS);
+      }
     });
     child.on('error', (error) => {
       clearTimeout(guard);
+      clearTimeout(syncPipeWait);
       reject(error);
     });
     child.on('exit', (code, signal) => {

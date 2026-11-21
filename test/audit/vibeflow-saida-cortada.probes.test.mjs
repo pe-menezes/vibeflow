@@ -9,7 +9,9 @@
 // every later line queues behind it. A script that waits for its output hands over all of it; one
 // that calls process.exit() before main's caller lets the event loop run drops the queue, every
 // finding line included. The reader starts after the first write returns, and the 60-second guard
-// only stops a hang, it never decides the outcome.
+// only stops a hang, it never decides the outcome. On a synchronous pipe (Windows) that write
+// returns only once someone reads, so the reader also starts 2 seconds after the write began; an
+// asynchronous write returns long before, and a script that exits at once drops its queue anyway.
 // Every suspect line written to the corpus is assembled from pieces, so check-probes run on this
 // repository finds no suspect line in this file.
 // Run with: node --test test/*.test.mjs test/audit/*.test.mjs
@@ -30,6 +32,7 @@ import { format } from 'node:util';
 let first = true;
 console.log = (...args) => {
   let text = format(...args) + '\\n';
+  if (first) process.stderr.write('first write starting\\n');
   if (first) text += Array.from({ length: ${FILLER} }, (_, i) => 'filler ' + i).join('\\n') + '\\n';
   process.stdout.write(text);
   if (first) process.stderr.write('first write returned\\n');
@@ -49,9 +52,11 @@ function runWithLateReader(script, args, env) {
     let closed = false;
     let status;
     const guard = setTimeout(() => child.kill('SIGKILL'), 60_000);
+    let syncPipeWait;
     const finish = () => {
       if (closed && status !== undefined) {
         clearTimeout(guard);
+        clearTimeout(syncPipeWait);
         resolve({ status, stdout, stderr });
       }
     };
@@ -66,8 +71,15 @@ function runWithLateReader(script, args, env) {
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
       if (stderr.includes('first write returned\n')) startReading();
+      else if (syncPipeWait === undefined && stderr.includes('first write starting\n')) {
+        syncPipeWait = setTimeout(startReading, 2_000);
+      }
     });
-    child.on('error', reject);
+    child.on('error', (error) => {
+      clearTimeout(guard);
+      clearTimeout(syncPipeWait);
+      reject(error);
+    });
     child.on('exit', (code, signal) => {
       status = code ?? signal;
       startReading();

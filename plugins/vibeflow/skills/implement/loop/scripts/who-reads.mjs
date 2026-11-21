@@ -107,4 +107,6 @@ function main(argv) {
   return 0;
 }
 
-process.exitCode = main(process.argv.slice(2));
+const code = await main(process.argv.slice(2));
+// Exit once stdout and stderr have handed over what is queued, without waiting for an open handle.
+process.stdout.write('', () => process.stderr.write('', () => process.exit(code)));
