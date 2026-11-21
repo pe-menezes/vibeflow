@@ -3,16 +3,6 @@
 // stdout to a reader that is slower than the script, on the path that prints the findings, not
 // only on --help.
 //
-// Contract: check-probes prints one line per suspect line and a summary, and every one of them
-// reaches the program that reads it, however slow that reader is. This is the path that lost 231
-// of 411 lines on main in run 44837973801.
-// Regression that breaks it: a process.exit() inside main after the findings are printed (for
-// example `process.exit(suspects ? 1 : 0)` in place of the return), or the old ending
-// `process.exit(main(...))` coming back.
-// Why the implementer's test does not catch the first form: test/loop-scripts-full-output.test.mjs
-// runs each script with --help, and --help returns from main before the findings path; an exit
-// placed on that path leaves --help untouched.
-//
 // How it stays off the clock: a preload module (a data: URL, so the probe is one file) makes the
 // first console.log also write about 1.3 MB of filler in the same write call. Node hands the pipe
 // what fits and queues the rest; while main runs synchronously nothing in that queue moves, so
@@ -86,6 +76,15 @@ function runWithLateReader(script, args, env) {
   });
 }
 
+// Contract: check-probes prints one line per suspect line and a summary, and every one of them
+// reaches the program that reads it, however slow that reader is. This is the path that lost 231
+// of 411 lines on main in run 44837973801.
+// Breaks when: a process.exit() inside main after the findings are printed (for example
+// `process.exit(suspects ? 1 : 0)` in place of the return), or the old ending
+// `process.exit(main(...))` coming back.
+// Not covered by: test/loop-scripts-full-output.test.mjs, for the first form. It runs each script
+// with --help, and --help returns from main before the findings path; an exit placed on that path
+// leaves --help untouched.
 test('check-probes hands every finding line and its summary to a reader that starts late, on the findings path', async () => {
   const box = makeSandbox();
   try {

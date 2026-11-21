@@ -11,18 +11,24 @@
 // Each script prints its usage on --help and returns 0 from main. The preload module
 // test/fixtures/amplify-console-log.mjs turns that one console.log into AMPLIFY_LINES numbered
 // lines, so the same path covers all nine scripts.
+//
+// A script that never exits (a handle left alive after main) is killed after EXIT_GUARD_MS and its
+// case fails saying so. That guard only stops a hang: a script that exits is never timed.
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { SCRIPTS_DIR } from './loop-helpers.mjs';
 
-const AMPLIFIER = pathToFileURL(join(import.meta.dirname, 'fixtures', 'amplify-console-log.mjs')).href;
+const HERE = dirname(fileURLToPath(import.meta.url));
+const AMPLIFIER = pathToFileURL(join(HERE, 'fixtures', 'amplify-console-log.mjs')).href;
 // About 1.6 MB of output: far above what a pipe and the reader's buffer hold before anyone reads.
 const LINES = 50_000;
+// Far above the under-one-second run of a script that exits; reached only by one that never does.
+const EXIT_GUARD_MS = 60_000;
 const SCRIPTS = readdirSync(SCRIPTS_DIR).filter((name) => name.endsWith('.mjs')).sort();
 
 function runWithLateReader(script) {
@@ -36,8 +42,16 @@ function runWithLateReader(script) {
     let reading = false;
     let status;
     let stdoutClosed = false;
+    let killedByGuard = false;
+    const guard = setTimeout(() => {
+      killedByGuard = true;
+      child.kill('SIGKILL');
+    }, EXIT_GUARD_MS);
     const finish = () => {
-      if (stdoutClosed && status !== undefined) resolve({ status, stdout, stderr });
+      if (stdoutClosed && status !== undefined) {
+        clearTimeout(guard);
+        resolve({ status, stdout, stderr, killedByGuard });
+      }
     };
     const startReading = () => {
       if (reading) return;
@@ -56,7 +70,10 @@ function runWithLateReader(script) {
       stderr += chunk;
       if (stderr.includes('amplified write returned\n')) startReading();
     });
-    child.on('error', reject);
+    child.on('error', (error) => {
+      clearTimeout(guard);
+      reject(error);
+    });
     child.on('exit', (code, signal) => {
       status = code ?? signal;
       startReading();
@@ -72,7 +89,12 @@ test('the loop scripts folder has scripts to run', () => {
 
 for (const script of SCRIPTS) {
   test(`${script} --help hands every line of a large output to a reader that starts late`, async () => {
-    const { status, stdout, stderr } = await runWithLateReader(script);
+    const { status, stdout, stderr, killedByGuard } = await runWithLateReader(script);
+    assert.equal(
+      killedByGuard,
+      false,
+      `${script}: still running ${EXIT_GUARD_MS / 1000} s after it started, so it was killed with SIGKILL; something keeps the process alive after main returns (an open handle such as a timer or a socket). stderr: ${stderr.slice(0, 500)}`,
+    );
     const received = (stdout.match(/^amplified line \d+ of \d+$/gm) ?? []).length;
     assert.equal(received, LINES, `${script}: received ${received} of ${LINES} lines (${stdout.length} characters); stderr: ${stderr.slice(0, 500)}`);
     assert.match(stdout, new RegExp(`^amplified line ${LINES} of ${LINES}\\namplified end\\n$`, 'm'), `${script}: the end line is missing`);
