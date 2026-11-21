@@ -165,3 +165,64 @@ test('B3b: the finding closes on the probe passing, not on a marked or skipped r
     assert.doesNotMatch(closing, /\b(marker|marked|skip|skipped|todo|xfail)\b/i, `${path}: a marked run closes the finding: ${closing}`);
   }
 });
+
+// ---------------------------------------------------------------- re-audit 1 of part 5a
+// Cases added by the re-audit of fix 1 (.vibeflow/audits/vibeflow-agnostico-p5a-reaudit-1.md).
+
+// Contract: B3a: the action of the step 7 sentence is two instructions, the run without the marker
+// and the quote of its failure; nothing drops the quote and nothing adds a way out of the run.
+// Regression: a rewrite keeps "failure" and "report" and drops the quote with a verb that is no
+// negation word ("and skip quoting that failure in the report", "and leave that failure out of the
+// report", "and omit that failure from the report"), or adds a clause ("unless it is slow").
+// Why the implementer's tests miss it: the B3a case of audit-contracts asks the run clause to begin
+// with "run", but checks the quote clause only against a list of negation and permission words
+// (NOT_BINDING), and lets a third clause through; the B3a probe above reads a list of negations too
+// (measured on a copy of 592ec14: the six rewrites pass both).
+test('B3a: the action is the run and the quote, both instructions, and nothing else, in the three editions (re-audit 1, N1)', () => {
+  for (const path of AUDIT) {
+    const text = flat(path);
+    const at = text.indexOf('A probe under a skip marker');
+    assert.ok(at >= 0, `${path}: no sentence on a probe under a skip marker`);
+    const sentence = text.slice(at, text.indexOf('.', at) + 1);
+    const clauses = sentence.slice(sentence.indexOf(':') + 1).split(/,\s*(?:and\s+)?/).map((c) => c.trim()).filter(Boolean);
+    assert.equal(clauses.length, 2, `${path}: the action is not the run and the quote alone: ${sentence}`);
+    assert.match(clauses[0], /^run\b[^,]*\bwithout (the|its) marker\b/i, `${path}: the first instruction is not the run: ${clauses[0]}`);
+    assert.match(clauses[1], /^quote\b[^,]*\bfailure\b[^,]*\breport\b/i, `${path}: the second instruction is not the quote: ${clauses[1]}`);
+  }
+});
+
+// Contract: B3b: in the re-audit, the finding closes on the probe passing, and on nothing more.
+// Regression: the closing clause gains a way out that a marked probe meets, in a form the word list
+// does not hold ("closes only when it passes; skipping it also closes it").
+// Why the implementer's tests miss it: the B3b case of audit-contracts and the B3b probe above look
+// for a list of words in the condition ("skip", "skipped", "or", "under", ...), and "skipping" is
+// none of them (measured on a copy of 592ec14: both pass).
+test('B3b: the closing condition is the probe passing and nothing more, in the three editions (re-audit 1, N1)', () => {
+  for (const path of AUDIT) {
+    const text = flat(path);
+    const start = text.indexOf('## Re-audit mode');
+    const section = text.slice(start, text.indexOf('## Consolidation mode', start));
+    const at = section.search(/\bcloses only (when|if)\b/i);
+    assert.ok(at >= 0, `${path}: the re-audit has no closing condition`);
+    const closing = section.slice(at, section.indexOf('.', at) + 1);
+    assert.match(closing, /^closes only (when|if) (it|the probe) passes\.$/i, `${path}: the closing condition is more than the pass: ${closing}`);
+  }
+});
+
+// Contract: P1 of part 5a: a sentence that names a term of the vocabulary outside an example fails.
+// Fix 1 (C5) reads a term that is also an ordinary English word only where it names a stack; the
+// carve-out is for words with an English sense ("Go to", "each node", "Express each", "Swift
+// answers"), not for every language name.
+// Regression: the list of such words takes in names that mean nothing else in that place, and a
+// sentence that binds one of them outside the few contexts the reader knows passes ("Port the probes
+// to Rust.", "Assume the project is Java.").
+// Why the implementer's tests miss it: the reading case of language-agnostic-kit plants only Go,
+// node, Express and Swift; the other twenty words of COMMON have no case (measured on a copy of
+// 592ec14: with COMMON reduced to the four words of the spec, the kit and every case still pass,
+// and both sentences fail).
+test('a language name with no English sense in its place counts outside a stack context (re-audit 1, N2)', { todo: 'N2: COMMON holds twenty stack names past the four the spec gives' }, () => {
+  const port = principleTestOn(SHARED_AUDIT, after(STEP7, 'Port the probes to Rust.'));
+  assert.notEqual(port.status, 0, '"Port the probes to Rust." passed the principle test');
+  const assume = principleTestOn(SHARED_AUDIT, after(STEP7, 'Assume the project is Java.'));
+  assert.notEqual(assume.status, 0, '"Assume the project is Java." passed the principle test');
+});
