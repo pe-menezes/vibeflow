@@ -220,7 +220,7 @@ test('B3b: the closing condition is the probe passing and nothing more, in the t
 // node, Express and Swift; the other twenty words of COMMON have no case (measured on a copy of
 // 592ec14: with COMMON reduced to the four words of the spec, the kit and every case still pass,
 // and both sentences fail).
-test('a language name with no English sense in its place counts outside a stack context (re-audit 1, N2)', { todo: 'N2: COMMON holds twenty stack names past the four the spec gives' }, () => {
+test('a language name with no English sense in its place counts outside a stack context (re-audit 1, N2)', () => {
   const port = principleTestOn(SHARED_AUDIT, after(STEP7, 'Port the probes to Rust.'));
   assert.notEqual(port.status, 0, '"Port the probes to Rust." passed the principle test');
   const assume = principleTestOn(SHARED_AUDIT, after(STEP7, 'Assume the project is Java.'));

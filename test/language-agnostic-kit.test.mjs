@@ -164,8 +164,7 @@ const TERMS = new RegExp([...ECOSYSTEM.keys()].sort((a, b) => b.length - a.lengt
 // introduces a stack ("in Go", "with Express", "use React"), before "'s" or a
 // version, glued to a hyphenated word, or before a noun of a stack ("a Go
 // project", "Swift code").
-const COMMON = new Set(['Go', 'node', 'Express', 'Swift', 'Spring', 'Shell', 'Composer', 'Poetry', 'React', 'Hypothesis',
-  'Rust', 'Ruby', 'Dart', 'Flask', 'Bats', 'Bun', 'Rails', 'Maven', 'Java', 'Mocha', 'Yarn', 'Angular', 'cargo', 'pip']);
+const COMMON = new Set(['Go', 'node', 'Express', 'Swift']);
 const STACK_BEFORE = /\b(in|with|using|use|uses|run|runs|install|installs|on|for|via)\s+$/i;
 const STACK_AFTER = new RegExp(`^(?:'s\\b|\\s+v?\\d|-\\w|\\s+(?:${[
   'project', 'code', 'codebase', 'module', 'package', 'test', 'app', 'application', 'service', 'file', 'version',
