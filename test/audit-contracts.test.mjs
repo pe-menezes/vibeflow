@@ -485,54 +485,116 @@ test('a probe of an open finding carries the expected-failure marker, and check-
 // while every word the cases below look for stays.
 const NOT_BINDING = /\b(not|never|no|nor|don't|doesn't|may|might|can|could|optional|optionally|if (you|it) (like|likes|want|wants|wish|wishes|choose|chooses))\b/i;
 // The action of a rule sentence: what follows its colon, cut into clauses.
-const actionClauses = (sentence) => sentence.slice(sentence.indexOf(':') + 1).split(/,\s*(?:and\s+)?/).map((c) => c.trim());
+const actionOf = (sentence) => sentence.slice(sentence.indexOf(':') + 1);
+const actionClauses = (sentence) => actionOf(sentence).split(/,\s*(?:and\s+)?/).map((c) => c.trim());
+// The whole action stays affirmative, not only the clauses the cases below pick:
+// a negation or a withdrawal anywhere in it ("the finding no longer closes only
+// when it passes", "rather than quote that failure", "unless it is slow") turns
+// the rule around while the words the cases look for stay.
+// Known limits of the B3a and B3b cases below (each sentence passes them; the
+// part 5a probes in test/audit/ catch it by the clause count or the exact
+// closing condition):
+// - a verb that drops the quote: "and skip quoting that failure in the report."
+// - a verb that leaves it out: "and omit that failure from the report."
+// - a frequency word: "and rarely quote that failure in the report."
+// - a second way out after a semicolon: "closes only when it passes; skipping it also closes it."
+const WITHDRAWN = /\b(no longer|rather than|instead of|need not|needn't|neither|cannot|unless|except)\b|\w+n't\b/i;
+const assertAffirmative = (sentence, edition) => {
+  const action = actionOf(sentence);
+  assert.doesNotMatch(action, NOT_BINDING, `${edition}: the action is turned down or left optional: ${action}`);
+  assert.doesNotMatch(action, WITHDRAWN, `${edition}: the action is withdrawn: ${action}`);
+};
 
 // A probe under a skip marker never runs, so the suite would never show that it
 // fails. Step 7 has the auditor run it once without the marker, before marking
 // it, and carry that failure into the report.
+function checkSkipRun(content, edition) {
+  const step7 = /7\. \*\*Probes\*\*[\s\S]*?8\. When/.exec(content)?.[0] ?? '';
+  const sentence = step7.split(/(?<=\.)\s+/).find((s) => /\bskip marker\b/i.test(s) && /\bwithout (the|its) marker\b/i.test(s));
+  assert.ok(sentence, `${edition}: step 7 has no sentence that runs a probe under a skip marker without it`);
+  assert.match(sentence, /\brun\b[^.]*\bwithout (the|its) marker\b/i, `${edition}: the probe runs without the marker`);
+  assert.match(sentence, /\bbefore\b[^.]*\bmark/i, `${edition}: that run comes before the probe is marked`);
+  assert.match(sentence, /\bfailure\b[^.]*\breport\b|\breport\b[^.]*\bfailure\b/i, `${edition}: the report quotes that failure`);
+  const clauses = actionClauses(sentence);
+  const run = clauses.find((c) => /\bwithout (the|its) marker\b/i.test(c));
+  const quote = clauses.find((c) => /\bfailure\b/i.test(c) && /\breport\b/i.test(c));
+  assert.ok(run && quote && run !== quote, `${edition}: the run and the quote are two clauses of the action: ${sentence}`);
+  assert.match(run, /^run\b/i, `${edition}: the run is an instruction: ${run}`);
+  assert.doesNotMatch(run, NOT_BINDING, `${edition}: the run is turned down or left optional: ${run}`);
+  assert.doesNotMatch(quote, NOT_BINDING, `${edition}: the quote is turned down or left optional: ${quote}`);
+  assertAffirmative(sentence, edition);
+}
 test('a probe under a skip marker runs once without it before it is marked, and the report quotes the failure', () => {
-  forEachEdition((content, edition) => {
-    const step7 = /7\. \*\*Probes\*\*[\s\S]*?8\. When/.exec(content)?.[0] ?? '';
-    const sentence = step7.split(/(?<=\.)\s+/).find((s) => /\bskip marker\b/i.test(s) && /\bwithout (the|its) marker\b/i.test(s));
-    assert.ok(sentence, `${edition}: step 7 has no sentence that runs a probe under a skip marker without it`);
-    assert.match(sentence, /\brun\b[^.]*\bwithout (the|its) marker\b/i, `${edition}: the probe runs without the marker`);
-    assert.match(sentence, /\bbefore\b[^.]*\bmark/i, `${edition}: that run comes before the probe is marked`);
-    assert.match(sentence, /\bfailure\b[^.]*\breport\b|\breport\b[^.]*\bfailure\b/i, `${edition}: the report quotes that failure`);
-    const clauses = actionClauses(sentence);
-    const run = clauses.find((c) => /\bwithout (the|its) marker\b/i.test(c));
-    const quote = clauses.find((c) => /\bfailure\b/i.test(c) && /\breport\b/i.test(c));
-    assert.ok(run && quote && run !== quote, `${edition}: the run and the quote are two clauses of the action: ${sentence}`);
-    assert.match(run, /^run\b/i, `${edition}: the run is an instruction: ${run}`);
-    assert.doesNotMatch(run, NOT_BINDING, `${edition}: the run is turned down or left optional: ${run}`);
-    assert.doesNotMatch(quote, NOT_BINDING, `${edition}: the quote is turned down or left optional: ${quote}`);
-  });
+  forEachEdition(checkSkipRun);
 });
 
 // In the re-audit, a probe still under its marker does not show that its
 // assertion holds without the marker: a skipped probe never runs, and an
 // expected-failure probe reports through its marker. So the finding closes only
 // when the probe passes without the marker.
+function checkReauditClose(content, edition) {
+  const reaudit = /## Re-audit mode[\s\S]*?## Consolidation mode/.exec(content)?.[0] ?? '';
+  const sentence = reaudit.split(/(?<=\.)\s+/).find((s) => /\bmarker\b/i.test(s) && /\bproof\b/i.test(s));
+  assert.ok(sentence, `${edition}: the re-audit says nothing of a probe still under its marker`);
+  assert.match(sentence, /\bskip\b/i, `${edition}: the skip marker is named`);
+  assert.match(sentence, /\bexpected-failure\b/i, `${edition}: the expected-failure marker is named`);
+  assert.match(sentence, /\bno proof\b|\bnot (a )?proof\b|\bproves nothing\b/i, `${edition}: the marked probe is no proof`);
+  assert.match(sentence, /\bwithout (the|its) marker\b/i, `${edition}: the probe runs without the marker`);
+  assert.match(sentence, /\bcloses only (when|if)\b[^.]*\bpass/i, `${edition}: the finding closes only when the probe passes`);
+  const clauses = actionClauses(sentence);
+  const run = clauses.find((c) => /\bwithout (the|its) marker\b/i.test(c));
+  assert.ok(run, `${edition}: the action runs the probe without the marker: ${sentence}`);
+  assert.match(run, /^run\b/i, `${edition}: the run is an instruction: ${run}`);
+  assert.doesNotMatch(run, NOT_BINDING, `${edition}: the run is turned down or left optional: ${run}`);
+  // The closing condition is the pass alone: nothing a marked or skipped probe also does.
+  const condition = /\bcloses only (?:when|if)\b([^.]*)/i.exec(sentence)[1];
+  assert.doesNotMatch(condition, /\b(or|marker|marked|under|skip|skipped|todo|xfail|expected)\b/i,
+    `${edition}: a marked or skipped run closes the finding: ${condition}`);
+  assert.doesNotMatch(condition, NOT_BINDING, `${edition}: the closing condition is turned down: ${condition}`);
+  // The negation can sit before the verb, out of the extracted condition.
+  assertAffirmative(sentence, edition);
+}
 test('in the re-audit, a probe still under its marker is no proof that its finding closed', () => {
+  forEachEdition(checkReauditClose);
+});
+
+// The two cases above, against sentences generated by form: each family of
+// negation, withdrawal or permission, at each place of the action, in the three
+// editions. Every generated sentence must fail the case it is planted for.
+const TURNS = ['no longer', 'not', 'does not', 'never', 'need not', 'no', 'rather than', 'unless', 'optionally', 'may'];
+const B3_ACTIONS = [
+  { rule: 'B3a', check: checkSkipRun, text: 'run it once without the marker before you mark it, and quote that failure in the report.',
+    places: {
+      'before the verb': (turn) => `${turn} run it once without the marker before you mark it, and quote that failure in the report.`,
+      'before the condition': (turn) => `run it once without the marker ${turn} before you mark it, and quote that failure in the report.`,
+      'in the quote clause': (turn) => `run it once without the marker before you mark it, and ${turn} quote that failure in the report.`,
+    } },
+  { rule: 'B3b', check: checkReauditClose, text: 'run it without the marker, and the finding closes only when it passes.',
+    places: {
+      'before the run': (turn) => `${turn} run it without the marker, and the finding closes only when it passes.`,
+      'before the verb': (turn) => `run it without the marker, and the finding ${turn} closes only when it passes.`,
+      'before the condition': (turn) => `run it without the marker, and the finding closes only ${turn} when it passes.`,
+    } },
+];
+const B3_CASES = B3_ACTIONS.flatMap(({ rule, check, text, places }) => Object.entries(places)
+  .flatMap(([place, plant]) => TURNS.map((turn) => ({ rule, check, text, place, turn, planted: plant(turn) }))));
+
+test('the B3a and B3b cases turn down every generated negation, withdrawal or permission, in the three editions', () => {
+  assert.equal(B3_CASES.length, 60);
+  const escaped = [];
   forEachEdition((content, edition) => {
-    const reaudit = /## Re-audit mode[\s\S]*?## Consolidation mode/.exec(content)?.[0] ?? '';
-    const sentence = reaudit.split(/(?<=\.)\s+/).find((s) => /\bmarker\b/i.test(s) && /\bproof\b/i.test(s));
-    assert.ok(sentence, `${edition}: the re-audit says nothing of a probe still under its marker`);
-    assert.match(sentence, /\bskip\b/i, `${edition}: the skip marker is named`);
-    assert.match(sentence, /\bexpected-failure\b/i, `${edition}: the expected-failure marker is named`);
-    assert.match(sentence, /\bno proof\b|\bnot (a )?proof\b|\bproves nothing\b/i, `${edition}: the marked probe is no proof`);
-    assert.match(sentence, /\bwithout (the|its) marker\b/i, `${edition}: the probe runs without the marker`);
-    assert.match(sentence, /\bcloses only (when|if)\b[^.]*\bpass/i, `${edition}: the finding closes only when the probe passes`);
-    const clauses = actionClauses(sentence);
-    const run = clauses.find((c) => /\bwithout (the|its) marker\b/i.test(c));
-    assert.ok(run, `${edition}: the action runs the probe without the marker: ${sentence}`);
-    assert.match(run, /^run\b/i, `${edition}: the run is an instruction: ${run}`);
-    assert.doesNotMatch(run, NOT_BINDING, `${edition}: the run is turned down or left optional: ${run}`);
-    // The closing condition is the pass alone: nothing a marked or skipped probe also does.
-    const condition = /\bcloses only (?:when|if)\b([^.]*)/i.exec(sentence)[1];
-    assert.doesNotMatch(condition, /\b(or|marker|marked|under|skip|skipped|todo|xfail|expected)\b/i,
-      `${edition}: a marked or skipped run closes the finding: ${condition}`);
-    assert.doesNotMatch(condition, NOT_BINDING, `${edition}: the closing condition is turned down: ${condition}`);
+    for (const { rule, check, text, place, turn, planted } of B3_CASES) {
+      assert.equal(content.split(text).length - 1, 1, `${edition}: the ${rule} action is not in the edition once`);
+      const mutated = content.replace(text, planted);
+      try {
+        check(mutated, edition);
+        escaped.push(`${edition} ${rule} "${turn}" ${place}: ${planted}`);
+      } catch (error) {
+        if (!(error instanceof assert.AssertionError)) throw error;
+      }
+    }
   });
+  assert.deepEqual(escaped, [], 'these generated sentences pass the case they are planted for');
 });
 
 test('the re-audit number is the fix round, and new probes go to the audit\'s probe file', () => {
