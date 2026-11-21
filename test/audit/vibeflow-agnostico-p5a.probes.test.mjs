@@ -83,7 +83,7 @@ test('the principle test passes on a copy of the kit and fails on a planted bare
 // Why the implementer's tests miss it: P1 asks whether the sentence holds a mark anywhere
 // (MARK.test(text)), and P2 counts the ecosystems of the whole sentence, so a binding name in one
 // ecosystem plus an example list of another passes both.
-test('a binding tool name does not ride on an example mark later in its sentence (finding A1)', { todo: 'A1: the mark is read per sentence, not per name' }, () => {
+test('a binding tool name does not ride on an example mark later in its sentence (finding A1)', () => {
   const bound = principleTestOn(SHARED_AUDIT, after(STEP7, 'Write every probe with Jest, and run a mutation tool such as Stryker or mutmut first.'));
   assert.notEqual(bound.status, 0, 'the binding "with Jest" passed on the mark of a later list');
   const joined = principleTestOn(SHARED_AUDIT, after(STEP7, 'Use Jest for every probe. **A mutation tool** (for example Stryker or mutmut) runs first.'));
@@ -97,7 +97,7 @@ test('a binding tool name does not ride on an example mark later in its sentence
 // Why the implementer's tests miss it: P2 counts the ecosystems of the whole sentence, and the B3
 // sentence runs through three parenthesized lists (a semicolon followed by a lowercase word does
 // not end it); the line 463 rewrite in audit-contracts counts two pairs, of any ecosystem.
-test('an example list of one ecosystem fails even when its sentence names other stacks (finding A2)', { todo: 'A2: P2 counts the sentence, not the example list' }, () => {
+test('an example list of one ecosystem fails even when its sentence names other stacks (finding A2)', () => {
   const run = principleTestOn(SHARED_AUDIT, (text) => text.replace(
     '(for example `todo` in node:test, `xfail` in pytest, `test.failing` in Jest, `withKnownIssue` in Swift Testing)',
     '(for example `todo` in node:test, `test.failing` in Jest)'));
@@ -110,7 +110,7 @@ test('an example list of one ecosystem fails even when its sentence names other 
 // tests with `node --test test/app.test.mjs`") or limits a rule to "Node 18 projects".
 // Why the implementer's tests miss it: the excerpt `node [^`]*\.mjs` takes any node command on any
 // .mjs file, in any file of the kit, and "Node 18" is taken out wherever it is.
-test('the runtime exception does not cover a project command or a rule for Node projects (finding A3)', { todo: 'A3: the runtime exception is wider than the kit runtime' }, () => {
+test('the runtime exception does not cover a project command or a rule for Node projects (finding A3)', () => {
   const command = principleTestOn(GEN_SPEC, after(DOD, "Run the project's tests with `node --test test/app.test.mjs`."));
   assert.notEqual(command.status, 0, 'a project test command on node passed as the kit runtime');
   const scope = principleTestOn(GEN_SPEC, after(DOD, 'This applies to Node 18 projects only.'));

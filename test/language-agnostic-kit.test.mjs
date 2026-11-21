@@ -1,10 +1,13 @@
 // The kit states a behavior; a language, framework, test runner, tool or
 // manifest appears in its prose only as an example, and an example spans more
 // than one ecosystem. Two properties over every sentence of the kit's prose:
-// - P1: a sentence that names a term of the vocabulary carries an example mark
-//   ("for example", "such as", "or the equivalent", ...) in the same sentence;
-// - P2: a sentence with an example mark whose terms all belong to one
-//   ecosystem fails, because an example of one stack reads as the rule.
+// - P1: every term of the vocabulary that a sentence names sits inside the
+//   excerpt an example mark ("for example", "such as", "or the equivalent", ...)
+//   opens: after the mark, up to the parenthesis that closes it or the end of
+//   its clause. A mark does not lend itself to a name before it or in another
+//   clause of its sentence;
+// - P2: an excerpt whose terms all belong to one ecosystem fails, because an
+//   example of one stack reads as the rule.
 // The prose is every `.md` and `.mdc` file under the edition folders that git
 // knows, tracked or new and not ignored, so a new file is read without a change
 // here. The vocabulary holds each term with its ecosystem, and covers the
@@ -40,9 +43,10 @@ function kitFiles() {
 // a heading, a table row, a front matter line and a line inside a code fence
 // stand alone (a front matter line indented under the previous one joins it).
 // A sentence ends at a period, a semicolon or a colon followed by a capital
-// letter, a backtick or a parenthesis, and at the end of its block; "e.g." and
-// "i.e." end nothing.
-const BREAK = /(?<=[.;:])(?<!\be\.g\.)(?<!\bi\.e\.)\s+(?=[A-Z`(])/g;
+// letter, a backtick, a parenthesis or a bold opener, and at the end of its
+// block; "e.g." and "i.e." end nothing, and neither does a colon right after an
+// example mark ("for example:"), which introduces the example.
+const BREAK = /(?<=[.;:])(?<!\be\.g\.)(?<!\bi\.e\.)(?<!\b(?:for example|for instance|such as|or the equivalent|e\.g\.):)\s+(?=[A-Z`(*])/g;
 
 function sentences(content) {
   const blocks = [];
@@ -120,7 +124,8 @@ function sentences(content) {
 // stacks sits under the one it was born in. Left out on purpose: names of the
 // host (the Bash, Glob and Grep tools), of git and GitHub, and of what the
 // Critical Gate's rule families read (SQL, Terraform, Kubernetes), which are
-// not the project's stack.
+// not the project's stack. A term that is also an English word counts only
+// where it names a stack (COMMON, below).
 const VOCABULARY = {
   javascript: ['JavaScript', 'TypeScript', 'TSX', 'Node.js', 'Node', 'node', 'node:test', 'npm', 'npx', 'pnpm', 'Yarn',
     'Deno', 'Bun', 'Jest', 'Vitest', 'Mocha', 'test.failing', 'Stryker', 'fast-check', 'package.json', 'tsconfig.json',
@@ -142,16 +147,119 @@ const VOCABULARY = {
 
 const ECOSYSTEM = new Map(Object.entries(VOCABULARY).flatMap(([ecosystem, terms]) => terms.map((t) => [t, ecosystem])));
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// A term is read where a word ends it, so a term glued to a hyphenated word
+// ("Jest-only") or inside a dotted or @ name (`@pytest.mark.xfail`) counts; a
+// longer term of the vocabulary that holds it ("cargo-mutants", "Node.js",
+// "go.mod") is read instead, because the alternation tries the longest first.
 const termSource = (term) => {
-  const left = /^\w/.test(term) ? '(?<![\\w@.-])' : '';
-  const right = /\w$/.test(term) ? '(?![\\w-])' : /[#+]$/.test(term) ? '(?![\\w#+])' : '';
+  const left = /^\w/.test(term) ? '(?<![\\w-])' : '';
+  const right = /\w$/.test(term) ? '(?!\\w)' : /[#+]$/.test(term) ? '(?![\\w#+])' : '';
   return `${left}${escape(term)}${right}`;
 };
-// Longest first, so "Node.js" is read before "Node" and "cargo-mutants" before "cargo".
 const TERMS = new RegExp([...ECOSYSTEM.keys()].sort((a, b) => b.length - a.length).map(termSource).join('|'), 'g');
-const termsIn = (text) => [...text.matchAll(TERMS)].map((match) => match[0]);
 
-const MARK = /\b(for example|for instance|such as|or the equivalent)\b|\be\.g\./i;
+// Terms that are also ordinary English words ("Go to the next phase", "each node
+// of the graph", "Express each check", "Swift answers"). One counts only where it
+// names a stack: inside backticks, inside an example excerpt, after a word that
+// introduces a stack ("in Go", "with Express", "use React"), before "'s" or a
+// version, glued to a hyphenated word, or before a noun of a stack ("a Go
+// project", "Swift code").
+const COMMON = new Set(['Go', 'node', 'Express', 'Swift', 'Spring', 'Shell', 'Composer', 'Poetry', 'React', 'Hypothesis',
+  'Rust', 'Ruby', 'Dart', 'Flask', 'Bats', 'Bun', 'Rails', 'Maven', 'Java', 'Mocha', 'Yarn', 'Angular', 'cargo', 'pip']);
+const STACK_BEFORE = /\b(in|with|using|use|uses|run|runs|install|installs|on|for|via)\s+$/i;
+const STACK_AFTER = new RegExp(`^(?:'s\\b|\\s+v?\\d|-\\w|\\s+(?:${[
+  'project', 'code', 'codebase', 'module', 'package', 'test', 'app', 'application', 'service', 'file', 'version',
+  'developer', 'toolchain', 'runtime', 'compiler', 'library', 'libraries', 'framework', 'server', 'stack', 'ecosystem',
+  'source', 'script', 'program', 'SDK', 'build', 'binary', 'binaries', 'style', 'idiom', 'type',
+].join('|')})s?\\b)`, 'i');
+
+const MARK = /\b(?:for example|for instance|such as|or the equivalent)\b|\be\.g\./gi;
+
+// The spans of a sentence between backticks, and its parentheses outside them.
+function spans(text) {
+  const code = [];
+  for (const match of text.matchAll(/`[^`]*`/g)) code.push([match.index, match.index + match[0].length]);
+  const inCode = (at) => code.some(([from, to]) => at >= from && at < to);
+  const parens = [];
+  const open = [];
+  for (let at = 0; at < text.length; at++) {
+    if (inCode(at)) continue;
+    if (text[at] === '(') open.push(at);
+    else if (text[at] === ')' && open.length) parens.push([open.pop(), at]);
+  }
+  for (const at of open) parens.push([at, text.length]);
+  return { inCode, parens };
+}
+
+// Where the excerpt a mark opens ends. Inside a parenthesis, at the one that
+// closes it. Otherwise at a semicolon, at the end of the sentence, or at a comma
+// that opens another clause: one whose next word, after an "and" or an "or", is
+// not a code span, a capitalized name, a number, an article or a term.
+function excerptEnd(text, from, { inCode, parens }) {
+  const around = parens.filter(([open, close]) => open < from && close >= from).sort((a, b) => b[0] - a[0])[0];
+  if (around) return around[1];
+  let depth = 0;
+  for (let at = from; at < text.length; at++) {
+    if (inCode(at)) continue;
+    const char = text[at];
+    if (char === '(') depth++;
+    else if (char === ')') depth--;
+    else if (depth === 0 && char === ';') return at;
+    else if (depth === 0 && char === ',') {
+      const next = text.slice(at + 1).replace(/^\s*(?:(?:and|or|but|nor)\s+)?/, '');
+      const startsTerm = new RegExp(`^(?:${TERMS.source})`).test(next);
+      if (!/^([`A-Z0-9]|(a|an|the)\b)/.test(next) && !startsTerm) return at;
+    }
+  }
+  return text.length;
+}
+
+// A parenthesized list that, in the same sentence, follows a list a mark opens
+// and has its form (every item a code span "in" a name, as "`xfail` in pytest")
+// continues that example: "(for example `todo` in node:test, `xfail` in pytest);
+// in a framework with no such marker, its skip marker (`Skip` in xUnit, ...)".
+const PAIR = /^`[^`]+` in \S/;
+const pairsOnly = (list) => {
+  const items = list.split(/,\s*(?:(?:and|or)\s+)?|\s+(?:and|or)\s+/).map((item) => item.trim()).filter(Boolean);
+  return items.length > 0 && items.every((item) => PAIR.test(item));
+};
+
+// One sentence read: the terms it names (a word that is also English only where
+// it names a stack), the ones outside every example excerpt (`bare`), and the
+// terms of each excerpt a mark opens (`examples`).
+function reading(text) {
+  const shape = spans(text);
+  const excerpts = [];
+  for (const mark of text.matchAll(MARK)) {
+    const from = mark.index + mark[0].length;
+    const to = excerptEnd(text, from, shape);
+    excerpts.push({ from, to, marked: true });
+    const inParens = shape.parens.some(([open, close]) => open < mark.index && close === to);
+    if (inParens && pairsOnly(text.slice(from, to).replace(/^:/, ''))) {
+      for (const [open, close] of shape.parens) {
+        if (open > to && pairsOnly(text.slice(open + 1, close))) excerpts.push({ from: open + 1, to: close, marked: false });
+      }
+    }
+  }
+  const inExcerpt = (at) => excerpts.some(({ from, to }) => at >= from && at < to);
+  const terms = [];
+  for (const match of text.matchAll(TERMS)) {
+    const at = match.index;
+    const term = match[0];
+    const end = at + term.length;
+    if (COMMON.has(term) && !(shape.inCode(at) || inExcerpt(at) || STACK_BEFORE.test(text.slice(0, at))
+      || STACK_AFTER.test(text.slice(end)))) continue;
+    terms.push({ term, at });
+  }
+  return {
+    terms: terms.map(({ term }) => term),
+    bare: terms.filter(({ at }) => !inExcerpt(at)).map(({ term }) => term),
+    examples: excerpts.filter(({ marked }) => marked)
+      .map(({ from, to }) => terms.filter(({ at }) => at >= from && at < to).map(({ term }) => term))
+      .filter((list) => list.length > 0),
+  };
+}
+const termsIn = (text) => reading(text).terms;
 
 // --------------------------------------------------------------- the exceptions
 
@@ -168,15 +276,31 @@ const ANALYZE = [
   'copilot/github/prompts/vibeflow-analyze.prompt.md',
 ];
 const LOOP_README = ['plugins/vibeflow/skills/implement/loop/README.md'];
+const AUDIT = [
+  'plugins/vibeflow/skills/audit/SKILL.md',
+  'cursor/skills/vibeflow-audit/SKILL.md',
+  'copilot/github/prompts/vibeflow-audit.prompt.md',
+];
+const IMPLEMENT = [
+  'plugins/vibeflow/skills/implement/SKILL.md',
+  'cursor/skills/vibeflow-implement/SKILL.md',
+  'copilot/github/prompts/vibeflow-implement.prompt.md',
+];
+const READMES = ['plugins/vibeflow/README.md', 'cursor/README.md', 'copilot/README.md', 'opencode/README.md'];
 
+// The runtime entries cover the kit's own runtime only: the command runs a
+// script of the kit's loop (its path goes through the loop's `scripts/`), and
+// the Node.js version and presence are read only in the files that state them
+// today, and only as a requirement ("18 or newer", "18+", "older than 18").
 const EXCEPTIONS = [
-  { family: 'kit runtime', files: ANY_KIT_FILE, excerpt: /`node [^`]*\.mjs\b[^`]*`/g,
+  { family: 'kit runtime', files: ANY_KIT_FILE, excerpt: /`node (?:\S*\/loop|<kit>)\/scripts\/[\w<>-]+\.mjs\b[^`]*`/g,
     reason: 'the command that runs one of the kit\'s scripts' },
-  { family: 'kit runtime', files: ANY_KIT_FILE, excerpt: /`node --version`/g,
+  { family: 'kit runtime', files: [...AUDIT, ...IMPLEMENT], excerpt: /`node --version`/g,
     reason: 'the check that the Node.js the kit needs is there' },
-  { family: 'kit runtime', files: ANY_KIT_FILE, excerpt: /\bNode(\.js)? (18\b|older than 18\b|is missing or older\b)/g,
+  { family: 'kit runtime', files: [...READMES, ...AUDIT, ...IMPLEMENT, ...LOOP_README, 'plugins/vibeflow/skills/implement/loop/orchestrator.md'],
+    excerpt: /\bNode(\.js)? (18(\+| or (newer|later)\b)|older than 18\b|is missing or older\b)/g,
     reason: 'the Node.js version the kit\'s scripts need' },
-  { family: 'kit runtime', files: ANY_KIT_FILE, excerpt: /`node`(?= (is missing|answers|answering)\b)/g,
+  { family: 'kit runtime', files: [...AUDIT, 'plugins/vibeflow/skills/stats/SKILL.md'], excerpt: /`node`(?= (is missing|answers|answering)\b)/g,
     reason: 'how the call to a kit script fails when Node.js or the kit is missing' },
   { family: 'kit runtime', files: ANY_KIT_FILE, excerpt: /\bnpx setup-vibeflow\b/g,
     reason: 'the installer of the Cursor, Copilot and OpenCode editions, published on npm' },
@@ -215,8 +339,8 @@ function read() {
           return ' '.repeat(match.length);
         });
       }
-      const terms = termsIn(left);
-      found.push({ path, line, text, terms, families: [...families], marked: MARK.test(text) });
+      const { terms, bare, examples } = reading(left);
+      found.push({ path, line, text, terms, bare, examples, families: [...families] });
     }
   }
   return { found, used };
@@ -247,6 +371,32 @@ test('the sentence reader joins a paragraph and splits it where a sentence ends'
   ]);
 });
 
+test('a bold opener starts a sentence, and a colon right after an example mark does not end one', () => {
+  assert.deepEqual(sentences('One rule. **Next rule** (for example: `a` or `b`) here.').map((s) => s.text),
+    ['One rule.', '**Next rule** (for example: `a` or `b`) here.']);
+  assert.deepEqual(sentences('Run a tool, such as: Alpha or Beta.').map((s) => s.text), ['Run a tool, such as: Alpha or Beta.']);
+});
+
+test('a mark labels only the excerpt it opens, and P2 reads each excerpt', () => {
+  const bare = (text) => reading(text).bare;
+  // after the mark, up to the parenthesis that closes it or to the end of its clause
+  assert.deepEqual(bare('Write the tests (for example with Jest or pytest).'), []);
+  assert.deepEqual(bare('Write the tests with Jest (for example with Vitest or pytest).'), ['Jest']);
+  assert.deepEqual(bare('Use a tool such as Stryker or mutmut, and write every probe with Jest.'), ['Jest']);
+  assert.deepEqual(bare('Use a tool such as Stryker or mutmut; write every probe with Jest.'), ['Jest']);
+  assert.deepEqual(bare('Use a loose type such as `any` in TypeScript, or `interface{}` in Go where it fits.'), []);
+  // a term glued to a word or inside a dotted or @ name is read
+  assert.deepEqual(bare('Write Jest-only probes.'), ['Jest']);
+  assert.deepEqual(bare('Mark it `@pytest.mark.xfail`.'), ['pytest', 'xfail']);
+  assert.deepEqual(bare('Run cargo-mutants on Node.js code.'), ['cargo-mutants', 'Node.js']);
+  // a word that is also a language counts only where it names one
+  assert.deepEqual(bare('Go to the next phase; each node of the graph is checked. Express it.'), []);
+  assert.deepEqual(bare("Write it in Go, follow Go's style, in a Swift project, with `node`."), ['Go', 'Go', 'Swift', 'node']);
+  // the example list is the unit P2 reads
+  assert.deepEqual(reading('A list (for example `a` in Jest, `b` in Vitest) and one (such as pytest or Cargo.toml).').examples
+    .map((terms) => terms.map((term) => ECOSYSTEM.get(term))), [['javascript', 'javascript'], ['python', 'rust']]);
+});
+
 test('the vocabulary covers the languages of the gate-languages fixture', () => {
   for (const { name } of LANGUAGES) {
     assert.ok(ECOSYSTEM.has(name), `${name} is missing from the vocabulary`);
@@ -262,19 +412,19 @@ test('P1: a sentence of the kit that names a language, framework or tool marks i
   for (const { terms } of naming) {
     for (const term of terms) (byEcosystem[ECOSYSTEM.get(term)] ??= new Set()).add(term);
   }
-  t.diagnostic(`sentences naming a term: ${naming.length}, with a mark: ${naming.filter((s) => s.marked).length}`);
+  t.diagnostic(`sentences naming a term: ${naming.length}, every term inside an example: ${naming.filter((s) => s.bare.length === 0).length}`);
   for (const [ecosystem, terms] of Object.entries(byEcosystem).sort()) t.diagnostic(`${ecosystem}: ${[...terms].sort().join(', ')}`);
   for (const s of found.filter((x) => x.families.length > 0)) t.diagnostic(`excused (${s.families.join(', ')}): ${where(s)}`);
-  assert.deepEqual(naming.filter((s) => !s.marked).map(where), [],
+  assert.deepEqual(naming.filter((s) => s.bare.length > 0).map((s) => `${where(s)} [${s.bare.join(', ')}]`), [],
     'these sentences name a stack outside an example');
 });
 
 test('P2: an example names more than one ecosystem', () => {
   const { found } = read();
-  const single = found.filter((s) => s.marked && s.terms.length > 0
-    && new Set(s.terms.map((term) => ECOSYSTEM.get(term))).size === 1);
-  assert.deepEqual(single.map((s) => `${where(s)} [${ECOSYSTEM.get(s.terms[0])}]`), [],
-    'these examples stay inside one ecosystem');
+  const single = found.flatMap((s) => s.examples
+    .filter((terms) => new Set(terms.map((term) => ECOSYSTEM.get(term))).size === 1)
+    .map((terms) => `${where(s)} [${ECOSYSTEM.get(terms[0])}: ${terms.join(', ')}]`));
+  assert.deepEqual(single, [], 'these examples stay inside one ecosystem');
 });
 
 test('the exceptions are few, each in a named family, and each still matches the text it was written for', () => {
