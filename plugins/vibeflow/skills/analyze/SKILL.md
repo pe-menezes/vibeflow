@@ -73,7 +73,7 @@ changed. The explicit time matters: with a date alone, git counts from the
 current time of day on that date, so commits made earlier that day would be
 missed.
 Filter out tests, docs, and config that doesn't affect source structure
-(`*.test.*`, `*.spec.*`, `docs/`, `README.md`, `.env.*`), then map what's left to
+(tests by the project's own naming, such as `*.test.*`, `*.spec.*`, `*_test.go`, `test_*.py`, `*Test.java` or a `Tests/` folder; `docs/`, `README.md`, `.env.*`), then map what's left to
 modules — those are the affected structural units. The Tests and Pitfalls block
 is due when `index.md` lacks it (an index written before the block existed) or
 when a test file, the CI configuration or the test runner's configuration
@@ -125,9 +125,7 @@ sources you found.
 
 Let the code tell you what it is: no assumed monorepo, framework, or layout.
 
-**Domain classification.** Classify the project as **mobile** (Android, iOS, KMP,
-Flutter, React Native), **web-frontend** (React, Vue, Angular, Svelte, Next.js,
-Nuxt), **api-backend** (REST, GraphQL, gRPC, microservices), **library**, **cli**,
+**Domain classification.** Classify the project as **mobile** (for example Android, iOS, KMP, Flutter, React Native), **web-frontend** (for example React, Vue, Angular, Svelte, Next.js, Nuxt, Blazor), **api-backend** (REST, GraphQL, gRPC, microservices, in any language), **library**, **cli**,
 or **other**. The domain activates a pattern priority list used in Phases 2 and 3:
 
 | Domain | Required patterns | Also look for |
@@ -154,7 +152,7 @@ sources distinct — `.cursorrules` and `CLAUDE.md` are project-level,
 ## Phase 2: Convention mining (adaptive sampling)
 
 Detect modules and domains automatically: by directory, by file prefix
-(`fin_*.py`, `task_*.js`), and by what the Phase 1.5 rules map mentions.
+(for example `fin_*.py`, `task_*.js` or `billing_*.go`), and by what the Phase 1.5 rules map mentions.
 
 **Sampling scale** (by estimated total source files):
 
@@ -184,7 +182,7 @@ document it as "Not found" rather than omitting it silently.
 Document, for every sampled file: naming conventions (files, functions,
 variables, types, components), file and directory organization, import/export
 style, error handling, test patterns (location, naming, framework, coverage),
-state management, typing (strict, loose, `any` usage), and logging.
+state management, typing (strict or loose, and loose types such as `any` in TypeScript, `interface{}` in Go or `dynamic` in C#), and logging.
 
 Look for repeated patterns, not one-off occurrences.
 
@@ -448,10 +446,9 @@ prohibitions found during analysis — as important as the prescriptive rules,
 since coding agents need to know what not to do. It goes inside the markers,
 after the prescriptive sections. Mine it from the anti-patterns in pattern docs,
 explicit prohibitions in the rules sources, code that is clearly a mistake or
-legacy, and the known pitfalls of the detected stack (`any` abuse in TypeScript,
-hardcoded strings in an i18n project, mutable global state).
+legacy, and the known pitfalls of the detected stack (for example `any` abuse in TypeScript, an ignored error value in Go, `!!` in Kotlin, hardcoded strings in an i18n project, mutable global state).
 
-Format is a bullet list of concrete prohibitions with a brief rationale:
+Format is a bullet list of concrete prohibitions with a brief rationale. The example below comes from a TypeScript project; each bullet you write names a prohibition found in this project, in its own stack:
 
 ```
 ## Don'ts

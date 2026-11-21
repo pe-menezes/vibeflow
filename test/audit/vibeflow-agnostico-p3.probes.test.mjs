@@ -67,7 +67,7 @@ test('who-reads: a document whose name has an accent is a mention, and alone it 
 });
 
 // Contract: spec part 3, item 4: a reader is any file that is not a document, and the documents
-// are the five prose extensions; a web page that loads a script reads it, and a document keeps
+// are the four prose extensions; a web page that loads a script reads it, and a document keeps
 // being a mention when its extension is written in capitals.
 // Breaks when: the document list grows to markup that loads code (an HTML page), or the
 // extension test starts to care about letter case; in the audit's mutation run over a copy of

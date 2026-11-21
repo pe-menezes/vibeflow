@@ -206,8 +206,7 @@ restore.
    the "insufficient context" FAIL of the verdict rules.
 3. **Tests** (`3/7 tests`). Run the tests. Prefer commands listed in the spec;
    otherwise detect the project's runner from the stack (`.vibeflow/index.md`,
-   then test scripts in package.json, pyproject.toml, Cargo.toml, go.mod, and
-   equivalents).
+   then the test command in the project's manifest or build file, such as package.json, pyproject.toml, Cargo.toml, go.mod, a `.csproj`, `build.gradle` or `Package.swift`, or the equivalent in the project's stack).
    - Tests fail → the verdict is FAIL and auditing stops; the incremental
      prompt pack targets the failures first.
    - No runner found → warn "No test runner detected. Verify that tests
@@ -387,7 +386,7 @@ restore.
    yourself and say so in the report. A `Risk code: none` line is accepted but
    checked: when the diff touches code in the four categories, report a
    `spec`-cause finding for the missed risk code and sabotage there anyway.
-   Where the project has a mutation tool (Stryker, mutmut, cargo-mutants), it
+   Where the project has a mutation tool (such as Stryker, mutmut, cargo-mutants or PIT, or the equivalent in the project's stack), it
    runs first on the changed lines, and hand sabotage covers what it cannot
    express (SQL inside a string, a constant from another file, a domain rule).
    - Each sabotage is a small wrong change that a sound suite should catch,
@@ -423,24 +422,19 @@ restore.
    layout its language's default test runner expects. A comment on the file's
    first lines carries the marker `vibeflow-probe: <feature>-<part>`, by which
    the kit finds its probes. Probes are pinned by content: each asserts a
-   behavior through the code's interface. A probe that reproduces an open finding carries the test
-   framework's expected-failure marker naming the finding (`todo` in
-   node:test, `xfail` in pytest, `test.failing` in Jest), so an audit never
-   turns the project's suite red; the fix that closes the finding removes the
-   marker. In the report, each probe answers the contract it protects, the
+   behavior through the code's interface. A probe that reproduces an open finding carries the test framework's expected-failure marker naming the finding (for example `todo` in node:test, `xfail` in pytest, `test.failing` in Jest, `withKnownIssue` in Swift Testing); in a framework with no such marker, its skip marker naming the finding (`Skip` in xUnit, `@Disabled` in JUnit, `t.Skip` in Go); where the marker takes no reason (`expectedFailure` in unittest), a comment beside it names the finding. So an audit never turns the project's suite red, and the fix that closes the finding removes the marker. In the report, each probe answers the contract it protects, the
    plausible regression that breaks it and why the implementer's tests miss
    it; a probe without the three answers stays in the report. A state probe —
    one that pins the repository instead of a behavior: a diff against the
    base, today's version, a doc sentence, a line number, the real clock —
-   stays in the report as a check you ran, never in the test directory. A
+   stays in the report as a check you ran, never in the project's test suite. A
    standalone audit without `--probes` writes no probe file and skips the check
    below: it lists under `### Probes` the probe cases it would write, as code.
    - Run the probe file, then
      `node .cursor/skills/vibeflow-implement/loop/scripts/check-probes.mjs <project root> --base <base>`
      before the final stage; it finds the probe file by its marker. The report states how many probe files it read, from its
      summary line. Its exit 1 means suspects only when that summary lists
-     them; any other exit is an error, quoted as such. Each suspect leaves
-     the test directory or is rewritten to pin behavior. Without the kit,
+     them; any other exit is an error, quoted as such. Each suspect leaves the probe file or is rewritten to pin behavior. Without the kit,
      check the probe file against the state list above by reading it.
    - When earlier audit probes exist for the same module, list the old audit
      probes that duplicate implementer tests or pin state under `### Probes`,

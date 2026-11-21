@@ -2,7 +2,9 @@
 
 > Status: **Implemented (v1)** in vibeflow v1.12.0 — prompt-embedded catalog in
 > `audit`, across all three editions. The v2 Node engine (see "Engine" below)
-> remains future work.
+> remains future work. Since v1.21.0 the scan judges each changed line by what it does, in any language,
+> and the terms in its rules are examples; the "deterministic, rules-based" scan in the Summary below is
+> the first design.
 > Origin: adapted from the `chama` plugin's Critical Gate. Sized down to fit
 > vibeflow's identity (local-first, editor-agnostic, no GitHub coupling).
 
