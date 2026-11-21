@@ -226,3 +226,26 @@ test('a language name with no English sense in its place counts outside a stack 
   const assume = principleTestOn(SHARED_AUDIT, after(STEP7, 'Assume the project is Java.'));
   assert.notEqual(assume.status, 0, '"Assume the project is Java." passed the principle test');
 });
+
+// ---------------------------------------------------------------- re-audit 2 of part 5a
+// Case added by the re-audit of fix 2 (.vibeflow/audits/vibeflow-agnostico-p5a-reaudit-2.md).
+
+// Contract: P1 of part 5a with the C5 carve-out of fix 1, both ways at once: a language name with
+// no English sense counts wherever it stands, a word with one ("Go to", "each node", "Express each",
+// "Swift answers") passes where it is the English word, and a Go that names the language still counts.
+// Regression: the common-word list grows again past the words with an English sense (Angular, Ruby,
+// Rust back in it), or the stack-context reading widens so that one of the four English sentences
+// fails the kit.
+// Why the implementer's tests miss it: the reading case of language-agnostic-kit plants no
+// "Swift answers" and no name outside the four, and case 9 above plants only Rust and Java; the
+// other three sentences of N2 and the four control sentences of the spec had no case (measured on a
+// copy of 7dd0bd1 with COMMON back at the twenty-four words of 592ec14: case 9 and this case fail).
+test('the N2 sentences fail and the English-word controls pass, on a planted copy of the kit (re-audit 2, N2)', () => {
+  for (const sentence of ['Prefer Rust.', 'Probe Angular components only.', 'The probes target Ruby gems.', 'Write the probes in Go.']) {
+    const run = principleTestOn(SHARED_AUDIT, after(STEP7, sentence));
+    assert.notEqual(run.status, 0, `"${sentence}" passed the principle test`);
+  }
+  const controls = principleTestOn(SHARED_AUDIT, after(STEP7, ['Go to the next phase.', 'Each node of the dependency graph is a module.',
+    'Express each check as a behavior.', 'Swift answers beat slow ones.'].join(' ')));
+  assert.equal(controls.status, 0, controls.output);
+});
