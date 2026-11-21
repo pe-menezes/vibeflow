@@ -7,7 +7,7 @@ The checks that must always run are scripts in `scripts/` (see `README.md`); the
 ## Principles
 
 1. **Only what was measured now is a fact.**
-   * A fact in a briefing carries the time and the command that measured it (`measured 22:06 by npm test`). A note, a log, a ledger line or another session's message is a lead and enters as "to check"; a correction found on the way goes back to its source.
+   * A fact in a briefing carries the time and the command that measured it (for example `measured 22:06 by npm test` or `measured 22:06 by go test ./...`). A note, a log, a ledger line or another session's message is a lead and enters as "to check"; a correction found on the way goes back to its source.
    * Quota, permission to run tests and what the environment can do hold for the turn in which they were measured. The briefing asks for the measurement instead of repeating an old one.
    * A phase that depends on another service answering is proven with a real request against the running process before the step that cannot be undone.
    * An assumption about real data (a payload, a transcript, a service's state) is measured on real data within the round, by structure only; a fixture written from the assumption does not prove the assumption. Real data here means staging or anonymized data, never production.
@@ -27,15 +27,15 @@ The checks that must always run are scripts in `scripts/` (see `README.md`); the
 6. **Proof scales with risk.**
    * Red before green, run by the executor. The written exception is a hardening test, which is proven by killing a sabotage that had survived.
    * Sabotage is done only by the auditor and only in risk code: money and totals, credentials and permissions, deleting or overwriting data, date and time boundaries. Each sabotage is undone from a copy checked by hash; `git checkout`, `restore`, `stash` and `reset` are off limits while work is uncommitted.
-   * Where the repository has a mutation tool (Stryker, mutmut, cargo-mutants), it runs on the part's lines before the audit and the survivors go to the auditor; hand sabotage covers what the tool cannot express, such as SQL inside a string, a constant from another file or a domain rule.
+   * Where the repository has a mutation tool (such as Stryker, mutmut, cargo-mutants or PIT, or the equivalent in the project's stack), it runs on the part's lines before the audit and the survivors go to the auditor; hand sabotage covers what the tool cannot express, such as SQL inside a string, a constant from another file or a domain rule.
    * Every finding has a severity: `defect`, `risk-gap` or `low`. Only the first two open a fix round; a `low` finding becomes a follow-up item. A differential oracle is used when a reference implementation exists.
    * A red gate gets fixed, never recalibrated: no raised baseline, no `skip`, no loosened assertion. A test that compares the real clock does not enter. When quota runs short, the work pauses and the proof stays as strong.
 
 7. **Behavior probes join the suite; state probes stay in the report.**
-   * A state probe pins the repository instead of a behavior: a diff against the base, the list of files touched, today's version, a sentence of a document, "still pending", a line number, the real clock. It stays out of the test directory, and `check-probes.mjs` lists the suspects before the PR.
+   * A state probe pins the repository instead of a behavior: a diff against the base, the list of files touched, today's version, a sentence of a document, "still pending", a line number, the real clock. It stays out of the test suite, and `check-probes.mjs` lists the suspects before the PR.
    * A probe pins by content. The executor does not shape code to please a probe; it records the conflict and the re-audit decides.
    * An old probe that the part makes false (a defect now fixed, a sentence rewritten) is rewritten only with written permission in the briefing, by the fact and with equal strength.
-   * A rule over a space of inputs (a date window, an amount, a time zone) becomes a property test when the repository has a property-testing library (fast-check, Hypothesis and the like), with the oracle written in the test.
+   * A rule over a space of inputs (a date window, an amount, a time zone) becomes a property test when the repository has a property-testing library (such as fast-check, Hypothesis, jqwik, FsCheck or proptest, or the equivalent in the project's stack), with the oracle written in the test.
    * In an operational runbook, a new instruction is a command with its expected output and a stop condition, proven in a temporary directory.
 
 8. **The ceiling is written, and it escalates.**

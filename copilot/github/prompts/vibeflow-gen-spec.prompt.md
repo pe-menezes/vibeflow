@@ -154,7 +154,7 @@ questions about the failures, then generate with the answers. One round only.
 - **Context** — What exists today and why this matters now.
 - **Definition of Done** — 3–7 binary checks (pass/fail, no ambiguity). At
   least one must be a craftsmanship gate — "no violations of the Don'ts in
-  conventions.md", "no new `any` types". Functional checks alone are not enough.
+  conventions.md", "no new loose types", such as `any` in TypeScript or `interface{}` in Go. Functional checks alone are not enough.
   Where the project has a detectable test runner, at least one check names an
   executable test: one that already exists and has to pass, or one to write,
   named. With no runner, the checks stay as they are.
@@ -166,8 +166,7 @@ questions about the failures, then generate with the answers. One round only.
     line into the red test, so write the behavior a test can observe.
   - A property — "for any <input space>, <invariant>", naming the oracle that
     decides it (a reference implementation, an inverse, a sum that must hold).
-    Offer it only when the project has a property-testing library (fast-check,
-    Hypothesis and the like) in its dependencies; one property explores the
+    Offer it only when the project has a property-testing library (such as fast-check, Hypothesis, jqwik, FsCheck or proptest, or the equivalent in the project's stack) in its dependencies; one property explores the
     input space that a handful of examples leaves open. Without the library,
     write the check as examples.
 
