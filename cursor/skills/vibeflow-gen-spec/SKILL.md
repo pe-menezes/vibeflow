@@ -151,7 +151,7 @@ questions about the failures, then generate with the answers. One round only.
 - **Context** — What exists today and why this matters now.
 - **Definition of Done** — 3–7 binary checks (pass/fail, no ambiguity). At
   least one must be a craftsmanship gate — "no violations of the Don'ts in
-  conventions.md", "no new loose types", such as `any` in TypeScript or `interface{}` in Go. Functional checks alone are not enough.
+  conventions.md", "no new loose types", such as `any` in TypeScript, or `interface{}` in Go where a concrete type fits. Functional checks alone are not enough.
   Where the project has a detectable test runner, at least one check names an
   executable test: one that already exists and has to pass, or one to write,
   named. With no runner, the checks stay as they are.

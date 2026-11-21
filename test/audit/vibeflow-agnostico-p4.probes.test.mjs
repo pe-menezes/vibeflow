@@ -59,7 +59,7 @@ test('a parenthesis of prose inside the probe rule is read as instruction, and n
   }
 });
 
-// Contract: spec part 4, "O que muda" item 2: with no expected-failure marker the probe carries the
+// Contract: spec part 4, "What changes", item 2: with no expected-failure marker the probe carries the
 // skip marker naming the finding, and with a marker that takes no reason a comment names it. The
 // only negation a clause may carry is the absence it is conditioned on ("no such marker", "no
 // reason"); the action itself is affirmative.

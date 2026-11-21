@@ -244,7 +244,7 @@ Work file by file, dependencies first. While implementing:
 ## Phase 5: Run tests
 
 Prefer test commands listed in the spec. Otherwise detect the project's
-runner from the stack (`.vibeflow/index.md`, then the test command in the project's manifest or build file, such as package.json, pyproject.toml, Cargo.toml, go.mod, a `.csproj`, `build.gradle` or `Package.swift`, or the equivalent in the project's stack). No
+runner from the stack (`.vibeflow/index.md`, then the test command that the project's manifest or build file declares or implies, such as package.json, pyproject.toml, Cargo.toml, go.mod, a `.csproj`, `build.gradle` or `Package.swift`, or the equivalent in the project's stack). No
 runner found → warn "No test runner detected. Verify manually that the
 implementation works." and continue to Phase 6.
 

@@ -460,13 +460,47 @@ test('a probe of an open finding carries the expected-failure marker, and check-
   forEachEdition((content, edition) => {
     assert.match(content, /probe that reproduces an open finding carries the test framework's expected-failure marker naming the finding/i,
       `${edition}: expected-failure marker on a probe of an open finding`);
-    assert.match(content, /`todo` in node:test, `xfail` in pytest, `test\.failing` in Jest/, `${edition}: the marker per framework`);
+    // The clause gives the marker of more than one framework, labeled as an
+    // example; which frameworks, and in what order, is the editions' to choose.
+    assert.match(content,
+      /expected-failure marker naming the finding \((for example|such as|e\.g\.) `[^`]+` in [^,;()]+(, (and |or )?`[^`]+` in [^,;()]+)+\)/i,
+      `${edition}: the marker per framework, given as examples`);
     assert.match(content, /never turns the project's suite red/i, `${edition}: the audit never turns the suite red`);
     assert.match(content, /fix that closes the finding removes the marker/i, `${edition}: the fix removes the marker`);
     assert.match(content, /check-probes\.mjs <project root> --base <base>` before the final stage; it finds the probe file by its marker\./,
       `${edition}: check-probes without --dir, by the marker`);
     assert.doesNotMatch(content, /check-probes\.mjs[^`]*--dir/, `${edition}: no --dir in the check-probes call`);
     assert.match(content, /how many probe files it read/i, `${edition}: the report states how many probe files were read`);
+  });
+});
+
+// A probe under a skip marker never runs, so the suite would never show that it
+// fails. Step 7 has the auditor run it once without the marker, before marking
+// it, and carry that failure into the report.
+test('a probe under a skip marker runs once without it before it is marked, and the report quotes the failure', () => {
+  forEachEdition((content, edition) => {
+    const step7 = /7\. \*\*Probes\*\*[\s\S]*?8\. When/.exec(content)?.[0] ?? '';
+    const sentence = step7.split(/(?<=\.)\s+/).find((s) => /\bskip marker\b/i.test(s) && /\bwithout (the|its) marker\b/i.test(s));
+    assert.ok(sentence, `${edition}: step 7 has no sentence that runs a probe under a skip marker without it`);
+    assert.match(sentence, /\brun\b[^.]*\bwithout (the|its) marker\b/i, `${edition}: the probe runs without the marker`);
+    assert.match(sentence, /\bbefore\b[^.]*\bmark/i, `${edition}: that run comes before the probe is marked`);
+    assert.match(sentence, /\bfailure\b[^.]*\breport\b|\breport\b[^.]*\bfailure\b/i, `${edition}: the report quotes that failure`);
+  });
+});
+
+// In the re-audit, a probe still under its marker passes or is skipped whatever
+// the code does, so it proves nothing about the fix: the finding closes only
+// when the probe passes without the marker.
+test('in the re-audit, a probe still under its marker is no proof that its finding closed', () => {
+  forEachEdition((content, edition) => {
+    const reaudit = /## Re-audit mode[\s\S]*?## Consolidation mode/.exec(content)?.[0] ?? '';
+    const sentence = reaudit.split(/(?<=\.)\s+/).find((s) => /\bmarker\b/i.test(s) && /\bproof\b/i.test(s));
+    assert.ok(sentence, `${edition}: the re-audit says nothing of a probe still under its marker`);
+    assert.match(sentence, /\bskip\b/i, `${edition}: the skip marker is named`);
+    assert.match(sentence, /\bexpected-failure\b/i, `${edition}: the expected-failure marker is named`);
+    assert.match(sentence, /\bno proof\b|\bnot (a )?proof\b|\bproves nothing\b/i, `${edition}: the marked probe is no proof`);
+    assert.match(sentence, /\bwithout (the|its) marker\b/i, `${edition}: the probe runs without the marker`);
+    assert.match(sentence, /\bcloses only (when|if)\b[^.]*\bpass/i, `${edition}: the finding closes only when the probe passes`);
   });
 });
 
