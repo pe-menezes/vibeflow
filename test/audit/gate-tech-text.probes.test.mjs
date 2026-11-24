@@ -409,3 +409,108 @@ test('probe: with no diff, item b and the output note negate Clean in its own pr
     assert.ok(cleanNegatedInItsPredicate(clause), `${edition}: the output note lets "Clean" follow No diff scanned: ${clause}`);
   }
 });
+
+// --- reaudit 1: the two exclusions the fix measured (CFG104 firewall rule, K8S103 Dockerfile) ---
+
+// CFG104: the places list still names a port mapping, an `EXPOSE` and a service with no address
+// condition; the "any address" condition sits on the firewall rule only; and every clause that sets
+// a private range or another group apart speaks of a rule, never of a port, a mapping, an `EXPOSE`
+// or a service.
+const ANY_ADDRESS = /\b(?:any|every) (?:address|source|IP)\b|\banywhere\b|0\.0\.0\.0\/0|\bthe (?:whole )?internet\b/i;
+const NEGATED = /\b(?:not|never|nor)\b|n't\b/i;
+function cfg104NarrowsTheFirewallRuleOnly(behaviour) {
+  const [places, ...rest] = behaviour.split(';');
+  const mapping = places.search(/\bport mappings?\b/i);
+  const firewall = places.search(/\bfirewall\b/i);
+  const any = places.search(ANY_ADDRESS);
+  const placesOk =
+    mapping >= 0 && /`?EXPOSE`?/.test(places) && /\bservices?\b/i.test(places) && firewall >= 0 && any > firewall && !ANY_ADDRESS.test(places.slice(0, mapping));
+  const apart = rest.filter((clause) => NEGATED.test(clause) && /\bprivate\b/i.test(clause));
+  const apartOk =
+    apart.length > 0 &&
+    apart.every((clause) => /\bgroups?\b/i.test(clause) && /\brules?\b/i.test(clause) && !/\b(?:port mappings?|mappings?|services?|EXPOSE|ports?)\b/i.test(clause));
+  return placesOk && apartOk;
+}
+
+// K8S103: a clause on the Dockerfile says the last `USER` (of the final stage) is the one that
+// counts, and a clause on the Dockerfile sets apart, with a negation, only a switch to root that a
+// later `USER` takes back; no Dockerfile clause sets a `USER root` apart without that.
+function k8s103KeepsTheLastDockerfileUser(behaviour) {
+  const docker = behaviour.split(';').filter((clause) => /\bDockerfiles?\b/.test(clause));
+  const last = docker.some((clause) => /\blast\b[^;]*`?USER`?/.test(clause));
+  const back = docker.filter((clause) => NEGATED.test(clause));
+  return last && back.length > 0 && back.every((clause) => /\b(?:back|later|switch\w*|another)\b/i.test(clause) && /\blast\b|\bback\b|\blater\b/i.test(clause));
+}
+
+const CFG104_SAMPLE =
+  'a sensitive port is exposed or published, in a port mapping, an `EXPOSE`, a service, or a firewall rule that opens it to any address: remote access or a database, cache or search port (22, 3389, 5432, 3306, 6379, 27017, 9200, 11211); a rule that admits only a private range or another group is not this';
+const K8S103_SAMPLE =
+  'a container runs as the root user (`runAsUser: 0`, `user: "0"`, `user: root`); in a Dockerfile only the last `USER` of the final stage counts, so switching to root for a build step and back is not this';
+test('probe: the CFG104 and K8S103 checks reject a narrowed or dropped exclusion, and accept the same rules in other words', () => {
+  proveCheck(
+    cfg104NarrowsTheFirewallRuleOnly,
+    CFG104_SAMPLE,
+    {
+      'exclusion gone': (text) => text.replace('; a rule that admits only a private range or another group is not this', ''),
+      'any port set apart': (text) => text.replace('a rule that admits only', 'a port that admits only'),
+      'mapping set apart': (text) => text.replace('a rule that admits only', 'a port mapping, a service or a rule that admits only'),
+      'any address on every place': (text) =>
+        text.replace('is exposed or published, in a port mapping, an `EXPOSE`, a service, or a firewall rule that opens it to any address:', 'is exposed or published to any address, in a port mapping, an `EXPOSE`, a service, or a firewall rule:'),
+      'firewall condition gone': (text) => text.replace(' that opens it to any address:', ':'),
+      'EXPOSE gone': (text) => text.replace(' an `EXPOSE`,', ''),
+    },
+    {
+      'audit wording': (text) => text.replace('a rule that admits only a private range or another group is not this', 'a firewall rule that lets it in only from a private range or another security group is not this'),
+      'open to 0.0.0.0/0': (text) => text.replace('a firewall rule that opens it to any address:', 'a firewall rule open to any address (`0.0.0.0/0`):'),
+    },
+  );
+  proveCheck(
+    k8s103KeepsTheLastDockerfileUser,
+    K8S103_SAMPLE,
+    {
+      'clause gone': (text) => text.replace(/; in a Dockerfile.*$/, ''),
+      'every Dockerfile root set apart': (text) => text.replace(/; in a Dockerfile.*$/, '; a `USER root` in a Dockerfile is not this'),
+      'first USER': (text) => text.replace('only the last `USER`', 'only the first `USER`'),
+      'switch back counts': (text) => text.replace('and back is not this', 'and back is this too'),
+    },
+    {
+      'counts only when last': (text) =>
+        text.replace(/; in a Dockerfile.*$/, '; in a Dockerfile a `USER root` counts only when it is the last `USER` of the final stage, and a build step run as root before switching back is not this'),
+      'colon form': (text) => text.replace(/; in a Dockerfile.*$/, '; a Dockerfile counts by its last `USER` in the final stage: switching to root for a build step and back is not this'),
+    },
+  );
+});
+
+// Contract: CFG104 keeps firing on a sensitive port in a port mapping, an `EXPOSE` or a service, and
+// on a firewall rule that opens it to any address, and sets apart only a firewall rule that admits a
+// private range or another group (T1 of the 2b-2 audit, measured by the orchestrator on 24/11: the
+// two group rules 0 of 6 with the fix, as in v1.20.0, and the `5432:5432` control 6 of 6), in the
+// three editions.
+// Breaks when: the exclusion falls out (the measured regression, 6 of 6 and 4 of 6), or is widened
+// from the rule to the port, the mapping or the service, or the "any address" condition moves onto
+// every place, which drops `EXPOSE 5432` (a planted case of the gate-tech fixture) and a mapping
+// bound to a private host; each survives the implementer's tests and the earlier audit probes.
+// Missed by the implementer's tests because: none of their cases reads the CFG104 row, and the
+// earlier probe of the v1.20.0 trigger only checks that the eight ports are named.
+test('probe: CFG104 sets apart only a firewall rule that admits a private range or another group, in the three editions', () => {
+  for (const [edition, step] of editions()) {
+    const behaviour = cell(step, 'CFG104');
+    assert.ok(cfg104NarrowsTheFirewallRuleOnly(behaviour), `${edition}: CFG104 lost a place, or sets apart more than a private firewall rule: ${behaviour}`);
+  }
+});
+
+// Contract: K8S103 fires on a Dockerfile whose last `USER` of the final stage is root, and sets apart
+// only a switch to root for a build step that a later `USER` takes back (T2 of the 2b-2 audit,
+// measured on 24/11: the build step 0 of 6 with the fix, 1 of 6 before), in the three editions.
+// Breaks when: the Dockerfile clause falls out (the measured false positive comes back), or becomes
+// "a `USER root` in a Dockerfile is not this", or names the first `USER`: a Dockerfile that ends
+// in `USER root` would no longer fire; each survives the implementer's tests and the earlier audit
+// probes.
+// Missed by the implementer's tests because: none of their cases reads the K8S103 row past its
+// examples, and the earlier probe of the v1.20.0 trigger only checks `runAsUser: 0`.
+test('probe: K8S103 counts the last USER of a Dockerfile and sets apart only a switch back, in the three editions', () => {
+  for (const [edition, step] of editions()) {
+    const behaviour = cell(step, 'K8S103');
+    assert.ok(k8s103KeepsTheLastDockerfileUser(behaviour), `${edition}: K8S103 no longer counts the last USER of a Dockerfile, or sets apart more than a switch back: ${behaviour}`);
+  }
+});
