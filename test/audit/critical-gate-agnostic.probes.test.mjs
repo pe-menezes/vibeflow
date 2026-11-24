@@ -339,17 +339,37 @@ function behaviourCell(step, id) {
 
 // The clauses of a behaviour, cut at a semicolon and at a comma that opens an exclusion; a clause
 // that takes something out of the rule; and whether every such clause is about one record deleted
-// by its key or about what is held in memory, and says nothing about a condition or a filter.
+// by its key, about what is held in memory, or about a test database emptied in a test's setup or
+// teardown, and says nothing about a condition or a filter.
 const OPENS_EXCLUSION = /,(?=\s*(?:nor|except|unless|but|other than|excluding|apart from|save)\b)/i;
 const TAKES_OUT = /\b(?:no|not|nor|never|neither|none|without|except|unless|excluding|other than|only|unfiltered)\b|n't\b/i;
 const NAMES_A_CONDITION = /\b(?:condition|filter\w*|where|scoped?|narrows?|selects?|matche?s?)\b/i;
+// A clause on a test database: it names no database but a test database, the setup or teardown of
+// a test as the place, and no other place or wider reach ("any", "staging", "production", a file,
+// a migration) and no "only", "except", "unless" or "but".
+const WIDER_THAN_A_TEST =
+  /\b(?:any|every|all|other|another|anywhere|elsewhere|whatever|production|staging|shared|files?|code|scripts?|migrations?|jobs?|seeds?)\b/i;
+function setsApartATestDatabaseInATest(clause) {
+  const rest = clause.replace(/\btest databases?\b/gi, 'TESTDB');
+  return (
+    /\bTESTDB\b/.test(rest) &&
+    !/\bdatabases?\b/i.test(rest) &&
+    /\btest(?:'s|s)?\b/i.test(rest) &&
+    /\b(?:setup|set-up|teardown|tear-down)\b/i.test(rest) &&
+    !WIDER_THAN_A_TEST.test(rest) &&
+    !/\b(?:only|except|unless|but)\b/i.test(rest)
+  );
+}
 function leavesOutOnlyKeyAndMemory(behaviour) {
   return behaviour
     .split(';')
     .flatMap((part) => part.split(OPENS_EXCLUSION))
     .map((clause) => clause.trim())
     .filter((clause) => TAKES_OUT.test(clause))
-    .every((clause) => (/\bkey\b/i.test(clause) || /\bmemory\b/i.test(clause)) && !NAMES_A_CONDITION.test(clause));
+    .every(
+      (clause) =>
+        (/\bkey\b/i.test(clause) || /\bmemory\b/i.test(clause) || setsApartATestDatabaseInATest(clause)) && !NAMES_A_CONDITION.test(clause),
+    );
 }
 
 test('probe: the DAT101 exclusion check catches a delete with a condition taken out in new words, and leaves the measured row alone', () => {
@@ -368,10 +388,53 @@ test('probe: the DAT101 exclusion check catches a delete with a condition taken 
   assert.equal(leavesOutOnlyKeyAndMemory(`${head}; ${tail}`), true);
 });
 
+// Re-audit 3 of part 2b: the row of fix 3 adds a third measured exclusion (B2 of re-audit 2 of part
+// 2b-2: a `TRUNCATE` in a test's setup gave DAT101 in 6 of 6 calls, 0 of 6 with the exclusion).
+// The check accepts it, still rejects the six delete-with-a-condition rewrites on that row, and
+// rejects the test-database exclusion widened to another database or another place.
+test('probe: the DAT101 exclusion check accepts a test database emptied in a test setup or teardown, and nothing wider', () => {
+  const head = 'many stored records are deleted in one operation: every record of a table, collection or store, or all those a condition selects, by a query, an ORM call or a file command';
+  const tail = "one record deleted by its key is not this, nor is emptying a list, map or cache held in memory, nor emptying a test database in a test's setup or teardown";
+  const row = `${head}; ${tail}`;
+  assert.equal(leavesOutOnlyKeyAndMemory(row), true, row);
+  for (const rewrite of [
+    tail.replace("nor emptying a test database in a test's setup or teardown", "nor is emptying a test database in the setup or teardown of a test"),
+    tail.replace("nor emptying a test database in a test's setup or teardown", "nor emptying the tables of a test database in a test's setup or teardown"),
+  ]) {
+    assert.equal(leavesOutOnlyKeyAndMemory(`${head}; ${rewrite}`), true, rewrite);
+  }
+  for (const sample of [
+    // the six delete-with-a-condition rewrites, on the row of fix 3
+    `${row}; a delete a condition narrows is not this`,
+    `${head}; ${tail.replace('nor is emptying a list', 'nor is a filtered delete, nor is emptying a list')}`,
+    `${row}; a delete with a where clause is not this`,
+    `${head.replace('a condition selects,', 'a condition selects, except a delete scoped by a condition,')}; ${tail}`,
+    `${row}; it applies only to unfiltered deletes`,
+    `every record of a table, collection or store is deleted, with no condition that narrows it, by a query, an ORM call or a file command; ${tail}`,
+    // the test-database exclusion widened to another database or another place
+    `${head}; ${tail.replace('a test database', 'a test or staging database')}`,
+    `${head}; ${tail.replace('a test database', 'any database')}`,
+    `${head}; ${tail.replace("a test database in a test's setup or teardown", 'a database in tests')}`,
+    `${head}; ${tail.replace("in a test's setup or teardown", 'in tests')}`,
+    `${head}; ${tail.replace("in a test's setup or teardown", 'anywhere')}`,
+    `${head}; ${tail.replace("in a test's setup or teardown", "in a test's setup or teardown or in a migration")}`,
+    `${head}; ${tail.replace("in a test's setup or teardown", "in a test's setup or teardown, or any store a condition selects")}`,
+    `${head}; ${tail.replace("nor emptying a test database in a test's setup or teardown", "nor emptying a test database in a test's setup or teardown, except in production")}`,
+  ]) {
+    assert.equal(leavesOutOnlyKeyAndMemory(sample), false, sample);
+  }
+});
+
 // Contract: in the three editions, DAT101 covers a delete of many stored records whether or not a
 // condition selects them, and the only things its row takes out of the rule are one record deleted
-// by its key and emptying a list, map or cache held in memory (measured as a defect: a row that took
-// out the delete with a condition fired on a filtered bulk delete in 0 calls of 36, Sonnet and Opus).
+// by its key, emptying a list, map or cache held in memory, and emptying a test database in a test's
+// setup or teardown (measured as a defect: a row that took out the delete with a condition fired on
+// a filtered bulk delete in 0 calls of 36, Sonnet and Opus; the test-database exclusion is fix 3 of
+// part 2b, B2 of re-audit 2 of part 2b-2, and is accepted only as narrow as it was measured).
+// Rewritten by the fact in re-audit 3 of part 2b (written authorization in the briefing): the row of
+// fix 3 adds the measured test-database exclusion, which the earlier check read as a third thing
+// taken out; the six rewrites below still break it, and so does the exclusion widened to another
+// database ("a test or staging database", "any database") or another place ("in tests", "anywhere").
 // Breaks when: a rewrite of the row takes the delete with a condition back out in words that come
 // after the condition or open a clause of their own — "nor is a filtered delete", "a delete a
 // condition narrows is not this", "a delete with a where clause is not this", "except a delete
@@ -380,7 +443,7 @@ test('probe: the DAT101 exclusion check catches a delete with a condition taken 
 // Missed by the implementer's test because: its negation pattern needs no, not, without or
 // unfiltered before condition, filter or where with no comma or semicolon between them, so a
 // negation that follows the condition word, "nor", "except", "only" or "filtered" passes it.
-test('probe: DAT101 takes out of the rule only one record by its key and what is held in memory, in the three editions', () => {
+test('probe: DAT101 takes out of the rule only one record by its key, what is held in memory and a test database emptied in a test setup or teardown, in the three editions', () => {
   for (const [edition, raw] of editions()) {
     const step = extractStep(raw);
     assert.ok(step, `${edition}: the Critical Gate step`);
