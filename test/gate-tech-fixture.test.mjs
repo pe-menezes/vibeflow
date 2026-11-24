@@ -481,35 +481,35 @@ test('tokenListed finds the trigger word of the rule as a word, in any case, and
 
 // --- criterion 6: the regression cases, one by one, by the table of their origin ----------------
 
-// The table of the spec (part 2b-1, "Casos de regressão"): origin, a fragment that names the line,
+// The table of the spec (part 2b-1, the regression cases): origin, a fragment that names the line,
 // the rule and what is expected.
 const REGRESSION_TABLE = [
-  ['r5-estreitamento', 'Session.where("expires_at < ?", cutoff).delete_all', 'DAT101', 'planted'],
-  ['r5-estreitamento', 'Account.where(plan: "trial").destroy_all', 'DAT101', 'planted'],
-  ['r5-estreitamento', 'Invoice.objects.filter(status="void").delete()', 'DAT101', 'planted'],
-  ['r5-estreitamento', 'prisma.event.deleteMany({ where: { tenantId } })', 'DAT101', 'planted'],
-  ['r5-estreitamento', 'ExecuteDeleteAsync()', 'DAT101', 'planted'],
-  ['r5-estreitamento', 'find "$CACHE_DIR" -type f -mtime +30 -delete', 'DAT101', 'planted'],
-  ['r5-estreitamento', 'User.find(params[:id]).destroy', 'DAT101', 'control'],
-  ['r5-estreitamento', 'prisma.user.delete({ where: { id } })', 'DAT101', 'control'],
-  ['r5-estreitamento', 'subprocess.call(["git", "fetch", "--all"])', 'SEC108', 'control'],
-  ['r5-estreitamento', 'os.system("make build")', 'SEC108', 'control'],
-  ['r5-estreitamento', 'crm.post("/contacts", { name: user.name, cpf: user.cpf })', 'DAT102', 'planted'],
-  ['r5-controles', 'cart.getItems().removeAll(expiredItems)', 'DAT101', 'control'],
-  ['r5-controles', 'sessionCache.clear()', 'DAT101', 'control'],
-  ['r5-controles', 'pending_jobs.clear()', 'DAT101', 'control'],
-  ['r5-controles', 'DELETE FROM users WHERE id = $1', 'DAT101', 'control'],
-  ['r5-controles', 'update_all(deleted_at: Time.current)', 'DAT101', 'control'],
-  ['r5-controles', 'redis_client.delete(f"upload:{bucket}:lock")', 'DAT101', 'control'],
-  ['r5-controles', 'DELETE FROM messages WHERE created_at < $1', 'DAT101', 'planted'],
-  ['r5-controles', 's3.delete_objects(', 'DAT101', 'planted'],
-  ['r5-controles', 'redis_client.flushdb()', 'DAT101', 'planted'],
-  ['r6-cache-compartilhado', 'es.deleteByQuery(', 'DAT101', 'planted'],
-  ['f1b-marcada-pelo-projeto', 'migrations.RunSQL("DROP TABLE billing_invoice_archive")', 'DS102', 'planted'],
-  ['r7-dado-literal', '"cpf": "286.455.970-14", "card_number"', 'DAT102', 'planted'],
-  ['r7-dado-literal', 'Rui Antunes,rui.antunes@terra.com.br,905.317.482-06', 'DAT102', 'planted'],
-  ['r7-dado-literal', 'CPF_FORMAT = /', 'DAT102', 'control'],
-  ['r7-dado-literal', 'The `cpf` column takes the 11 digits', 'DAT102', 'control'],
+  ['bulk-delete-narrowing', 'Session.where("expires_at < ?", cutoff).delete_all', 'DAT101', 'planted'],
+  ['bulk-delete-narrowing', 'Account.where(plan: "trial").destroy_all', 'DAT101', 'planted'],
+  ['bulk-delete-narrowing', 'Invoice.objects.filter(status="void").delete()', 'DAT101', 'planted'],
+  ['bulk-delete-narrowing', 'prisma.event.deleteMany({ where: { tenantId } })', 'DAT101', 'planted'],
+  ['bulk-delete-narrowing', 'ExecuteDeleteAsync()', 'DAT101', 'planted'],
+  ['bulk-delete-narrowing', 'find "$CACHE_DIR" -type f -mtime +30 -delete', 'DAT101', 'planted'],
+  ['bulk-delete-narrowing', 'User.find(params[:id]).destroy', 'DAT101', 'control'],
+  ['bulk-delete-narrowing', 'prisma.user.delete({ where: { id } })', 'DAT101', 'control'],
+  ['bulk-delete-narrowing', 'subprocess.call(["git", "fetch", "--all"])', 'SEC108', 'control'],
+  ['bulk-delete-narrowing', 'os.system("make build")', 'SEC108', 'control'],
+  ['bulk-delete-narrowing', 'crm.post("/contacts", { name: user.name, cpf: user.cpf })', 'DAT102', 'planted'],
+  ['delete-controls', 'cart.getItems().removeAll(expiredItems)', 'DAT101', 'control'],
+  ['delete-controls', 'sessionCache.clear()', 'DAT101', 'control'],
+  ['delete-controls', 'pending_jobs.clear()', 'DAT101', 'control'],
+  ['delete-controls', 'DELETE FROM users WHERE id = $1', 'DAT101', 'control'],
+  ['delete-controls', 'update_all(deleted_at: Time.current)', 'DAT101', 'control'],
+  ['delete-controls', 'redis_client.delete(f"upload:{bucket}:lock")', 'DAT101', 'control'],
+  ['delete-controls', 'DELETE FROM messages WHERE created_at < $1', 'DAT101', 'planted'],
+  ['delete-controls', 's3.delete_objects(', 'DAT101', 'planted'],
+  ['delete-controls', 'redis_client.flushdb()', 'DAT101', 'planted'],
+  ['shared-cache', 'es.deleteByQuery(', 'DAT101', 'planted'],
+  ['generated-migration', 'migrations.RunSQL("DROP TABLE billing_invoice_archive")', 'DS102', 'planted'],
+  ['literal-personal-data', '"cpf": "286.455.970-14", "card_number"', 'DAT102', 'planted'],
+  ['literal-personal-data', 'Rui Antunes,rui.antunes@example.net,905.317.482-06', 'DAT102', 'planted'],
+  ['literal-personal-data', 'CPF_FORMAT = /', 'DAT102', 'control'],
+  ['literal-personal-data', 'The `cpf` column takes the 11 digits', 'DAT102', 'control'],
 ];
 
 test('every row of the regression table is one case with its origin, rule and expected kind, and there is no other', () => {
@@ -532,12 +532,12 @@ test('the regression cases left open by the spec are not cases', () => {
   }
 });
 
-test('the project marks the migration of f1b as generated, as in the measured case', () => {
-  const attributes = readFileSync(join(repo(first), REGRESSION, 'f1b-marcada-pelo-projeto', '.gitattributes'), 'utf8');
+test('the project marks the migration of generated-migration as generated, as in the measured case', () => {
+  const attributes = readFileSync(join(repo(first), REGRESSION, 'generated-migration', '.gitattributes'), 'utf8');
   assert.match(attributes, /^\*\/migrations\/\*\.py linguist-generated=true$/m);
   const c = regression().find((r) => r.rule === 'DS102');
-  const rel = c.path.slice(`${REGRESSION}/f1b-marcada-pelo-projeto/`.length);
-  const attr = git(join(repo(first), REGRESSION, 'f1b-marcada-pelo-projeto'), ['check-attr', 'linguist-generated', '--', rel]);
+  const rel = c.path.slice(`${REGRESSION}/generated-migration/`.length);
+  const attr = git(join(repo(first), REGRESSION, 'generated-migration'), ['check-attr', 'linguist-generated', '--', rel]);
   assert.match(attr, /linguist-generated: true/);
   assert.equal(c.extensionListed, true);
   assert.equal(c.tokenListed, true);
@@ -579,6 +579,87 @@ test('the review package of the versioned fixture files carries no WITHHELD list
   const control = join(dir, 'control.md');
   assert.equal(run([REVIEW_PACKAGE, work, base, control]).status, 0);
   assert.match(readFileSync(control, 'utf8'), /^WITHHELD: 1 file/m);
+});
+
+// --- fix 3 of part 2b: planted cases that are the behaviour of their rule (review 1 of PR 69) ----
+
+const changed = (c) => readFileSync(join(repo(first), c.path), 'utf8');
+
+test('a planted DS101 case drops a database, and a schema dropped stands for a database only in MySQL, with no CASCADE', () => {
+  const cases = planted().filter((c) => c.rule === 'DS101');
+  assert.ok(cases.length >= 3);
+  for (const c of cases) {
+    // DROP DATABASE, dropDatabase(), or a DROP SCHEMA run only on MySQL, where a schema is a database.
+    assert.match(c.text, /\bDROP\s+(?:DATABASE|SCHEMA)\b|\bdrop_?database\b/i, c.id);
+    if (/\bDROP\s+SCHEMA\b/i.test(c.text)) {
+      assert.doesNotMatch(c.text, /\bCASCADE\b/i, `${c.id}: CASCADE is the PostgreSQL form, where a schema is not a database`);
+      const file = changed(c).split('\n');
+      const changeSet = file.slice(0, c.line).reverse().find((line) => /<changeSet\b/.test(line));
+      assert.ok(changeSet, `${c.id}: the changeSet of the line`);
+      assert.match(changeSet, /\bdbms="mysql"/, `${c.id}: DROP SCHEMA drops a database only in MySQL`);
+    }
+  }
+});
+
+test('a planted IAC106 case makes a resource reachable from the internet, not only lifts a block on it', () => {
+  const BLOCK = /\b(?:block_public_acls|block_public_policy|ignore_public_acls|restrict_public_buckets|BlockPublic\w*|IgnorePublicAcls|RestrictPublicBuckets)\b/;
+  for (const c of planted().filter((p) => p.rule === 'IAC106')) {
+    assert.doesNotMatch(c.text, BLOCK, `${c.id}: lifting a public access block grants no public access`);
+  }
+  // The storage bucket of the Terraform module is made readable by anyone, in the same format.
+  const bucket = planted().find((c) => c.rule === 'IAC106' && c.language === 'terraform' && c.path.includes('/storage/'));
+  assert.ok(bucket, 'the IAC106 storage case in Terraform');
+  assert.match(bucket.text, /\bacl\s*=\s*"public-read(?:-write)?"|"Principal"\s*:\s*"\*"|Principal\s*=\s*"\*"/, bucket.id);
+});
+
+test('every host volume of an ECS task definition is mounted by a container of the task', () => {
+  const files = [...new Set(manifest.filter((c) => c.language === 'ecs-task').map((c) => c.path))];
+  assert.ok(files.length > 0);
+  let hostVolumes = 0;
+  for (const path of files) {
+    const task = JSON.parse(readFileSync(join(repo(first), path), 'utf8'));
+    const mounted = new Set((task.containerDefinitions ?? []).flatMap((d) => (d.mountPoints ?? []).map((m) => m.sourceVolume)));
+    for (const volume of task.volumes ?? []) {
+      if (!volume.host?.sourcePath) continue;
+      hostVolumes += 1;
+      assert.ok(mounted.has(volume.name), `${path}: the host volume ${volume.name} is mounted by no container`);
+    }
+  }
+  assert.ok(hostVolumes > 0, 'the K8S102 case declares a host volume');
+});
+
+// --- fix 3 of part 2b: the personal data of the fixture is synthetic -----------------------------
+
+function luhn(digits) {
+  let sum = 0;
+  for (let i = 0; i < digits.length; i += 1) {
+    let d = Number(digits[digits.length - 1 - i]);
+    if (i % 2 === 1) d = d * 2 > 9 ? d * 2 - 9 : d * 2;
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
+test('the e-mails of the fixture are at reserved example domains, and its card number is the test number', () => {
+  const sources = ['matrix.mjs', 'README.md'].map((name) => [name, readFileSync(join(FIXTURE, name), 'utf8')]);
+  sources.push(['manifest', manifest.map((c) => c.text).join('\n')]);
+  let emails = 0;
+  let cards = 0;
+  for (const [name, text] of sources) {
+    for (const [, domain] of text.matchAll(/[\w.+-]+@((?:[\w-]+\.)+[a-z]{2,})\b/gi)) {
+      // A Google Cloud service account of a made-up project is an identity, not a mailbox.
+      if (/^acme-[\w-]+\.iam\.gserviceaccount\.com$/i.test(domain)) continue;
+      emails += 1;
+      assert.match(domain.toLowerCase(), /^(?:example\.(?:com|org|net)|[\w.-]+\.(?:example|invalid|test))$/, `${name}: ${domain} is not a reserved domain`);
+    }
+    for (const [number] of text.matchAll(/\b\d(?:[ -]?\d){12,18}\b/g)) {
+      const digits = number.replace(/\D/g, '');
+      if (!luhn(digits)) continue;
+      cards += 1;
+      assert.equal(digits, '4111111111111111', `${name}: ${number} passes the card checksum and is not the test number`);
+    }
+  }
+  assert.ok(emails > 0 && cards > 0, `the check read e-mails (${emails}) and a card (${cards})`);
 });
 
 // --- the README table is generated from the matrix ---------------------------------------------

@@ -334,7 +334,7 @@ const DATABASE = [
   ]),
   // liquibase
   file('liquibase', 'db/changelog/changes/041-retire-analytics.xml', [
-    P('DS101', 'drop-schema', ['    <changeSet id="41" author="data-team">'], ['        <sql>DROP SCHEMA analytics CASCADE</sql>'], ['    </changeSet>'], 'Drops the analytics schema with every table in it.'),
+    P('DS101', 'drop-schema', ['    <changeSet id="41" author="data-team" dbms="mysql">'], ['        <sql>DROP SCHEMA analytics</sql>'], ['    </changeSet>'], 'Drops the analytics database: the changeSet runs only on MySQL, where DROP SCHEMA is DROP DATABASE.'),
   ], XML),
   file('liquibase', 'db/changelog/changes/042-legacy-orders.xml', [
     P('DS102', 'drop-table', ['    <changeSet id="42" author="data-team">'], ['        <dropTable tableName="legacy_orders" cascadeConstraints="true"/>'], ['    </changeSet>'], 'Liquibase drops the table, with no SQL word.'),
@@ -396,8 +396,8 @@ const INFRASTRUCTURE = [
     P('IAC106', 'publicly-accessible', ['resource "aws_db_instance" "analytics" {', '  identifier          = "analytics"'], ['  publicly_accessible = true'], ['}'], 'Gives the database a public address.'),
     C('IAC106', 'not-public', ['resource "aws_db_instance" "billing_replica" {', '  identifier          = "billing-replica"'], ['  publicly_accessible = false'], ['}'], 'Keeps the database private.'),
   ]),
-  file('terraform', 'modules/storage/public_access.tf', [
-    P('IAC106', 'public-acls', ['resource "aws_s3_bucket_public_access_block" "exports" {', '  bucket              = aws_s3_bucket.exports.id'], ['  block_public_acls   = false', '  block_public_policy = false'], ['}'], 'Lets the exports bucket take public ACLs and a public policy.', { was: ['  block_public_acls   = true', '  block_public_policy = true'] }),
+  file('terraform', 'modules/storage/exports_acl.tf', [
+    P('IAC106', 'public-read-acl', ['resource "aws_s3_bucket_acl" "exports" {', '  bucket = aws_s3_bucket.exports.id'], ['  acl    = "public-read"'], ['}'], 'Lets anyone on the internet read every object of the exports bucket.', { was: ['  acl    = "private"'] }),
   ]),
   file('terraform', 'modules/network/variables.tf', [
     D('IAC103', 'comment', ['# Inputs of the network module.'], '# IAM roles live in the iam module: no aws_iam resource is created here', ['variable "vpc_cidr" {', '  type = string', '}'], 'aws_iam is in a comment.'),
@@ -522,7 +522,7 @@ const KUBERNETES = [
     P('K8S101', 'privileged', ['  "containerDefinitions": [{', '      "name": "agent",', '      "image": "acme/agent:2",'], ['      "privileged": true,'], ['      "essential": true', '  }]'], 'The container runs privileged.'),
   ], { head: ['{', '  "family": "agent",'], tail: ['}'] }),
   file('ecs-task', 'deploy/shipper-task.json', [
-    P('K8S102', 'host-volume', ['  "family": "log-shipper",', '  "volumes": ['], ['    { "name": "docker-socket", "host": { "sourcePath": "/var/run/docker.sock" } }'], ['  ],', '  "containerDefinitions": []'], 'Mounts the Docker socket of the host.'),
+    P('K8S102', 'host-volume', ['  "family": "log-shipper",', '  "volumes": ['], ['    { "name": "docker-socket", "host": { "sourcePath": "/var/run/docker.sock" } }'], ['  ],', '  "containerDefinitions": [{', '      "name": "shipper",', '      "image": "acme/log-shipper:4",', '      "mountPoints": [{ "sourceVolume": "docker-socket", "containerPath": "/var/run/docker.sock" }],', '      "essential": true', '  }]'], 'Mounts the Docker socket of the host into the shipper container.'),
   ], { head: ['{'], tail: ['}'] }),
   file('ecs-task', 'deploy/backup-task.json', [
     P('K8S103', 'user-root', ['  "containerDefinitions": [{', '      "name": "backup",', '      "image": "acme/backup:1",'], ['      "user": "0",'], ['      "essential": true', '  }]'], 'The container runs as root.'),
@@ -667,14 +667,16 @@ const CONFIG = [
   ]),
 ];
 
-// The cases measured by hand in part 2a (`.vibeflow/aceite/medicao/<origin>/mini.diff` in the
-// worktree of that work), with their path under `regression/<origin>/`. Two lines that sat next to
-// each other in a measured diff sit apart here, so a finding matches one of them.
-const r5n = 'r5-estreitamento';
-const r5c = 'r5-controles';
-const r6 = 'r6-cache-compartilhado';
-const f1b = 'f1b-marcada-pelo-projeto';
-const r7 = 'r7-dado-literal';
+// The cases measured by hand in part 2a, each under `regression/<origin>/`, where the origin names
+// the measured case: a mass delete with a filter and the controls next to it, a delete on a shared
+// cache, a migration the project marks as generated, and personal data written as a literal. Two
+// lines that sat next to each other in a measured diff sit apart here, so a finding matches one of
+// them.
+const r5n = 'bulk-delete-narrowing';
+const r5c = 'delete-controls';
+const r6 = 'shared-cache';
+const f1b = 'generated-migration';
+const r7 = 'literal-personal-data';
 const reg = (origin, path, segments, extra) => file(REGRESSION, `${origin}/${path}`, segments, extra);
 
 const REGRESSION_CASES = [
@@ -742,10 +744,10 @@ const REGRESSION_CASES = [
     R(f1b, 'planted', 'DS102', 'run-sql-drop-table', ['# Generated by Django 5.1.3 on 2026-11-02 14:10', '', 'from django.db import migrations', '', '', 'class Migration(migrations.Migration):', '', '    dependencies = [', '        ("billing", "0006_invoice_paid_at"),', '    ]', '', '    operations = ['], ['        migrations.RunSQL("DROP TABLE billing_invoice_archive"),'], ['        migrations.DeleteModel(', '            name="Invoice",', '        ),', '    ]'], 'DROP TABLE in a migration the project marks as generated in its .gitattributes.'),
   ], { newFile: true }),
   reg(r7, 'test/fixtures/customers.json', [
-    R(r7, 'planted', 'DAT102', 'json-cpf-and-card', ['[', '  { "name": "Carla Souza", "email": "carla.souza@example.com" },'], ['  { "name": "Marcos Vieira", "email": "marcos.vieira@gmail.com", "cpf": "286.455.970-14", "card_number": "5425 2334 3010 9903" },'], ['  { "name": "Dora Pires", "email": "dora.pires@example.com" }', ']'], 'A CPF and a card number written into a committed file.'),
+    R(r7, 'planted', 'DAT102', 'json-cpf-and-card', ['[', '  { "name": "Carla Souza", "email": "carla.souza@example.com" },'], ['  { "name": "Marcos Vieira", "email": "marcos.vieira@example.org", "cpf": "286.455.970-14", "card_number": "4111 1111 1111 1111" },'], ['  { "name": "Dora Pires", "email": "dora.pires@example.com" }', ']'], 'A CPF and a card number written into a committed file.'),
   ]),
   reg(r7, 'data/import/2026-11-customers.csv', [
-    R(r7, 'planted', 'DAT102', 'csv-cpf', ['name,email,cpf', 'Helena Prado,helena.prado@uol.com.br,417.208.963-51'], ['Rui Antunes,rui.antunes@terra.com.br,905.317.482-06'], ['Vera Matos,vera.matos@bol.com.br,638.150.294-77'], 'A CPF written into a committed data file.'),
+    R(r7, 'planted', 'DAT102', 'csv-cpf', ['name,email,cpf', 'Helena Prado,helena.prado@example.net,417.208.963-51'], ['Rui Antunes,rui.antunes@example.net,905.317.482-06'], ['Vera Matos,vera.matos@example.net,638.150.294-77'], 'A CPF written into a committed data file.'),
   ]),
   reg(r7, 'app/validators/cpf_validator.rb', [
     R(r7, 'control', 'DAT102', 'cpf-regex', ['class CpfValidator < ActiveModel::EachValidator'], ['  CPF_FORMAT = /\\A\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}\\z/'], ['  def validate_each(record, attribute, value)', '  end', 'end'], 'The format of a CPF, not a CPF.'),

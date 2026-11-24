@@ -28,8 +28,11 @@ Nothing here calls a model or the network.
   read everything, 64 on a wrong argument, a language the manifest does not have or an unreadable
   file: it is a measure, not a gate. It also reads the manifest of `../gate-tech/`, whose
   `language` is a format, and counts there the findings on its controls (legitimate lines next to
-  a behaviour) apart from the decoys; on a manifest without controls, as this one, it prints what
-  it printed before.
+  a behaviour) apart from the decoys. On a manifest without controls, as this one, it prints no
+  control count, and on the reports of `samples/` it prints what it printed before; on another
+  report it can print more, because it reads what it left unread before: a finding whose rule id
+  has a digit in the middle (`K8S101`) and a citation of a `Dockerfile` at the root
+  (`Dockerfile:8`).
 * `samples/`: six real answers of the 1.20.0 step, one run each, on the diff of one folder: three
   from the pilot (`python/` and `csharp/` by Sonnet, `shell/` by Opus) and three from the 1.20.0
   measure, all by Opus (`javascript/`, with `(removed line)` between a path and its description;

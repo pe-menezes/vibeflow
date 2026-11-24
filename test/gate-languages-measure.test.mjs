@@ -804,6 +804,26 @@ test('a path with no extension is cited with its line, and "Dockerfile" with no 
   ]);
 });
 
+// --- fix 3 of part 2b: a Dockerfile at the root of the repository (review 1 of PR 69) -----------
+
+test('a Dockerfile at the root is cited with its line, and a lone word before a colon and a number still is not', () => {
+  assert.deepEqual(meter.citations('See Dockerfile:8.'), [{ path: 'Dockerfile', line: 8, lineEnd: null }]);
+  assert.deepEqual(meter.citations('See `Dockerfile`:8-9 and ./Containerfile:3'), [
+    { path: 'Dockerfile', line: 8, lineEnd: 9 },
+    { path: 'Containerfile', line: 3, lineEnd: null },
+  ]);
+  assert.deepEqual(meter.citations('./Dockerfile:8'), [{ path: 'Dockerfile', line: 8, lineEnd: null }]);
+  // The same name inside a longer word is no file name, and a word of the prose still is no path.
+  assert.deepEqual(meter.citations('MyDockerfile:8, Dockerfiles:2, step:4, Line:3, Stage:2, ratio:2'), []);
+  assert.deepEqual(meter.citations('Dockerfile: 3 lines read'), []);
+  // Through measure: a note citing the root Dockerfile line of a case makes that case mentioned.
+  const manifest = [
+    { id: 'k1', kind: 'planted', rule: 'K8S103', language: 'dockerfile', extension: '', path: 'Dockerfile', line: 8, side: 'added', extensionListed: true, tokenListed: false },
+  ];
+  const report = measure(manifest, [{ path: 'r.md', text: '### Critical Gate\nClean.\nSee Dockerfile:8: the user is root only for the build step.\n' }]).reports[0];
+  assert.deepEqual(report.mentioned.ids, ['k1']);
+});
+
 test('on the gate-tech manifest a note naming a Dockerfile with no line mentions no case', () => {
   const manifest = [
     { id: 'k1', kind: 'control', rule: 'CFG104', language: 'dockerfile', extension: '', path: 'dockerfile/images/api/Dockerfile', line: 3, side: 'added', extensionListed: true, tokenListed: false },

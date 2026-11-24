@@ -77,7 +77,7 @@ reports passed together are measured one by one and summed, as in gate-languages
 * **Regression cases.** The lines measured by hand in part 2a, under `regression/<origin>/`, each
   with the expected kind: `planted` when the rule has to fire, `control` when it must not. Their
   labels come from `CATALOG_TECH_1_20` for DS102 and from the gate-languages `CATALOG_1_20` for
-  the Security and Data rules. The migration of `f1b-marcada-pelo-projeto` is marked as generated
+  the Security and Data rules. The migration of `generated-migration` is marked as generated
   by the `.gitattributes` of its folder, as in the measured case. `Rails.cache.clear`,
   `cache.clear()`, `flush_all` and the test factory with a CPF are left out: their expected kind is
   still open.
@@ -156,7 +156,7 @@ lines of a block.
 | rails-migration-DS102-decoy-comment | decoy (comment) | DS102 | no | yes | 2 | `# DROP TABLE of the ledger never happens here: it is append only` | DROP TABLE is in a comment. |
 | rails-migration-DS103-decoy-string | decoy (string) | DS103 | no | yes | 9 | `raise ActiveRecord::IrreversibleMigration, "Cannot TRUNCATE the ledger to roll back"` | TRUNCATE is in an error message. |
 | rails-migration-DS103-decoy-name | decoy (name) | DS103 | no | yes | 14 | `def truncate_guard!` | truncate is in a method name. |
-| liquibase-DS101-drop-schema | planted | DS101 | no | no | 4 | `<sql>DROP SCHEMA analytics CASCADE</sql>` | Drops the analytics schema with every table in it. |
+| liquibase-DS101-drop-schema | planted | DS101 | no | no | 4 | `<sql>DROP SCHEMA analytics</sql>` | Drops the analytics database: the changeSet runs only on MySQL, where DROP SCHEMA is DROP DATABASE. |
 | liquibase-DS102-drop-table | planted | DS102 | no | no | 4 | `<dropTable tableName="legacy_orders" cascadeConstraints="true"/>` | Liquibase drops the table, with no SQL word. |
 | liquibase-DS104-drop-column | planted | DS104 | no | no | 4 | `<dropColumn tableName="users" columnName="legacy_email"/>` | Liquibase drops the column, with no SQL word. |
 | liquibase-DS106-delete-all-rows | planted | DS106 | no | no | 4 | `<delete tableName="carts"/>` | Liquibase deletes every row of the table: the change has no where. |
@@ -181,7 +181,7 @@ lines of a block.
 | terraform-IAC105-control-vpc-only | control | IAC105 | yes | no | 23 | `cidr_blocks = ["10.0.0.0/16"]` | Opens a port to the private network only. |
 | terraform-IAC106-publicly-accessible | planted | IAC106 | yes | yes | 3 | `publicly_accessible = true` | Gives the database a public address. |
 | terraform-IAC106-control-not-public | control | IAC106 | yes | yes | 9 | `publicly_accessible = false` | Keeps the database private. |
-| terraform-IAC106-public-acls | planted | IAC106 | yes | no | 3 | `block_public_acls   = false ⏎ block_public_policy = false` | Lets the exports bucket take public ACLs and a public policy. |
+| terraform-IAC106-public-read-acl | planted | IAC106 | yes | no | 3 | `acl    = "public-read"` | Lets anyone on the internet read every object of the exports bucket. |
 | terraform-IAC103-decoy-comment | decoy (comment) | IAC103 | yes | yes | 2 | `# IAM roles live in the iam module: no aws_iam resource is created here` | aws_iam is in a comment. |
 | terraform-IAC104-decoy-string | decoy (string) | IAC104 | yes | yes | 10 | `description = "Office ranges; firewall rules are managed by the network team"` | firewall is in a description. |
 | terraform-IAC106-decoy-name | decoy (name) | IAC106 | yes | yes | 15 | `variable "publicly_accessible_buckets" {` | publicly_accessible is in a variable name. |
@@ -234,7 +234,7 @@ lines of a block.
 | compose-K8S101-decoy-string | decoy (string) | K8S101 | yes | yes | 9 | `com.acme.help: "Do not run this stack with privileged: true"` | privileged: true is in a help label. |
 | compose-K8S102-decoy-name | decoy (name) | K8S102 | yes | yes | 14 | `hostpath-cleaner:` | hostpath is in a service name. |
 | ecs-task-K8S101-privileged | planted | K8S101 | no | no | 6 | `"privileged": true,` | The container runs privileged. |
-| ecs-task-K8S102-host-volume | planted | K8S102 | no | no | 4 | `{ "name": "docker-socket", "host": { "sourcePath": "/var/run/docker.sock" } }` | Mounts the Docker socket of the host. |
+| ecs-task-K8S102-host-volume | planted | K8S102 | no | no | 4 | `{ "name": "docker-socket", "host": { "sourcePath": "/var/run/docker.sock" } }` | Mounts the Docker socket of the host into the shipper container. |
 | ecs-task-K8S103-user-root | planted | K8S103 | no | no | 6 | `"user": "0",` | The container runs as root. |
 | ecs-task-K8S105-sys-ptrace | planted | K8S105 | no | no | 6 | `"linuxParameters": { "capabilities": { "add": ["SYS_PTRACE"] } },` | Lets the container trace other processes and read their memory. |
 | ecs-task-K8S106-host-network | planted | K8S106 | no | no | 3 | `"networkMode": "host",` | The task shares the network of the host. |
@@ -296,32 +296,32 @@ lines of a block.
 | dockerfile-CFG102-decoy-comment | decoy (comment) | CFG102 | yes | yes | 2 | `# debug = true is set only in the dev image` | debug = true is in a comment. |
 | dockerfile-CFG103-decoy-string | decoy (string) | CFG103 | yes | yes | 7 | `LABEL description="API image; the debug endpoints are off"` | debug is in an image description. |
 | dockerfile-CFG103-decoy-name | decoy (name) | CFG103 | yes | yes | 12 | `FROM node:22 AS debug-tools` | debug is in a stage name. |
-| regression-r5-estreitamento-session-where-delete-all | planted | DAT101 | yes | yes | 3 | `Session.where("expires_at < ?", cutoff).delete_all` | Deletes every expired session in one statement: a mass delete with a filter. |
-| regression-r5-estreitamento-account-where-destroy-all | planted | DAT101 | yes | yes | 3 | `Account.where(plan: "trial").destroy_all` | Destroys every trial account: a mass delete with a filter. |
-| regression-r5-estreitamento-invoice-filter-delete | planted | DAT101 | yes | no | 6 | `Invoice.objects.filter(status="void").delete()` | Deletes every void invoice: a mass delete with a filter. |
-| regression-r5-estreitamento-event-delete-many-where | planted | DAT101 | yes | no | 4 | `await prisma.event.deleteMany({ where: { tenantId } });` | Deletes every event of a tenant: a mass delete with a filter. |
-| regression-r5-estreitamento-audit-log-execute-delete | planted | DAT101 | no | no | 5 | `await db.AuditLogs.Where(l => l.CreatedAt < cutoff).ExecuteDeleteAsync();` | Deletes every old audit log row in one statement. |
-| regression-r5-estreitamento-find-delete | planted | DAT101 | no | no | 4 | `find "$CACHE_DIR" -type f -mtime +30 -delete` | Deletes every file older than 30 days. |
-| regression-r5-estreitamento-user-find-destroy | control | DAT101 | yes | no | 3 | `User.find(params[:id]).destroy` | Deletes one record by its key. |
-| regression-r5-estreitamento-user-delete-by-id | control | DAT101 | yes | no | 4 | `await prisma.user.delete({ where: { id } });` | Deletes one record by its key. |
-| regression-r5-estreitamento-subprocess-call-list | control | SEC108 | yes | yes | 6 | `subprocess.call(["git", "fetch", "--all"])` | A fixed command as a list: nothing is built at run time. |
-| regression-r5-estreitamento-os-system-fixed | control | SEC108 | yes | yes | 11 | `os.system("make build")` | A fixed command string: nothing is built at run time. |
-| regression-r5-estreitamento-crm-post-cpf | planted | DAT102 | yes | yes | 4 | `await crm.post("/contacts", { name: user.name, cpf: user.cpf });` | Sends the full CPF to a third party. |
-| regression-r5-controles-list-remove-all | control | DAT101 | yes | yes | 3 | `cart.getItems().removeAll(expiredItems);` | removeAll on a list in memory: no stored data. |
-| regression-r5-controles-map-clear | control | DAT101 | yes | no | 4 | `sessionCache.clear();` | Clears a map in memory: no stored data. |
-| regression-r5-controles-list-clear | control | DAT101 | yes | no | 5 | `pending_jobs.clear()` | Clears a list in memory: no stored data. |
-| regression-r5-controles-delete-by-id | control | DAT101 | yes | no | 4 | `_, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id)` | Deletes one row by its key. |
-| regression-r5-controles-delete-older-than | planted | DAT101 | yes | no | 4 | `_, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE created_at < $1", cutoff)` | Deletes every message older than a date: a mass delete with a filter. |
-| regression-r5-controles-soft-delete | control | DAT101 | yes | no | 3 | `Order.where(id: ids).update_all(deleted_at: Time.current)` | Marks rows as deleted: nothing is removed. |
-| regression-r5-controles-s3-delete-objects | planted | DAT101 | yes | no | 5 | `s3.delete_objects(Bucket=bucket, Delete={"Objects": stale})` | Deletes many stored objects at once. |
-| regression-r5-controles-redis-delete-one-key | control | DAT101 | yes | no | 10 | `redis_client.delete(f"upload:{bucket}:lock")` | Deletes one key; in the measured diff this line sat right after the delete_objects one. |
-| regression-r5-controles-redis-flushdb | planted | DAT101 | yes | no | 5 | `redis_client.flushdb()` | Deletes every key of the Redis database. |
-| regression-r6-cache-compartilhado-es-delete-by-query | planted | DAT101 | yes | no | 4 | `await es.deleteByQuery({ index: "orders", query: { range: { updatedAt: { lt: before } } } });` | Deletes every stale document of a search index. |
-| regression-f1b-marcada-pelo-projeto-run-sql-drop-table | planted | DS102 | yes | yes | 13 | `migrations.RunSQL("DROP TABLE billing_invoice_archive"),` | DROP TABLE in a migration the project marks as generated in its .gitattributes. |
-| regression-r7-dado-literal-json-cpf-and-card | planted | DAT102 | no | yes | 3 | `{ "name": "Marcos Vieira", "email": "marcos.vieira@gmail.com", "cpf": "286.455.970-14", "card_number": "5425 2334 3010 9903" },` | A CPF and a card number written into a committed file. |
-| regression-r7-dado-literal-csv-cpf | planted | DAT102 | no | no | 3 | `Rui Antunes,rui.antunes@terra.com.br,905.317.482-06` | A CPF written into a committed data file. |
-| regression-r7-dado-literal-cpf-regex | control | DAT102 | yes | yes | 2 | `CPF_FORMAT = /\A\d{3}\.\d{3}\.\d{3}-\d{2}\z/` | The format of a CPF, not a CPF. |
-| regression-r7-dado-literal-readme-sentence | control | DAT102 | no | yes | 5 | `` The `cpf` column takes the 11 digits with or without punctuation, for example `123.456.789-09`. `` | A sentence of documentation with a made-up example. |
+| regression-bulk-delete-narrowing-session-where-delete-all | planted | DAT101 | yes | yes | 3 | `Session.where("expires_at < ?", cutoff).delete_all` | Deletes every expired session in one statement: a mass delete with a filter. |
+| regression-bulk-delete-narrowing-account-where-destroy-all | planted | DAT101 | yes | yes | 3 | `Account.where(plan: "trial").destroy_all` | Destroys every trial account: a mass delete with a filter. |
+| regression-bulk-delete-narrowing-invoice-filter-delete | planted | DAT101 | yes | no | 6 | `Invoice.objects.filter(status="void").delete()` | Deletes every void invoice: a mass delete with a filter. |
+| regression-bulk-delete-narrowing-event-delete-many-where | planted | DAT101 | yes | no | 4 | `await prisma.event.deleteMany({ where: { tenantId } });` | Deletes every event of a tenant: a mass delete with a filter. |
+| regression-bulk-delete-narrowing-audit-log-execute-delete | planted | DAT101 | no | no | 5 | `await db.AuditLogs.Where(l => l.CreatedAt < cutoff).ExecuteDeleteAsync();` | Deletes every old audit log row in one statement. |
+| regression-bulk-delete-narrowing-find-delete | planted | DAT101 | no | no | 4 | `find "$CACHE_DIR" -type f -mtime +30 -delete` | Deletes every file older than 30 days. |
+| regression-bulk-delete-narrowing-user-find-destroy | control | DAT101 | yes | no | 3 | `User.find(params[:id]).destroy` | Deletes one record by its key. |
+| regression-bulk-delete-narrowing-user-delete-by-id | control | DAT101 | yes | no | 4 | `await prisma.user.delete({ where: { id } });` | Deletes one record by its key. |
+| regression-bulk-delete-narrowing-subprocess-call-list | control | SEC108 | yes | yes | 6 | `subprocess.call(["git", "fetch", "--all"])` | A fixed command as a list: nothing is built at run time. |
+| regression-bulk-delete-narrowing-os-system-fixed | control | SEC108 | yes | yes | 11 | `os.system("make build")` | A fixed command string: nothing is built at run time. |
+| regression-bulk-delete-narrowing-crm-post-cpf | planted | DAT102 | yes | yes | 4 | `await crm.post("/contacts", { name: user.name, cpf: user.cpf });` | Sends the full CPF to a third party. |
+| regression-delete-controls-list-remove-all | control | DAT101 | yes | yes | 3 | `cart.getItems().removeAll(expiredItems);` | removeAll on a list in memory: no stored data. |
+| regression-delete-controls-map-clear | control | DAT101 | yes | no | 4 | `sessionCache.clear();` | Clears a map in memory: no stored data. |
+| regression-delete-controls-list-clear | control | DAT101 | yes | no | 5 | `pending_jobs.clear()` | Clears a list in memory: no stored data. |
+| regression-delete-controls-delete-by-id | control | DAT101 | yes | no | 4 | `_, err := s.db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id)` | Deletes one row by its key. |
+| regression-delete-controls-delete-older-than | planted | DAT101 | yes | no | 4 | `_, err := s.db.ExecContext(ctx, "DELETE FROM messages WHERE created_at < $1", cutoff)` | Deletes every message older than a date: a mass delete with a filter. |
+| regression-delete-controls-soft-delete | control | DAT101 | yes | no | 3 | `Order.where(id: ids).update_all(deleted_at: Time.current)` | Marks rows as deleted: nothing is removed. |
+| regression-delete-controls-s3-delete-objects | planted | DAT101 | yes | no | 5 | `s3.delete_objects(Bucket=bucket, Delete={"Objects": stale})` | Deletes many stored objects at once. |
+| regression-delete-controls-redis-delete-one-key | control | DAT101 | yes | no | 10 | `redis_client.delete(f"upload:{bucket}:lock")` | Deletes one key; in the measured diff this line sat right after the delete_objects one. |
+| regression-delete-controls-redis-flushdb | planted | DAT101 | yes | no | 5 | `redis_client.flushdb()` | Deletes every key of the Redis database. |
+| regression-shared-cache-es-delete-by-query | planted | DAT101 | yes | no | 4 | `await es.deleteByQuery({ index: "orders", query: { range: { updatedAt: { lt: before } } } });` | Deletes every stale document of a search index. |
+| regression-generated-migration-run-sql-drop-table | planted | DS102 | yes | yes | 13 | `migrations.RunSQL("DROP TABLE billing_invoice_archive"),` | DROP TABLE in a migration the project marks as generated in its .gitattributes. |
+| regression-literal-personal-data-json-cpf-and-card | planted | DAT102 | no | yes | 3 | `{ "name": "Marcos Vieira", "email": "marcos.vieira@example.org", "cpf": "286.455.970-14", "card_number": "4111 1111 1111 1111" },` | A CPF and a card number written into a committed file. |
+| regression-literal-personal-data-csv-cpf | planted | DAT102 | no | no | 3 | `Rui Antunes,rui.antunes@example.net,905.317.482-06` | A CPF written into a committed data file. |
+| regression-literal-personal-data-cpf-regex | control | DAT102 | yes | yes | 2 | `CPF_FORMAT = /\A\d{3}\.\d{3}\.\d{3}-\d{2}\z/` | The format of a CPF, not a CPF. |
+| regression-literal-personal-data-readme-sentence | control | DAT102 | no | yes | 5 | `` The `cpf` column takes the 11 digits with or without punctuation, for example `123.456.789-09`. `` | A sentence of documentation with a made-up example. |
 
 | Rule | Quadrant | Not covered because |
 |---|---|---|

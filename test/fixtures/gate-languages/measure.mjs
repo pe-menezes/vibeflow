@@ -39,7 +39,9 @@
 // stays listed where it already is.
 //
 // A manifest without controls (the gate-languages one) gets no control count in the text or the
-// JSON: the output on it is the same as before controls existed.
+// JSON. On the reports of `samples/` the output is the same as before controls existed; on other
+// reports it can differ, because the meter now reads what it left unread before: a finding whose
+// rule id has a digit in the middle (`K8S101`) is a finding, and `Dockerfile:8` is a citation.
 //
 // --language <id>, repeatable, restricts the manifest to those languages, for a report on the diff
 // of one folder; a finding in a file of another language is then outside the manifest.
@@ -156,10 +158,11 @@ export function parseFindingLine(line) {
 }
 
 // `<path>:<line>` or `<path>:<first>-<last>` anywhere in a line, the path with or without
-// backticks and `./`. The path has an extension (`python/jobs.py`) or at least one folder
-// (`dockerfile/images/api/Dockerfile`), so a file with no extension is cited by its path while a
-// lone word of the prose before a colon and a number (`step:4`) is not.
-const CITATION = /`?((?:\.\/)?(?:[\w.-]+\/)+[\w.-]+|(?:\.\/)?[\w.-]+\.\w+)`?:(\d+)(?:-(\d+))?/g;
+// backticks and `./`. The path has an extension (`python/jobs.py`), at least one folder
+// (`dockerfile/images/api/Dockerfile`), or is a `Dockerfile` or a `Containerfile` at the root of
+// the repository (`Dockerfile:8`), so a file with no extension is cited by its path or its name
+// while a lone word of the prose before a colon and a number (`step:4`) is not.
+const CITATION = /`?((?:\.\/)?(?:[\w.-]+\/)+[\w.-]+|(?:\.\/)?[\w.-]+\.\w+|(?<![\w.\/-])(?:\.\/)?(?:Dockerfile|Containerfile))`?:(\d+)(?:-(\d+))?/g;
 
 export function citations(line) {
   return [...line.matchAll(CITATION)].map((m) => ({

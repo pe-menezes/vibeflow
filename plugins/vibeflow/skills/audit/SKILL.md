@@ -309,16 +309,16 @@ restore.
    never as a filter. Item b says when a rule fires: on what a line does, in
    any language, and not on a mention; when you cannot tell, the line fires.
 
-   _Database_ — where: SQL in `.sql` files, in migrations of any framework and inside code; a schema change written as a migration call counts as its SQL. Creating or dropping the tables of a test database in a test's setup or teardown is not this domain's behaviour
+   _Database_ — where: SQL in `.sql` files, in migrations of any framework and inside code; a schema change written as a migration call counts as its SQL. Creating, emptying or dropping a test database or its tables in a test's setup or teardown is not this domain's behaviour
    | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
    | DS101 | CRITICAL | a | a database is dropped (`DROP DATABASE`, `dropDatabase()`) |
    | DS102 | CRITICAL | a | a table is dropped, by SQL, a migration or any schema call (`DROP TABLE`, `drop_table`, `migrations.DeleteModel`, `dropTable`) |
-   | DS103 | CRITICAL | a | every row of a table is removed while the table stays (`TRUNCATE`, `TRUNCATE TABLE`, `truncate()`) |
+   | DS103 | CRITICAL | a | a table is emptied by a command that removes every row at once while the table stays (`TRUNCATE`, `TRUNCATE TABLE`, `truncate()`); a `DELETE` is DS106 or DAT101 |
    | DS104 | HIGH | a | a column is dropped, by SQL, a migration or any schema call (`DROP COLUMN`, `remove_column`, `migrations.RemoveField`, `dropColumn`) |
    | DS105 | HIGH | a | a part of a table is dropped by altering it: a constraint, an index, a key or a column (`ALTER TABLE … DROP`, `remove_index`, `dropForeign`) |
    | DS106 | HIGH | a | every row of a table is deleted by a `DELETE` with no condition (`DELETE FROM <table>` with no `WHERE`); the same line is also DAT101, and a `DELETE` whose condition selects many rows is DAT101 alone |
-   | DS108 | WARNING | a | a table is renamed (`RENAME TABLE`, `ALTER TABLE … RENAME`, `rename_table`, `renameTable`) |
+   | DS108 | WARNING | a | a table or a column is renamed (`RENAME TABLE`, `ALTER TABLE … RENAME`, `rename_table`, `rename_column`, `renameTable`) |
    | DS110 | INFO | a | a column's type is changed, which can lose data (`ALTER TABLE … MODIFY`, `ALTER COLUMN … TYPE`, `change_column`, `migrations.AlterField`) |
 
    _Security_ — where: application code, scripts and configuration, in any language
@@ -336,9 +336,9 @@ restore.
    _Infrastructure (IaC)_ — where: infrastructure declarations in any tool; Terraform, CloudFormation and Pulumi shown, the same setting in another tool counts
    | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
-   | IAC101 | CRITICAL | a | a resource is set to be destroyed together with the data it holds (`force_destroy = true`, `forceDestroy: true`, `DeletionPolicy: Delete`, `RemovalPolicy.DESTROY`) |
+   | IAC101 | CRITICAL | a | a resource is set to be destroyed together with the data it holds (`force_destroy = true`, `destroy = true`, `forceDestroy: true`, `DeletionPolicy: Delete`, `RemovalPolicy.DESTROY`) |
    | IAC102 | CRITICAL | a | the guard that keeps a resource from being destroyed is turned off (`prevent_destroy = false`, `deletion_protection = false`, `DeletionProtection: false`, `protect: false`) |
-   | IAC103 | HIGH | b | who can do what on cloud resources changes: a role, a policy, a user or a permission binding is added, changed or removed (`aws_iam_role`, `iam_policy`, `AWS::IAM::Policy`, `google_project_iam_member`) |
+   | IAC103 | HIGH | b | who can do what on cloud resources changes: a role, a policy, a user or a permission binding is added, changed or removed (`aws_iam_role`, `iam_policy`, `iam_user`, `AWS::IAM::Policy`, `google_project_iam_member`) |
    | IAC104 | HIGH | r | a firewall rule, a security group or a network ACL is removed (`aws_security_group`, `aws_network_acl_rule`, `google_compute_firewall`, `AWS::EC2::SecurityGroupIngress`) |
    | IAC105 | WARNING | a | network access is opened to any address (`cidr_blocks = ["0.0.0.0/0"]`, `CidrIp: 0.0.0.0/0`, `source_ranges = ["0.0.0.0/0"]`, `::/0`) |
    | IAC106 | WARNING | a | a resource is made reachable from the internet (`publicly_accessible = true`, `PubliclyAccessible: true`, `public_access = true`) |
@@ -348,7 +348,7 @@ restore.
    |---|---|---|---|
    | K8S101 | HIGH | a | a container runs privileged (`privileged: true`, `"privileged": true`, `--privileged`) |
    | K8S102 | HIGH | a | a container mounts the disk of the node or host it runs on: any `hostPath:` volume, or a bind mount of a system path of the host such as the root, `/etc`, `/proc` or the container runtime's socket |
-   | K8S103 | HIGH | a | a container runs as the root user (`runAsUser: 0`, `user: "0"`, `user: root`); in a Dockerfile only the last `USER` of the final stage counts, so switching to root for a build step and back is not this |
+   | K8S103 | HIGH | a | a container runs as the root user (`runAsUser: 0`, `user: "0"`, `user: root`); in a Dockerfile what counts is the user the final stage runs as (its last `USER`, or the one it inherits from the stage it is built from), so switching to root for a build step and back is not this |
    | K8S104 | HIGH | a | the check that keeps a workload from running as root is turned off (`runAsNonRoot: false`, an OpenShift SCC whose `runAsUser` is `type: RunAsAny`, `pod-security.kubernetes.io/enforce: privileged`); `RunAsAny` for groups or SELinux is not this |
    | K8S105 | WARNING | a | a container is given a dangerous capability (`SYS_ADMIN`, `NET_ADMIN`, `ALL`, under `capabilities: add`, `cap_add` or `--cap-add`); dropping a capability is not this |
    | K8S106 | WARNING | a | a container or pod uses the host's network (`hostNetwork: true`, `network_mode: host`, `--network=host`) |
@@ -360,12 +360,12 @@ restore.
    | CFG102 | WARNING | a | debug mode is turned on (`debug = true`, `DEBUG = True`, `APP_DEBUG=true`) |
    | CFG103 | WARNING | a | the log level is set to debug or trace, which can expose production data (`level: debug`, `LOG_LEVEL=trace`, `logging.level.root=DEBUG`) |
    | CFG104 | WARNING | a | a sensitive port is exposed or published, in a port mapping, an `EXPOSE`, a service, or a firewall rule that opens it to any address: remote access or a database, cache or search port (22, 3389, 5432, 3306, 6379, 27017, 9200, 11211); a rule that admits only a private range or another group is not this |
-   | CFG105 | INFO | r | a timeout or time limit is removed, from configuration or from the call that sets it in code, so the wait has no limit (`timeout=`, `statement_timeout`, `proxy_read_timeout`; hung connections) |
+   | CFG105 | INFO | r | a timeout or time limit is removed, from configuration or from the call that sets it in code (`timeout=`, `statement_timeout`, `proxy_read_timeout`; hung connections); a value changed to another limit is not this |
 
    _Data_ — where: application code, scripts, configuration and data files (seed, fixture, import), in any language
    | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
-   | DAT101 | CRITICAL | a | many stored records are deleted in one operation: every record of a table, collection or store, or all those a condition selects, by a query, an ORM call or a file command; one record deleted by its key is not this, nor is emptying a list, map or cache held in memory (`delete_all`, `destroy_all`, `removeAll`, `bulk_delete`, `purge`) |
+   | DAT101 | CRITICAL | a | many stored records are deleted in one operation: every record of a table, collection or store, or all those a condition selects, by a query, an ORM call or a file command; one record deleted by its key is not this, nor is emptying a list, map or cache held in memory, nor emptying a test database in a test's setup or teardown (`delete_all`, `destroy_all`, `removeAll`, `bulk_delete`, `purge`) |
    | DAT102 | HIGH | a | personal data (a national or tax identifier, a passport number, a payment card number) is exposed unmasked: it goes out in a response, a log, an export or a notification, or a person's value is written as a literal in code, configuration or a data file; a field, column or pattern that only names the data is not this (`ssn`, `cpf`, `cnpj`, `passport_number`, `credit_card`, `card_number`) |
    | DAT103 | HIGH | r | encryption or hashing is removed (`encrypt`, `bcrypt`, `argon2`, `sha256`, `aes`, `rsa`) |
    | DAT104 | WARNING | a | a password, token, secret or key is written to a log or to the output, by any logging or printing call (`console.log`, `logger.*`) |
