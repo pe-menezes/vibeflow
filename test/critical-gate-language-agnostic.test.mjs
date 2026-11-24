@@ -24,6 +24,15 @@
 // The assertions pin the contract, not the wording, so a rewrite of the
 // technology domains keeps passing as long as it keeps the contract; the one
 // exception is the trigger sentence, whose measured part is pinned by its words.
+// The Database, Infrastructure, Kubernetes and Config tables describe
+// behaviours, their "where" says another tool counts and narrows nothing but
+// the measured test-database exclusion of the Database domain, and the four
+// read the same in the three editions; DS106 sends its line to DAT101 too and a DELETE
+// with a condition to DAT101 alone; DAT101 negates each of its two exclusions
+// on its own; DAT102 names its four outputs. Item b's opening paragraph is the
+// second exception, pinned word for word with its spaces folded. The checks
+// that hold by meaning prove their force on the measured row, by mutations and
+// faithful rewrites, and the edition cases apply only the check.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -361,9 +370,28 @@ test('the No diff scanned line is named in item b and takes the place of the Sca
   });
 });
 
-// A negation that reaches the word Clean in the same clause. The name of the
-// No diff scanned line is taken out first, so its own "No" does not count.
-const NO_CLEAN = /\b(no|not|never|nor|without)\b[^;]*\bClean\b/i;
+// A negation that reaches the word Clean in the same clause, before it, or a
+// "not" or "never" at most two words after it ("Clean" is not written), as the
+// audit probe on the same contract accepts. The name of the No diff scanned
+// line is taken out first, so its own "No" does not count.
+const NO_CLEAN = /\b(no|not|never|nor|without)\b[^;]*\bClean\b|\bClean\b"?(?:\s+[A-Za-z]+){0,2}\s+(not|never)\b/i;
+
+test('the no-Clean pattern accepts a negation before or right after Clean, and rejects Clean said to follow', () => {
+  for (const sample of [
+    'the `` line stands in place of the `Scanned:` line, and the section does not say "Clean": nothing was scanned.',
+    'the `` line stands in place of the `Scanned:` line, and "Clean" is not written: nothing was scanned.',
+    'the `` line stands in place of the `Scanned:` line, and "Clean" is never written: nothing was scanned.',
+  ]) {
+    assert.match(sample, NO_CLEAN, sample);
+  }
+  for (const sample of [
+    'the `` line stands in place of the `Scanned:` line, and the section says "Clean" after it.',
+    'the `` line stands in place of the `Scanned:` line, and a "Clean" line follows, not a finding line.',
+    'the `` line stands in place of the `Scanned:` line, and "Clean" is written: nothing was scanned.',
+  ]) {
+    assert.doesNotMatch(sample, NO_CLEAN, sample);
+  }
+});
 
 test('with no diff, the section does not say Clean, in item b and in the output note', () => {
   forEachEdition((raw, edition) => {
@@ -460,11 +488,12 @@ function exposesDataAndLiteralValue(behaviour) {
 // Rewrites of the measured DAT102 cell, as proof that the check holds: the
 // earlier line, which only had the data going out, the literal clause gone,
 // the naming exclusion gone, the exclusion turned into an inclusion, and the
-// literal negated.
+// literal negated. The cell names the personal data before the exclusion, so
+// the exclusion may end the cell's prose with no colon after it.
 const DAT102_MUTATIONS = {
-  'branch line': (text) => text.replace(/ is exposed unmasked: .*? is not this: /, ' goes out unmasked in a response, a log, an export or a notification: '),
+  'branch line': (text) => text.replace(/ is exposed unmasked: .*?\bis not this:? ?/, ' goes out unmasked in a response, a log, an export or a notification: '),
   'no literal': (text) => text.replace(/, or [^;]*\bliteral\b[^;]*/, ''),
-  'no naming exclusion': (text) => text.replace(/; [^;:]*\bonly names\b[^:]*:/, ':'),
+  'no naming exclusion': (text) => text.replace(/; [^;]*\bonly names\b[^;]*?\bis not this\b/, ''),
   'exclusion as inclusion': (text) => text.replace(/\bonly names the data is not this\b/, 'only names the data is also this'),
   'literal negated': (text) => text.replace(/\bvalue is written as a literal\b/, 'value is never written as a literal'),
 };
@@ -491,5 +520,277 @@ test('gate-prompt builds, from each edition, a request that carries the two line
     assert.ok(from >= 0 && to > from, `${edition}: the request has its output format`);
     checkOutputLines(lines.slice(from, to), `${edition} request`);
     assert.ok(prompt.includes('**Every changed file is scanned.**'), `${edition} request: carries item b's rules`);
+  });
+});
+
+// --- the technology domains describe behaviours ----------------------------
+
+const TECH_DOMAINS = ['Database', 'Infrastructure (IaC)', 'Kubernetes', 'Config'];
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// One domain of the catalog: its "where" line and its table, up to the blank
+// line that closes it, each line trimmed.
+function domainBlock(step, name, edition) {
+  const from = step.findIndex((line) => new RegExp(`^\\s+_${escapeRegExp(name)}_\\s+—`).test(line));
+  assert.ok(from >= 0, `${edition}: domain ${name} is in the catalog`);
+  const end = step.findIndex((line, i) => i > from && line.trim() === '');
+  return step.slice(from, end > from ? end : step.length).map((line) => line.trim());
+}
+
+// A "where" that says the same setting in another tool, framework, format or
+// platform counts, and narrows nothing but the one measured exclusion below.
+const ANOTHER_TOOL_COUNTS = /\b(?:any|another|other)\s+(?:tool|framework|format|container platform|platform)s?\b/i;
+const NARROWS = /\b(?:only|never|not|except|unless)\b/i;
+
+// The one thing a technology "where" sets apart, measured on the Database
+// domain: creating or dropping the tables of a test database in a test's setup
+// or teardown. A sentence of the Database "where" that says only that is left
+// out of the narrowing check; one that also names a tool, a framework, a
+// format, a platform, a migration, SQL or a file, or says "only", "except" or
+// "unless", is not, so a narrowing by the tool still fails.
+const SAYS_TOOL = /\b(?:tools?|frameworks?|formats?|platforms?|migrations?|SQL|files?|code)\b/i;
+function setsApartTestDatabaseOnly(sentence) {
+  return (
+    /\btests?\b|\btest's\b/i.test(sentence) &&
+    /\b(?:setup|set-up|teardown|tear-down)\b/i.test(sentence) &&
+    /\b(?:tables?|database|schema)\b/i.test(sentence) &&
+    /\b(?:is not|isn't|are not|aren't|does not count|do not count)\b/i.test(sentence) &&
+    !SAYS_TOOL.test(sentence) &&
+    !/\b(?:only|except|unless|never)\b/i.test(sentence)
+  );
+}
+function narrowingPart(name, description) {
+  if (name !== 'Database') return description;
+  return description
+    .split(/;\s*|(?<=\.)\s+/)
+    .filter((sentence) => !setsApartTestDatabaseOnly(sentence))
+    .join('; ');
+}
+
+test('the database, infrastructure, Kubernetes and config domains describe behaviours, say another tool counts, and read the same in the three editions', () => {
+  const blocks = {};
+  forEachEdition((raw, edition) => {
+    const step = gateStep(raw, edition);
+    const domains = catalog(step);
+    for (const name of TECH_DOMAINS) {
+      const entry = domain(domains, name, edition);
+      assert.equal(entry.header?.[3], 'Behaviour', `${edition}: the ${name} table describes behaviours`);
+      assert.match(entry.description, ANOTHER_TOOL_COUNTS, `${edition}: the ${name} "where" says another tool counts: ${entry.description}`);
+      assert.doesNotMatch(narrowingPart(name, entry.description), NARROWS, `${edition}: the ${name} "where" narrows the domain: ${entry.description}`);
+      for (const rule of entry.rules) {
+        const behaviour = ruleBehaviour(step, rule.id, edition);
+        assert.doesNotMatch(behaviour, /^`/, `${edition}: ${rule.id} opens with a name, not a behaviour: ${behaviour}`);
+      }
+    }
+    blocks[edition] = TECH_DOMAINS.map((name) => domainBlock(step, name, edition));
+  });
+  assert.deepEqual(blocks.cursor, blocks.shared, 'cursor: the four technology domains differ from the shared edition');
+  assert.deepEqual(blocks.copilot, blocks.shared, 'copilot: the four technology domains differ from the shared edition');
+});
+
+// The DS106 contract, by meaning: the line that deletes every row with no
+// condition is also DAT101, and a `DELETE` whose condition selects rows is
+// DAT101 alone, never DS106. Code marks are dropped first; "with no
+// condition" and "no WHERE" describe the DS106 line itself and are not a
+// condition.
+const NEGATED = /\b(?:no|not|never|nor|neither|none)\b|n't\b/i;
+const CONDITION = /\b(?:condition|where|filter\w*)\b/i;
+const NO_CONDITION = /\b(?:with|has|having|carries)\s+no\s+(?:condition|where|filter)\b/gi;
+function ds106SendsDeletesToDat101(behaviour) {
+  const prose = behaviour.replace(/`([^`]*)`/g, '$1');
+  const clauses = prose
+    .split(/;|,\s*(?=(?:and|but)\b)/)
+    .map((clause) => clause.trim())
+    .filter(Boolean);
+  const conditioned = (clause) => CONDITION.test(clause.replace(NO_CONDITION, ''));
+  const also = clauses.some(
+    (clause) => /\bDAT101\b/.test(clause) && /\b(?:also|as well|too)\b/i.test(clause) && !NEGATED.test(clause) && !conditioned(clause),
+  );
+  const alone = (clause) => {
+    const rest = clause.replace(/\b(?:not|never)\s+(?:also\s+)?DS106\b/gi, '');
+    const saysAlone = rest !== clause || /\b(?:alone|only)\b/i.test(rest);
+    return saysAlone && /\bDAT101\b/.test(rest) && !/\bDS106\b|\bthis\b/i.test(rest) && !NEGATED.test(rest);
+  };
+  const withCondition = clauses.filter(conditioned);
+  return also && withCondition.length > 0 && withCondition.every(alone);
+}
+
+// A check proves its force on a sample: each mutation changes the sample and
+// is rejected, each faithful rewrite changes it and is accepted. The edition
+// cases below apply only the check, so a faithful rewrite of the catalog keeps
+// passing.
+function proveCheck(check, sample, mutations, rewrites) {
+  assert.ok(check(sample), `the sample passes the check: ${sample}`);
+  for (const [name, mutate] of Object.entries(mutations)) {
+    const mutated = mutate(sample);
+    assert.notEqual(mutated, sample, `the "${name}" rewrite changes the sample`);
+    assert.equal(check(mutated), false, `the "${name}" rewrite is rejected: ${mutated}`);
+  }
+  for (const [name, rewrite] of Object.entries(rewrites)) {
+    const rewritten = rewrite(sample);
+    assert.notEqual(rewritten, sample, `the "${name}" rewrite changes the sample`);
+    assert.ok(check(rewritten), `the "${name}" rewrite is accepted: ${rewritten}`);
+  }
+}
+
+// The DS106 row as it was measured with a model, the sample of its check.
+const DS106_SAMPLE =
+  'every row of a table is deleted by a `DELETE` with no condition (`DELETE FROM <table>` with no `WHERE`); the same line is also DAT101, and a `DELETE` whose condition selects many rows is DAT101 alone';
+
+const DS106_MUTATIONS = {
+  'not DAT101': (text) => text.replace('is also DAT101', 'is not DAT101'),
+  'never DAT101': (text) => text.replace('is also DAT101', 'is never DAT101'),
+  'DAT101 dropped': (text) => text.replace('the same line is also DAT101, and ', ''),
+  'condition to DS106': (text) => text.replace('is DAT101 alone', 'is DS106 alone'),
+  'condition is also this': (text) => text.replace('is DAT101 alone', 'is also this'),
+  'condition is both': (text) => text.replace('is DAT101 alone', 'is DAT101 and DS106'),
+  'condition not DAT101': (text) => text.replace('is DAT101 alone', 'is not DAT101'),
+  'condition dropped': (text) => text.replace(/, and a `DELETE` whose condition[^;]*$/, ''),
+};
+const DS106_REWRITES = {
+  'as well, only': (text) => text.replace('is also DAT101', 'is DAT101 as well').replace('is DAT101 alone', 'is only DAT101'),
+  'fires, not DS106': (text) =>
+    text.replace(/; the same line .*$/, '; that line also fires DAT101; a `DELETE` with a condition that selects many rows fires DAT101 and not DS106'),
+};
+
+test('the DS106 check rejects a row that inverts either clause, and accepts faithful rewrites', () => {
+  proveCheck(ds106SendsDeletesToDat101, DS106_SAMPLE, DS106_MUTATIONS, DS106_REWRITES);
+});
+
+test('DS106 says the same line is also DAT101, and a DELETE whose condition selects many rows is DAT101 alone, in the three editions', () => {
+  forEachEdition((raw, edition) => {
+    const behaviour = ruleBehaviour(gateStep(raw, edition), 'DS106', edition);
+    assert.ok(ds106SendsDeletesToDat101(behaviour), `${edition}: DS106 sends the line to DAT101 too, and the condition to DAT101 alone: ${behaviour}`);
+  });
+});
+
+// --- item b's opening paragraph, word for word -----------------------------
+
+// The opening paragraph of item b, from the trigger sentence to the end of the
+// paragraph. It was measured with a model as a whole, so it is pinned by its
+// words, with its spaces folded: a new sentence in it, or a sentence changed or
+// dropped, has to be measured again before it lands here.
+const ITEM_B_TITLE = 'b. **Match each changed line against the Rules Catalog below.**';
+const ITEM_B_OPENING =
+  "A rule fires when the diff line's direction matches its `scope` (a=added, r=removed, b=both) and the line does what the rule describes, in whatever language or format the file is written. The catalog describes behaviours. The names in parentheses are examples from a few ecosystems, never the list of what counts: the same behaviour under another name, in another language, fires the same rule.";
+
+// The paragraph of item b before its first bullet, with its spaces folded.
+function itemBParagraph(lines) {
+  const firstBullet = lines.findIndex((line) => /^\s+-\s+\*\*/.test(line));
+  return fold(lines.slice(0, firstBullet > 0 ? firstBullet : lines.length).join(' '));
+}
+const isMeasuredOpening = (paragraph) => fold(paragraph) === `${ITEM_B_TITLE} ${ITEM_B_OPENING}`;
+
+const OPENING_MUTATIONS = {
+  'sentence added at the end': (text) => `${text} Generated files are skipped.`,
+  'sentence added in the middle': (text) => text.replace('The catalog describes behaviours.', 'The catalog describes behaviours. Only source files count.'),
+  'sentence added before the trigger': (text) => text.replace('A rule fires', 'Read the file type first. A rule fires'),
+  'sentence dropped': (text) => text.replace(' The catalog describes behaviours.', ''),
+  'examples narrowed': (text) => text.replace('examples from a few ecosystems', 'the ecosystems that count'),
+};
+
+test('item b opens with its measured paragraph, word for word: a new wording of it has to be measured with a model again', () => {
+  forEachEdition((raw, edition) => {
+    const paragraph = itemBParagraph(itemB(gateStep(raw, edition), edition));
+    assert.ok(isMeasuredOpening(paragraph), `${edition}: item b's opening paragraph is not the measured one: ${paragraph}`);
+    for (const [name, mutate] of Object.entries(OPENING_MUTATIONS)) {
+      const mutated = mutate(paragraph);
+      assert.notEqual(mutated, paragraph, `${edition}: the "${name}" rewrite changes the paragraph`);
+      assert.equal(isMeasuredOpening(mutated), false, `${edition}: the "${name}" rewrite is rejected: ${mutated}`);
+    }
+    const rewrapped = paragraph.replaceAll(', ', ',\n      ').replaceAll('. ', '.  ');
+    assert.ok(isMeasuredOpening(rewrapped), `${edition}: the paragraph rewrapped is still the measured one`);
+  });
+});
+
+// --- DAT101's two exclusions, each said on its own --------------------------
+
+// DAT101 leaves out one record deleted by its key and emptying what is held in
+// memory, and each of the two is negated in its own part of the row (cut at a
+// semicolon and at a comma before "nor", "and", "but" or "while"), so a row
+// that inverts one of them while the other keeps its negation is rejected.
+const EXCLUDES = /\b(?:not|nor|never|neither)\b|n't\b/i;
+function dat101ExcludesKeyAndMemory(behaviour) {
+  const parts = behaviour
+    .replace(/\s*\([^()]*\)$/, '')
+    .split(/;|,(?=\s*(?:nor|and|but|while)\b)/)
+    .map((part) => part.trim());
+  const key = parts.some((part) => /\bkey\b/i.test(part) && !/\bmemory\b/i.test(part) && EXCLUDES.test(part));
+  const memory = parts.some((part) => /\bmemory\b/i.test(part) && !/\bkey\b/i.test(part) && EXCLUDES.test(part));
+  return key && memory;
+}
+
+const DAT101_MUTATIONS = {
+  'key inverted': (text) => text.replace('by its key is not this', 'by its key is this'),
+  'key is also this': (text) => text.replace('by its key is not this', 'by its key is also this'),
+  'memory inverted': (text) => text.replace(', nor is emptying', ', and so is emptying'),
+  'memory joined to the key': (text) => text.replace(', nor is emptying', ', as is emptying'),
+  'memory dropped': (text) => text.replace(/, nor is emptying[^;(]*/, ''),
+};
+const DAT101_REWRITES = {
+  'two sentences': (text) => text.replace(/, nor is emptying ([^;(]*?held in memory)/, '; emptying $1 is not this either'),
+  neither: (text) => text.replace(', nor is emptying', ', and neither is emptying'),
+};
+
+// The DAT101 row as it was measured with a model, the sample of its check.
+const DAT101_SAMPLE =
+  'many stored records are deleted in one operation: every record of a table, collection or store, or all those a condition selects, by a query, an ORM call or a file command; one record deleted by its key is not this, nor is emptying a list, map or cache held in memory (`delete_all`, `destroy_all`, `removeAll`, `bulk_delete`, `purge`)';
+
+test('the DAT101 exclusion check rejects a row that inverts either exclusion, and accepts faithful rewrites', () => {
+  proveCheck(dat101ExcludesKeyAndMemory, DAT101_SAMPLE, DAT101_MUTATIONS, DAT101_REWRITES);
+});
+
+test('DAT101 says, each on its own, that one record deleted by its key and emptying what is held in memory are not this', () => {
+  forEachEdition((raw, edition) => {
+    const behaviour = ruleBehaviour(gateStep(raw, edition), 'DAT101', edition);
+    assert.ok(dat101ExcludesKeyAndMemory(behaviour), `${edition}: DAT101 leaves out one record by its key and what is held in memory: ${behaviour}`);
+  });
+});
+
+// --- DAT102's outputs -------------------------------------------------------
+
+// DAT102 names every way the data goes out: a response, a log, an export and a
+// notification, each one bare (a qualifier on one narrows it), with no "only",
+// "except" or "unless" between "goes out" and the literal clause.
+const OUTPUTS = ['response', 'log', 'export', 'notification'];
+function dat102ListsEveryOutput(behaviour) {
+  const prose = behaviour.replace(/`[^`]*`/g, 'CODE');
+  const from = prose.search(/\bgoes out\b/i);
+  if (from < 0) return false;
+  const rest = prose.slice(from);
+  const to = rest.search(/\bliteral\b|;/i);
+  const span = to > 0 ? rest.slice(0, to) : rest;
+  if (/\b(?:only|except|unless|but not)\b/i.test(span)) return false;
+  const items = span
+    .replace(/^goes out\s+\w+\s+/i, '')
+    .split(/,|\bor\b|\band\b/)
+    .map((item) => item.trim().replace(/^(?:in|to|through|by|as)\s+/i, '').replace(/^(?:an?|the)\s+/i, ''));
+  return OUTPUTS.every((output) => items.includes(output));
+}
+
+const OUTPUT_MUTATIONS = {
+  'export dropped': (text) => text.replace('a log, an export or a notification', 'a log or a notification'),
+  'notification dropped': (text) => text.replace('an export or a notification', 'or an export'),
+  'response and log only': (text) => text.replace('a response, a log, an export or a notification', 'a response or a log'),
+  'notification qualified': (text) => text.replace('or a notification', 'or a notification sent to a third party'),
+  'only in production': (text) => text.replace('goes out in a response', 'goes out only in a production response'),
+};
+const OUTPUT_REWRITES = {
+  'list widened': (text) => text.replace(' or a notification', ', a notification or a message queue'),
+  'reordered': (text) => text.replace('a response, a log, an export or a notification', 'a log, a response, a notification or an export'),
+};
+
+// The DAT102 row as it was measured with a model, the sample of its checks.
+const DAT102_SAMPLE =
+  "personal data (a national or tax identifier, a passport number, a payment card number) is exposed unmasked: it goes out in a response, a log, an export or a notification, or a person's value is written as a literal in code, configuration or a data file; a field, column or pattern that only names the data is not this (`ssn`, `cpf`, `cnpj`, `passport_number`, `credit_card`, `card_number`)";
+
+test('the DAT102 output check rejects a narrowed list, and accepts a reordered or widened one', () => {
+  proveCheck(dat102ListsEveryOutput, DAT102_SAMPLE, OUTPUT_MUTATIONS, OUTPUT_REWRITES);
+});
+
+test('DAT102 names every way the data goes out: a response, a log, an export and a notification', () => {
+  forEachEdition((raw, edition) => {
+    const behaviour = ruleBehaviour(gateStep(raw, edition), 'DAT102', edition);
+    assert.ok(dat102ListsEveryOutput(behaviour), `${edition}: DAT102 names a response, a log, an export and a notification: ${behaviour}`);
   });
 });

@@ -34,6 +34,8 @@ export const GIT_IDENTITY = Object.freeze({
   GIT_COMMITTER_DATE: DATE,
 });
 
+const COMMIT_MESSAGES = Object.freeze({ base: 'Service code in several languages', change: 'Account, billing and maintenance changes' });
+
 function gitEnv() {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
   return { ...env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: devNull, ...GIT_IDENTITY };
@@ -47,7 +49,10 @@ function writeAll(root, files) {
   }
 }
 
-export function makeGateLanguages(dest) {
+// Builds <dest>/repo from a fixture ({ base, change, cases }: the files of the base commit, the
+// files of the change commit and the cases) and writes <dest>/manifest.json. The gate-tech fixture
+// builds its repository with it.
+export function makeFixtureRepository(dest, fixture, messages = COMMIT_MESSAGES) {
   const root = resolve(dest);
   if (existsSync(root)) {
     if (!statSync(root).isDirectory()) throw new Error(`${root} exists and is not a directory`);
@@ -62,19 +67,23 @@ export function makeGateLanguages(dest) {
     return result.stdout;
   };
 
-  const { base, change, cases } = buildFixture();
+  const { base, change, cases } = fixture;
   git(['init', '-q', '-b', 'main']);
   git(['config', 'commit.gpgsign', 'false']);
   writeAll(repo, base);
   git(['add', '-A']);
-  git(['commit', '-q', '-m', 'Service code in several languages']);
+  git(['commit', '-q', '-m', messages.base]);
   writeAll(repo, change);
   git(['add', '-A']);
-  git(['commit', '-q', '-m', 'Account, billing and maintenance changes']);
+  git(['commit', '-q', '-m', messages.change]);
 
   const manifest = join(root, 'manifest.json');
   writeFileSync(manifest, `${JSON.stringify(cases, null, 2)}\n`);
   return { root, repo, manifest, cases: cases.length };
+}
+
+export function makeGateLanguages(dest) {
+  return makeFixtureRepository(dest, buildFixture());
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
