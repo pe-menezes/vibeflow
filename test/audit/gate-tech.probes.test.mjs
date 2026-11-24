@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CATALOG_TECH_1_20, expandCases } from '../fixtures/gate-tech/matrix.mjs';
+import { CATALOG_TECH_1_20, buildFixture, expandCases } from '../fixtures/gate-tech/matrix.mjs';
 import { matchFinding, measure } from '../fixtures/gate-languages/measure.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -175,4 +175,29 @@ test('a note citing a Dockerfile line of a case makes that case mentioned', () =
   const text = `### Critical Gate\nClean.\nLooked at ${control.path}:${control.line}: not a finding.\n`;
   const report = measure(cases, [{ path: 'r.md', text }]).reports[0];
   assert.deepEqual(report.mentioned.ids, [control.id]);
+});
+
+// --- reaudit 1 of part 2b-1 ----------------------------------------------------------------------
+
+// Contract: a planted IAC104 case takes away a protection, and its removal opens access (spec part
+// 2b-1: IAC104 takes a firewall or network rule out; conserto 1: the cases are "the removal of a
+// protection", and a change that does not open access leaves the matrix). A deny rule protects only
+// where something else lets the traffic in: a custom AWS network ACL with no allow entry denies
+// everything by its final `*` rule, and a GCP network with no allow rule denies all ingress by its
+// implied rule. Removing the only deny of such a file changes nothing at run time, and a model that
+// reads it so is counted as a miss, as with the CFG105 defaults of A3.
+// Breaks when: a deny rule is planted in a file with no allow rule (the CloudFormation and Pulumi
+// cases of conserto 1, and the GCP firewall case of the part), and the `why` says the traffic is no
+// longer blocked.
+// Not covered by: the implementer's tests check the removed side, the labels and the quadrants of
+// IAC104, never what the rest of the file allows; the A3 probe looks only at CFG105.
+test('a planted IAC104 case that removes a deny rule sits in a file that otherwise allows the traffic', { todo: 'reaudit 1 p2b1 N1: the deny rules removed in cloudformation, pulumi and the GCP firewall have no allow rule beside them' }, () => {
+  const { base } = buildFixture();
+  const denies = cases.filter((c) => c.kind === 'planted' && c.rule === 'IAC104' && /\bdeny\b/i.test(snippetOf(c)));
+  assert.ok(denies.length >= 1, 'the matrix plants at least one removed deny rule');
+  const wrong = denies.filter((c) => {
+    const rest = base[c.path].split('\n').filter((line) => !c.snippet.includes(line)).join('\n');
+    return !/\ballow\b/i.test(rest);
+  }).map((c) => c.id);
+  assert.deepEqual(wrong, []);
 });
