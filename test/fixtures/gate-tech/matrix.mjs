@@ -86,7 +86,7 @@ export const TECH_RULES = Object.freeze(Object.keys(CATALOG_TECH_1_20.rules));
 // here.
 export const QUADRANT_GAPS = Object.freeze({
   DS103: Object.freeze({
-    wordOff: 'Emptying a whole table by a database command without writing truncate has no real form in the tools of this fixture: raw SQL, Rails (`truncate_tables`), Laravel (`truncate()`) and Sequelize (`truncate: true`) all carry the word, Django and Liquibase have no such operation, and a row delete with no condition (`.objects.all().delete()`, `<delete>`) is DS106 and DAT101, not DS103.',
+    wordOff: 'Emptying a whole table by a database command without writing truncate has no real form in the tools of this fixture: raw SQL, Rails (`truncate_tables`), Laravel (`truncate()`) and Sequelize (`truncate: true`) all carry the word; Liquibase has no change for it; the `flush` of Django empties every table of the database rather than one, and is a management command rather than a migration operation, so it sits between DS101, DS103 and DAT101 and is no idiomatic DS103 case; the `repository.clear()` of TypeORM empties one table without the word, but no format of this fixture is TypeORM; and a row delete with no condition (`.objects.all().delete()`, `<delete>`) is DS106 and DAT101, not DS103.',
   }),
 });
 
@@ -197,7 +197,7 @@ export const FORMATS = Object.freeze([
   { id: 'config-json', name: 'Configuration in JSON', extension: '.json' },
   { id: 'config-code', name: 'Configuration written in code (Express)', extension: '.js' },
   { id: 'dotenv', name: '.env file', extension: '.env' },
-  { id: 'ini', name: 'INI file (php.ini)', extension: '.ini' },
+  { id: 'ini', name: 'INI file (php.ini, uWSGI)', extension: '.ini' },
   { id: 'nginx', name: 'nginx configuration', extension: '.conf' },
   { id: 'dockerfile', name: 'Dockerfile', extension: '' },
   { id: REGRESSION, name: 'Regression cases measured by hand in part 2a, each under its origin', extension: null },
@@ -379,7 +379,7 @@ const INFRASTRUCTURE = [
     P('IAC103', 'project-owner', ['data "google_project" "current" {}'], ['resource "google_project_iam_member" "ci_owner" {', '  role   = "roles/owner"', '  member = "serviceAccount:ci@acme-prod.iam.gserviceaccount.com"', '}'], ['output "project_number" {', '  value = data.google_project.current.number', '}'], 'Makes the CI service account owner of the whole project.', { key: 1 }),
   ]),
   file('terraform', 'modules/network/firewall.tf', [
-    P('IAC104', 'firewall-rule-removed', ['resource "google_compute_network" "main" {', '  name = "main"', '}'], ['resource "google_compute_firewall" "deny_ssh_from_internet" {', '  network = google_compute_network.main.name', '  deny { protocol = "tcp" }', '}'], ['output "network_name" {', '  value = google_compute_network.main.name', '}'], 'A deny rule of the firewall taken out.'),
+    P('IAC104', 'firewall-rule-removed', ['resource "google_compute_network" "main" {', '  name = "main"', '}'], ['resource "google_compute_firewall" "deny_ssh_from_internet" {', '  network = google_compute_network.main.name', '  deny { protocol = "tcp" }', '}'], ['resource "google_compute_firewall" "allow_ssh_from_internet" {', '  network       = google_compute_network.main.name', '  source_ranges = ["0.0.0.0/0"]', '  priority      = 1100', '  allow {', '    protocol = "tcp"', '    ports    = ["22"]', '  }', '}', 'output "network_name" {', '  value = google_compute_network.main.name', '}'], 'A deny rule of the firewall taken out: it outranked the allow rule beside it (the default priority 1000 against 1100), so SSH from the whole internet now gets in.'),
   ]),
   file('terraform', 'modules/database/network.tf', [
     P('IAC104', 'acl-association-removed', ['resource "aws_subnet" "db_private" {', '  vpc_id     = aws_vpc.main.id', '  cidr_block = "10.0.20.0/24"', '}'], ['resource "aws_network_acl_association" "db_private" {', '  network_acl_id = aws_network_acl.db_private.id', '  subnet_id      = aws_subnet.db_private.id', '}'], ['output "db_subnet_id" {', '  value = aws_subnet.db_private.id', '}'], 'The database subnet loses its network ACL and goes back to the default ACL of the VPC, which allows all traffic in and out.'),
@@ -415,7 +415,7 @@ const INFRASTRUCTURE = [
     P('IAC103', 'admin-policy', ['  CiRole:', '    Type: AWS::IAM::Role', '    Properties:', '      ManagedPolicyArns:'], ['        - arn:aws:iam::aws:policy/AdministratorAccess'], ['      RoleName: ci'], 'Grants the CI role full administrator access.'),
   ], { head: ['Resources:'] }),
   file('cloudformation', 'templates/public-network.yaml', [
-    P('IAC104', 'deny-entry-removed', ['  PublicAcl:', '    Type: AWS::EC2::NetworkAcl', '    Properties: { VpcId: !Ref Vpc }'], ['  DenyRdpFromInternet:', '    Type: AWS::EC2::NetworkAclEntry', '    Properties: { NetworkAclId: !Ref PublicAcl, RuleNumber: 90, RuleAction: deny,', '                  Protocol: 6, CidrBlock: 0.0.0.0/0, PortRange: { From: 3389, To: 3389 } }'], ['  PublicSubnetAcl:', '    Type: AWS::EC2::SubnetNetworkAclAssociation', '    Properties: { SubnetId: !Ref PublicSubnet, NetworkAclId: !Ref PublicAcl }'], 'A deny entry of the network ACL taken out: RDP from the internet is no longer blocked.'),
+    P('IAC104', 'deny-entry-removed', ['  PublicAcl:', '    Type: AWS::EC2::NetworkAcl', '    Properties: { VpcId: !Ref Vpc }'], ['  DenyRdpFromInternet:', '    Type: AWS::EC2::NetworkAclEntry', '    Properties: { NetworkAclId: !Ref PublicAcl, RuleNumber: 90, RuleAction: deny,', '                  Protocol: 6, CidrBlock: 0.0.0.0/0, PortRange: { From: 3389, To: 3389 } }'], ['  AllowAllInbound:', '    Type: AWS::EC2::NetworkAclEntry', '    Properties: { NetworkAclId: !Ref PublicAcl, RuleNumber: 100, RuleAction: allow,', '                  Protocol: -1, CidrBlock: 0.0.0.0/0 }', '  PublicSubnetAcl:', '    Type: AWS::EC2::SubnetNetworkAclAssociation', '    Properties: { SubnetId: !Ref PublicSubnet, NetworkAclId: !Ref PublicAcl }'], 'A deny entry of the network ACL taken out: entry 90 came before the allow entry 100 beside it, so RDP from the whole internet now gets in.'),
   ], { head: ['Resources:'] }),
   file('cloudformation', 'templates/admin-ingress.yaml', [
     P('IAC105', 'world-ipv4', ['  AdminIngress:', '    Type: AWS::EC2::SecurityGroupIngress', '    Properties:', '      IpProtocol: tcp'], ['      CidrIp: 0.0.0.0/0'], ['      FromPort: 8443', '      ToPort: 8443'], 'Opens the admin port to every address.', { was: ['      CidrIp: 10.0.0.0/16'] }),
@@ -439,7 +439,7 @@ const INFRASTRUCTURE = [
     P('IAC103', 'admin-attachment', ['const ciRole = new aws.iam.Role("ci", { assumeRolePolicy: ciAssume.json });'], ['new aws.iam.RolePolicyAttachment("ci-admin", {', '    role: ciRole.name,', '    policyArn: "arn:aws:iam::aws:policy/AdministratorAccess",', '});'], ['export const ciRoleName = ciRole.name;'], 'Grants the CI role full administrator access.', { key: 2 }),
   ]),
   file('pulumi', 'infra/network-acl.ts', [
-    P('IAC104', 'deny-rule-removed', ['export const publicAcl = new aws.ec2.NetworkAcl("public", { vpcId: vpc.id });'], ['new aws.ec2.NetworkAclRule("deny-rdp-from-internet", {', '    networkAclId: publicAcl.id, ruleNumber: 90, egress: false, protocol: "tcp",', '    ruleAction: "deny", cidrBlock: "0.0.0.0/0", fromPort: 3389, toPort: 3389,', '});'], ['export const publicAclId = publicAcl.id;'], 'A deny rule of the network ACL taken out: RDP from the internet is no longer blocked.'),
+    P('IAC104', 'deny-rule-removed', ['export const publicAcl = new aws.ec2.NetworkAcl("public", { vpcId: vpc.id });'], ['new aws.ec2.NetworkAclRule("deny-rdp-from-internet", {', '    networkAclId: publicAcl.id, ruleNumber: 90, egress: false, protocol: "tcp",', '    ruleAction: "deny", cidrBlock: "0.0.0.0/0", fromPort: 3389, toPort: 3389,', '});'], ['new aws.ec2.NetworkAclRule("allow-all-inbound", {', '    networkAclId: publicAcl.id, ruleNumber: 100, egress: false, protocol: "-1",', '    ruleAction: "allow", cidrBlock: "0.0.0.0/0",', '});', 'export const publicAclId = publicAcl.id;'], 'A deny rule of the network ACL taken out: rule 90 came before the allow rule 100 beside it, so RDP from the whole internet now gets in.'),
   ]),
   file('pulumi', 'infra/network.ts', [
     P('IAC105', 'world-ipv4', ['export const admin = new aws.ec2.SecurityGroup("admin", {', '    vpcId: vpc.id,'], ['    ingress: [{ protocol: "tcp", fromPort: 8443, toPort: 8443, cidrBlocks: ["0.0.0.0/0"] }],'], ['});'], 'Opens the admin port to every address.'),

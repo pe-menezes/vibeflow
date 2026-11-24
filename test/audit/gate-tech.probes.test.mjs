@@ -191,7 +191,7 @@ test('a note citing a Dockerfile line of a case makes that case mentioned', () =
 // longer blocked.
 // Not covered by: the implementer's tests check the removed side, the labels and the quadrants of
 // IAC104, never what the rest of the file allows; the A3 probe looks only at CFG105.
-test('a planted IAC104 case that removes a deny rule sits in a file that otherwise allows the traffic', { todo: 'reaudit 1 p2b1 N1: the deny rules removed in cloudformation, pulumi and the GCP firewall have no allow rule beside them' }, () => {
+test('a planted IAC104 case that removes a deny rule sits in a file that otherwise allows the traffic', () => {
   const { base } = buildFixture();
   const denies = cases.filter((c) => c.kind === 'planted' && c.rule === 'IAC104' && /\bdeny\b/i.test(snippetOf(c)));
   assert.ok(denies.length >= 1, 'the matrix plants at least one removed deny rule');
