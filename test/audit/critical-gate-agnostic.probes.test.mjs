@@ -418,14 +418,14 @@ const neverOnlyKeepsInScan = (sentences) =>
 const PLACES = ['code', 'configuration', 'data'];
 const EXCEPTS = /\b(?:except|unless|other than|but not|apart from|excluding)\b/i;
 const TAKES_OUT_OF_RULE = /\b(?:no|not|nor|never|without)\b|n't\b/i;
-function literalCoversEveryPlace(behaviour) {
+function literalCoversEveryPlace(behaviour, places = PLACES) {
   const clauses = behaviour.split(';').map((clause) => clause.trim());
   const literal = clauses.find((clause) => /\bliteral\b/i.test(clause));
   if (!literal || EXCEPTS.test(literal) || !/\bperson'?s\b[^;]*\bliteral\b/i.test(literal)) return false;
-  const places = literal.match(/\bliteral\s+in\s+(.+)$/i);
-  if (!places) return false;
-  const items = places[1].split(/,|\bor\b|\band\b/).map((item) => item.trim().replace(/^in\s+/i, '')).filter(Boolean);
-  if (items.length !== PLACES.length || !PLACES.every((place) => items.includes(place))) return false;
+  const written = literal.match(/\bliteral\s+in\s+(.+)$/i);
+  if (!written) return false;
+  const items = written[1].split(/,|\bor\b|\band\b/).map((item) => item.trim().replace(/^in\s+/i, '')).filter(Boolean);
+  if (items.length !== places.length || !places.every((place) => items.includes(place))) return false;
   return clauses
     .filter((clause) => clause !== literal && (TAKES_OUT_OF_RULE.test(clause) || EXCEPTS.test(clause)))
     .every((clause) => {
@@ -471,10 +471,14 @@ test('probe: the lockfile and DAT102 checks catch a lockfile or a literal taken 
   }
 });
 
+// The places the catalog's DAT102 row names for the literal since part 2b-2, which wrote "a data
+// file" where the row had "data": code, configuration and a data file, all three and nothing else.
+const LITERAL_PLACES = ['code', 'configuration', 'a data file'];
+
 // Contract: in the three editions, item b tells that a lockfile is scanned (it can carry a
 // credential in a package address) and names a lockfile nowhere else, and the bullet on what is
 // scanned says "never" only to keep a file in the scan; DAT102 covers a person's value written as a
-// literal in code, configuration and data alike, and the only thing its row takes out of the rule is
+// literal in code, configuration and a data file alike, and the only thing its row takes out of the rule is
 // a field, column or pattern that only names the data (measured as defects: with lockfiles left out
 // a credential in a lockfile's package address was reported in 0 calls of 12, and with the row that
 // asked the data to go out a literal card number in seed data was reported in 0 calls of 6).
@@ -497,6 +501,6 @@ test('probe: item b scans a lockfile and DAT102 covers a literal in code, config
     const bullet = itemBBullet(step, 'Every changed file is scanned');
     assert.ok(neverOnlyKeepsInScan(bullet), `${edition}: the bullet says "never" about something other than taking a file out of the scan: ${bullet.join(' ')}`);
     const behaviour = behaviourCell(step, 'DAT102');
-    assert.ok(literalCoversEveryPlace(behaviour), `${edition}: DAT102 narrows or widens the literal, or takes something else out of the rule: ${behaviour}`);
+    assert.ok(literalCoversEveryPlace(behaviour, LITERAL_PLACES), `${edition}: DAT102 narrows or widens the literal, or takes something else out of the rule: ${behaviour}`);
   }
 });
