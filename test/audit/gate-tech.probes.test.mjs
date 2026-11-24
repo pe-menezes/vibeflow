@@ -201,3 +201,131 @@ test('a planted IAC104 case that removes a deny rule sits in a file that otherwi
   }).map((c) => c.id);
   assert.deepEqual(wrong, []);
 });
+
+// --- reaudit 2 of part 2b-1 ----------------------------------------------------------------------
+
+// The rules of a network file, read by form: a network ACL entry of AWS (CloudFormation
+// `AWS::EC2::NetworkAclEntry`, Pulumi `aws.ec2.NetworkAclRule`) or a GCP firewall
+// (`google_compute_firewall`). Each rule is { text, action, rank, egress, protocol, ports, cidr };
+// a lower `rank` is evaluated first (AWS rule number; GCP priority, 1000 when unset, a deny winning
+// a tie, so a deny's rank is taken half a step lower). A form this reader does not know gives null.
+const ALL_PORTS = [0, 65535];
+const protocolOf = (value) => ({ '-1': 'all', all: 'all', 6: 'tcp', tcp: 'tcp', 17: 'udp', udp: 'udp' })[String(value).toLowerCase()] ?? `?${value}`;
+function networkRules(text) {
+  if (/NetworkAclEntry|NetworkAclRule\(/.test(text)) {
+    const blocks = text.split(/\n(?=  [A-Za-z0-9]+:\n|new aws\.ec2\.)/).filter((b) => /NetworkAclEntry|NetworkAclRule\(/.test(b));
+    return blocks.map((b) => {
+      const from = b.match(/(?:From|fromPort):\s*(\d+)/);
+      const to = b.match(/(?:To|toPort):\s*(\d+)/);
+      return {
+        text: b,
+        action: (b.match(/(?:RuleAction|ruleAction):\s*"?(allow|deny)/i) ?? [])[1]?.toLowerCase() ?? null,
+        rank: Number((b.match(/(?:RuleNumber|ruleNumber):\s*(\d+)/) ?? [])[1] ?? NaN),
+        egress: /(?:Egress|egress):\s*true/.test(b),
+        protocol: protocolOf((b.match(/(?:Protocol|protocol):\s*"?(-?\w+)"?/) ?? [])[1]),
+        ports: from && to ? [Number(from[1]), Number(to[1])] : ALL_PORTS,
+        cidr: (b.match(/(?:CidrBlock|cidrBlock):\s*"?([\d./]+)"?/) ?? [])[1] ?? null,
+      };
+    });
+  }
+  if (/google_compute_firewall/.test(text)) {
+    const blocks = text.split(/\n(?=resource |output |data |variable )/).filter((b) => /^resource "google_compute_firewall"/.test(b));
+    return blocks.map((b) => {
+      const action = (b.match(/\b(allow|deny)\s*\{/) ?? [])[1] ?? null;
+      const ports = (b.match(/ports\s*=\s*\[([^\]]*)\]/) ?? [])[1];
+      const list = ports ? ports.split(',').map((p) => p.replace(/"/g, '').trim()).filter(Boolean) : [];
+      const range = list.length === 1 ? list[0].split('-').map(Number) : null;
+      return {
+        text: b,
+        action,
+        rank: Number((b.match(/priority\s*=\s*(\d+)/) ?? [])[1] ?? 1000) - (action === 'deny' ? 0.5 : 0),
+        egress: /direction\s*=\s*"EGRESS"/.test(b),
+        protocol: protocolOf((b.match(/protocol\s*=\s*"(\w+)"/) ?? [])[1]),
+        ports: list.length === 0 ? ALL_PORTS : range && range.length === 1 ? [range[0], range[0]] : range && range.length === 2 ? range : null,
+        // an ingress rule with no source applies to every address (GCP)
+        cidr: (b.match(/source_ranges\s*=\s*\[\s*"([\d./]+)"/) ?? [])[1] ?? '0.0.0.0/0',
+      };
+    });
+  }
+  return null;
+}
+const overlaps = (a, b) =>
+  a.egress === b.egress
+  && (a.protocol === 'all' || b.protocol === 'all' || a.protocol === b.protocol)
+  && a.ports !== null && b.ports !== null && a.ports[0] <= b.ports[1] && b.ports[0] <= a.ports[1]
+  && (a.cidr === '0.0.0.0/0' || b.cidr === '0.0.0.0/0' || a.cidr === b.cidr);
+
+// Contract: a planted IAC104 case that removes a deny rule opens access (spec part 2b-1, IAC104;
+// conserto 1, "the removal of a protection"; reaudit 1, N1 and N2): the rest of the file has an
+// allow rule for the same direction, protocol, ports and addresses as some of the denied traffic,
+// and the deny was evaluated before it (a lower AWS rule number; a GCP priority number lower or
+// equal, a deny winning a tie). Only then is the deny what kept that traffic out.
+// Breaks when: the allow beside the deny comes first (AWS rule 80 against 90, a GCP priority 900
+// against the default 1000), covers another port or the other direction, or a deny rule is planted
+// in a file whose network rules this probe cannot read (the reader fails closed).
+// Not covered by: the implementer's tests check side, labels and quadrants of IAC104; the reaudit 1
+// probe passes on any `allow` word left in the file, a comment included.
+test('the deny rule a planted IAC104 case removes outranks an allow rule for some of the same traffic', () => {
+  const { base } = buildFixture();
+  const denies = cases.filter((c) => c.kind === 'planted' && c.rule === 'IAC104' && /\bdeny\b/i.test(snippetOf(c)));
+  assert.ok(denies.length >= 1, 'the matrix plants at least one removed deny rule');
+  const wrong = denies.filter((c) => {
+    const rules = networkRules(base[c.path]);
+    if (rules === null) return true;
+    const deny = rules.find((r) => r.text.includes(c.snippet[0].trim()));
+    if (!deny || deny.action !== 'deny' || Number.isNaN(deny.rank)) return true;
+    return !rules.some((r) => r !== deny && r.action === 'allow' && r.rank > deny.rank && overlaps(r, deny));
+  }).map((c) => c.id);
+  assert.deepEqual(wrong, []);
+});
+
+// The scenario above, on its own failure: the reader is not satisfied by an allow rule that comes
+// first, one for another port, or the word allow in a comment.
+test('the IAC104 rule reader refuses an allow rule that comes first, covers another port, or is a comment', () => {
+  const acl = (allow) => [
+    'Resources:',
+    '  DenyRdp:',
+    '    Type: AWS::EC2::NetworkAclEntry',
+    '    Properties: { NetworkAclId: !Ref A, RuleNumber: 90, RuleAction: deny,',
+    '                  Protocol: 6, CidrBlock: 0.0.0.0/0, PortRange: { From: 3389, To: 3389 } }',
+    ...allow,
+  ].join('\n');
+  const opens = (text) => {
+    const rules = networkRules(text);
+    const deny = rules.find((r) => r.action === 'deny');
+    return rules.some((r) => r !== deny && r.action === 'allow' && r.rank > deny.rank && overlaps(r, deny));
+  };
+  const entry = (number, extra) => ['  Allow:', '    Type: AWS::EC2::NetworkAclEntry', `    Properties: { NetworkAclId: !Ref A, RuleNumber: ${number}, RuleAction: allow, ${extra} }`];
+  assert.equal(opens(acl(entry(100, 'Protocol: -1, CidrBlock: 0.0.0.0/0'))), true);
+  assert.equal(opens(acl(entry(80, 'Protocol: -1, CidrBlock: 0.0.0.0/0'))), false);
+  assert.equal(opens(acl(entry(100, 'Protocol: 6, CidrBlock: 0.0.0.0/0, PortRange: { From: 443, To: 443 }'))), false);
+  assert.equal(opens(acl(entry(100, 'Egress: true, Protocol: -1, CidrBlock: 0.0.0.0/0'))), false);
+  assert.equal(opens(acl(['  # allow everything else'])), false);
+  const gcp = (priority) => [
+    'resource "google_compute_firewall" "deny_ssh" {', '  network = "main"', '  deny { protocol = "tcp" }', '}',
+    'resource "google_compute_firewall" "allow_ssh" {', '  network = "main"', '  source_ranges = ["0.0.0.0/0"]', ...(priority ? [`  priority = ${priority}`] : []), '  allow {', '    protocol = "tcp"', '    ports    = ["22"]', '  }', '}',
+  ].join('\n');
+  const gcpOpens = (text) => {
+    const rules = networkRules(text);
+    const deny = rules.find((r) => r.action === 'deny');
+    return rules.some((r) => r !== deny && r.action === 'allow' && r.rank > deny.rank && overlaps(r, deny));
+  };
+  assert.equal(gcpOpens(gcp(1100)), true);
+  assert.equal(gcpOpens(gcp(null)), true, 'a tie at the default priority goes to the deny');
+  assert.equal(gcpOpens(gcp(900)), false);
+});
+
+// Contract: a planted IAC104 case on an AWS network ACL opens a connection, not only the inbound
+// packets: network ACLs are stateless, and a custom ACL with no egress entry denies the replies by
+// its final `*` rule (AWS VPC User Guide, "Network ACLs", read from memory, no network in the
+// session). Reaudit 2, N6, a low finding: the CloudFormation and Pulumi cases let the RDP packets
+// in after the removal, while the replies stay blocked.
+// Breaks when: a removed deny of an AWS network ACL sits in an ACL with no egress allow entry.
+// Not covered by: the implementer's tests and the probe above read the inbound rules only.
+test('a planted IAC104 case on an AWS network ACL sits in an ACL that also lets the replies out', { todo: 'reaudit 2 p2b1 N6 (low, task): the cloudformation and pulumi ACLs have no egress allow entry' }, () => {
+  const { base } = buildFixture();
+  const acls = cases.filter((c) => c.kind === 'planted' && c.rule === 'IAC104' && /\bdeny\b/i.test(snippetOf(c)) && /NetworkAclEntry|NetworkAclRule\(/.test(base[c.path]));
+  assert.ok(acls.length >= 1, 'the matrix plants at least one removed deny of an AWS network ACL');
+  const wrong = acls.filter((c) => !networkRules(base[c.path]).some((r) => r.action === 'allow' && r.egress)).map((c) => c.id);
+  assert.deepEqual(wrong, []);
+});
