@@ -313,9 +313,9 @@ restore.
    | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
    | DS101 | CRITICAL | a | a database is dropped (`DROP DATABASE`, `dropDatabase()`) |
-   | DS102 | CRITICAL | a | a table is dropped, by SQL or by a migration call (`DROP TABLE`, `drop_table`, `migrations.DeleteModel`, `dropTable`) |
+   | DS102 | CRITICAL | a | a table is dropped, by SQL, a migration or any schema call (`DROP TABLE`, `drop_table`, `migrations.DeleteModel`, `dropTable`) |
    | DS103 | CRITICAL | a | every row of a table is removed while the table stays (`TRUNCATE`, `TRUNCATE TABLE`, `truncate()`) |
-   | DS104 | HIGH | a | a column is dropped, by SQL or by a migration call (`DROP COLUMN`, `remove_column`, `migrations.RemoveField`, `dropColumn`) |
+   | DS104 | HIGH | a | a column is dropped, by SQL, a migration or any schema call (`DROP COLUMN`, `remove_column`, `migrations.RemoveField`, `dropColumn`) |
    | DS105 | HIGH | a | a part of a table is dropped by altering it: a constraint, an index, a key or a column (`ALTER TABLE … DROP`, `remove_index`, `dropForeign`) |
    | DS106 | HIGH | a | every row of a table is deleted by a `DELETE` with no condition (`DELETE FROM <table>` with no `WHERE`); the same line is also DAT101, and a `DELETE` whose condition selects many rows is DAT101 alone |
    | DS108 | WARNING | a | a table is renamed (`RENAME TABLE`, `ALTER TABLE … RENAME`, `rename_table`, `renameTable`) |
@@ -339,7 +339,7 @@ restore.
    | IAC101 | CRITICAL | a | a resource is set to be destroyed together with the data it holds (`force_destroy = true`, `forceDestroy: true`, `DeletionPolicy: Delete`, `RemovalPolicy.DESTROY`) |
    | IAC102 | CRITICAL | a | the guard that keeps a resource from being destroyed is turned off (`prevent_destroy = false`, `deletion_protection = false`, `DeletionProtection: false`, `protect: false`) |
    | IAC103 | HIGH | b | who can do what on cloud resources changes: a role, a policy, a user or a permission binding is added, changed or removed (`aws_iam_role`, `iam_policy`, `AWS::IAM::Policy`, `google_project_iam_member`) |
-   | IAC104 | HIGH | r | a firewall rule, a security group or a network ACL is removed (`aws_security_group`, `ingress`, `google_compute_firewall`, `AWS::EC2::SecurityGroupIngress`) |
+   | IAC104 | HIGH | r | a firewall rule, a security group or a network ACL is removed (`aws_security_group`, `aws_network_acl_rule`, `google_compute_firewall`, `AWS::EC2::SecurityGroupIngress`) |
    | IAC105 | WARNING | a | network access is opened to any address (`cidr_blocks = ["0.0.0.0/0"]`, `CidrIp: 0.0.0.0/0`, `source_ranges = ["0.0.0.0/0"]`, `::/0`) |
    | IAC106 | WARNING | a | a resource is made reachable from the internet (`publicly_accessible = true`, `PubliclyAccessible: true`, `public_access = true`) |
 
@@ -348,8 +348,8 @@ restore.
    |---|---|---|---|
    | K8S101 | HIGH | a | a container runs privileged (`privileged: true`, `"privileged": true`, `--privileged`) |
    | K8S102 | HIGH | a | a container mounts the disk of the node or host it runs on: any `hostPath:` volume, or a bind mount of a system path of the host such as the root, `/etc`, `/proc` or the container runtime's socket |
-   | K8S103 | HIGH | a | a container runs as the root user (`runAsUser: 0`, `user: "0"`, `user: root`) |
-   | K8S104 | HIGH | a | the check that keeps a workload from running as root is turned off (`runAsNonRoot: false`) |
+   | K8S103 | HIGH | a | a container runs as the root user (`runAsUser: 0`, `user: "0"`, `user: root`); in a Dockerfile only the last `USER` of the final stage counts, so switching to root for a build step and back is not this |
+   | K8S104 | HIGH | a | the check that keeps a workload from running as root is turned off (`runAsNonRoot: false`, `type: RunAsAny`, `pod-security.kubernetes.io/enforce: privileged`) |
    | K8S105 | WARNING | a | a container is given a dangerous capability (`SYS_ADMIN`, `NET_ADMIN`, `ALL`, under `capabilities: add`, `cap_add` or `--cap-add`); dropping a capability is not this |
    | K8S106 | WARNING | a | a container or pod uses the host's network (`hostNetwork: true`, `network_mode: host`, `--network=host`) |
 
@@ -359,8 +359,8 @@ restore.
    | CFG101 | HIGH | a | cross-origin requests are allowed from any origin (`Access-Control-Allow-Origin: *`, `origin: '*'`, `allow_origins=["*"]`, `AllowAnyOrigin()`) |
    | CFG102 | WARNING | a | debug mode is turned on (`debug = true`, `DEBUG = True`, `APP_DEBUG=true`) |
    | CFG103 | WARNING | a | the log level is set to debug or trace, which can expose production data (`level: debug`, `LOG_LEVEL=trace`, `logging.level.root=DEBUG`) |
-   | CFG104 | WARNING | a | a sensitive port is exposed or published, in a port mapping, an `EXPOSE`, a service or a firewall rule: remote access or a database, cache or search port (22, 3389, 5432, 3306, 6379, 27017, 9200, 11211) |
-   | CFG105 | INFO | r | a timeout is removed: a connection, request, read or idle timeout taken out of the configuration (hung connections) |
+   | CFG104 | WARNING | a | a sensitive port is exposed or published, in a port mapping, an `EXPOSE`, a service, or a firewall rule that opens it to any address: remote access or a database, cache or search port (22, 3389, 5432, 3306, 6379, 27017, 9200, 11211); a rule that admits only a private range or another group is not this |
+   | CFG105 | INFO | r | a timeout or time limit is removed, from configuration or from the call that sets it in code, so the wait has no limit (`timeout=`, `statement_timeout`, `proxy_read_timeout`; hung connections) |
 
    _Data_ — where: application code, scripts, configuration and data files (seed, fixture, import), in any language
    | ID | Sev | Scope | Behaviour |
