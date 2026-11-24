@@ -309,7 +309,7 @@ restore.
    never as a filter. Item b says when a rule fires: on what a line does, in
    any language, and not on a mention; when you cannot tell, the line fires.
 
-   _Database_ — where: SQL in `.sql` files, in migrations of any framework and inside code; a schema change written as a migration call counts as its SQL
+   _Database_ — where: SQL in `.sql` files, in migrations of any framework and inside code; a schema change written as a migration call counts as its SQL. Creating or dropping the tables of a test database in a test's setup or teardown is not this domain's behaviour
    | ID | Sev | Scope | Behaviour |
    |---|---|---|---|
    | DS101 | CRITICAL | a | a database is dropped (`DROP DATABASE`, `dropDatabase()`) |
@@ -349,7 +349,7 @@ restore.
    | K8S101 | HIGH | a | a container runs privileged (`privileged: true`, `"privileged": true`, `--privileged`) |
    | K8S102 | HIGH | a | a container mounts the disk of the node or host it runs on: any `hostPath:` volume, or a bind mount of a system path of the host such as the root, `/etc`, `/proc` or the container runtime's socket |
    | K8S103 | HIGH | a | a container runs as the root user (`runAsUser: 0`, `user: "0"`, `user: root`); in a Dockerfile only the last `USER` of the final stage counts, so switching to root for a build step and back is not this |
-   | K8S104 | HIGH | a | the check that keeps a workload from running as root is turned off (`runAsNonRoot: false`, `type: RunAsAny`, `pod-security.kubernetes.io/enforce: privileged`) |
+   | K8S104 | HIGH | a | the check that keeps a workload from running as root is turned off (`runAsNonRoot: false`, an OpenShift SCC whose `runAsUser` is `type: RunAsAny`, `pod-security.kubernetes.io/enforce: privileged`); `RunAsAny` for groups or SELinux is not this |
    | K8S105 | WARNING | a | a container is given a dangerous capability (`SYS_ADMIN`, `NET_ADMIN`, `ALL`, under `capabilities: add`, `cap_add` or `--cap-add`); dropping a capability is not this |
    | K8S106 | WARNING | a | a container or pod uses the host's network (`hostNetwork: true`, `network_mode: host`, `--network=host`) |
 

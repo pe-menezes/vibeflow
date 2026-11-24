@@ -25,8 +25,9 @@
 // technology domains keeps passing as long as it keeps the contract; the one
 // exception is the trigger sentence, whose measured part is pinned by its words.
 // The Database, Infrastructure, Kubernetes and Config tables describe
-// behaviours, their "where" says another tool counts, and the four read the
-// same in the three editions; DS106 sends its line to DAT101 too and a DELETE
+// behaviours, their "where" says another tool counts and narrows nothing but
+// the measured test-database exclusion of the Database domain, and the four
+// read the same in the three editions; DS106 sends its line to DAT101 too and a DELETE
 // with a condition to DAT101 alone; DAT101 negates each of its two exclusions
 // on its own; DAT102 names its four outputs. Item b's opening paragraph is the
 // second exception, pinned word for word with its spaces folded. The checks
@@ -537,9 +538,34 @@ function domainBlock(step, name, edition) {
 }
 
 // A "where" that says the same setting in another tool, framework, format or
-// platform counts, and narrows nothing.
+// platform counts, and narrows nothing but the one measured exclusion below.
 const ANOTHER_TOOL_COUNTS = /\b(?:any|another|other)\s+(?:tool|framework|format|container platform|platform)s?\b/i;
 const NARROWS = /\b(?:only|never|not|except|unless)\b/i;
+
+// The one thing a technology "where" sets apart, measured on the Database
+// domain: creating or dropping the tables of a test database in a test's setup
+// or teardown. A sentence of the Database "where" that says only that is left
+// out of the narrowing check; one that also names a tool, a framework, a
+// format, a platform, a migration, SQL or a file, or says "only", "except" or
+// "unless", is not, so a narrowing by the tool still fails.
+const SAYS_TOOL = /\b(?:tools?|frameworks?|formats?|platforms?|migrations?|SQL|files?|code)\b/i;
+function setsApartTestDatabaseOnly(sentence) {
+  return (
+    /\btests?\b|\btest's\b/i.test(sentence) &&
+    /\b(?:setup|set-up|teardown|tear-down)\b/i.test(sentence) &&
+    /\b(?:tables?|database|schema)\b/i.test(sentence) &&
+    /\b(?:is not|isn't|are not|aren't|does not count|do not count)\b/i.test(sentence) &&
+    !SAYS_TOOL.test(sentence) &&
+    !/\b(?:only|except|unless|never)\b/i.test(sentence)
+  );
+}
+function narrowingPart(name, description) {
+  if (name !== 'Database') return description;
+  return description
+    .split(/;\s*|(?<=\.)\s+/)
+    .filter((sentence) => !setsApartTestDatabaseOnly(sentence))
+    .join('; ');
+}
 
 test('the database, infrastructure, Kubernetes and config domains describe behaviours, say another tool counts, and read the same in the three editions', () => {
   const blocks = {};
@@ -550,7 +576,7 @@ test('the database, infrastructure, Kubernetes and config domains describe behav
       const entry = domain(domains, name, edition);
       assert.equal(entry.header?.[3], 'Behaviour', `${edition}: the ${name} table describes behaviours`);
       assert.match(entry.description, ANOTHER_TOOL_COUNTS, `${edition}: the ${name} "where" says another tool counts: ${entry.description}`);
-      assert.doesNotMatch(entry.description, NARROWS, `${edition}: the ${name} "where" narrows the domain: ${entry.description}`);
+      assert.doesNotMatch(narrowingPart(name, entry.description), NARROWS, `${edition}: the ${name} "where" narrows the domain: ${entry.description}`);
       for (const rule of entry.rules) {
         const behaviour = ruleBehaviour(step, rule.id, edition);
         assert.doesNotMatch(behaviour, /^`/, `${edition}: ${rule.id} opens with a name, not a behaviour: ${behaviour}`);
