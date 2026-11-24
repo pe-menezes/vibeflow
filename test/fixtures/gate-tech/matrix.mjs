@@ -83,8 +83,12 @@ export const TECH_RULES = Object.freeze(Object.keys(CATALOG_TECH_1_20.rules));
 
 // A rule with no case possible in one of the three quadrants the spec asks for (`both`: the format
 // is on the rule's file line and the line holds the trigger word; `formatOff`; `wordOff`) says why
-// here. Every rule of this matrix covers the three.
-export const QUADRANT_GAPS = Object.freeze({});
+// here.
+export const QUADRANT_GAPS = Object.freeze({
+  DS103: Object.freeze({
+    wordOff: 'Emptying a whole table by a database command without writing truncate has no real form in the tools of this fixture: raw SQL, Rails (`truncate_tables`), Laravel (`truncate()`) and Sequelize (`truncate: true`) all carry the word, Django and Liquibase have no such operation, and a row delete with no condition (`.objects.all().delete()`, `<delete>`) is DS106 and DAT101, not DS103.',
+  }),
+});
 
 // --- labels --------------------------------------------------------------------------------------
 
@@ -227,7 +231,8 @@ const DATABASE = [
   ]),
   file('sql', 'db/scripts/2026_11_04_sessions.sql', [
     P('DS103', 'truncate', ['-- Log everyone out after the key rotation.'], ['TRUNCATE TABLE sessions;'], ['ANALYZE sessions;'], 'Empties the sessions table.'),
-    C('DS103', 'expired-rows', ['-- Nightly clean-up.'], ['DELETE FROM sessions WHERE expires_at < now();'], ['ANALYZE sessions;'], 'Deletes only the expired rows; the table keeps the live ones.'),
+    P('DAT101', 'expired-rows', ['-- Nightly clean-up.'], ['DELETE FROM sessions WHERE expires_at < now();'], ['ANALYZE sessions;'], 'Deletes every expired session at once: a mass delete with a filter, as the DELETE ... WHERE created_at < $1 the regression table expects flagged.'),
+    C('DS103', 'delete-by-key', ['-- Log one session out.'], ['DELETE FROM sessions WHERE id = $1;'], ['ANALYZE sessions;'], 'Deletes one session by its key; the table keeps every other row.'),
   ]),
   file('sql', 'db/scripts/2026_11_05_users.sql', [
     P('DS104', 'drop-column', ['-- legacy_email was replaced by email in 2025.'], ['ALTER TABLE users DROP COLUMN legacy_email;'], ['ANALYZE users;'], 'Drops a column with its values.'),
@@ -284,7 +289,10 @@ const DATABASE = [
     OPS('DS102', 'delete-model', '        migrations.DeleteModel(name="Invoice"),', 'Django deletes the model and drops its table, with no SQL word.'),
   ]),
   file('django-migration', 'shop/migrations/0012_empty_carts.py', [
-    OPS('DS103', 'run-python-delete-all', '        migrations.RunPython(lambda apps, schema_editor: apps.get_model("shop", "Cart").objects.all().delete()),', 'A data migration that empties the table.'),
+    OPS('DAT101', 'run-python-delete-all', '        migrations.RunPython(lambda apps, schema_editor: apps.get_model("shop", "Cart").objects.all().delete()),', 'A data migration deletes every cart through the ORM: a mass delete (a DELETE with no WHERE), not a TRUNCATE.'),
+  ]),
+  file('django-migration', 'shop/migrations/0014_truncate_cart_items.py', [
+    OPS('DS103', 'run-sql-truncate', '        migrations.RunSQL("TRUNCATE TABLE shop_cartitem;"),', 'A migration empties the cart items table with TRUNCATE.'),
   ]),
   file('django-migration', 'accounts/migrations/0015_remove_user_legacy_email.py', [
     OPS('DS104', 'remove-field', '        migrations.RemoveField(model_name="user", name="legacy_email"),', 'Django drops the column, with no SQL word.'),
@@ -308,7 +316,10 @@ const DATABASE = [
     P('DS104', 'remove-column', ['class RemoveLegacyEmailFromUsers < ActiveRecord::Migration[7.1]', '  def up'], ['    remove_column :users, :legacy_email'], ['  end', 'end'], 'Rails drops the column, with no SQL word.'),
   ]),
   file('rails-migration', 'db/migrate/20261102000003_remove_customer_from_orders.rb', [
-    P('DS105', 'remove-reference', ['class RemoveCustomerFromOrders < ActiveRecord::Migration[7.1]', '  def up'], ['    remove_reference :orders, :customer, foreign_key: true, index: true'], ['  end', 'end'], 'Rails drops the foreign key, its index and the customer_id column: a part of the table.'),
+    P('DS104', 'remove-reference', ['class RemoveCustomerFromOrders < ActiveRecord::Migration[7.1]', '  def up'], ['    remove_reference :orders, :customer, foreign_key: true, index: true'], ['  end', 'end'], 'Rails drops the customer_id column with its values, and its index and foreign key with it.'),
+  ]),
+  file('rails-migration', 'db/migrate/20261102000007_remove_customers_foreign_key_from_invoices.rb', [
+    P('DS105', 'remove-foreign-key', ['class RemoveCustomersForeignKeyFromInvoices < ActiveRecord::Migration[7.1]', '  def up'], ['    remove_foreign_key :invoices, :customers'], ['  end', 'end'], 'Rails drops the foreign key constraint of the table (ALTER TABLE ... DROP CONSTRAINT): a part of the table, no column, with no SQL word.'),
   ]),
   file('rails-migration', 'db/migrate/20261102000004_rename_orders_to_purchases.rb', [
     P('DS108', 'rename-table', ['class RenameOrdersToPurchases < ActiveRecord::Migration[7.1]', '  def change'], ['    rename_table :orders, :purchases'], ['  end', 'end'], 'Rails renames the table.'),
@@ -371,7 +382,7 @@ const INFRASTRUCTURE = [
     P('IAC104', 'firewall-rule-removed', ['resource "google_compute_network" "main" {', '  name = "main"', '}'], ['resource "google_compute_firewall" "deny_ssh_from_internet" {', '  network = google_compute_network.main.name', '  deny { protocol = "tcp" }', '}'], ['output "network_name" {', '  value = google_compute_network.main.name', '}'], 'A deny rule of the firewall taken out.'),
   ]),
   file('terraform', 'modules/database/network.tf', [
-    P('IAC104', 'security-group-detached', ['resource "aws_db_instance" "billing" {', '  identifier             = "billing"'], ['  vpc_security_group_ids = [aws_security_group.db_private.id]'], ['  db_subnet_group_name   = aws_db_subnet_group.private.name', '}'], 'The database loses its private security group and falls back to the default one of the VPC.'),
+    P('IAC104', 'acl-association-removed', ['resource "aws_subnet" "db_private" {', '  vpc_id     = aws_vpc.main.id', '  cidr_block = "10.0.20.0/24"', '}'], ['resource "aws_network_acl_association" "db_private" {', '  network_acl_id = aws_network_acl.db_private.id', '  subnet_id      = aws_subnet.db_private.id', '}'], ['output "db_subnet_id" {', '  value = aws_subnet.db_private.id', '}'], 'The database subnet loses its network ACL and goes back to the default ACL of the VPC, which allows all traffic in and out.'),
   ]),
   file('terraform', 'modules/database/network_reports.tf', [
     C('IAC104', 'security-group-attached', ['resource "aws_db_instance" "reports" {', '  identifier             = "reports"'], ['  vpc_security_group_ids = [aws_security_group.reports_private.id]'], ['  db_subnet_group_name   = aws_db_subnet_group.private.name', '}'], 'Attaches a private security group: added, and it narrows access.'),
@@ -403,8 +414,8 @@ const INFRASTRUCTURE = [
   file('cloudformation', 'templates/ci-role.yaml', [
     P('IAC103', 'admin-policy', ['  CiRole:', '    Type: AWS::IAM::Role', '    Properties:', '      ManagedPolicyArns:'], ['        - arn:aws:iam::aws:policy/AdministratorAccess'], ['      RoleName: ci'], 'Grants the CI role full administrator access.'),
   ], { head: ['Resources:'] }),
-  file('cloudformation', 'templates/database-network.yaml', [
-    P('IAC104', 'security-group-detached', ['  BillingDatabase:', '    Type: AWS::RDS::DBInstance', '    Properties:'], ['      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]'], ['      DBSubnetGroupName: !Ref PrivateSubnets'], 'The database loses its security group.'),
+  file('cloudformation', 'templates/public-network.yaml', [
+    P('IAC104', 'deny-entry-removed', ['  PublicAcl:', '    Type: AWS::EC2::NetworkAcl', '    Properties: { VpcId: !Ref Vpc }'], ['  DenyRdpFromInternet:', '    Type: AWS::EC2::NetworkAclEntry', '    Properties: { NetworkAclId: !Ref PublicAcl, RuleNumber: 90, RuleAction: deny,', '                  Protocol: 6, CidrBlock: 0.0.0.0/0, PortRange: { From: 3389, To: 3389 } }'], ['  PublicSubnetAcl:', '    Type: AWS::EC2::SubnetNetworkAclAssociation', '    Properties: { SubnetId: !Ref PublicSubnet, NetworkAclId: !Ref PublicAcl }'], 'A deny entry of the network ACL taken out: RDP from the internet is no longer blocked.'),
   ], { head: ['Resources:'] }),
   file('cloudformation', 'templates/admin-ingress.yaml', [
     P('IAC105', 'world-ipv4', ['  AdminIngress:', '    Type: AWS::EC2::SecurityGroupIngress', '    Properties:', '      IpProtocol: tcp'], ['      CidrIp: 0.0.0.0/0'], ['      FromPort: 8443', '      ToPort: 8443'], 'Opens the admin port to every address.', { was: ['      CidrIp: 10.0.0.0/16'] }),
@@ -427,8 +438,8 @@ const INFRASTRUCTURE = [
   file('pulumi', 'infra/ci.ts', [
     P('IAC103', 'admin-attachment', ['const ciRole = new aws.iam.Role("ci", { assumeRolePolicy: ciAssume.json });'], ['new aws.iam.RolePolicyAttachment("ci-admin", {', '    role: ciRole.name,', '    policyArn: "arn:aws:iam::aws:policy/AdministratorAccess",', '});'], ['export const ciRoleName = ciRole.name;'], 'Grants the CI role full administrator access.', { key: 2 }),
   ]),
-  file('pulumi', 'infra/database.ts', [
-    P('IAC104', 'security-group-detached', ['export const billing = new aws.rds.Instance("billing", {', '    instanceClass: "db.t3.medium",'], ['    vpcSecurityGroupIds: [dbSecurityGroup.id],'], ['    dbSubnetGroupName: privateSubnets.name,', '});'], 'The database loses its security group.'),
+  file('pulumi', 'infra/network-acl.ts', [
+    P('IAC104', 'deny-rule-removed', ['export const publicAcl = new aws.ec2.NetworkAcl("public", { vpcId: vpc.id });'], ['new aws.ec2.NetworkAclRule("deny-rdp-from-internet", {', '    networkAclId: publicAcl.id, ruleNumber: 90, egress: false, protocol: "tcp",', '    ruleAction: "deny", cidrBlock: "0.0.0.0/0", fromPort: 3389, toPort: 3389,', '});'], ['export const publicAclId = publicAcl.id;'], 'A deny rule of the network ACL taken out: RDP from the internet is no longer blocked.'),
   ]),
   file('pulumi', 'infra/network.ts', [
     P('IAC105', 'world-ipv4', ['export const admin = new aws.ec2.SecurityGroup("admin", {', '    vpcId: vpc.id,'], ['    ingress: [{ protocol: "tcp", fromPort: 8443, toPort: 8443, cidrBlocks: ["0.0.0.0/0"] }],'], ['});'], 'Opens the admin port to every address.'),
@@ -566,8 +577,8 @@ const CONFIG = [
   file('config-yaml', 'config/application-staging.yml', [
     C('CFG103', 'root-info', ['logging:', '  level:'], ['    root: INFO'], ['    org.hibernate.SQL: WARN'], 'The root logger at INFO.'),
   ]),
-  file('config-yaml', 'config/application-db.yml', [
-    P('CFG105', 'pool-timeout-removed', ['spring:', '  datasource:', '    hikari:'], ['      connection-timeout: 30000'], ['      maximum-pool-size: 10'], 'Takes the connection timeout of the pool out.'),
+  file('config-yaml', 'config/database.yml', [
+    P('CFG105', 'statement-timeout-removed', ['production:', '  adapter: postgresql', '  variables:'], ['    statement_timeout: 5000'], ['    application_name: billing'], 'Takes the statement timeout of the Rails connection out: the PostgreSQL default is 0, no limit, so a stuck query holds its connection forever.'),
   ]),
   file('config-yaml', 'config/application-reports.yml', [
     C('CFG105', 'pool-timeout-added', ['spring:', '  datasource:', '    hikari:'], ['      connection-timeout: 30000'], ['      maximum-pool-size: 4'], 'Adds a connection timeout.'),
@@ -616,8 +627,8 @@ const CONFIG = [
   file('ini', 'php/conf.d/app.ini', [
     P('CFG102', 'display-errors', ['[PHP]'], ['display_errors = On'], ['log_errors = On'], 'PHP prints errors and stack traces in the page: debug mode by another name.', { was: ['display_errors = Off'] }),
   ]),
-  file('ini', 'php/conf.d/limits.ini', [
-    P('CFG105', 'max-execution-time-removed', ['[PHP]', 'memory_limit = 256M'], ['max_execution_time = 30'], ['post_max_size = 16M'], 'Without the limit a request can run forever.'),
+  file('ini', 'uwsgi/billing.ini', [
+    P('CFG105', 'harakiri-removed', ['[uwsgi]', 'module = billing.wsgi:application', 'processes = 4'], ['harakiri = 30'], ['vacuum = true'], 'Takes the uWSGI request timeout (harakiri) out: it is off by default, so a stuck request holds its worker forever.'),
   ]),
   file('ini', 'php/conf.d/workers.ini', [
     D('CFG102', 'comment', ['[PHP]'], '; display_errors stays Off: debug = true is never set in production', ['expose_php = Off'], 'debug = true is in a comment.'),

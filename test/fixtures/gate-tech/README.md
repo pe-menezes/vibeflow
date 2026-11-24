@@ -15,8 +15,9 @@ calls a model or the network.
   regression cases and `CATALOG_TECH_1_20`, a frozen copy of what the 1.20.0 catalog writes in
   the four domains (the `files:` line of each domain and the id, severity, scope and trigger of
   each rule). The labels of each case are computed from it by `extensionListed` and
-  `tokenListed`, never written by hand. `QUADRANT_GAPS` would say why a rule cannot have a case in
-  a quadrant; every rule covers the three the fixture asks for, so it is empty.
+  `tokenListed`, never written by hand. `QUADRANT_GAPS` says why a rule cannot have a case in a
+  quadrant: DS103 has none without its trigger word (the reason is at the end of the table of
+  cases); every other rule covers the three the fixture asks for.
 * `make.mjs <dest>`: builds `<dest>/repo`, a git repository with two commits (the base and the
   change), and `<dest>/manifest.json`, the list of cases, with the builder of
   `gate-languages/make.mjs`. `<dest>` must be missing or empty. Author, committer and date are
@@ -59,7 +60,8 @@ reports passed together are measured one by one and summed, as in gate-languages
   at least one on its file line with its trigger word, one in a format off the file line and one
   without the trigger word (the behaviour as another tool writes it: `drop_table :orders`,
   `DeletionPolicy: Delete`, `"privileged": true` in a task definition,
-  `add_header Access-Control-Allow-Origin *`). Removed-line rules (IAC104, CFG105) plant the
+  `add_header Access-Control-Allow-Origin *`), or the reason in `QUADRANT_GAPS`. Removed-line
+  rules (IAC104, CFG105) plant the
   protection in the base and take it out in the change; IAC103, whose scope is both sides, has an
   added and a removed case.
 * **Decoys.** In each domain, for each format with a planted case of that domain, three lines
@@ -79,6 +81,10 @@ reports passed together are measured one by one and summed, as in gate-languages
   by the `.gitattributes` of its folder, as in the measured case. `Rails.cache.clear`,
   `cache.clear()`, `flush_all` and the test factory with a CPF are left out: their expected kind is
   still open.
+* **Row deletes in the matrix.** A Django data migration that deletes every row through the ORM
+  (`.objects.all().delete()`) and a SQL `DELETE` of every expired row are planted under DAT101,
+  the rule the regression table gives a mass delete, and not under DS103, whose behaviour is
+  `TRUNCATE`. They are labelled by the gate-languages `CATALOG_1_20` and ask for no decoy.
 
 ## What it does not measure
 
@@ -107,7 +113,8 @@ lines of a block.
 | sql-DS102-drop-table | planted | DS102 | yes | yes | 2 | `DROP TABLE orders_archive;` | Drops a table with its rows. |
 | sql-DS102-control-drop-view | control | DS102 | yes | no | 7 | `DROP VIEW IF EXISTS monthly_totals;` | Drops a view: no row is stored in it. |
 | sql-DS103-truncate | planted | DS103 | yes | yes | 2 | `TRUNCATE TABLE sessions;` | Empties the sessions table. |
-| sql-DS103-control-expired-rows | control | DS103 | yes | no | 7 | `DELETE FROM sessions WHERE expires_at < now();` | Deletes only the expired rows; the table keeps the live ones. |
+| sql-DAT101-expired-rows | planted | DAT101 | no | no | 7 | `DELETE FROM sessions WHERE expires_at < now();` | Deletes every expired session at once: a mass delete with a filter, as the DELETE ... WHERE created_at < $1 the regression table expects flagged. |
+| sql-DS103-control-delete-by-key | control | DS103 | yes | no | 12 | `DELETE FROM sessions WHERE id = $1;` | Deletes one session by its key; the table keeps every other row. |
 | sql-DS104-drop-column | planted | DS104 | yes | yes | 2 | `ALTER TABLE users DROP COLUMN legacy_email;` | Drops a column with its values. |
 | sql-DS104-control-add-column | control | DS104 | yes | no | 7 | `ALTER TABLE users ADD COLUMN phone text;` | Adds a column; nothing is lost. |
 | sql-DS105-drop-partition | planted | DS105 | yes | yes | 2 | `ALTER TABLE events DROP PARTITION p2025_q1;` | Drops a partition of the table with every row in it. |
@@ -132,7 +139,8 @@ lines of a block.
 | app-sql-DS102-decoy-string | decoy (string) | DS102 | no | yes | 8 | `raise PermissionError("DROP TABLE is not allowed from the application")` | DROP TABLE is in an error message. |
 | app-sql-DS103-decoy-name | decoy (name) | DS103 | no | yes | 13 | `def test_truncate_needs_the_admin_role(cursor):` | truncate is in a test name. |
 | django-migration-DS102-delete-model | planted | DS102 | yes | no | 2 | `migrations.DeleteModel(name="Invoice"),` | Django deletes the model and drops its table, with no SQL word. |
-| django-migration-DS103-run-python-delete-all | planted | DS103 | yes | no | 2 | `migrations.RunPython(lambda apps, schema_editor: apps.get_model("shop", "Cart").objects.all().delete()),` | A data migration that empties the table. |
+| django-migration-DAT101-run-python-delete-all | planted | DAT101 | yes | no | 2 | `migrations.RunPython(lambda apps, schema_editor: apps.get_model("shop", "Cart").objects.all().delete()),` | A data migration deletes every cart through the ORM: a mass delete (a DELETE with no WHERE), not a TRUNCATE. |
+| django-migration-DS103-run-sql-truncate | planted | DS103 | yes | yes | 2 | `migrations.RunSQL("TRUNCATE TABLE shop_cartitem;"),` | A migration empties the cart items table with TRUNCATE. |
 | django-migration-DS104-remove-field | planted | DS104 | yes | no | 2 | `migrations.RemoveField(model_name="user", name="legacy_email"),` | Django drops the column, with no SQL word. |
 | django-migration-DS108-alter-model-table | planted | DS108 | yes | no | 2 | `migrations.AlterModelTable(name="order", table="purchases"),` | Django renames the table of the model. |
 | django-migration-DS110-alter-field | planted | DS110 | yes | no | 2 | `migrations.AlterField(model_name="invoice", name="amount", field=models.IntegerField()),` | Django changes the column type from decimal to integer. |
@@ -141,7 +149,8 @@ lines of a block.
 | django-migration-DS103-decoy-string | decoy (string) | DS103 | yes | yes | 13 | `model_name="ledger", name="note", field=models.TextField(help_text="Append only: never TRUNCATE this table"),` | TRUNCATE is in a help text. |
 | rails-migration-DS102-drop-table | planted | DS102 | no | no | 3 | `drop_table :legacy_orders` | Rails drops the table, with no SQL word. |
 | rails-migration-DS104-remove-column | planted | DS104 | no | no | 3 | `remove_column :users, :legacy_email` | Rails drops the column, with no SQL word. |
-| rails-migration-DS105-remove-reference | planted | DS105 | no | no | 3 | `remove_reference :orders, :customer, foreign_key: true, index: true` | Rails drops the foreign key, its index and the customer_id column: a part of the table. |
+| rails-migration-DS104-remove-reference | planted | DS104 | no | no | 3 | `remove_reference :orders, :customer, foreign_key: true, index: true` | Rails drops the customer_id column with its values, and its index and foreign key with it. |
+| rails-migration-DS105-remove-foreign-key | planted | DS105 | no | no | 3 | `remove_foreign_key :invoices, :customers` | Rails drops the foreign key constraint of the table (ALTER TABLE ... DROP CONSTRAINT): a part of the table, no column, with no SQL word. |
 | rails-migration-DS108-rename-table | planted | DS108 | no | no | 3 | `rename_table :orders, :purchases` | Rails renames the table. |
 | rails-migration-DS110-change-column | planted | DS110 | no | no | 3 | `change_column :invoices, :amount, :integer` | Rails changes the column type from decimal to integer. |
 | rails-migration-DS102-decoy-comment | decoy (comment) | DS102 | no | yes | 2 | `# DROP TABLE of the ledger never happens here: it is append only` | DROP TABLE is in a comment. |
@@ -165,7 +174,7 @@ lines of a block.
 | terraform-IAC103-user-attachment-removed | planted | IAC103 | yes | yes | 4 (base) | `resource "aws_iam_user_policy_attachment" "auditor_read_only" { ⏎ user       = aws_iam_user.auditor.name ⏎ policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess" ⏎ }` | An IAM policy attachment taken out: an IAM change on a removed line. |
 | terraform-IAC103-project-owner | planted | IAC103 | yes | no | 3 | `resource "google_project_iam_member" "ci_owner" { ⏎ role   = "roles/owner" ⏎ member = "serviceAccount:ci@acme-prod.iam.gserviceaccount.com" ⏎ }` | Makes the CI service account owner of the whole project. |
 | terraform-IAC104-firewall-rule-removed | planted | IAC104 | yes | yes | 4 (base) | `resource "google_compute_firewall" "deny_ssh_from_internet" { ⏎ network = google_compute_network.main.name ⏎ deny { protocol = "tcp" } ⏎ }` | A deny rule of the firewall taken out. |
-| terraform-IAC104-security-group-detached | planted | IAC104 | yes | no | 3 (base) | `vpc_security_group_ids = [aws_security_group.db_private.id]` | The database loses its private security group and falls back to the default one of the VPC. |
+| terraform-IAC104-acl-association-removed | planted | IAC104 | yes | no | 5 (base) | `resource "aws_network_acl_association" "db_private" { ⏎ network_acl_id = aws_network_acl.db_private.id ⏎ subnet_id      = aws_subnet.db_private.id ⏎ }` | The database subnet loses its network ACL and goes back to the default ACL of the VPC, which allows all traffic in and out. |
 | terraform-IAC104-control-security-group-attached | control | IAC104 | yes | no | 3 | `vpc_security_group_ids = [aws_security_group.reports_private.id]` | Attaches a private security group: added, and it narrows access. |
 | terraform-IAC105-world-ipv4 | planted | IAC105 | yes | yes | 5 | `cidr_blocks = ["0.0.0.0/0"]` | Opens the admin port to every IPv4 address. |
 | terraform-IAC105-world-ipv6 | planted | IAC105 | yes | no | 14 | `ipv6_cidr_blocks = ["::/0"]` | Opens the metrics port to every IPv6 address. |
@@ -179,7 +188,7 @@ lines of a block.
 | cloudformation-IAC101-deletion-policy-delete | planted | IAC101 | no | no | 4 | `DeletionPolicy: Delete` | Deleting the stack deletes the database with no snapshot. |
 | cloudformation-IAC102-deletion-protection-off | planted | IAC102 | no | no | 5 | `DeletionProtection: false` | Takes the deletion protection off the cluster. |
 | cloudformation-IAC103-admin-policy | planted | IAC103 | no | no | 6 | `- arn:aws:iam::aws:policy/AdministratorAccess` | Grants the CI role full administrator access. |
-| cloudformation-IAC104-security-group-detached | planted | IAC104 | no | no | 5 (base) | `VPCSecurityGroups: [!Ref DatabaseSecurityGroup]` | The database loses its security group. |
+| cloudformation-IAC104-deny-entry-removed | planted | IAC104 | no | no | 5 (base) | `DenyRdpFromInternet: ⏎ Type: AWS::EC2::NetworkAclEntry ⏎ Properties: { NetworkAclId: !Ref PublicAcl, RuleNumber: 90, RuleAction: deny, ⏎ Protocol: 6, CidrBlock: 0.0.0.0/0, PortRange: { From: 3389, To: 3389 } }` | A deny entry of the network ACL taken out: RDP from the internet is no longer blocked. |
 | cloudformation-IAC105-world-ipv4 | planted | IAC105 | no | no | 6 | `CidrIp: 0.0.0.0/0` | Opens the admin port to every address. |
 | cloudformation-IAC106-publicly-accessible | planted | IAC106 | no | no | 5 | `PubliclyAccessible: true` | Gives the database a public address. |
 | cloudformation-IAC103-decoy-comment | decoy (comment) | IAC103 | no | yes | 2 | `# no iam_role here: roles come from the shared IAM stack` | iam_role is in a comment. |
@@ -188,7 +197,7 @@ lines of a block.
 | pulumi-IAC101-force-destroy | planted | IAC101 | no | yes | 3 | `forceDestroy: true,` | Lets Pulumi delete the bucket with every object in it. |
 | pulumi-IAC102-protect-off | planted | IAC102 | no | no | 3 | `}, { protect: false });` | Takes the Pulumi protect option off, so a destroy goes through. |
 | pulumi-IAC103-admin-attachment | planted | IAC103 | no | no | 4 | `new aws.iam.RolePolicyAttachment("ci-admin", { ⏎ role: ciRole.name, ⏎ policyArn: "arn:aws:iam::aws:policy/AdministratorAccess", ⏎ });` | Grants the CI role full administrator access. |
-| pulumi-IAC104-security-group-detached | planted | IAC104 | no | no | 3 (base) | `vpcSecurityGroupIds: [dbSecurityGroup.id],` | The database loses its security group. |
+| pulumi-IAC104-deny-rule-removed | planted | IAC104 | no | no | 2 (base) | `new aws.ec2.NetworkAclRule("deny-rdp-from-internet", { ⏎ networkAclId: publicAcl.id, ruleNumber: 90, egress: false, protocol: "tcp", ⏎ ruleAction: "deny", cidrBlock: "0.0.0.0/0", fromPort: 3389, toPort: 3389, ⏎ });` | A deny rule of the network ACL taken out: RDP from the internet is no longer blocked. |
 | pulumi-IAC105-world-ipv4 | planted | IAC105 | no | no | 3 | `ingress: [{ protocol: "tcp", fromPort: 8443, toPort: 8443, cidrBlocks: ["0.0.0.0/0"] }],` | Opens the admin port to every address. |
 | pulumi-IAC106-publicly-accessible | planted | IAC106 | no | no | 3 | `publiclyAccessible: true,` | Gives the database a public address. |
 | pulumi-IAC103-decoy-comment | decoy (comment) | IAC103 | no | yes | 2 | `// iam_policy documents come from ./policy-docs; this file creates none` | iam_policy is in a comment. |
@@ -249,7 +258,7 @@ lines of a block.
 | config-yaml-CFG102-control-debug-off | control | CFG102 | yes | no | 9 | `debug: false` | Debug mode stays off. |
 | config-yaml-CFG103-root-debug | planted | CFG103 | yes | yes | 3 | `root: DEBUG` | Sets the root logger to DEBUG. |
 | config-yaml-CFG103-control-root-info | control | CFG103 | yes | no | 3 | `root: INFO` | The root logger at INFO. |
-| config-yaml-CFG105-pool-timeout-removed | planted | CFG105 | yes | yes | 4 (base) | `connection-timeout: 30000` | Takes the connection timeout of the pool out. |
+| config-yaml-CFG105-statement-timeout-removed | planted | CFG105 | yes | yes | 4 (base) | `statement_timeout: 5000` | Takes the statement timeout of the Rails connection out: the PostgreSQL default is 0, no limit, so a stuck query holds its connection forever. |
 | config-yaml-CFG105-control-pool-timeout-added | control | CFG105 | yes | yes | 4 | `connection-timeout: 30000` | Adds a connection timeout. |
 | config-yaml-CFG102-decoy-comment | decoy (comment) | CFG102 | yes | yes | 2 | `# debug = true only in config/dev.yml, never here` | debug = true is in a comment. |
 | config-yaml-CFG105-decoy-string | decoy (string) | CFG105 | yes | yes | 8 | `gateway: "The request hit a timeout, please retry"` | timeout is in a message shown to the user. |
@@ -271,7 +280,7 @@ lines of a block.
 | dotenv-CFG105-decoy-string | decoy (string) | CFG105 | no | yes | 7 | `MAINTENANCE_MESSAGE="Requests may timeout during the upgrade"` | timeout is in a message shown to the user. |
 | dotenv-CFG103-decoy-name | decoy (name) | CFG103 | no | yes | 12 | `CRON_JOB_NAME=purge-debug-logs` | debug is in a job name. |
 | ini-CFG102-display-errors | planted | CFG102 | no | no | 2 | `display_errors = On` | PHP prints errors and stack traces in the page: debug mode by another name. |
-| ini-CFG105-max-execution-time-removed | planted | CFG105 | no | no | 3 (base) | `max_execution_time = 30` | Without the limit a request can run forever. |
+| ini-CFG105-harakiri-removed | planted | CFG105 | no | no | 4 (base) | `harakiri = 30` | Takes the uWSGI request timeout (harakiri) out: it is off by default, so a stuck request holds its worker forever. |
 | ini-CFG102-decoy-comment | decoy (comment) | CFG102 | no | yes | 2 | `; display_errors stays Off: debug = true is never set in production` | debug = true is in a comment. |
 | ini-CFG105-decoy-string | decoy (string) | CFG105 | no | yes | 7 | `message = "Requests may timeout during the upgrade"` | timeout is in a message shown to the user. |
 | ini-CFG103-decoy-name | decoy (name) | CFG103 | no | yes | 12 | `[program:debug-log-rotator]` | debug is in a program name. |
@@ -316,5 +325,5 @@ lines of a block.
 
 | Rule | Quadrant | Not covered because |
 |---|---|---|
-| none | | every rule covers the three quadrants |
+| DS103 | wordOff | Emptying a whole table by a database command without writing truncate has no real form in the tools of this fixture: raw SQL, Rails (`truncate_tables`), Laravel (`truncate()`) and Sequelize (`truncate: true`) all carry the word, Django and Liquibase have no such operation, and a row delete with no condition (`.objects.all().delete()`, `<delete>`) is DS106 and DAT101, not DS103. |
 <!-- cases:end -->

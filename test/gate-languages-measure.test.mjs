@@ -783,3 +783,33 @@ test('on the gate-tech manifest a finding on a control and one on a regression c
   assert.equal(one.status, 0, one.stderr);
   assert.match(one.stdout, /^Languages: terraform$/m);
 });
+
+// --- conserto 1 of part 2b-1: a path with no extension (the gate-tech Dockerfiles) ---------------
+
+test('a path with no extension is cited with its line, and "Dockerfile" with no line is no citation', () => {
+  assert.deepEqual(meter.citations('Looked at dockerfile/images/api/Dockerfile:3, not a finding.'), [
+    { path: 'dockerfile/images/api/Dockerfile', line: 3, lineEnd: null },
+  ]);
+  assert.deepEqual(meter.citations('See `./dockerfile/images/db/Dockerfile`:2-4.'), [
+    { path: 'dockerfile/images/db/Dockerfile', line: 2, lineEnd: 4 },
+  ]);
+  // A word of the prose followed by a colon and a number is no citation, nor is a path with no line.
+  assert.deepEqual(meter.citations('The Dockerfile exposes nothing sensitive.'), []);
+  assert.deepEqual(meter.citations('dockerfile/images/api/Dockerfile looks fine'), []);
+  assert.deepEqual(meter.citations('Dockerfile: 3 lines read, ratio:2, step:4 of the audit'), []);
+  // The paths with an extension are read as before.
+  assert.deepEqual(meter.citations('python/jobs.py:12 and `rust/jobs.rs`:3'), [
+    { path: 'python/jobs.py', line: 12, lineEnd: null },
+    { path: 'rust/jobs.rs', line: 3, lineEnd: null },
+  ]);
+});
+
+test('on the gate-tech manifest a note naming a Dockerfile with no line mentions no case', () => {
+  const manifest = [
+    { id: 'k1', kind: 'control', rule: 'CFG104', language: 'dockerfile', extension: '', path: 'dockerfile/images/api/Dockerfile', line: 3, side: 'added', extensionListed: true, tokenListed: false },
+  ];
+  const none = measure(manifest, [{ path: 'r.md', text: '### Critical Gate\nClean.\nThe Dockerfile at dockerfile/images/api/Dockerfile exposes 8080 only.\n' }]).reports[0];
+  assert.deepEqual(none.mentionedControls.ids, []);
+  const cited = measure(manifest, [{ path: 'r.md', text: '### Critical Gate\nClean.\nLooked at dockerfile/images/api/Dockerfile:3: port 8080.\n' }]).reports[0];
+  assert.deepEqual(cited.mentionedControls.ids, ['k1']);
+});

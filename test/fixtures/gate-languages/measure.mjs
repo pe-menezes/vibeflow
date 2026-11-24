@@ -133,7 +133,9 @@ const FINDING = new RegExp([
   '^\\s*[-*+]\\s+',
   '(?:\\S+\\s+)?',
   '(CRITICAL|HIGH|WARNING|INFO|ALLOWED)\\s+',
-  '\\[([A-Z]+[0-9]+)\\]\\s+',
+  // The rule id: a capital letter first, a digit last, capitals and digits between (`SEC108`,
+  // and `K8S101` with a digit in the middle).
+  '\\[([A-Z][A-Z0-9]*[0-9])\\]\\s+',
   '`?(?:\\./)?([^\\s`:]+)`?',
   '(?::(\\d+)(?:-(\\d+))?)?`?',
   '(?:\\s+\\([^)]*\\))?',
@@ -154,8 +156,10 @@ export function parseFindingLine(line) {
 }
 
 // `<path>:<line>` or `<path>:<first>-<last>` anywhere in a line, the path with or without
-// backticks and `./`.
-const CITATION = /`?((?:\.\/)?[\w.-]+(?:\/[\w.-]+)*\.\w+)`?:(\d+)(?:-(\d+))?/g;
+// backticks and `./`. The path has an extension (`python/jobs.py`) or at least one folder
+// (`dockerfile/images/api/Dockerfile`), so a file with no extension is cited by its path while a
+// lone word of the prose before a colon and a number (`step:4`) is not.
+const CITATION = /`?((?:\.\/)?(?:[\w.-]+\/)+[\w.-]+|(?:\.\/)?[\w.-]+\.\w+)`?:(\d+)(?:-(\d+))?/g;
 
 export function citations(line) {
   return [...line.matchAll(CITATION)].map((m) => ({

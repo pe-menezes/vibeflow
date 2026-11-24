@@ -220,7 +220,9 @@ test('every manifest entry has the fields of the gate-languages manifest, and id
     if (c.language === REGRESSION) assert.ok(typeof c.origin === 'string' && c.origin.length > 0, c.id);
     else {
       assert.equal(c.origin, null, c.id);
-      assert.ok(TECH_RULES.includes(c.rule), `${c.id}: ${c.rule}`);
+      // A row delete is filed under DAT101, the rule the regression table gives it, and not under a
+      // rule of the four domains whose behaviour it is not (conserto 1 of part 2b-1).
+      assert.ok(TECH_RULES.includes(c.rule) || (c.rule === 'DAT101' && c.kind === 'planted'), `${c.id}: ${c.rule}`);
     }
     assert.ok(typeof c.why === 'string' && c.why.length > 10, `${c.id} has a justification`);
     assert.ok(c.snippet.length >= 1 && c.snippet.length <= 4, `${c.id}: 1 to 4 lines`);
@@ -267,7 +269,7 @@ test('every rule covers the three quadrants the spec asks for, or says why it ca
 
 test('planted cases follow the scope of their rule: removed for r, added for a, both sides for b', () => {
   for (const c of planted()) {
-    const { scope } = CATALOG_TECH_1_20.rules[c.rule];
+    const { scope } = CATALOG_TECH_1_20.rules[c.rule] ?? languages.CATALOG_1_20.rules[c.rule];
     if (scope === 'r') assert.equal(c.side, 'removed', c.id);
     if (scope === 'a') assert.equal(c.side, 'added', c.id);
   }
@@ -280,7 +282,8 @@ test('planted cases follow the scope of their rule: removed for r, added for a, 
 });
 
 test('every format with a planted case has the three decoy kinds in each domain it is planted in', () => {
-  const pairs = new Set(planted().map((c) => `${c.language}|${domainOf(c.rule)}`));
+  // The decoys are asked for in the four domains; a DAT101 case of the matrix asks for none.
+  const pairs = new Set(planted().filter((c) => TECH_RULES.includes(c.rule)).map((c) => `${c.language}|${domainOf(c.rule)}`));
   assert.ok(pairs.size >= 10);
   for (const pair of pairs) {
     const [format, domain] = pair.split('|');
@@ -394,7 +397,7 @@ test('every label in the manifest is what the functions compute', () => {
 test('the four quadrants hold planted cases of the matrix, and the functions place each one', () => {
   for (const e of [true, false]) {
     for (const t of [true, false]) {
-      const cases = planted().filter((c) => c.extensionListed === e && c.tokenListed === t);
+      const cases = planted().filter((c) => TECH_RULES.includes(c.rule) && c.extensionListed === e && c.tokenListed === t);
       assert.ok(cases.length > 0, `quadrant ${e}/${t}`);
       for (const c of cases.slice(0, 3)) {
         assert.equal(extensionListed(c.rule, c.path), e, `${c.id} extension`);

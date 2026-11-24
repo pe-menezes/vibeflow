@@ -88,7 +88,7 @@ test('gate-tech make.mjs: a destination holding only a manifest.json is refused,
 // (`[A-Z]+[0-9]+`), so `[K8S101]` falls in `unparsed` and the six Kubernetes rules read 0 of 26.
 // Not covered by: the implementer's gate-tech meter test takes the first control and a terraform
 // case, never a Kubernetes id.
-test('the meter detects a planted case of every rule of the four domains from its finding line', { todo: 'audit p2b1 A4: [K8S101] and the other Kubernetes ids are not read' }, () => {
+test('the meter detects a planted case of every rule of the four domains from its finding line', () => {
   const lines = ['### Critical Gate'];
   const wanted = [];
   for (const rule of Object.keys(CATALOG_TECH_1_20.rules)) {
@@ -110,7 +110,7 @@ test('the meter detects a planted case of every rule of the four domains from it
 // Breaks when: a row delete is filed under DS103 to fill its quadrant without the trigger word.
 // Not covered by: the implementer's tests check the labels by function and the kinds of the
 // regression table, never what the line of a planted case does.
-test('a planted DS103 case does not delete rows one statement at a time', { todo: 'audit p2b1 A1: django-migration-DS103-run-python-delete-all is `.objects.all().delete()`' }, () => {
+test('a planted DS103 case does not delete rows one statement at a time', () => {
   const rowDelete = /\.delete\(\)|\bDELETE\s+FROM\b|<delete\b|\bdelete_all\b|\bdestroy_all\b|\bdeleteMany\b/i;
   const wrong = cases.filter((c) => c.kind === 'planted' && c.rule === 'DS103' && rowDelete.test(snippetOf(c))).map((c) => c.id);
   assert.deepEqual(wrong, []);
@@ -125,7 +125,7 @@ test('a planted DS103 case does not delete rows one statement at a time', { todo
 // DAT101 finding on it is counted by the meter as a control flagged.
 // Not covered by: the implementer's tests check that each rule has a control, never what the
 // control line does under the other rules.
-test('a control that deletes rows in SQL names one row by its key', { todo: 'audit p2b1 A2: sql-DS103-control-expired-rows deletes every expired session' }, () => {
+test('a control that deletes rows in SQL names one row by its key', () => {
   const byKey = /\bWHERE\s+\w+\s*=\s*(\$\d+|%s|\?|:\w+)/i;
   const wrong = cases.filter((c) => c.kind === 'control' && /\bDELETE\s+FROM\b/i.test(c.text) && !byKey.test(c.text)).map((c) => c.id);
   assert.deepEqual(wrong, []);
@@ -145,7 +145,7 @@ test('a control that deletes rows in SQL names one row by its key', { todo: 'aud
 // Breaks when: a removal of a value equal to the default is planted as the behaviour, and a model
 // that reads it as a no-op is counted as a miss.
 // Not covered by: the implementer's tests check the removed side and the labels, never the value.
-test('a planted CFG105 case does not remove a timeout set to the default of its tool', { todo: 'audit p2b1 A3: the Hikari and PHP cases remove the default value' }, () => {
+test('a planted CFG105 case does not remove a timeout set to the default of its tool', () => {
   const defaults = [/\bconnection-timeout:\s*30000\b/i, /\bconnectionTimeout\s*[:=]\s*30000\b/, /\bmax_execution_time\s*=\s*30\b/, /\bproxy_read_timeout\s+60s?\s*;/];
   const wrong = cases.filter((c) => c.kind === 'planted' && c.rule === 'CFG105' && defaults.some((re) => re.test(snippetOf(c)))).map((c) => c.id);
   assert.deepEqual(wrong, []);
@@ -158,7 +158,7 @@ test('a planted CFG105 case does not remove a timeout set to the default of its 
 // under DS105 to fill its quadrant without the trigger word.
 // Not covered by: the implementer's tests check the labels and the quadrants, never what the line
 // drops.
-test('a planted DS105 case does not drop a column', { todo: 'audit p2b1 A5: rails-migration-DS105-remove-reference drops customer_id' }, () => {
+test('a planted DS105 case does not drop a column', () => {
   const dropsColumn = /\bremove_reference\b|\bremove_column\b|\bremove_belongs_to\b|\bDROP\s+COLUMN\b|\bRemoveField\b|<dropColumn\b/i;
   const wrong = cases.filter((c) => c.kind === 'planted' && c.rule === 'DS105' && dropsColumn.test(snippetOf(c))).map((c) => c.id);
   assert.deepEqual(wrong, []);
@@ -170,7 +170,7 @@ test('a planted DS105 case does not drop a column', { todo: 'audit p2b1 A5: rail
 // Breaks when: the citation pattern requires an extension (`\.\w+` before `:<line>`), so a
 // Dockerfile cited in a note is never mentioned while the same note on a `.yml` is.
 // Not covered by: the implementer's tests cite only paths with an extension.
-test('a note citing a Dockerfile line of a case makes that case mentioned', { todo: 'audit p2b1 A6: CITATION needs an extension' }, () => {
+test('a note citing a Dockerfile line of a case makes that case mentioned', () => {
   const control = cases.find((c) => c.kind === 'control' && c.extension === '');
   const text = `### Critical Gate\nClean.\nLooked at ${control.path}:${control.line}: not a finding.\n`;
   const report = measure(cases, [{ path: 'r.md', text }]).reports[0];
