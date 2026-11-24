@@ -156,21 +156,101 @@ test('probe: the "where" check rejects another tool named only to be set apart, 
   assert.equal(whereSaysAnotherToolCounts('where: configuration in any format, Dockerfiles, server configuration and configuration set in code'), true);
 });
 
+// The one thing a technology "where" may set apart, measured in the second fix round of part 2b-2
+// (a `Base.metadata.drop_all(engine)` in the teardown of a `conftest.py` went from DS102 in 6 of 6
+// to 0 of 6): a sentence of its own, in the Database "where", that says the tables of a test
+// database, created or dropped in a test's setup or teardown, are not the domain's behaviour. The
+// sentence names no database but a test database, and no tool, framework, format, platform,
+// migration, SQL, file, code, script or other place, and says neither "only", "except", "unless",
+// "but", "nor" nor "never"; so it cannot carry a narrowing by the tool or a wider exclusion.
+const OTHER_PLACE =
+  /\b(?:tools?|frameworks?|formats?|platforms?|migrations?|SQL|files?|code|scripts?|seeds?|jobs?|production|staging|any|every|all|other|another|anywhere|elsewhere|whatever)\b/i;
+function setsApartTestDatabaseTablesOnly(sentence) {
+  const rest = sentence.replace(/\btest databases?\b/gi, 'TESTDB');
+  return (
+    /\bTESTDB\b/.test(rest) &&
+    !/\bdatabases?\b/i.test(rest) &&
+    /\btables?\b/i.test(rest) &&
+    /\btest(?:'s|s)?\b/i.test(rest) &&
+    /\b(?:setup|set-up|teardown|tear-down)\b/i.test(rest) &&
+    /\b(?:is not|are not|does not count|do not count)\b|\b(?:isn't|aren't)/i.test(rest) &&
+    !OTHER_PLACE.test(rest) &&
+    !/\b(?:only|except|unless|but|nor|never)\b/i.test(rest)
+  );
+}
+// The Database "where" with that one sentence left out, when it stands as a sentence of its own;
+// joined to the inclusion by a semicolon or a comma it stays, and its "not" is a narrowing.
+const withoutTestDatabaseSentence = (text) =>
+  text
+    .split(/(?<=\.)\s+/)
+    .filter((sentence) => !setsApartTestDatabaseTablesOnly(sentence))
+    .join(' ');
+const databaseWhereSaysAnotherToolCounts = (text) => whereSaysAnotherToolCounts(withoutTestDatabaseSentence(text));
+
+const DATABASE_WHERE_SAMPLE =
+  "where: SQL in `.sql` files, in migrations of any framework and inside code; a schema change written as a migration call counts as its SQL. Creating or dropping the tables of a test database in a test's setup or teardown is not this domain's behaviour";
+test('probe: the Database "where" check accepts the test-database sentence of its own and nothing wider, and still rejects another tool set apart', () => {
+  proveCheck(
+    databaseWhereSaysAnotherToolCounts,
+    DATABASE_WHERE_SAMPLE,
+    {
+      // the six of the "where" check, on the clause that says another framework counts
+      ignored: (text) => text.replace('of any framework', 'of any framework, which are ignored,'),
+      skipped: (text) => text.replace('of any framework', 'of any framework, which are skipped,'),
+      'out of scope': (text) => text.replace('of any framework', 'of any framework, which are out of scope,'),
+      'does not count': (text) => text.replace('counts as its SQL', 'does not count as its SQL'),
+      'clause gone': (text) => text.replace(', in migrations of any framework and inside code', ' and inside code'),
+      'except one': (text) => text.replace('of any framework', 'of any framework except Rails'),
+      // the test-database sentence made wider, or not a sentence of its own
+      'joined by a semicolon': (text) => text.replace('its SQL. Creating', 'its SQL; creating'),
+      'any database': (text) => text.replace('of a test database', 'of any database'),
+      'test or production': (text) => text.replace('of a test database', 'of a test or production database'),
+      'or in a migration': (text) => text.replace("setup or teardown is", 'setup or teardown, or in a migration, is'),
+      'by any framework': (text) => text.replace("setup or teardown is", 'setup or teardown by any framework is'),
+      anywhere: (text) => text.replace("in a test's setup or teardown", 'anywhere, as in a test setup or teardown,'),
+      'except production': (text) => text.replace("this domain's behaviour", "this domain's behaviour, except in production"),
+    },
+    {
+      'other words': (text) =>
+        text.replace(
+          "Creating or dropping the tables of a test database in a test's setup or teardown is not this domain's behaviour",
+          "Dropping the tables of a test database in a test's teardown, or creating them in its setup, does not count as this domain's behaviour",
+        ),
+      'sentence gone': (text) => text.replace(/\. Creating or dropping[^.]*$/, ''),
+    },
+  );
+  // The sentence counts only in the Database "where": the other domains keep the plain check.
+  assert.equal(
+    whereSaysAnotherToolCounts(
+      "where: Kubernetes manifests and the templates that produce them; the same setting in another container platform counts. Creating or dropping the tables of a test database in a test's setup or teardown is not this domain's behaviour",
+    ),
+    false,
+  );
+});
+
 // Contract: the "where" line of each of the four technology domains says, as an inclusion, that
 // the same setting in another tool, framework, format or platform counts, and sets nothing apart
 // (spec, part 2b-2, test 1: "the where line of each one says another tool counts"), in each of the
-// three editions.
+// three editions; the one exception is the measured sentence of its own in the Database "where"
+// that sets apart the tables of a test database in a test's setup or teardown (spec, "Conserto 2
+// da parte 2b-2"), and that sentence sets apart nothing wider.
 // Breaks when: a rewrite keeps the words "another tool" but sets it apart ("the same setting in
 // another container platform is ignored", "in Terraform; ... another tool is skipped"); both
-// survived a mutation of the three editions.
+// survived a mutation of the three editions. Or the test-database sentence grows into a narrowing
+// by the tool or a wider exclusion ("of any database", "or in a migration", "by any framework").
 // Missed by the implementer's tests because: their domain case asks only that "any/another/other"
-// sits next to "tool/framework/format/platform" somewhere in the line, and rejects only "only",
-// "never", "not", "except" and "unless".
+// sits next to "tool/framework/format/platform" somewhere in the line, rejects only "only",
+// "never", "not", "except" and "unless", and leaves out of that check any Database sentence that
+// speaks of a test, a setup or teardown and a table, so "the tables of any database in a test's
+// teardown are not this" passes it.
+// Rewritten by the fact in re-audit 2 of part 2b-2 (written authorization in the briefing): the
+// earlier form refused any "not" in the whole line, the measured sentence included.
 test('probe: each technology "where" says another tool counts, as an inclusion, in the three editions', () => {
   for (const [edition, step] of editions()) {
     for (const name of ['Database', 'Infrastructure (IaC)', 'Kubernetes', 'Config']) {
       const text = where(step, name);
-      assert.ok(whereSaysAnotherToolCounts(text), `${edition}: the ${name} "where" does not say another tool counts: ${text}`);
+      const check = name === 'Database' ? databaseWhereSaysAnotherToolCounts : whereSaysAnotherToolCounts;
+      assert.ok(check(text), `${edition}: the ${name} "where" does not say another tool counts: ${text}`);
     }
   }
 });
