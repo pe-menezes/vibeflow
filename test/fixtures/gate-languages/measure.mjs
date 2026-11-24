@@ -23,17 +23,23 @@
 // to a case as the nearest line of the range (0 inside it). A removed-line case (SEC101) is matched
 // by its line in the base commit. A finding within 2 lines of a planted case of another rule counts
 // as "other rule". A finding within 2 lines of a decoy, of any rule, counts as a decoy flagged.
-// Anything else is "outside the manifest". A planted case counts as detected once, however many
-// findings point at it, and only when one of them has a severity other than ALLOWED: the fixture
-// carries no `vibeflow:allow`, so every ALLOWED on it is an exception the model made up. A planted
-// case that only ALLOWED findings point at is counted apart, as allowed.
+// A finding within 2 lines of a control (`kind: "control"`, a legitimate line next to a behaviour,
+// which the gate-tech fixture carries), of any rule, counts as a control flagged, apart from the
+// decoys. Anything else is "outside the manifest". A planted case counts as detected once, however
+// many findings point at it, and only when one of them has a severity other than ALLOWED: the
+// fixture carries no `vibeflow:allow`, so every ALLOWED on it is an exception the model made up. A
+// planted case that only ALLOWED findings point at is counted apart, as allowed.
 //
 // Mentioned. A line of the section that is not a finding (a note, an unparsed item, the Clean line)
-// and cites `<path>:<line>` within 2 lines of a case, planted or decoy, that no finding detected,
-// allowed, flagged or matched as another rule, makes that case mentioned: the model saw it and did
-// not flag it. Each case is in one count only. The mentioned cases are said apart as planted (a case
-// the model saw and did not flag) and decoys (one it saw and set aside), by language, with their
-// total. The line stays listed where it already is.
+// and cites `<path>:<line>` within 2 lines of a case (planted, decoy or control) that no finding
+// detected, allowed, flagged or matched as another rule, makes that case mentioned: the model saw
+// it and did not flag it. Each case is in one count only. The mentioned cases are said apart as
+// planted (a case the model saw and did not flag) and decoys (one it saw and set aside), by
+// language, with their total; with controls in the manifest, the mentioned controls too. The line
+// stays listed where it already is.
+//
+// A manifest without controls (the gate-languages one) gets no control count in the text or the
+// JSON: the output on it is the same as before controls existed.
 //
 // --language <id>, repeatable, restricts the manifest to those languages, for a report on the diff
 // of one folder; a finding in a file of another language is then outside the manifest.
@@ -216,6 +222,8 @@ export function matchFinding(finding, manifest) {
   if (other) return { outcome: 'otherRule', caseId: other.id };
   const bait = nearest(inFile.filter((c) => c.kind === 'decoy'), at);
   if (bait) return { outcome: 'decoy', caseId: bait.id };
+  const control = nearest(inFile.filter((c) => c.kind === 'control'), at);
+  if (control) return { outcome: 'control', caseId: control.id };
   return { outcome: 'outside', caseId: null };
 }
 
@@ -260,6 +268,7 @@ function measureOne(manifest, { path, text }) {
   const detected = new Set();
   const allowedOnly = new Set();
   const flagged = new Set();
+  const controlsFlagged = new Set();
   const findings = [];
   const otherRule = [];
   const outside = [];
@@ -268,11 +277,12 @@ function measureOne(manifest, { path, text }) {
     findings.push({ ...finding, outcome, caseId });
     if (outcome === 'detected') (finding.severity === 'ALLOWED' ? allowedOnly : detected).add(caseId);
     else if (outcome === 'decoy') flagged.add(caseId);
+    else if (outcome === 'control') controlsFlagged.add(caseId);
     else if (outcome === 'otherRule') otherRule.push({ ...finding, caseId });
     else outside.push(finding);
   }
   for (const id of detected) allowedOnly.delete(id);
-  const seen = new Set([...detected, ...allowedOnly, ...flagged, ...otherRule.map((f) => f.caseId)]);
+  const seen = new Set([...detected, ...allowedOnly, ...flagged, ...controlsFlagged, ...otherRule.map((f) => f.caseId)]);
   const mentioned = new Set();
   for (const cite of section.cited) {
     const c = nearest(manifest.filter((m) => m.path === cite.path), cite);
@@ -283,6 +293,11 @@ function measureOne(manifest, { path, text }) {
     const ofKind = manifest.filter((c) => c.kind === 'decoy' && c.decoyKind === kind);
     return [kind, { flagged: ofKind.filter((c) => flagged.has(c.id)).length, total: ofKind.length }];
   }));
+  const controlCases = manifest.filter((c) => c.kind === 'control');
+  const controls = controlCases.length === 0 ? {} : {
+    controls: { flagged: controlCases.filter((c) => controlsFlagged.has(c.id)).length, total: controlCases.length, ids: controlCases.filter((c) => controlsFlagged.has(c.id)).map((c) => c.id) },
+    mentionedControls: countApart(manifest, ofKind('control')),
+  };
   return {
     report: path,
     section: { present: section.present, sections: section.sections, unclosedFences: section.unclosedFences, leftOut: section.leftOut, clean: section.clean, noDiff: section.noDiff, notes: section.notes, unparsed: section.unparsed },
@@ -293,6 +308,7 @@ function measureOne(manifest, { path, text }) {
     mentionedPlanted: countApart(manifest, ofKind('planted')),
     mentionedDecoys: countApart(manifest, ofKind('decoy')),
     decoys,
+    ...controls,
     otherRule,
     outside,
     findings,
@@ -314,6 +330,7 @@ export function measure(manifest, reports) {
   const sum = {};
   for (const m of measured) {
     add(sum, { planted: m.planted, byQuadrant: m.byQuadrant, byLanguage: m.byLanguage, byRule: m.byRule, allowed: withoutIds(m.allowed), mentioned: withoutIds(m.mentioned), mentionedPlanted: withoutIds(m.mentionedPlanted), mentionedDecoys: withoutIds(m.mentionedDecoys), decoys: m.decoys });
+    if (m.controls) add(sum, { controls: { flagged: m.controls.flagged, total: m.controls.total }, mentionedControls: withoutIds(m.mentionedControls) });
     sum.otherRule = (sum.otherRule ?? 0) + m.otherRule.length;
     sum.outside = (sum.outside ?? 0) + m.outside.length;
   }
@@ -388,7 +405,9 @@ function human(block, label) {
   out.push(`Allowed only, not counted as detected: ${perLanguage(block.allowed)}`);
   for (const id of block.allowed.ids ?? []) out.push(`  ${id}`);
   out.push(`Mentioned without a finding: ${perLanguage(block.mentioned)}`);
-  for (const [label, part] of [['planted', block.mentionedPlanted], ['decoys', block.mentionedDecoys]]) {
+  const parts = [['planted', block.mentionedPlanted], ['decoys', block.mentionedDecoys]];
+  if (block.mentionedControls) parts.push(['controls', block.mentionedControls]);
+  for (const [label, part] of parts) {
     out.push(`  ${label}: ${perLanguage(part)}`);
     for (const id of part.ids ?? []) out.push(`    ${id}`);
   }
@@ -397,6 +416,10 @@ function human(block, label) {
   out.push(table('Language', Object.entries(block.byLanguage).map(([k, v]) => [k, pct(v)])), '');
   out.push(table('Rule', Object.entries(block.byRule).map(([k, v]) => [k, pct(v)])), '');
   out.push(`Decoys flagged: ${Object.entries(block.decoys).map(([k, v]) => `${k} ${v.flagged}/${v.total}`).join(', ')}`);
+  if (block.controls) {
+    out.push(`Controls flagged: ${block.controls.flagged}/${block.controls.total}`);
+    for (const id of block.controls.ids ?? []) out.push(`  ${id}`);
+  }
   if (Array.isArray(block.otherRule)) {
     out.push(`Other rule on a planted line: ${block.otherRule.length}`);
     for (const f of block.otherRule) out.push(`  ${f.raw} (case ${f.caseId})`);

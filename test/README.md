@@ -162,3 +162,16 @@ the reports a model wrote. The suite covers the scripts
 (`gate-languages-fixture.test.mjs`, `gate-languages-measure.test.mjs`) and never
 calls a model; running one on the fixture is a separate, paid step. Its README
 says what it measures, what it does not, and lists every case.
+
+`fixtures/gate-tech/` does the same for the four technology domains of the
+Critical Gate (Database, Infrastructure, Kubernetes and Config, 25 rules): each
+rule planted in several formats (SQL, migrations of three frameworks,
+Terraform, CloudFormation, Pulumi, Kubernetes, Helm, Compose, ECS, `docker run`,
+configuration files, nginx, Dockerfiles and code), with decoys, controls that
+are legitimate lines next to the behaviour, and the regression cases measured
+by hand in part 2a. Its `make.mjs` builds the repository and the manifest with
+the gate-languages builder, and the gate-languages `gate-prompt.mjs` and
+`measure.mjs` serve it, the meter counting the controls flagged apart from the
+decoys. The suite covers it in `gate-tech-fixture.test.mjs` and in the control
+cases of `gate-languages-measure.test.mjs`, and never calls a model. Its README
+says what it measures, what it does not, and lists every case.

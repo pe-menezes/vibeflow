@@ -672,3 +672,114 @@ test('gate-prompt finds the same structure in the audit SKILL.md of this reposit
   assert.ok(output.some((line) => parseFindingLine(line)), 'the output lines hold a finding line the meter reads');
   assert.ok(!output.some((line) => /^#{1,3}\s/.test(line)));
 });
+
+// --- part 2b-1: controls, the legitimate lines next to a behaviour (the gate-tech fixture) -------
+
+const WITH_CONTROLS = [
+  ...MANIFEST,
+  { id: 'c1', kind: 'control', rule: 'SEC108', language: 'python', extension: '.py', path: 'python/jobs.py', line: 30, side: 'added', extensionListed: true, tokenListed: true },
+  { id: 'c2', kind: 'control', rule: 'DAT101', language: 'rust', extension: '.rs', path: 'rust/jobs.rs', line: 9, side: 'added', extensionListed: false, tokenListed: false },
+];
+
+test('a finding within 2 lines of a control, of any rule, is a control flagged; 3 away is not', () => {
+  assert.deepEqual(matchFinding(finding('SEC108', 'python/jobs.py', 30), WITH_CONTROLS), { outcome: 'control', caseId: 'c1' });
+  assert.deepEqual(matchFinding(finding('DAT102', 'python/jobs.py', 32), WITH_CONTROLS), { outcome: 'control', caseId: 'c1' });
+  assert.deepEqual(matchFinding(finding('SEC108', 'python/jobs.py', 28), WITH_CONTROLS), { outcome: 'control', caseId: 'c1' });
+  assert.deepEqual(matchFinding(finding('SEC108', 'python/jobs.py', 33), WITH_CONTROLS), { outcome: 'outside', caseId: null });
+  assert.deepEqual(matchFinding({ ...finding('DAT101', 'rust/jobs.rs', 5), lineEnd: 7 }, WITH_CONTROLS), { outcome: 'control', caseId: 'c2' });
+  // A planted case near the finding still wins, as before.
+  assert.deepEqual(matchFinding(finding('SEC108', 'rust/jobs.rs', 3), WITH_CONTROLS), { outcome: 'detected', caseId: 'p4' });
+});
+
+test('controls flagged are counted apart from the decoys, per report and summed, in the result', () => {
+  const one = [
+    '### Critical Gate',
+    '- 🟡 WARNING [SEC108] python/jobs.py:30 — a fixed command',
+    '- 🟡 WARNING [SEC108] python/jobs.py:31 — the same line again',
+    '- 🟡 WARNING [SEC108] python/helpers.py:7 — eval in a comment',
+  ].join('\n');
+  const two = '### Critical Gate\n- 🔴 CRITICAL [DAT101] rust/jobs.rs:9 — one record\n- 🔴 CRITICAL [DAT101] python/jobs.py:30 — one key\n';
+  const result = measure(WITH_CONTROLS, [{ path: 'a.md', text: one }, { path: 'b.md', text: two }]);
+  const [a, b] = result.reports;
+  assert.deepEqual(a.controls, { flagged: 1, total: 2, ids: ['c1'] });
+  assert.deepEqual(a.decoys.comment, { flagged: 1, total: 1 });
+  assert.equal(a.outside.length, 0);
+  assert.deepEqual(b.controls, { flagged: 2, total: 2, ids: ['c1', 'c2'] });
+  assert.deepEqual(b.decoys.comment, { flagged: 0, total: 1 });
+  assert.deepEqual(result.sum.controls, { flagged: 3, total: 4 });
+  assert.deepEqual(result.sum.decoys.comment, { flagged: 1, total: 2 });
+  assert.deepEqual(result.sum.planted, { detected: 0, total: 8 });
+});
+
+test('a control cited outside a finding and not flagged is mentioned, apart from planted cases and decoys', () => {
+  const text = '### Critical Gate\nClean.\nLooked at python/jobs.py:30 and python/helpers.py:7: neither is a finding.\n';
+  const r = measure(WITH_CONTROLS, [{ path: 'r.md', text }]).reports[0];
+  assert.deepEqual(r.mentioned, { total: 2, byLanguage: { python: 2 }, ids: ['d1', 'c1'] });
+  assert.deepEqual(r.mentionedDecoys.ids, ['d1']);
+  assert.deepEqual(r.mentionedControls, { total: 1, byLanguage: { python: 1 }, ids: ['c1'] });
+  assert.equal(r.controls.flagged, 0);
+});
+
+test('measure.mjs prints the controls flagged in the text and the JSON, per report and summed', () => {
+  const dir = tempDir('controls');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(WITH_CONTROLS));
+  const a = join(dir, 'a.md');
+  const b = join(dir, 'b.md');
+  writeFileSync(a, '### Critical Gate\n- 🟡 WARNING [SEC108] python/jobs.py:30 — a fixed command\n');
+  writeFileSync(b, '### Critical Gate\n- 🔴 CRITICAL [DAT101] rust/jobs.rs:9 — one record\nSee python/jobs.py:30.\n');
+  const human = run(MEASURE, ['--manifest', manifestPath, '--report', a, '--report', b]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.match(human.stdout, /^Controls flagged: 1\/2\n {2}c1$/m);
+  assert.match(human.stdout, /^Controls flagged: 1\/2\n {2}c2$/m);
+  assert.match(human.stdout, /^Controls flagged: 2\/4$/m);
+  assert.match(human.stdout, /^ {2}controls: 1 \(python 1\)\n {4}c1$/m);
+  const json = JSON.parse(run(MEASURE, ['--manifest', manifestPath, '--report', a, '--report', b, '--json']).stdout);
+  assert.deepEqual(json.reports[0].controls, { flagged: 1, total: 2, ids: ['c1'] });
+  assert.deepEqual(json.reports[1].controls, { flagged: 1, total: 2, ids: ['c2'] });
+  assert.deepEqual(json.sum.controls, { flagged: 2, total: 4 });
+  assert.deepEqual(json.sum.mentionedControls, { total: 1, byLanguage: { python: 1 } });
+});
+
+test('a manifest without controls, as the gate-languages one, gets no control count in the text or the JSON', () => {
+  const dir = tempDir('no-controls');
+  const manifestPath = join(dir, 'manifest.json');
+  writeFileSync(manifestPath, JSON.stringify(cases));
+  const reports = ['python-sonnet.md', 'go-opus.md', 'swift-opus.md'].flatMap((name) => ['--report', join(SAMPLES, name)]);
+  const human = run(MEASURE, ['--manifest', manifestPath, ...reports]);
+  assert.equal(human.status, 0, human.stderr);
+  assert.doesNotMatch(human.stdout, /control/i);
+  const json = JSON.parse(run(MEASURE, ['--manifest', manifestPath, ...reports, '--json']).stdout);
+  for (const block of [...json.reports, json.sum]) {
+    assert.ok(!('controls' in block), 'no controls key');
+    assert.ok(!('mentionedControls' in block), 'no mentionedControls key');
+  }
+});
+
+test('on the gate-tech manifest a finding on a control and one on a regression control are controls flagged', () => {
+  const dir = tempDir('gate-tech');
+  const dest = join(dir, 'fixture');
+  const made = run(join(ROOT, 'test/fixtures/gate-tech/make.mjs'), [dest]);
+  assert.equal(made.status, 0, made.stderr);
+  const manifestPath = join(dest, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const control = manifest.find((c) => c.kind === 'control' && c.language !== 'regression');
+  const regressionControl = manifest.find((c) => c.kind === 'control' && c.language === 'regression');
+  const planted = manifest.find((c) => c.kind === 'planted' && c.language === 'terraform');
+  const report = join(dir, 'report.md');
+  writeFileSync(report, [
+    '### Critical Gate',
+    `- 🟠 HIGH [${control.rule}] ${control.path}:${control.line} — looks like the behaviour`,
+    `- 🔴 CRITICAL [${regressionControl.rule}] \`${regressionControl.path}:${regressionControl.line}\` — looks like the behaviour`,
+    `- 🔴 CRITICAL [${planted.rule}] ${planted.path}:${planted.line} — the behaviour`,
+  ].join('\n'));
+  const json = JSON.parse(run(MEASURE, ['--manifest', manifestPath, '--report', report, '--json']).stdout);
+  const r = json.reports[0];
+  assert.deepEqual(r.controls.ids, [control.id, regressionControl.id]);
+  assert.equal(r.controls.total, manifest.filter((c) => c.kind === 'control').length);
+  assert.deepEqual(r.detectedIds, [planted.id]);
+  assert.equal(r.outside.length, 0);
+  const one = run(MEASURE, ['--manifest', manifestPath, '--language', 'terraform', '--report', report]);
+  assert.equal(one.status, 0, one.stderr);
+  assert.match(one.stdout, /^Languages: terraform$/m);
+});
